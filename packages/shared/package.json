@@ -1,0 +1,26 @@
+{
+  "name": "@turingmod/shared",
+  "version": "0.1.0",
+  "description": "Shared types and protocols for TuringMod",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "type-check": "tsc --noEmit",
+    "lint": "biome lint src",
+    "lint:fix": "biome lint --write src",
+    "check": "biome check src",
+    "check:fix": "biome check --write src"
+  },
+  "keywords": ["turingmod", "shared", "types"],
+  "author": "",
+  "license": "MIT"
+}

@@ -1,0 +1,57 @@
+{
+  "name": "turingmod",
+  "version": "0.1.0",
+  "description": "A local Twitch streamer tool with chat commands, integrations, and web UI",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend \"npm run dev -w @turingmod/backend\" \"npm run dev -w @turingmod/frontend\"",
+    "dev:backend": "npm run dev -w @turingmod/backend",
+    "dev:frontend": "npm run dev -w @turingmod/frontend",
+    "prebuild": "npm run check && npm run type-check",
+    "build": "npm run build -w @turingmod/shared && npm run build -w @turingmod/backend && npm run build -w @turingmod/frontend",
+    "build:shared": "npm run build -w @turingmod/shared",
+    "build:backend": "npm run build -w @turingmod/backend",
+    "build:frontend": "npm run build -w @turingmod/frontend",
+    "clean": "npm run clean --workspaces --if-present",
+    "type-check": "npm run type-check --workspaces --if-present",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome format .",
+    "format:fix": "biome format --write .",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "ci:lint": "biome ci .",
+    "setup-db": "tsx scripts/setup-db.ts",
+    "start": "npm run start -w @turingmod/backend",
+    "prepare": "husky"
+  },
+  "keywords": [
+    "twitch",
+    "streaming",
+    "chat",
+    "commands",
+    "integrations"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/sql.js": "^1.4.9",
+    "concurrently": "^8.2.2",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.2.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json}": ["biome check --write --no-errors-on-unmatched"]
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

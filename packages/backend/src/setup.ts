@@ -23,6 +23,7 @@ import { UserRepository } from './database/repositories/UserRepository.js';
 import { IntegrationManager } from './integrations/IntegrationManager.js';
 import { ArduinoIntegration } from './integrations/implementations/ArduinoIntegration.js';
 import { DiscordIntegration } from './integrations/implementations/DiscordIntegration.js';
+import { ObsIntegration } from './integrations/implementations/ObsIntegration.js';
 import { SoundIntegration } from './integrations/implementations/SoundIntegration.js';
 import { SpotifyIntegration } from './integrations/implementations/SpotifyIntegration.js';
 import { TwitchApiIntegration } from './integrations/implementations/TwitchApiIntegration.js';
@@ -189,6 +190,15 @@ export function setupDependencies(container: Container): void {
   );
 
   container.registerSingleton(
+    'ObsIntegration',
+    () =>
+      new ObsIntegration(
+        container.resolve<EventBus>('EventBus'),
+        container.resolve<Logger>('Logger')
+      )
+  );
+
+  container.registerSingleton(
     'SoundIntegration',
     () =>
       new SoundIntegration(
@@ -295,6 +305,7 @@ export async function initializeComponents(container: Container): Promise<void> 
   integrationManager.register(container.resolve<SpotifyIntegration>('SpotifyIntegration'));
   integrationManager.register(container.resolve<DiscordIntegration>('DiscordIntegration'));
   integrationManager.register(container.resolve<ArduinoIntegration>('ArduinoIntegration'));
+  integrationManager.register(container.resolve<ObsIntegration>('ObsIntegration'));
   integrationManager.register(container.resolve<SoundIntegration>('SoundIntegration'));
 
   // Register message handlers

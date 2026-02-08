@@ -1,5 +1,8 @@
+import { join } from 'node:path';
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel } from '@turingmod/shared';
+import type { Container } from '../../core/Container.js';
+import type { EventBus } from '../../core/EventBus.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 
 /**
@@ -13,8 +16,14 @@ export class BonkCommand implements ICommand {
   readonly permissions = [PermissionLevel.VIEWER]; // Everyone can use it
   readonly cooldown = 5; // 5 second cooldown
 
-  // In-memory bonk counter (could be stored in database)
   private bonkCounts = new Map<string, number>();
+  private eventBus: EventBus;
+  private bonkSoundPath: string;
+
+  constructor(container: Container) {
+    this.eventBus = container.resolve<EventBus>('EventBus');
+    this.bonkSoundPath = join(import.meta.dirname, '..', '..', '..', 'data', 'bonk.mp3');
+  }
 
   execute(context: CommandContext): Promise<CommandResult> {
     const { user, args } = context;
@@ -32,6 +41,10 @@ export class BonkCommand implements ICommand {
       target === user.username
         ? `${user.username} bonked themselves! (Total: ${newCount})`
         : `${user.username} bonked ${target}! (Total: ${newCount})`;
+
+    this.eventBus.emitSync<{ filePath: string }>('sound.play', {
+      filePath: this.bonkSoundPath,
+    });
 
     return Promise.resolve({
       success: true,

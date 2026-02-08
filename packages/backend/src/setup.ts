@@ -23,6 +23,7 @@ import { UserRepository } from './database/repositories/UserRepository.js';
 import { IntegrationManager } from './integrations/IntegrationManager.js';
 import { ArduinoIntegration } from './integrations/implementations/ArduinoIntegration.js';
 import { DiscordIntegration } from './integrations/implementations/DiscordIntegration.js';
+import { SoundIntegration } from './integrations/implementations/SoundIntegration.js';
 import { SpotifyIntegration } from './integrations/implementations/SpotifyIntegration.js';
 import { TwitchApiIntegration } from './integrations/implementations/TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from './integrations/implementations/TwitchAuthIntegration.js';
@@ -187,6 +188,15 @@ export function setupDependencies(container: Container): void {
       )
   );
 
+  container.registerSingleton(
+    'SoundIntegration',
+    () =>
+      new SoundIntegration(
+        container.resolve<EventBus>('EventBus'),
+        container.resolve<Logger>('Logger')
+      )
+  );
+
   // Servers (singletons)
   container.registerSingleton('HttpServer', () => {
     const config = container.resolve<TuringModConfig>('Config');
@@ -285,6 +295,7 @@ export async function initializeComponents(container: Container): Promise<void> 
   integrationManager.register(container.resolve<SpotifyIntegration>('SpotifyIntegration'));
   integrationManager.register(container.resolve<DiscordIntegration>('DiscordIntegration'));
   integrationManager.register(container.resolve<ArduinoIntegration>('ArduinoIntegration'));
+  integrationManager.register(container.resolve<SoundIntegration>('SoundIntegration'));
 
   // Register message handlers
   const messageRouter = container.resolve<MessageRouter>('MessageRouter');

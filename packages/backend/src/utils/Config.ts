@@ -36,7 +36,8 @@ export class TuringModConfig {
     this.masterPassword = process.env.MASTER_PASSWORD ?? this.generateDefaultPassword();
     this.nodeEnv = process.env.NODE_ENV ?? 'development';
     this.frontendDistPath =
-      process.env.FRONTEND_DIST_PATH ?? join(process.cwd(), 'packages', 'frontend', 'dist');
+      process.env.FRONTEND_DIST_PATH ??
+      join(import.meta.dirname, '..', '..', '..', 'frontend', 'dist');
 
     // Validate configuration
     this.validate();

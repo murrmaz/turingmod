@@ -24,6 +24,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@spotify/web-api-ts-sdk": "^1.2.0",
     "@turingmod/shared": "*",
     "@twurple/api": "^7.2.0",
     "@twurple/auth": "^7.2.0",

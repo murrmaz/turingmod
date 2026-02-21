@@ -25,7 +25,8 @@ import { ArduinoIntegration } from './integrations/implementations/ArduinoIntegr
 import { DiscordIntegration } from './integrations/implementations/DiscordIntegration.js';
 import { ObsIntegration } from './integrations/implementations/ObsIntegration.js';
 import { SoundIntegration } from './integrations/implementations/SoundIntegration.js';
-import { SpotifyIntegration } from './integrations/implementations/SpotifyIntegration.js';
+import { SpotifyApiIntegration } from './integrations/implementations/SpotifyApiIntegration.js';
+import { SpotifyAuthIntegration } from './integrations/implementations/SpotifyAuthIntegration.js';
 import { TwitchApiIntegration } from './integrations/implementations/TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from './integrations/implementations/TwitchAuthIntegration.js';
 import { TwitchEventSubIntegration } from './integrations/implementations/TwitchEventSubIntegration.js';
@@ -161,16 +162,28 @@ export function setupDependencies(container: Container): void {
       )
   );
 
-  // Register other integrations
+  // Register Spotify integrations (with dependency chain: Auth → API)
   container.registerSingleton(
-    'SpotifyIntegration',
+    'SpotifyAuthIntegration',
     () =>
-      new SpotifyIntegration(
+      new SpotifyAuthIntegration(
         container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger')
+        container.resolve<Logger>('Logger'),
+        container.resolve<IntegrationStateRepository>('IntegrationStateRepository')
       )
   );
 
+  container.registerSingleton(
+    'SpotifyApiIntegration',
+    () =>
+      new SpotifyApiIntegration(
+        container.resolve<EventBus>('EventBus'),
+        container.resolve<Logger>('Logger'),
+        container.resolve<SpotifyAuthIntegration>('SpotifyAuthIntegration')
+      )
+  );
+
+  // Register other integrations
   container.registerSingleton(
     'DiscordIntegration',
     () =>
@@ -301,8 +314,11 @@ export async function initializeComponents(container: Container): Promise<void> 
     container.resolve<TwitchEventSubIntegration>('TwitchEventSubIntegration')
   );
 
+  // Register Spotify integrations (order matters: Auth → API)
+  integrationManager.register(container.resolve<SpotifyAuthIntegration>('SpotifyAuthIntegration'));
+  integrationManager.register(container.resolve<SpotifyApiIntegration>('SpotifyApiIntegration'));
+
   // Register other integrations
-  integrationManager.register(container.resolve<SpotifyIntegration>('SpotifyIntegration'));
   integrationManager.register(container.resolve<DiscordIntegration>('DiscordIntegration'));
   integrationManager.register(container.resolve<ArduinoIntegration>('ArduinoIntegration'));
   integrationManager.register(container.resolve<ObsIntegration>('ObsIntegration'));

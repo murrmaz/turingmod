@@ -42,7 +42,7 @@ export function TwitchSetupModal({ visible, onDismiss, onSuccess }: TwitchSetupM
         config: {
           clientId: clientId.trim(),
           clientSecret: clientSecret.trim(),
-          redirectUri: 'http://localhost:8080/callback',
+          redirectUri: 'http://localhost:8080/callback/twitch',
         },
       };
 
@@ -117,7 +117,8 @@ export function TwitchSetupModal({ visible, onDismiss, onSuccess }: TwitchSetupM
               <strong>Name:</strong> TuringMod Local (or any name you prefer)
             </li>
             <li>
-              <strong>OAuth Redirect URLs:</strong> <code>http://localhost:8080/callback</code>
+              <strong>OAuth Redirect URLs:</strong>{' '}
+              <code>http://localhost:8080/callback/twitch</code>
             </li>
             <li>
               <strong>Category:</strong> Application Integration

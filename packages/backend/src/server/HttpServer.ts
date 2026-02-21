@@ -67,9 +67,20 @@ export class HttpServer {
       return;
     }
 
-    // OAuth callback endpoint
+    // OAuth callback endpoints (per-platform)
+    if (url.startsWith('/callback/twitch')) {
+      this.handleOAuthCallback('twitch-auth', url, res);
+      return;
+    }
+
+    if (url.startsWith('/callback/spotify')) {
+      this.handleOAuthCallback('spotify-auth', url, res);
+      return;
+    }
+
+    // Legacy /callback fallback (backward compatibility with existing Twitch apps)
     if (url.startsWith('/callback')) {
-      this.handleOAuthCallback(url, res);
+      this.handleOAuthCallback('twitch-auth', url, res);
       return;
     }
 
@@ -84,9 +95,9 @@ export class HttpServer {
   }
 
   /**
-   * Handle OAuth callback
+   * Handle OAuth callback for any integration
    */
-  private handleOAuthCallback(url: string, res: ServerResponse): void {
+  private handleOAuthCallback(integrationName: string, url: string, res: ServerResponse): void {
     try {
       // Parse query parameters
       const urlObj = new URL(url, `http://localhost:${this.port}`);
@@ -95,7 +106,7 @@ export class HttpServer {
       const errorDescription = urlObj.searchParams.get('error_description');
 
       if (error) {
-        this.logger.error('OAuth callback error', { error, errorDescription });
+        this.logger.error('OAuth callback error', { integrationName, error, errorDescription });
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`
           <!DOCTYPE html>
@@ -121,11 +132,11 @@ export class HttpServer {
         return;
       }
 
-      this.logger.info('OAuth callback received with code');
+      this.logger.info('OAuth callback received with code', { integrationName });
 
-      // Emit event with the code (for Twitch - could be made generic later)
+      // Emit event with the code for the appropriate integration
       this.eventBus.emit('oauth:callback', {
-        integrationName: 'twitch-auth',
+        integrationName,
         code,
       });
 
@@ -139,7 +150,7 @@ export class HttpServer {
             <title>Authorization Successful</title>
           </head>
           <body style="font-family: system-ui; padding: 40px; text-align: center;">
-            <h1>✓ Authorization Successful</h1>
+            <h1>Authorization Successful</h1>
             <p>You can close this window and return to TuringMod.</p>
             <script>
               // Try to close the window after a short delay

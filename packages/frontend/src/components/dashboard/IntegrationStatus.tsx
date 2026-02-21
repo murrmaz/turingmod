@@ -10,6 +10,8 @@ import type { IntegrationInfo } from '@turingmod/shared';
 import { useState } from 'react';
 import { useAppState } from '../../context/AppStateContext';
 import { useIntegrations } from '../../hooks/useIntegrations';
+import { SpotifyOAuthModal } from '../integrations/SpotifyOAuthModal';
+import { SpotifySetupModal } from '../integrations/SpotifySetupModal';
 import { TwitchOAuthModal } from '../integrations/TwitchOAuthModal';
 import { TwitchSetupModal } from '../integrations/TwitchSetupModal';
 
@@ -21,8 +23,15 @@ export function IntegrationStatus() {
   const { integrations, refreshIntegrations } = useAppState();
   const { startIntegration, stopIntegration, areDependenciesMet, getMissingDependencies } =
     useIntegrations();
-  const [oauthModalVisible, setOauthModalVisible] = useState(false);
-  const [setupModalVisible, setSetupModalVisible] = useState(false);
+
+  // Twitch modal state
+  const [twitchOauthVisible, setTwitchOauthVisible] = useState(false);
+  const [twitchSetupVisible, setTwitchSetupVisible] = useState(false);
+
+  // Spotify modal state
+  const [spotifyOauthVisible, setSpotifyOauthVisible] = useState(false);
+  const [spotifySetupVisible, setSpotifySetupVisible] = useState(false);
+
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const getStatusColor = (status: string): 'blue' | 'green' | 'red' | 'grey' => {
@@ -38,8 +47,12 @@ export function IntegrationStatus() {
     }
   };
 
-  const handleAuthorize = () => {
-    setOauthModalVisible(true);
+  const handleAuthorize = (integrationName: string) => {
+    if (integrationName === 'twitch-auth') {
+      setTwitchOauthVisible(true);
+    } else if (integrationName === 'spotify-auth') {
+      setSpotifyOauthVisible(true);
+    }
   };
 
   const handleStart = async (integrationName: string) => {
@@ -65,13 +78,7 @@ export function IntegrationStatus() {
   };
 
   const handleOAuthSuccess = () => {
-    // OAuth successful, refresh integrations
     refreshIntegrations();
-  };
-
-  const handleSetupSuccess = () => {
-    // Credentials saved, now open OAuth modal
-    setOauthModalVisible(true);
   };
 
   return (
@@ -109,8 +116,9 @@ export function IntegrationStatus() {
             cell: (item: IntegrationInfo) => {
               const isLoading = actionLoading === item.name;
               const isConnected = item.status === 'connected';
-              const isDisconnected = item.status === 'disconnected';
-              const isTwitchAuth = item.name === 'twitch-auth';
+              const isStartable = item.status === 'disconnected' || item.status === 'error';
+              const isOAuthIntegration =
+                item.name === 'twitch-auth' || item.name === 'spotify-auth';
 
               // Check dependencies
               const hasUnmetDependencies = !areDependenciesMet(item.name);
@@ -118,18 +126,18 @@ export function IntegrationStatus() {
 
               return (
                 <SpaceBetween direction="horizontal" size="xs">
-                  {isTwitchAuth && isDisconnected && (
+                  {isOAuthIntegration && isStartable && (
                     <Button
                       variant="primary"
                       iconName="unlocked"
-                      onClick={handleAuthorize}
+                      onClick={() => handleAuthorize(item.name)}
                       disabled={isLoading}
                     >
                       Authorize
                     </Button>
                   )}
-                  {!isTwitchAuth &&
-                    isDisconnected &&
+                  {!isOAuthIntegration &&
+                    isStartable &&
                     (hasUnmetDependencies ? (
                       <Popover
                         dismissButton={false}
@@ -195,19 +203,37 @@ export function IntegrationStatus() {
         }
       />
 
+      {/* Twitch OAuth modals */}
       <TwitchSetupModal
-        visible={setupModalVisible}
-        onDismiss={() => setSetupModalVisible(false)}
-        onSuccess={handleSetupSuccess}
+        visible={twitchSetupVisible}
+        onDismiss={() => setTwitchSetupVisible(false)}
+        onSuccess={() => setTwitchOauthVisible(true)}
       />
 
       <TwitchOAuthModal
-        visible={oauthModalVisible}
-        onDismiss={() => setOauthModalVisible(false)}
+        visible={twitchOauthVisible}
+        onDismiss={() => setTwitchOauthVisible(false)}
         onSuccess={handleOAuthSuccess}
         onNeedsSetup={() => {
-          setOauthModalVisible(false);
-          setSetupModalVisible(true);
+          setTwitchOauthVisible(false);
+          setTwitchSetupVisible(true);
+        }}
+      />
+
+      {/* Spotify OAuth modals */}
+      <SpotifySetupModal
+        visible={spotifySetupVisible}
+        onDismiss={() => setSpotifySetupVisible(false)}
+        onSuccess={() => setSpotifyOauthVisible(true)}
+      />
+
+      <SpotifyOAuthModal
+        visible={spotifyOauthVisible}
+        onDismiss={() => setSpotifyOauthVisible(false)}
+        onSuccess={handleOAuthSuccess}
+        onNeedsSetup={() => {
+          setSpotifyOauthVisible(false);
+          setSpotifySetupVisible(true);
         }}
       />
     </Container>

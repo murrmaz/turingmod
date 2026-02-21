@@ -23,6 +23,8 @@ export interface TwitchEventSubConfig {
     channelCheer?: boolean;
     streamOnline?: boolean;
     streamOffline?: boolean;
+    adBreakBegin?: boolean;
+    channelPointRedemption?: boolean;
   };
 }
 
@@ -286,6 +288,39 @@ export class TwitchEventSubIntegration implements IIntegration {
         });
       });
       this.logger.info('Subscribed to stream.offline');
+    }
+
+    // Ad Break Begin
+    if (subscriptions.adBreakBegin) {
+      await this.eventSubListener.onChannelAdBreakBegin(broadcasterId, (event) => {
+        this.eventBus.emit('twitch.ad.break', {
+          durationSeconds: event.durationSeconds,
+          startedAt: event.startDate,
+          isAutomatic: event.isAutomatic,
+          broadcasterId: event.broadcasterId,
+          broadcasterName: event.broadcasterName,
+          broadcasterDisplayName: event.broadcasterDisplayName,
+        });
+      });
+      this.logger.info('Subscribed to channel.ad_break.begin');
+    }
+
+    // Channel Point Redemption
+    if (subscriptions.channelPointRedemption) {
+      await this.eventSubListener.onChannelRedemptionAdd(broadcasterId, (event) => {
+        this.eventBus.emit('twitch.channelpoint.redemption', {
+          userId: event.userId,
+          userName: event.userName,
+          userDisplayName: event.userDisplayName,
+          rewardId: event.rewardId,
+          rewardTitle: event.rewardTitle,
+          rewardCost: event.rewardCost,
+          input: event.input,
+          status: event.status,
+          redeemedAt: event.redemptionDate,
+        });
+      });
+      this.logger.info('Subscribed to channel.channel_points_custom_reward_redemption.add');
     }
   }
 

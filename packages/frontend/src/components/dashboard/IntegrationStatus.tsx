@@ -120,8 +120,7 @@ export function IntegrationStatus() {
               const isStartable =
                 item.status === IntegrationStatusEnum.DISCONNECTED ||
                 item.status === IntegrationStatusEnum.ERROR;
-              const isOAuthIntegration =
-                item.name === 'twitch-auth' || item.name === 'spotify-auth';
+              const isOAuthIntegration = Boolean(item.oauth);
 
               // Check dependencies
               const hasUnmetDependencies = !areDependenciesMet(item.name);

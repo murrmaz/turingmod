@@ -351,8 +351,23 @@ export class IntegrationManager {
       return null;
     }
 
-    const dependencies = integration.getDependencies?.() || [];
+    return this.toIntegrationInfo(integration);
+  }
 
+  /**
+   * Get all integration statuses
+   */
+  getAllStatuses(): IntegrationInfo[] {
+    return Array.from(this.integrations.values()).map((integration) =>
+      this.toIntegrationInfo(integration)
+    );
+  }
+
+  /**
+   * Build the wire-format snapshot of an integration's current state
+   */
+  private toIntegrationInfo(integration: IIntegration): IntegrationInfo {
+    const dependencies = integration.getDependencies?.() || [];
     const errorMessage = integration.getErrorMessage?.();
 
     return {
@@ -362,26 +377,10 @@ export class IntegrationManager {
       metadata: {
         dependencies,
       },
+      ...(integration.oauth
+        ? { oauth: { callbackPath: integration.oauth.getCallbackPath() } }
+        : {}),
     };
-  }
-
-  /**
-   * Get all integration statuses
-   */
-  getAllStatuses(): IntegrationInfo[] {
-    return Array.from(this.integrations.values()).map((integration) => {
-      const dependencies = integration.getDependencies?.() || [];
-      const errorMessage = integration.getErrorMessage?.();
-
-      return {
-        name: integration.name,
-        status: integration.getStatus(),
-        ...(errorMessage ? { errorMessage } : {}),
-        metadata: {
-          dependencies,
-        },
-      };
-    });
   }
 
   /**

@@ -131,8 +131,7 @@ export function IntegrationPanel() {
                 content: (item: IntegrationInfo) => {
                   const hasUnmetDependencies = !areDependenciesMet(item.name);
                   const missingDeps = getMissingDependencies(item.name);
-                  const isOAuthIntegration =
-                    item.name === 'twitch-auth' || item.name === 'spotify-auth';
+                  const isOAuthIntegration = Boolean(item.oauth);
                   const isStartable =
                     item.status === IntegrationStatus.DISCONNECTED ||
                     item.status === IntegrationStatus.ERROR;

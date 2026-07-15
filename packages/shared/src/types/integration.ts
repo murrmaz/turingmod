@@ -30,6 +30,12 @@ export interface IntegrationInfo {
     dependencies?: string[];
     [key: string]: unknown;
   };
+
+  /** OAuth capability info, present only if this integration supports OAuth */
+  oauth?: {
+    /** HTTP callback path this integration's OAuth flow completes on */
+    callbackPath: string;
+  };
 }
 
 /**

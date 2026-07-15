@@ -30,7 +30,8 @@ const SPOTIFY_REQUIRED_SCOPES = [
   'user-read-recently-played',
 ];
 
-const SPOTIFY_REDIRECT_URI = 'http://127.0.0.1:8080/callback/spotify';
+const SPOTIFY_CALLBACK_PATH = '/callback/spotify';
+const SPOTIFY_REDIRECT_URI = `http://127.0.0.1:8080${SPOTIFY_CALLBACK_PATH}`;
 
 /**
  * Token data exposed to SpotifyApiIntegration
@@ -149,6 +150,10 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
     return this.config?.clientId ?? null;
   }
 
+  override get oauth(): IOAuthIntegration {
+    return this;
+  }
+
   /**
    * OAuth scopes this integration requires (IOAuthIntegration)
    */
@@ -175,6 +180,13 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
     }
 
     return config as unknown as Record<string, unknown>;
+  }
+
+  /**
+   * HTTP path this integration's OAuth redirect URI points at (IOAuthIntegration)
+   */
+  getCallbackPath(): string {
+    return SPOTIFY_CALLBACK_PATH;
   }
 
   /**

@@ -22,14 +22,12 @@ export interface IOAuthIntegration extends IIntegration {
 
   /** Exchange an authorization code for tokens, persisting them. */
   exchangeCode(code: string): Promise<unknown>;
-}
 
-export function isOAuthIntegration(integration: IIntegration): integration is IOAuthIntegration {
-  const candidate = integration as Partial<IOAuthIntegration>;
-  return (
-    typeof candidate.getRequiredScopes === 'function' &&
-    typeof candidate.getEnvConfig === 'function' &&
-    typeof candidate.getAuthorizationUrl === 'function' &&
-    typeof candidate.exchangeCode === 'function'
-  );
+  /**
+   * The HTTP path this integration's OAuth redirect URI points at, e.g.
+   * '/callback/twitch'. Single source of truth — HttpServer builds its
+   * callback routing table from this instead of inferring a path from the
+   * integration's name.
+   */
+  getCallbackPath(): string;
 }

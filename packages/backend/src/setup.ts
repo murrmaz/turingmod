@@ -228,6 +228,7 @@ export function setupDependencies(container: Container): void {
       config.host,
       config.frontendDistPath,
       container.resolve<EventBus>('EventBus'),
+      container.resolve<IntegrationManager>('IntegrationManager'),
       container.resolve<Logger>('Logger')
     );
   });
@@ -271,7 +272,6 @@ export function setupDependencies(container: Container): void {
     () =>
       new OAuthHandler(
         container.resolve<IntegrationManager>('IntegrationManager'),
-        container.resolve<IntegrationStateRepository>('IntegrationStateRepository'),
         container.resolve<Logger>('Logger')
       )
   );

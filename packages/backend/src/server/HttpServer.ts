@@ -3,6 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http';
 import { extname, join } from 'node:path';
 import type { EventBus } from '../core/EventBus.js';
+import type { IntegrationManager } from '../integrations/IntegrationManager.js';
 import type { Logger } from '../utils/Logger.js';
 
 /**
@@ -14,11 +15,15 @@ export class HttpServer {
   private server: Server | null = null;
   private logger: Logger;
 
+  /** OAuth callback path -> integration name, from IntegrationManager.getOAuthCallbackRoutes() */
+  private oauthCallbackRoutes = new Map<string, string>();
+
   constructor(
     private port: number,
     private host: string,
     private frontendDistPath: string,
     private eventBus: EventBus,
+    private integrationManager: IntegrationManager,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'HttpServer' });
@@ -33,6 +38,8 @@ export class HttpServer {
       port: this.port,
       frontendPath: this.frontendDistPath,
     });
+
+    this.buildOAuthCallbackRoutes();
 
     this.server = createServer(async (req, res) => {
       await this.handleRequest(req, res);
@@ -52,10 +59,24 @@ export class HttpServer {
   }
 
   /**
+   * Build the OAuth callback routing table. IntegrationManager owns the
+   * integration instances and derives the routing data itself — HttpServer
+   * only ever sees the resulting path -> integration name pairs.
+   */
+  private buildOAuthCallbackRoutes(): void {
+    this.oauthCallbackRoutes.clear();
+
+    for (const { path, integrationName } of this.integrationManager.getOAuthCallbackRoutes()) {
+      this.oauthCallbackRoutes.set(path, integrationName);
+    }
+  }
+
+  /**
    * Handle HTTP request
    */
   private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = req.url || '/';
+    const pathname = url.split('?')[0] || '/';
 
     this.logger.debug(`HTTP ${req.method} ${url}`);
 
@@ -67,20 +88,10 @@ export class HttpServer {
       return;
     }
 
-    // OAuth callback endpoints (per-platform)
-    if (url.startsWith('/callback/twitch')) {
-      this.handleOAuthCallback('twitch-auth', url, res);
-      return;
-    }
-
-    if (url.startsWith('/callback/spotify')) {
-      this.handleOAuthCallback('spotify-auth', url, res);
-      return;
-    }
-
-    // Legacy /callback fallback (backward compatibility with existing Twitch apps)
-    if (url.startsWith('/callback')) {
-      this.handleOAuthCallback('twitch-auth', url, res);
+    // OAuth callback endpoints (per-provider, from the routing table)
+    const oauthIntegrationName = this.oauthCallbackRoutes.get(pathname);
+    if (oauthIntegrationName) {
+      this.handleOAuthCallback(oauthIntegrationName, url, res);
       return;
     }
 

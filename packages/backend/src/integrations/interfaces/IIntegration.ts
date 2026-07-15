@@ -1,4 +1,5 @@
 import type { IntegrationStatus } from '@turingmod/shared';
+import type { IOAuthIntegration } from './IOAuthIntegration.js';
 
 /**
  * Integration interface
@@ -10,6 +11,13 @@ export interface IIntegration {
 
   /** Integration version */
   readonly version: string;
+
+  /**
+   * This integration's OAuth capability view, or null if it doesn't support
+   * OAuth. Callers narrow with a plain `if (integration.oauth)` check instead
+   * of a runtime type guard.
+   */
+  readonly oauth: IOAuthIntegration | null;
 
   /**
    * Initialize the integration with configuration

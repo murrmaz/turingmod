@@ -38,7 +38,8 @@ const TWITCH_REQUIRED_SCOPES = [
   'user:read:email',
 ];
 
-const TWITCH_REDIRECT_URI = 'http://localhost:8080/callback/twitch';
+const TWITCH_CALLBACK_PATH = '/callback/twitch';
+const TWITCH_REDIRECT_URI = `http://localhost:8080${TWITCH_CALLBACK_PATH}`;
 
 /**
  * Twitch Auth Integration
@@ -191,6 +192,10 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
     return this.userId;
   }
 
+  override get oauth(): IOAuthIntegration {
+    return this;
+  }
+
   /**
    * OAuth scopes this integration requires (IOAuthIntegration)
    */
@@ -217,6 +222,13 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
     }
 
     return config as unknown as Record<string, unknown>;
+  }
+
+  /**
+   * HTTP path this integration's OAuth redirect URI points at (IOAuthIntegration)
+   */
+  getCallbackPath(): string {
+    return TWITCH_CALLBACK_PATH;
   }
 
   /**

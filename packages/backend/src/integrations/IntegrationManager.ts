@@ -4,6 +4,7 @@ import type { EventBus } from '../core/EventBus.js';
 import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import type { Logger } from '../utils/Logger.js';
 import type { IIntegration } from './interfaces/IIntegration.js';
+import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 
 /**
  * Integration manager
@@ -27,6 +28,18 @@ export class IntegrationManager {
   register(integration: IIntegration): void {
     if (this.integrations.has(integration.name)) {
       throw new Error(`Integration already registered: ${integration.name}`);
+    }
+
+    if (integration.oauth) {
+      const path = integration.oauth.getCallbackPath();
+      const conflict = Array.from(this.integrations.values()).find(
+        (existing) => existing.oauth?.getCallbackPath() === path
+      );
+      if (conflict) {
+        throw new Error(
+          `OAuth callback path conflict: '${path}' is claimed by both '${conflict.name}' and '${integration.name}'`
+        );
+      }
     }
 
     this.integrations.set(integration.name, integration);
@@ -244,6 +257,89 @@ export class IntegrationManager {
    */
   getIntegration(name: string): IIntegration | null {
     return this.integrations.get(name) || null;
+  }
+
+  /**
+   * Get the OAuth callback path for every OAuth-capable registered
+   * integration. register() already guarantees paths are unique, so callers
+   * (e.g. HttpServer) get plain routing data instead of live integration
+   * instances they have no business holding onto.
+   */
+  getOAuthCallbackRoutes(): Array<{ path: string; integrationName: string }> {
+    const routes: Array<{ path: string; integrationName: string }> = [];
+
+    for (const integration of this.integrations.values()) {
+      if (integration.oauth) {
+        routes.push({
+          path: integration.oauth.getCallbackPath(),
+          integrationName: integration.name,
+        });
+      }
+    }
+
+    return routes;
+  }
+
+  /**
+   * Look up an integration and confirm it supports the OAuth flow
+   */
+  private getOAuthIntegration(name: string): IOAuthIntegration {
+    const integration = this.integrations.get(name);
+    if (!integration) {
+      throw new Error(`Integration not found: ${name}`);
+    }
+
+    if (!integration.oauth) {
+      throw new Error(`Integration does not support OAuth: ${name}`);
+    }
+
+    return integration.oauth;
+  }
+
+  /**
+   * Build the OAuth authorization URL for an integration, resolving config
+   * from previously-saved (database) credentials and falling back to
+   * environment variables for first-time setup. Required scopes always come
+   * from the integration itself, never the caller.
+   */
+  async getOAuthAuthorizationUrl(name: string): Promise<string> {
+    const integration = this.getOAuthIntegration(name);
+    const config = await this.resolveOAuthConfig(integration, name);
+    return integration.getAuthorizationUrl(config);
+  }
+
+  /**
+   * Exchange an OAuth authorization code for tokens, then enable and start
+   * the integration.
+   */
+  async completeOAuthExchange(name: string, code: string): Promise<void> {
+    const integration = this.getOAuthIntegration(name);
+    await integration.exchangeCode(code);
+    await this.stateRepository.updateEnabled(name, true);
+    await this.startIntegration(name);
+  }
+
+  /**
+   * Resolve the config needed to build an authorization URL: prefer
+   * previously-saved (database) credentials, falling back to environment
+   * variables for first-time setup.
+   */
+  private async resolveOAuthConfig(
+    integration: IOAuthIntegration,
+    name: string
+  ): Promise<Record<string, unknown>> {
+    try {
+      const decryptedConfig = await this.stateRepository.getDecryptedConfig(name);
+      if (decryptedConfig?.clientId && decryptedConfig.clientSecret) {
+        this.logger.info(`Loaded ${name} credentials from database`);
+        return { ...decryptedConfig, scopes: integration.getRequiredScopes() };
+      }
+    } catch (error) {
+      this.logger.warn(`Could not load ${name} config from database`, error);
+    }
+
+    this.logger.info(`Falling back to environment variables for ${name}`);
+    return integration.getEnvConfig();
   }
 
   /**

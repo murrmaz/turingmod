@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { IntegrationStatus } from '@turingmod/shared';
 import type { Logger } from '../utils/Logger.js';
 import type { IIntegration } from './interfaces/IIntegration.js';
+import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 
 /**
  * Shared status/error/event-emitter plumbing for IIntegration implementations.
@@ -24,6 +25,14 @@ export abstract class BaseIntegration implements IIntegration {
   abstract initialize(config: Record<string, unknown>): Promise<void>;
   abstract start(): Promise<void>;
   abstract stop(): Promise<void>;
+
+  /**
+   * This integration's OAuth capability view. Defaults to null; OAuth-capable
+   * integrations override this getter to return `this`.
+   */
+  get oauth(): IOAuthIntegration | null {
+    return null;
+  }
 
   getStatus(): IntegrationStatus {
     return this.status;

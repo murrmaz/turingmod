@@ -1,4 +1,3 @@
-import { EventEmitter } from 'node:events';
 import { IntegrationStatus, PermissionLevel } from '@turingmod/shared';
 import type { ApiClient, HelixUser } from '@twurple/api';
 import type { RefreshingAuthProvider } from '@twurple/auth';
@@ -6,7 +5,7 @@ import type { EventSubChannelChatMessageEvent } from '@twurple/eventsub-base';
 import { EventSubWsListener } from '@twurple/eventsub-ws';
 import type { EventBus } from '../../core/EventBus.js';
 import type { Logger } from '../../utils/Logger.js';
-import type { IIntegration } from '../interfaces/IIntegration.js';
+import { BaseIntegration } from '../BaseIntegration.js';
 import type { TwitchApiIntegration } from './TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
@@ -40,17 +39,13 @@ export interface TwitchEventSubConfig {
  *
  * Depends on: TwitchAuthIntegration, TwitchApiIntegration
  */
-export class TwitchEventSubIntegration implements IIntegration {
+export class TwitchEventSubIntegration extends BaseIntegration {
   readonly name = 'twitch-eventsub';
   readonly version = '1.0.0';
 
-  private status: IntegrationStatus = IntegrationStatus.DISCONNECTED;
-  private errorMessage: string | undefined;
   private eventSubListener: EventSubWsListener | null = null;
   private config: TwitchEventSubConfig | null = null;
   private broadcasterId: string | null = null;
-  private events = new EventEmitter();
-  private logger: Logger;
   private authProvider: RefreshingAuthProvider | null = null;
   private apiClient: ApiClient | null = null;
 
@@ -60,7 +55,7 @@ export class TwitchEventSubIntegration implements IIntegration {
     private authIntegration: TwitchAuthIntegration,
     private apiIntegration: TwitchApiIntegration
   ) {
-    this.logger = logger.child({ integration: 'TwitchEventSub' });
+    super(logger, { integration: 'TwitchEventSub' });
   }
 
   /**
@@ -169,27 +164,11 @@ export class TwitchEventSubIntegration implements IIntegration {
     this.logger.info('Twitch EventSub integration stopped');
   }
 
-  getStatus(): IntegrationStatus {
-    return this.status;
-  }
-
-  getErrorMessage(): string | undefined {
-    return this.errorMessage;
-  }
-
   /**
    * Get the resolved broadcaster ID (available after start)
    */
   getBroadcasterId(): string | null {
     return this.broadcasterId;
-  }
-
-  on(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.on(event, handler);
-  }
-
-  off(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.off(event, handler);
   }
 
   /**
@@ -385,14 +364,5 @@ export class TwitchEventSubIntegration implements IIntegration {
     if (badgeNames.includes('subscriber')) return PermissionLevel.SUBSCRIBER;
 
     return PermissionLevel.VIEWER;
-  }
-
-  /**
-   * Set integration status and emit event
-   */
-  private setStatus(status: IntegrationStatus, errorMessage?: string): void {
-    this.status = status;
-    this.errorMessage = status === IntegrationStatus.ERROR ? errorMessage : undefined;
-    this.events.emit('status', status);
   }
 }

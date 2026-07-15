@@ -1,10 +1,9 @@
-import { EventEmitter } from 'node:events';
 import { SpotifyApi } from '@spotify/web-api-ts-sdk';
 import type { PlaybackState } from '@spotify/web-api-ts-sdk';
 import { IntegrationStatus } from '@turingmod/shared';
 import type { EventBus } from '../../core/EventBus.js';
 import type { Logger } from '../../utils/Logger.js';
-import type { IIntegration } from '../interfaces/IIntegration.js';
+import { BaseIntegration } from '../BaseIntegration.js';
 import type { SpotifyAuthIntegration, SpotifyTokenData } from './SpotifyAuthIntegration.js';
 
 /**
@@ -23,15 +22,11 @@ export type SpotifyApiConfig = Record<string, unknown>;
  *
  * Depends on: SpotifyAuthIntegration
  */
-export class SpotifyApiIntegration implements IIntegration {
+export class SpotifyApiIntegration extends BaseIntegration {
   readonly name = 'spotify-api';
   readonly version = '1.0.0';
 
-  private status: IntegrationStatus = IntegrationStatus.DISCONNECTED;
-  private errorMessage: string | undefined;
   private sdk: SpotifyApi | null = null;
-  private events = new EventEmitter();
-  private logger: Logger;
   private tokenRefreshUnsubscribe: (() => void) | null = null;
 
   constructor(
@@ -39,7 +34,7 @@ export class SpotifyApiIntegration implements IIntegration {
     logger: Logger,
     private authIntegration: SpotifyAuthIntegration
   ) {
-    this.logger = logger.child({ integration: 'SpotifyAPI' });
+    super(logger, { integration: 'SpotifyAPI' });
   }
 
   /**
@@ -115,22 +110,6 @@ export class SpotifyApiIntegration implements IIntegration {
     return Promise.resolve();
   }
 
-  getStatus(): IntegrationStatus {
-    return this.status;
-  }
-
-  getErrorMessage(): string | undefined {
-    return this.errorMessage;
-  }
-
-  on(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.on(event, handler);
-  }
-
-  off(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.off(event, handler);
-  }
-
   /**
    * Get the SDK instance for direct use by commands
    */
@@ -202,14 +181,5 @@ export class SpotifyApiIntegration implements IIntegration {
       expires_in: tokenData.expiresIn,
       refresh_token: tokenData.refreshToken,
     });
-  }
-
-  /**
-   * Set integration status and emit event
-   */
-  private setStatus(status: IntegrationStatus, errorMessage?: string): void {
-    this.status = status;
-    this.errorMessage = status === IntegrationStatus.ERROR ? errorMessage : undefined;
-    this.events.emit('status', status);
   }
 }

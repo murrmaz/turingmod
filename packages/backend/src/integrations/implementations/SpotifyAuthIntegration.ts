@@ -1,9 +1,9 @@
-import { EventEmitter } from 'node:events';
 import { IntegrationStatus } from '@turingmod/shared';
 import type { EventBus } from '../../core/EventBus.js';
 import type { IntegrationStateRepository } from '../../database/repositories/IntegrationStateRepository.js';
 import type { Logger } from '../../utils/Logger.js';
-import type { IIntegration } from '../interfaces/IIntegration.js';
+import { BaseIntegration } from '../BaseIntegration.js';
+import type { IOAuthIntegration } from '../interfaces/IOAuthIntegration.js';
 
 /**
  * Spotify Auth Configuration
@@ -18,6 +18,19 @@ export interface SpotifyAuthConfig {
   expiresIn?: number;
   obtainmentTimestamp?: number;
 }
+
+/**
+ * Required OAuth scopes for the Spotify integration.
+ * Single source of truth — the frontend and OAuthHandler should not specify scopes.
+ */
+const SPOTIFY_REQUIRED_SCOPES = [
+  'user-read-currently-playing',
+  'user-read-playback-state',
+  'user-modify-playback-state',
+  'user-read-recently-played',
+];
+
+const SPOTIFY_REDIRECT_URI = 'http://127.0.0.1:8080/callback/spotify';
 
 /**
  * Token data exposed to SpotifyApiIntegration
@@ -39,22 +52,18 @@ export interface SpotifyTokenData {
  * - On-demand token refresh (called by SpotifyApiIntegration on 401)
  * - Providing valid tokens to SpotifyApiIntegration
  */
-export class SpotifyAuthIntegration implements IIntegration {
+export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthIntegration {
   readonly name = 'spotify-auth';
   readonly version = '1.0.0';
 
-  private status: IntegrationStatus = IntegrationStatus.DISCONNECTED;
-  private errorMessage: string | undefined;
   private config: SpotifyAuthConfig | null = null;
-  private events = new EventEmitter();
-  private logger: Logger;
 
   constructor(
     private eventBus: EventBus,
     logger: Logger,
     private stateRepo: IntegrationStateRepository
   ) {
-    this.logger = logger.child({ integration: 'SpotifyAuth' });
+    super(logger, { integration: 'SpotifyAuth' });
   }
 
   initialize(config: Record<string, unknown>): Promise<void> {
@@ -65,6 +74,13 @@ export class SpotifyAuthIntegration implements IIntegration {
     // Validate config
     if (!(this.config.clientId && this.config.clientSecret)) {
       throw new Error('Missing clientId or clientSecret in configuration');
+    }
+
+    // Callers (e.g. the setup UI) intentionally omit scopes — this integration
+    // is the single source of truth for them. Fill them in so getAuthorizationUrl()
+    // never sees an undefined/empty scopes array.
+    if (!this.config.scopes || this.config.scopes.length === 0) {
+      this.config.scopes = this.getRequiredScopes();
     }
 
     this.logger.info('Spotify Auth integration initialized');
@@ -85,7 +101,7 @@ export class SpotifyAuthIntegration implements IIntegration {
       this.setStatus(IntegrationStatus.DISCONNECTED);
       this.eventBus.emit('integration.auth-required', {
         integration: this.name,
-        authUrl: this.getAuthorizationUrl(this.config),
+        authUrl: this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>),
       });
       return Promise.resolve();
     }
@@ -108,22 +124,6 @@ export class SpotifyAuthIntegration implements IIntegration {
 
     this.logger.info('Spotify Auth integration stopped');
     return Promise.resolve();
-  }
-
-  getStatus(): IntegrationStatus {
-    return this.status;
-  }
-
-  getErrorMessage(): string | undefined {
-    return this.errorMessage;
-  }
-
-  on(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.on(event, handler);
-  }
-
-  off(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.off(event, handler);
   }
 
   /**
@@ -150,14 +150,43 @@ export class SpotifyAuthIntegration implements IIntegration {
   }
 
   /**
+   * OAuth scopes this integration requires (IOAuthIntegration)
+   */
+  getRequiredScopes(): string[] {
+    return SPOTIFY_REQUIRED_SCOPES;
+  }
+
+  /**
+   * Build a config from environment variables, for first-time setup before
+   * any config has been saved to the database (IOAuthIntegration).
+   */
+  getEnvConfig(): Record<string, unknown> {
+    const config: SpotifyAuthConfig = {
+      clientId: process.env.SPOTIFY_CLIENT_ID || '',
+      clientSecret: process.env.SPOTIFY_CLIENT_SECRET || '',
+      redirectUri: SPOTIFY_REDIRECT_URI,
+      scopes: SPOTIFY_REQUIRED_SCOPES,
+    };
+
+    if (!(config.clientId && config.clientSecret)) {
+      throw new Error(
+        'Spotify credentials not configured. Please configure Client ID and Client Secret.'
+      );
+    }
+
+    return config as unknown as Record<string, unknown>;
+  }
+
+  /**
    * Generate OAuth authorization URL
    */
-  getAuthorizationUrl(config: SpotifyAuthConfig): string {
+  getAuthorizationUrl(config: Record<string, unknown>): string {
+    const { clientId, redirectUri, scopes } = config as unknown as SpotifyAuthConfig;
     const params = new URLSearchParams({
-      client_id: config.clientId,
+      client_id: clientId,
       response_type: 'code',
-      redirect_uri: config.redirectUri,
-      scope: config.scopes.join(' '),
+      redirect_uri: redirectUri,
+      scope: scopes.join(' '),
     });
 
     return `https://accounts.spotify.com/authorize?${params.toString()}`;
@@ -244,7 +273,7 @@ export class SpotifyAuthIntegration implements IIntegration {
       if (this.config) {
         this.eventBus.emit('integration.auth-required', {
           integration: this.name,
-          authUrl: this.getAuthorizationUrl(this.config),
+          authUrl: this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>),
         });
       }
       throw new Error(`Token refresh failed: ${error}`);
@@ -304,14 +333,5 @@ export class SpotifyAuthIntegration implements IIntegration {
       updatedConfig as unknown as Record<string, unknown>,
       true
     );
-  }
-
-  /**
-   * Set integration status and emit event
-   */
-  private setStatus(status: IntegrationStatus, errorMessage?: string): void {
-    this.status = status;
-    this.errorMessage = status === IntegrationStatus.ERROR ? errorMessage : undefined;
-    this.events.emit('status', status);
   }
 }

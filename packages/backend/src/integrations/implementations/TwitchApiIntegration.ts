@@ -1,4 +1,3 @@
-import { EventEmitter } from 'node:events';
 import { IntegrationStatus } from '@turingmod/shared';
 import { ApiClient } from '@twurple/api';
 import type {
@@ -9,7 +8,7 @@ import type {
 import type { RefreshingAuthProvider } from '@twurple/auth';
 import type { EventBus } from '../../core/EventBus.js';
 import type { Logger } from '../../utils/Logger.js';
-import type { IIntegration } from '../interfaces/IIntegration.js';
+import { BaseIntegration } from '../BaseIntegration.js';
 import type { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
 /**
@@ -38,15 +37,11 @@ export interface ShoutoutResult {
  *
  * Depends on: TwitchAuthIntegration
  */
-export class TwitchApiIntegration implements IIntegration {
+export class TwitchApiIntegration extends BaseIntegration {
   readonly name = 'twitch-api';
   readonly version = '1.0.0';
 
-  private status: IntegrationStatus = IntegrationStatus.DISCONNECTED;
-  private errorMessage: string | undefined;
   private apiClient: ApiClient | null = null;
-  private events = new EventEmitter();
-  private logger: Logger;
   private authProvider: RefreshingAuthProvider | null = null;
   private shoutoutCooldowns = new Map<string, number>();
   private lastShoutoutTimestamp = 0;
@@ -56,7 +51,7 @@ export class TwitchApiIntegration implements IIntegration {
     logger: Logger,
     private authIntegration: TwitchAuthIntegration
   ) {
-    this.logger = logger.child({ integration: 'TwitchAPI' });
+    super(logger, { integration: 'TwitchAPI' });
   }
 
   /**
@@ -118,22 +113,6 @@ export class TwitchApiIntegration implements IIntegration {
 
     this.logger.info('Twitch API integration stopped');
     return Promise.resolve();
-  }
-
-  getStatus(): IntegrationStatus {
-    return this.status;
-  }
-
-  getErrorMessage(): string | undefined {
-    return this.errorMessage;
-  }
-
-  on(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.on(event, handler);
-  }
-
-  off(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.off(event, handler);
   }
 
   /**
@@ -541,14 +520,5 @@ export class TwitchApiIntegration implements IIntegration {
    */
   async setContentClassificationLabels(userId: string, labelIds: string[]): Promise<void> {
     await this.updateChannelInfo(userId, { contentClassificationLabels: labelIds });
-  }
-
-  /**
-   * Set integration status and emit event
-   */
-  private setStatus(status: IntegrationStatus, errorMessage?: string): void {
-    this.status = status;
-    this.errorMessage = status === IntegrationStatus.ERROR ? errorMessage : undefined;
-    this.events.emit('status', status);
   }
 }

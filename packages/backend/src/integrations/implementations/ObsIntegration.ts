@@ -1,9 +1,8 @@
-import { EventEmitter } from 'node:events';
 import { IntegrationStatus } from '@turingmod/shared';
 import OBSWebSocket from 'obs-websocket-js';
 import type { EventBus } from '../../core/EventBus.js';
 import type { Logger } from '../../utils/Logger.js';
-import type { IIntegration } from '../interfaces/IIntegration.js';
+import { BaseIntegration } from '../BaseIntegration.js';
 
 interface ObsConfig {
   url: string | undefined;
@@ -51,14 +50,10 @@ export interface ObsStreamStatus {
 
 const DEFAULT_OBS_URL = 'ws://127.0.0.1:4455';
 
-export class ObsIntegration implements IIntegration {
+export class ObsIntegration extends BaseIntegration {
   readonly name = 'obs';
   readonly version = '1.0.0';
 
-  private status: IntegrationStatus = IntegrationStatus.DISCONNECTED;
-  private errorMessage: string | undefined;
-  private events = new EventEmitter();
-  private logger: Logger;
   private obs: OBSWebSocket = new OBSWebSocket();
   private config: ObsConfig = { url: undefined, password: undefined };
 
@@ -66,7 +61,7 @@ export class ObsIntegration implements IIntegration {
     private eventBus: EventBus,
     logger: Logger
   ) {
-    this.logger = logger.child({ component: 'ObsIntegration' });
+    super(logger, { component: 'ObsIntegration' });
   }
 
   initialize(config: Record<string, unknown>): Promise<void> {
@@ -108,22 +103,6 @@ export class ObsIntegration implements IIntegration {
 
     this.setStatus(IntegrationStatus.DISCONNECTED);
     this.logger.info('OBS integration stopped');
-  }
-
-  getStatus(): IntegrationStatus {
-    return this.status;
-  }
-
-  getErrorMessage(): string | undefined {
-    return this.errorMessage;
-  }
-
-  on(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.on(event, handler);
-  }
-
-  off(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.off(event, handler);
   }
 
   /**
@@ -355,13 +334,6 @@ export class ObsIntegration implements IIntegration {
       'code' in error &&
       typeof (error as { code: unknown }).code === 'number'
     );
-  }
-
-  private setStatus(status: IntegrationStatus, errorMessage?: string): void {
-    this.status = status;
-    this.errorMessage = status === IntegrationStatus.ERROR ? errorMessage : undefined;
-
-    this.events.emit('status', status);
   }
 
   private subscribeToObsEvents(): void {

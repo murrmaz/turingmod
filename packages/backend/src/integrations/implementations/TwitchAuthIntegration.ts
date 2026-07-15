@@ -1,11 +1,11 @@
-import { EventEmitter } from 'node:events';
 import { IntegrationStatus } from '@turingmod/shared';
 import type { AccessToken, RefreshingAuthProvider } from '@twurple/auth';
 import { RefreshingAuthProvider as TwurpleRefreshingAuthProvider } from '@twurple/auth';
 import type { EventBus } from '../../core/EventBus.js';
 import type { IntegrationStateRepository } from '../../database/repositories/IntegrationStateRepository.js';
 import type { Logger } from '../../utils/Logger.js';
-import type { IIntegration } from '../interfaces/IIntegration.js';
+import { BaseIntegration } from '../BaseIntegration.js';
+import type { IOAuthIntegration } from '../interfaces/IOAuthIntegration.js';
 
 /**
  * Twitch Auth Configuration
@@ -22,6 +22,25 @@ export interface TwitchAuthConfig {
 }
 
 /**
+ * Required OAuth scopes for the Twitch integration.
+ * Single source of truth — the frontend and OAuthHandler should not specify scopes.
+ */
+const TWITCH_REQUIRED_SCOPES = [
+  'chat:read',
+  'chat:edit',
+  'user:read:chat',
+  'user:write:chat',
+  'channel:read:subscriptions',
+  'moderator:read:followers',
+  'moderator:manage:banned_users',
+  'moderator:manage:chat_messages',
+  'moderator:manage:warnings',
+  'user:read:email',
+];
+
+const TWITCH_REDIRECT_URI = 'http://localhost:8080/callback/twitch';
+
+/**
  * Twitch Auth Integration
  * Handles OAuth flow, token storage, and token refresh
  *
@@ -31,24 +50,20 @@ export interface TwitchAuthConfig {
  * - Automatic token refresh
  * - Providing valid tokens to other Twitch integrations
  */
-export class TwitchAuthIntegration implements IIntegration {
+export class TwitchAuthIntegration extends BaseIntegration implements IOAuthIntegration {
   readonly name = 'twitch-auth';
   readonly version = '1.0.0';
 
-  private status: IntegrationStatus = IntegrationStatus.DISCONNECTED;
-  private errorMessage: string | undefined;
   private authProvider: RefreshingAuthProvider | null = null;
   private config: TwitchAuthConfig | null = null;
   private userId: string | null = null;
-  private events = new EventEmitter();
-  private logger: Logger;
 
   constructor(
     private eventBus: EventBus,
     logger: Logger,
     private stateRepo: IntegrationStateRepository
   ) {
-    this.logger = logger.child({ integration: 'TwitchAuth' });
+    super(logger, { integration: 'TwitchAuth' });
   }
 
   initialize(config: Record<string, unknown>): Promise<void> {
@@ -59,6 +74,13 @@ export class TwitchAuthIntegration implements IIntegration {
     // Validate config
     if (!(this.config.clientId && this.config.clientSecret)) {
       throw new Error('Missing clientId or clientSecret in configuration');
+    }
+
+    // Callers (e.g. the setup UI) intentionally omit scopes — this integration
+    // is the single source of truth for them. Fill them in so getAuthorizationUrl()
+    // never sees an undefined/empty scopes array.
+    if (!this.config.scopes || this.config.scopes.length === 0) {
+      this.config.scopes = this.getRequiredScopes();
     }
 
     this.logger.info('Twitch Auth integration initialized');
@@ -80,7 +102,7 @@ export class TwitchAuthIntegration implements IIntegration {
         this.setStatus(IntegrationStatus.DISCONNECTED);
         this.eventBus.emit('integration.auth-required', {
           integration: this.name,
-          authUrl: this.getAuthorizationUrl(this.config),
+          authUrl: this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>),
         });
         return;
       }
@@ -123,7 +145,7 @@ export class TwitchAuthIntegration implements IIntegration {
         if (this.config) {
           this.eventBus.emit('integration.auth-required', {
             integration: this.name,
-            authUrl: this.getAuthorizationUrl(this.config),
+            authUrl: this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>),
           });
         }
       });
@@ -155,22 +177,6 @@ export class TwitchAuthIntegration implements IIntegration {
     return Promise.resolve();
   }
 
-  getStatus(): IntegrationStatus {
-    return this.status;
-  }
-
-  getErrorMessage(): string | undefined {
-    return this.errorMessage;
-  }
-
-  on(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.on(event, handler);
-  }
-
-  off(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.off(event, handler);
-  }
-
   /**
    * Get the auth provider for use by other integrations
    */
@@ -186,14 +192,43 @@ export class TwitchAuthIntegration implements IIntegration {
   }
 
   /**
+   * OAuth scopes this integration requires (IOAuthIntegration)
+   */
+  getRequiredScopes(): string[] {
+    return TWITCH_REQUIRED_SCOPES;
+  }
+
+  /**
+   * Build a config from environment variables, for first-time setup before
+   * any config has been saved to the database (IOAuthIntegration).
+   */
+  getEnvConfig(): Record<string, unknown> {
+    const config: TwitchAuthConfig = {
+      clientId: process.env.TWITCH_CLIENT_ID || '',
+      clientSecret: process.env.TWITCH_CLIENT_SECRET || '',
+      redirectUri: TWITCH_REDIRECT_URI,
+      scopes: TWITCH_REQUIRED_SCOPES,
+    };
+
+    if (!(config.clientId && config.clientSecret)) {
+      throw new Error(
+        'Twitch credentials not configured. Please configure Client ID and Client Secret.'
+      );
+    }
+
+    return config as unknown as Record<string, unknown>;
+  }
+
+  /**
    * Generate OAuth authorization URL
    */
-  getAuthorizationUrl(config: TwitchAuthConfig): string {
+  getAuthorizationUrl(config: Record<string, unknown>): string {
+    const { clientId, redirectUri, scopes } = config as unknown as TwitchAuthConfig;
     const params = new URLSearchParams({
-      client_id: config.clientId,
-      redirect_uri: config.redirectUri,
+      client_id: clientId,
+      redirect_uri: redirectUri,
       response_type: 'code',
-      scope: config.scopes.join(' '),
+      scope: scopes.join(' '),
     });
 
     return `https://id.twitch.tv/oauth2/authorize?${params.toString()}`;
@@ -285,14 +320,5 @@ export class TwitchAuthIntegration implements IIntegration {
       updatedConfig as unknown as Record<string, unknown>,
       true
     );
-  }
-
-  /**
-   * Set integration status and emit event
-   */
-  private setStatus(status: IntegrationStatus, errorMessage?: string): void {
-    this.status = status;
-    this.errorMessage = status === IntegrationStatus.ERROR ? errorMessage : undefined;
-    this.events.emit('status', status);
   }
 }

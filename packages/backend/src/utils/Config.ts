@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { DEFAULT_HOST, DEFAULT_WS_PORT } from '@turingmod/shared';
 import type { LevelWithSilentOrString } from 'pino';
 
@@ -35,9 +36,9 @@ export class TuringModConfig {
     this.logLevel = this.parseLogLevel(process.env.LOG_LEVEL);
     this.masterPassword = process.env.MASTER_PASSWORD ?? this.generateDefaultPassword();
     this.nodeEnv = process.env.NODE_ENV ?? 'development';
+    const dirname = fileURLToPath(new URL('.', import.meta.url));
     this.frontendDistPath =
-      process.env.FRONTEND_DIST_PATH ??
-      join(import.meta.dirname, '..', '..', '..', 'frontend', 'dist');
+      process.env.FRONTEND_DIST_PATH ?? join(dirname, '..', '..', '..', 'frontend', 'dist');
 
     // Validate configuration
     this.validate();

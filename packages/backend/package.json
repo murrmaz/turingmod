@@ -29,6 +29,7 @@
     "@twurple/api": "^7.2.0",
     "@twurple/auth": "^7.2.0",
     "@twurple/chat": "^7.2.0",
+    "@twurple/eventsub-base": "^7.2.0",
     "@twurple/eventsub-ws": "^7.2.0",
     "obs-websocket-js": "^5.0.7",
     "pino": "^9.5.0",
@@ -39,6 +40,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
+    "@types/sql.js": "^1.4.9",
     "@types/ws": "^8.5.13",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"

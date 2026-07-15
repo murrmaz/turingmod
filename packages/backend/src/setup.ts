@@ -348,10 +348,6 @@ export async function initializeComponents(container: Container): Promise<void> 
     integrationHandler.handleStop(msg as IWebSocketMessage<IntegrationStopPayload>)
   );
 
-  messageRouter.registerHandler(MessageType.INTEGRATION_STATUS_REQUEST, (msg) =>
-    integrationHandler.handleList(msg)
-  );
-
   messageRouter.registerHandler(MessageType.INTEGRATION_LIST, (msg) =>
     integrationHandler.handleList(msg)
   );

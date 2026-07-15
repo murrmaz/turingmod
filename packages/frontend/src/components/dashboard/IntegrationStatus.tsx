@@ -7,6 +7,7 @@ import Popover from '@cloudscape-design/components/popover';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import Table from '@cloudscape-design/components/table';
 import type { IntegrationInfo } from '@turingmod/shared';
+import { IntegrationStatus as IntegrationStatusEnum } from '@turingmod/shared';
 import { useState } from 'react';
 import { useAppState } from '../../context/AppStateContext';
 import { useIntegrations } from '../../hooks/useIntegrations';
@@ -34,13 +35,13 @@ export function IntegrationStatus() {
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const getStatusColor = (status: string): 'blue' | 'green' | 'red' | 'grey' => {
+  const getStatusColor = (status: IntegrationStatusEnum): 'blue' | 'green' | 'red' | 'grey' => {
     switch (status) {
-      case 'connected':
+      case IntegrationStatusEnum.CONNECTED:
         return 'green';
-      case 'connecting':
+      case IntegrationStatusEnum.CONNECTING:
         return 'blue';
-      case 'error':
+      case IntegrationStatusEnum.ERROR:
         return 'red';
       default:
         return 'grey';
@@ -115,8 +116,10 @@ export function IntegrationStatus() {
             header: 'Actions',
             cell: (item: IntegrationInfo) => {
               const isLoading = actionLoading === item.name;
-              const isConnected = item.status === 'connected';
-              const isStartable = item.status === 'disconnected' || item.status === 'error';
+              const isConnected = item.status === IntegrationStatusEnum.CONNECTED;
+              const isStartable =
+                item.status === IntegrationStatusEnum.DISCONNECTED ||
+                item.status === IntegrationStatusEnum.ERROR;
               const isOAuthIntegration =
                 item.name === 'twitch-auth' || item.name === 'spotify-auth';
 

@@ -46,7 +46,6 @@ export enum MessageType {
   INTEGRATION_START = 'integration.start',
   INTEGRATION_STOP = 'integration.stop',
   INTEGRATION_CONFIGURE = 'integration.configure',
-  INTEGRATION_STATUS_REQUEST = 'integration.status.request',
 
   // Server → Client: Integration updates
   INTEGRATION_STATUS = 'integration.status',
@@ -144,14 +143,6 @@ export interface IntegrationConfigurePayload {
 
   /** Configuration data (will be encrypted server-side) */
   config: Record<string, unknown>;
-}
-
-/**
- * Integration status request payload
- */
-export interface IntegrationStatusRequestPayload {
-  /** Optional: specific integration name, or omit for all */
-  integrationName?: string;
 }
 
 /**

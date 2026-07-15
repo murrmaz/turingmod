@@ -1,5 +1,5 @@
 import type { IntegrationInfo } from '@turingmod/shared';
-import { MessageType } from '@turingmod/shared';
+import { IntegrationStatus, MessageType } from '@turingmod/shared';
 import { useCallback } from 'react';
 import { useAppState } from '../context/AppStateContext';
 import { useWebSocketContext } from '../context/WebSocketContext';
@@ -95,7 +95,7 @@ export function useIntegrations() {
       // All dependencies must be connected
       return dependencies.every((depName) => {
         const dep = getIntegration(depName);
-        return dep?.status === 'connected';
+        return dep?.status === IntegrationStatus.CONNECTED;
       });
     },
     [getIntegration]
@@ -113,7 +113,7 @@ export function useIntegrations() {
 
       return dependencies.filter((depName) => {
         const dep = getIntegration(depName);
-        return dep?.status !== 'connected';
+        return dep?.status !== IntegrationStatus.CONNECTED;
       });
     },
     [getIntegration]

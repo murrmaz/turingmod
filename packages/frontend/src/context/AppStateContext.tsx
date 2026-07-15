@@ -1,9 +1,4 @@
-import type {
-  CommandHistoryEntry,
-  CommandInfo,
-  IWebSocketMessage,
-  IntegrationInfo,
-} from '@turingmod/shared';
+import type { CommandInfo, IWebSocketMessage, IntegrationInfo } from '@turingmod/shared';
 import { MessageType } from '@turingmod/shared';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -19,9 +14,6 @@ export interface AppState {
   /** Available commands */
   commands: CommandInfo[];
 
-  /** Recent command history */
-  commandHistory: CommandHistoryEntry[];
-
   /** System health status */
   isHealthy: boolean;
 }
@@ -35,9 +27,6 @@ export interface AppStateContextValue extends AppState {
 
   /** Refresh commands list */
   refreshCommands: () => Promise<void>;
-
-  /** Refresh command history */
-  refreshCommandHistory: () => Promise<void>;
 }
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
@@ -57,7 +46,6 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
   const { subscribe, sendAndWaitForResponse, isConnected } = useWebSocketContext();
   const [integrations, setIntegrations] = useState<IntegrationInfo[]>([]);
   const [commands, setCommands] = useState<CommandInfo[]>([]);
-  const [commandHistory] = useState<CommandHistoryEntry[]>([]);
   const [isHealthy, setIsHealthy] = useState(false);
 
   // Refresh integrations list
@@ -96,13 +84,6 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
     }
   }, [sendAndWaitForResponse]);
 
-  // Refresh command history
-  const refreshCommandHistory = useCallback(() => {
-    // TODO: Implement when backend supports command history message
-    console.log('[AppState] Command history refresh not yet implemented');
-    return Promise.resolve();
-  }, []);
-
   // Subscribe to real-time updates
   useEffect(() => {
     const unsubscribe = subscribe((message: IWebSocketMessage) => {
@@ -125,11 +106,6 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
           break;
         }
 
-        case MessageType.COMMAND_RESULT:
-          // Add to command history
-          // TODO: Implement command history tracking
-          break;
-
         default:
           break;
       }
@@ -144,20 +120,17 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
       setIsHealthy(true);
       refreshIntegrations();
       refreshCommands();
-      refreshCommandHistory();
     } else {
       setIsHealthy(false);
     }
-  }, [isConnected, refreshIntegrations, refreshCommands, refreshCommandHistory]);
+  }, [isConnected, refreshIntegrations, refreshCommands]);
 
   const value: AppStateContextValue = {
     integrations,
     commands,
-    commandHistory,
     isHealthy,
     refreshIntegrations,
     refreshCommands,
-    refreshCommandHistory,
   };
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

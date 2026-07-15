@@ -56,8 +56,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 ### Database
 - **Manager**: `packages/backend/src/database/DatabaseManager.ts`
 - **Repositories**: `packages/backend/src/database/repositories/*.ts`
-- **Migrations**: `packages/backend/src/database/migrations/*.ts`
-- **Setup Script**: `scripts/setup-db.ts`
+- **Migrations**: `packages/backend/src/database/migrations/*.ts` (run automatically on startup via `Application.initialize()`)
 
 ### Core Infrastructure
 - **DI Container**: `packages/backend/src/core/Container.ts`

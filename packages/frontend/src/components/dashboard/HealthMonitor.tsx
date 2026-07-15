@@ -3,6 +3,7 @@ import ColumnLayout from '@cloudscape-design/components/column-layout';
 import Container from '@cloudscape-design/components/container';
 import Header from '@cloudscape-design/components/header';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
+import { IntegrationStatus } from '@turingmod/shared';
 import { useAppState } from '../../context/AppStateContext';
 import { useWebSocket } from '../../hooks/useWebSocket';
 
@@ -14,7 +15,9 @@ export function HealthMonitor() {
   const { isConnected } = useWebSocket();
   const { isHealthy, integrations } = useAppState();
 
-  const connectedIntegrations = integrations.filter((i) => i.status === 'connected').length;
+  const connectedIntegrations = integrations.filter(
+    (i) => i.status === IntegrationStatus.CONNECTED
+  ).length;
   const totalIntegrations = integrations.length;
 
   return (

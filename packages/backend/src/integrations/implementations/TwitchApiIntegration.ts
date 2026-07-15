@@ -550,11 +550,5 @@ export class TwitchApiIntegration implements IIntegration {
     this.status = status;
     this.errorMessage = status === IntegrationStatus.ERROR ? errorMessage : undefined;
     this.events.emit('status', status);
-    this.eventBus.emit('integration.status', {
-      name: this.name,
-      status,
-      lastConnected: status === IntegrationStatus.CONNECTED ? Date.now() : undefined,
-      errorMessage: this.errorMessage,
-    });
   }
 }

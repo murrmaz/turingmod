@@ -31,13 +31,7 @@ A local Twitch streamer tool that provides chat command handling, platform integ
 npm install
 ```
 
-### 2. Initialize Database
-
-```bash
-npm run setup-db
-```
-
-### 3. Start Development Server
+### 2. Start Development Server
 
 ```bash
 npm run dev

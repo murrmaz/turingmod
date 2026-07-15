@@ -1,3 +1,5 @@
+const NOT_CREATED = Symbol('not-created');
+
 /**
  * Simple dependency injection container
  * Manages service registration and resolution
@@ -27,7 +29,7 @@ export class Container {
     }
     this.services.set(token, factory);
     // Mark as singleton by storing a placeholder
-    this.singletons.set(token, null);
+    this.singletons.set(token, NOT_CREATED);
   }
 
   /**
@@ -47,7 +49,7 @@ export class Container {
     // Check if it's a singleton with existing instance
     if (this.singletons.has(token)) {
       const existing = this.singletons.get(token);
-      if (existing !== null) {
+      if (existing !== NOT_CREATED) {
         return existing as T;
       }
       // Singleton but not yet created - create and cache it

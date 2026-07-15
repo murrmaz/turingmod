@@ -1,4 +1,5 @@
-import type { IntegrationConfig, IntegrationStatus } from '@turingmod/shared';
+import { IntegrationStatus } from '@turingmod/shared';
+import type { IntegrationConfig } from '@turingmod/shared';
 import type { Encryption } from '../../utils/Encryption.js';
 import type { DatabaseManager } from '../DatabaseManager.js';
 
@@ -118,7 +119,7 @@ export class IntegrationStateRepository {
       `INSERT INTO integration_state (
           id, name, enabled, config, last_status, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, name, enabled ? 1 : 0, encryptedConfig, 'disconnected', now, now]
+      [id, name, enabled ? 1 : 0, encryptedConfig, IntegrationStatus.DISCONNECTED, now, now]
     );
     const created = await this.findByName(name);
     if (!created) throw new Error(`Integration state not found after insert: ${name}`);
@@ -128,9 +129,9 @@ export class IntegrationStateRepository {
   /**
    * Update integration status
    */
-  updateStatus(name: string, status: string, error?: string): Promise<void> {
+  updateStatus(name: string, status: IntegrationStatus, error?: string): Promise<void> {
     const now = Date.now();
-    const connectedAt = status === 'connected' ? now : null;
+    const connectedAt = status === IntegrationStatus.CONNECTED ? now : null;
 
     this.db.run(
       `UPDATE integration_state

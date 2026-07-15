@@ -186,13 +186,13 @@ export class IntegrationManager {
       }
 
       await integration.start();
-      await this.stateRepository.updateStatus(name, 'connected');
+      await this.stateRepository.updateStatus(name, IntegrationStatus.CONNECTED);
       this.logger.info(`Integration started: ${name}`);
     } catch (error) {
       this.logger.error(`Failed to start integration: ${name}`, error);
       await this.stateRepository.updateStatus(
         name,
-        'error',
+        IntegrationStatus.ERROR,
         error instanceof Error ? error.message : 'Unknown error'
       );
       throw error;
@@ -212,7 +212,7 @@ export class IntegrationManager {
 
     try {
       await integration.stop();
-      await this.stateRepository.updateStatus(name, 'disconnected');
+      await this.stateRepository.updateStatus(name, IntegrationStatus.DISCONNECTED);
       this.logger.info(`Integration stopped: ${name}`);
     } catch (error) {
       this.logger.error(`Failed to stop integration: ${name}`, error);

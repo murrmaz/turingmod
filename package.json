@@ -25,7 +25,6 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "ci:lint": "biome ci .",
-    "setup-db": "tsx scripts/setup-db.ts",
     "start": "npm run start -w @turingmod/backend",
     "prepare": "husky"
   },
@@ -40,11 +39,9 @@
   "license": "MIT",
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "@types/sql.js": "^1.4.9",
     "concurrently": "^8.2.2",
     "husky": "^9.0.0",
     "lint-staged": "^15.2.0",
-    "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   },
   "lint-staged": {
@@ -56,5 +53,10 @@
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "allowScripts": {
+    "@biomejs/biome@1.9.4": true,
+    "esbuild@0.28.1": true,
+    "esbuild@0.25.12": true
+  }
 }

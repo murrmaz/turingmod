@@ -169,7 +169,7 @@ export function SpotifyOAuthModal({
     const unsubscribe = subscribe((message) => {
       if (message.type === MessageType.OAUTH_CODE_RECEIVED) {
         const payload = message.payload as OAuthCodeReceivedPayload;
-        if (payload.integrationName === 'spotify-auth' && step === 'waiting') {
+        if (payload.integrationName === 'spotify-auth') {
           // Automatically exchange the code
           exchangeCode(payload.code);
         }
@@ -179,7 +179,7 @@ export function SpotifyOAuthModal({
     return () => {
       unsubscribe();
     };
-  }, [step, subscribe, exchangeCode]);
+  }, [subscribe, exchangeCode]);
 
   // Fetch auth URL when modal becomes visible
   useEffect(() => {

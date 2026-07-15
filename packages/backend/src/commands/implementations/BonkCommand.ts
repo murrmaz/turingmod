@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel } from '@turingmod/shared';
 import type { Container } from '../../core/Container.js';
@@ -22,7 +23,8 @@ export class BonkCommand implements ICommand {
 
   constructor(container: Container) {
     this.eventBus = container.resolve<EventBus>('EventBus');
-    this.bonkSoundPath = join(import.meta.dirname, '..', '..', '..', 'data', 'bonk.mp3');
+    const dirname = fileURLToPath(new URL('.', import.meta.url));
+    this.bonkSoundPath = join(dirname, '..', '..', '..', 'data', 'bonk.mp3');
   }
 
   execute(context: CommandContext): Promise<CommandResult> {

@@ -5,6 +5,7 @@ import type { TwitchApiIntegration } from '../../integrations/implementations/Tw
 import type { TwitchAuthIntegration } from '../../integrations/implementations/TwitchAuthIntegration.js';
 import type { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
+import { checkPermission } from '../utils/permissionChecks.js';
 
 /**
  * !tags command
@@ -45,15 +46,13 @@ export class TagsCommand implements ICommand {
 
       // Write mode: set new tags
       if (args.length > 1) {
-        if (user.permissionLevel < PermissionLevel.MODERATOR) {
-          return {
-            success: false,
-            message: 'Only moderators can edit stream tags',
-            error: {
-              code: 'INSUFFICIENT_PERMISSIONS',
-              message: 'Moderator required',
-            },
-          };
+        const permissionError = checkPermission(
+          user.permissionLevel,
+          PermissionLevel.MODERATOR,
+          'edit stream tags'
+        );
+        if (permissionError) {
+          return permissionError;
         }
 
         const tagsInput = args.slice(1).join(' ').trim();

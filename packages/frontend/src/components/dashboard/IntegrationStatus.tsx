@@ -11,10 +11,7 @@ import { IntegrationStatus as IntegrationStatusEnum } from '@turingmod/shared';
 import { useState } from 'react';
 import { useAppState } from '../../context/AppStateContext';
 import { useIntegrations } from '../../hooks/useIntegrations';
-import { SpotifyOAuthModal } from '../integrations/SpotifyOAuthModal';
-import { SpotifySetupModal } from '../integrations/SpotifySetupModal';
-import { TwitchOAuthModal } from '../integrations/TwitchOAuthModal';
-import { TwitchSetupModal } from '../integrations/TwitchSetupModal';
+import { OAUTH_INTEGRATION_REGISTRY } from '../integrations/oauthIntegrationRegistry';
 
 /**
  * Integration status component
@@ -25,13 +22,10 @@ export function IntegrationStatus() {
   const { startIntegration, stopIntegration, areDependenciesMet, getMissingDependencies } =
     useIntegrations();
 
-  // Twitch modal state
-  const [twitchOauthVisible, setTwitchOauthVisible] = useState(false);
-  const [twitchSetupVisible, setTwitchSetupVisible] = useState(false);
-
-  // Spotify modal state
-  const [spotifyOauthVisible, setSpotifyOauthVisible] = useState(false);
-  const [spotifySetupVisible, setSpotifySetupVisible] = useState(false);
+  // Which OAuth-capable integration's modals are currently active (keyed by integration name)
+  const [activeOAuthIntegration, setActiveOAuthIntegration] = useState<string | null>(null);
+  const [oauthModalVisible, setOauthModalVisible] = useState(false);
+  const [setupModalVisible, setSetupModalVisible] = useState(false);
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -49,11 +43,12 @@ export function IntegrationStatus() {
   };
 
   const handleAuthorize = (integrationName: string) => {
-    if (integrationName === 'twitch-auth') {
-      setTwitchOauthVisible(true);
-    } else if (integrationName === 'spotify-auth') {
-      setSpotifyOauthVisible(true);
+    if (!OAUTH_INTEGRATION_REGISTRY[integrationName]) {
+      console.error(`No OAuth modal registered for integration "${integrationName}"`);
+      return;
     }
+    setActiveOAuthIntegration(integrationName);
+    setOauthModalVisible(true);
   };
 
   const handleStart = async (integrationName: string) => {
@@ -205,39 +200,36 @@ export function IntegrationStatus() {
         }
       />
 
-      {/* Twitch OAuth modals */}
-      <TwitchSetupModal
-        visible={twitchSetupVisible}
-        onDismiss={() => setTwitchSetupVisible(false)}
-        onSuccess={() => setTwitchOauthVisible(true)}
-      />
+      {activeOAuthIntegration &&
+        (() => {
+          const entry = OAUTH_INTEGRATION_REGISTRY[activeOAuthIntegration];
+          if (!entry) {
+            return null;
+          }
+          const { oauthModal: OAuthModal, setupModal: SetupModal } = entry;
+          return (
+            <>
+              <SetupModal
+                visible={setupModalVisible}
+                onDismiss={() => setSetupModalVisible(false)}
+                onSuccess={() => {
+                  setSetupModalVisible(false);
+                  setOauthModalVisible(true);
+                }}
+              />
 
-      <TwitchOAuthModal
-        visible={twitchOauthVisible}
-        onDismiss={() => setTwitchOauthVisible(false)}
-        onSuccess={handleOAuthSuccess}
-        onNeedsSetup={() => {
-          setTwitchOauthVisible(false);
-          setTwitchSetupVisible(true);
-        }}
-      />
-
-      {/* Spotify OAuth modals */}
-      <SpotifySetupModal
-        visible={spotifySetupVisible}
-        onDismiss={() => setSpotifySetupVisible(false)}
-        onSuccess={() => setSpotifyOauthVisible(true)}
-      />
-
-      <SpotifyOAuthModal
-        visible={spotifyOauthVisible}
-        onDismiss={() => setSpotifyOauthVisible(false)}
-        onSuccess={handleOAuthSuccess}
-        onNeedsSetup={() => {
-          setSpotifyOauthVisible(false);
-          setSpotifySetupVisible(true);
-        }}
-      />
+              <OAuthModal
+                visible={oauthModalVisible}
+                onDismiss={() => setOauthModalVisible(false)}
+                onSuccess={handleOAuthSuccess}
+                onNeedsSetup={() => {
+                  setOauthModalVisible(false);
+                  setSetupModalVisible(true);
+                }}
+              />
+            </>
+          );
+        })()}
     </Container>
   );
 }

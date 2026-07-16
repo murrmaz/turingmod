@@ -14,8 +14,9 @@ import {
 } from '@turingmod/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWebSocketContext } from '../../context/WebSocketContext';
+import type { OAuthProviderConfig } from './oauthProviders';
 
-export interface SpotifyOAuthModalProps {
+export interface OAuthModalProps {
   /** Whether the modal is visible */
   visible: boolean;
   /** Callback when modal is dismissed */
@@ -24,18 +25,21 @@ export interface SpotifyOAuthModalProps {
   onSuccess: () => void;
   /** Callback when credentials are not configured */
   onNeedsSetup?: () => void;
+  /** The integration this modal is authorizing */
+  provider: OAuthProviderConfig;
 }
 
 /**
- * Spotify OAuth Authorization Modal
+ * OAuth Authorization Modal
  * Opens popup window for OAuth, automatically captures code and exchanges it
  */
-export function SpotifyOAuthModal({
+export function OAuthModal({
   visible,
   onDismiss,
   onSuccess,
   onNeedsSetup,
-}: SpotifyOAuthModalProps) {
+  provider,
+}: OAuthModalProps) {
   const { sendAndWaitForResponse, subscribe } = useWebSocketContext();
   const [step, setStep] = useState<'loading' | 'waiting' | 'exchanging' | 'error'>('loading');
   const [authUrl, setAuthUrl] = useState<string>('');
@@ -64,38 +68,41 @@ export function SpotifyOAuthModal({
   }, [closePopup, onDismiss]);
 
   // Open auth popup
-  const openAuthPopup = useCallback((url: string) => {
-    const width = 600;
-    const height = 800;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
+  const openAuthPopup = useCallback(
+    (url: string) => {
+      const width = 600;
+      const height = 800;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
 
-    popupRef.current = window.open(
-      url,
-      'SpotifyAuth',
-      `width=${width},height=${height},left=${left},top=${top},toolbar=no,location=no,status=no,menubar=no`
-    );
+      popupRef.current = window.open(
+        url,
+        provider.popupWindowName,
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,location=no,status=no,menubar=no`
+      );
 
-    // Check if popup was blocked
-    if (!popupRef.current) {
-      setErrorMessage('Popup was blocked. Please allow popups for this site.');
-      setStep('error');
-      return;
-    }
-
-    // Monitor popup close
-    popupCheckIntervalRef.current = window.setInterval(() => {
-      if (popupRef.current?.closed) {
-        if (popupCheckIntervalRef.current !== null) {
-          clearInterval(popupCheckIntervalRef.current);
-        }
-        popupCheckIntervalRef.current = null;
-        // User closed popup without completing auth
-        setErrorMessage('Authorization cancelled');
+      // Check if popup was blocked
+      if (!popupRef.current) {
+        setErrorMessage('Popup was blocked. Please allow popups for this site.');
         setStep('error');
+        return;
       }
-    }, 500);
-  }, []);
+
+      // Monitor popup close
+      popupCheckIntervalRef.current = window.setInterval(() => {
+        if (popupRef.current?.closed) {
+          if (popupCheckIntervalRef.current !== null) {
+            clearInterval(popupCheckIntervalRef.current);
+          }
+          popupCheckIntervalRef.current = null;
+          // User closed popup without completing auth
+          setErrorMessage('Authorization cancelled');
+          setStep('error');
+        }
+      }, 500);
+    },
+    [provider.popupWindowName]
+  );
 
   // Exchange the authorization code for tokens
   const exchangeCode = useCallback(
@@ -105,7 +112,7 @@ export function SpotifyOAuthModal({
 
       try {
         const response = await sendAndWaitForResponse<OAuthExchangeResultPayload>(
-          createOAuthExchangeCodeMessage('spotify-auth', code)
+          createOAuthExchangeCodeMessage(provider.integrationName, code)
         );
 
         if (response.payload.success) {
@@ -124,7 +131,7 @@ export function SpotifyOAuthModal({
         closePopup();
       }
     },
-    [sendAndWaitForResponse, closePopup, onSuccess, handleClose]
+    [sendAndWaitForResponse, closePopup, onSuccess, handleClose, provider.integrationName]
   );
 
   // Fetch the authorization URL when modal opens
@@ -134,7 +141,7 @@ export function SpotifyOAuthModal({
 
     try {
       const response = await sendAndWaitForResponse<OAuthAuthUrlResponsePayload>(
-        createOAuthGetAuthUrlMessage('spotify-auth')
+        createOAuthGetAuthUrlMessage(provider.integrationName)
       );
 
       if (response.payload.authUrl) {
@@ -162,14 +169,14 @@ export function SpotifyOAuthModal({
       setErrorMessage(errorMsg);
       setStep('error');
     }
-  }, [sendAndWaitForResponse, openAuthPopup, onNeedsSetup, handleClose]);
+  }, [sendAndWaitForResponse, openAuthPopup, onNeedsSetup, handleClose, provider.integrationName]);
 
   // Subscribe to OAuth code received events
   useEffect(() => {
     const unsubscribe = subscribe((message) => {
       if (message.type === MessageType.OAUTH_CODE_RECEIVED) {
         const payload = message.payload as OAuthCodeReceivedPayload;
-        if (payload.integrationName === 'spotify-auth') {
+        if (payload.integrationName === provider.integrationName) {
           // Automatically exchange the code
           exchangeCode(payload.code);
         }
@@ -179,7 +186,7 @@ export function SpotifyOAuthModal({
     return () => {
       unsubscribe();
     };
-  }, [subscribe, exchangeCode]);
+  }, [subscribe, exchangeCode, provider.integrationName]);
 
   // Fetch auth URL when modal becomes visible
   useEffect(() => {
@@ -199,7 +206,7 @@ export function SpotifyOAuthModal({
     <Modal
       visible={visible}
       onDismiss={handleClose}
-      header="Authorize Spotify"
+      header={`Authorize ${provider.displayName}`}
       footer={
         <Box float="right">
           <SpaceBetween direction="horizontal" size="xs">
@@ -230,7 +237,8 @@ export function SpotifyOAuthModal({
             <Alert type="info">
               <Box variant="p">
                 <strong>Waiting for Authorization</strong>
-                <br />A popup window has opened for you to authorize TuringMod on Spotify.
+                <br />A popup window has opened for you to authorize TuringMod on{' '}
+                {provider.displayName}.
               </Box>
             </Alert>
 
@@ -277,7 +285,8 @@ export function SpotifyOAuthModal({
           <Box variant="p">
             <strong>Security Note:</strong> TuringMod only runs locally on your computer (
             <code>localhost</code>). Your tokens are encrypted and stored securely in a local
-            database. They are never sent to any external servers except Spotify's official API.
+            database. They are never sent to any external servers except {provider.displayName}'s
+            official API.
           </Box>
         </Alert>
       </SpaceBetween>

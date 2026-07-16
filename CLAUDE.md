@@ -32,12 +32,14 @@ Use this to quickly locate files without searching. Organized by system/feature.
 ### Integration System
 - **UI (Table View)**: `packages/frontend/src/components/dashboard/IntegrationStatus.tsx`
 - **UI (Card View)**: `packages/frontend/src/components/integrations/IntegrationPanel.tsx`
-- **Setup Modals**: `packages/frontend/src/components/integrations/{Twitch,Spotify}SetupModal.tsx`
-- **OAuth Modals**: `packages/frontend/src/components/integrations/{Twitch,Spotify}OAuthModal.tsx`
+- **Setup Modal**: `packages/frontend/src/components/integrations/SetupModal.tsx` — generic, parameterized by `OAuthProviderConfig`
+- **OAuth Modal**: `packages/frontend/src/components/integrations/OAuthModal.tsx` — generic, parameterized by `OAuthProviderConfig`
+- **OAuth Provider Configs**: `packages/frontend/src/components/integrations/oauthProviders.tsx` (per-provider content) + `oauthIntegrationRegistry.tsx` (name → modal/config lookup)
 - **Backend Manager**: `packages/backend/src/integrations/IntegrationManager.ts`
-- **Interface**: `packages/backend/src/integrations/interfaces/IIntegration.ts`
-- **Implementations**: `packages/backend/src/integrations/implementations/*.ts`
-- **WebSocket Handler**: `packages/backend/src/server/handlers/IntegrationHandler.ts`
+- **Base Class**: `packages/backend/src/integrations/BaseIntegration.ts` — shared status/error/event-emitter plumbing; all integrations extend this
+- **Interfaces**: `packages/backend/src/integrations/interfaces/IIntegration.ts`, `IOAuthIntegration.ts` (extends `IIntegration` for OAuth-capable integrations)
+- **Implementations**: `packages/backend/src/integrations/implementations/*.ts` (Twitch, Spotify, Discord, OBS, Arduino, Sound)
+- **WebSocket Handler**: `packages/backend/src/server/handlers/IntegrationHandler.ts`, `OAuthHandler.ts`
 - **Types & Enums**: `packages/shared/src/types/integration.ts`
 
 ### Commands System
@@ -88,11 +90,13 @@ Entry point: `packages/backend/src/index.ts` → calls `setupDependencies()` and
 
 ### Integration System
 
-All integrations implement `IIntegration` interface (`integrations/interfaces/IIntegration.ts`): `initialize(config)` → `start()` → `stop()` lifecycle with `getStatus()` returning `IntegrationStatus` enum values.
+All integrations extend `BaseIntegration` (`integrations/BaseIntegration.ts`), which implements the `IIntegration` interface (`integrations/interfaces/IIntegration.ts`) and provides shared status/error/event-emitter plumbing. Concrete integrations implement `initialize(config)` → `start()` → `stop()` and call `setStatus()` to report lifecycle transitions; `getStatus()` returns `IntegrationStatus` enum values.
 
 `IntegrationManager` resolves dependencies via topological sort before startup. Integrations declare dependencies through `getDependencies()`.
 
-**Twitch** is split into three integrations following SRP: `TwitchAuthIntegration` (OAuth) → `TwitchApiIntegration` (Helix API) → `TwitchEventSubIntegration` (real-time events). Spotify follows the same pattern: `SpotifyAuthIntegration` → `SpotifyApiIntegration`.
+**Twitch** is split into three integrations following SRP: `TwitchAuthIntegration` (OAuth) → `TwitchApiIntegration` (Helix API) → `TwitchEventSubIntegration` (real-time events). Spotify follows the same pattern: `SpotifyAuthIntegration` → `SpotifyApiIntegration`. Discord, OBS, Arduino, and Sound are single-file integrations with no auth/api split.
+
+OAuth-capable integrations (currently `TwitchAuthIntegration`, `SpotifyAuthIntegration`) additionally implement `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and expose it via a `get oauth()` getter (`null` on `BaseIntegration` by default). This is the single source of truth for OAuth capability — `IntegrationManager`/`HttpServer` derive callback routing and the frontend's OAuth affordance from it instead of checking integration names.
 
 Cross-integration communication uses `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
 
@@ -110,7 +114,7 @@ React Context for state management: `WebSocketContext` (connection + send/subscr
 
 ### HTTP Server
 
-Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend build in production. OAuth callback routes at `/callback/twitch` and `/callback/spotify`. Health check at `/health`. Localhost-only binding enforced.
+Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend build in production. OAuth callback routes (currently `/callback/twitch` and `/callback/spotify`) are built from each `IOAuthIntegration.getCallbackPath()` via `IntegrationManager.getOAuthCallbackRoutes()`, not hardcoded. Health check at `/health`. Localhost-only binding enforced.
 
 ## Code Style
 
@@ -132,4 +136,4 @@ Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend b
 - **IntegrationStatus enum** — never use string literals for integration status.
 - **Integration lifecycle** — always call `initialize(config)` before `start()`.
 - **New commands** go in `packages/backend/src/commands/implementations/` and implement `ICommand`. They're auto-discovered by `loadCommands()`.
-- **New integrations** implement `IIntegration`, get registered in `setup.ts` (both container + `initializeComponents`), and need a `MessageRouter` handler if they accept WebSocket messages.
+- **New integrations** extend `BaseIntegration`, get registered in `setup.ts` (both container + `initializeComponents`), and need a `MessageRouter` handler if they accept WebSocket messages. OAuth-capable integrations also implement `IOAuthIntegration`, override `get oauth()` to return `this`, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.

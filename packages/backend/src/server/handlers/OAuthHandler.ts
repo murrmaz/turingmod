@@ -1,4 +1,5 @@
 import type {
+  ErrorPayload,
   IWebSocketMessage,
   OAuthAuthUrlResponsePayload,
   OAuthExchangeCodePayload,
@@ -6,10 +7,12 @@ import type {
   OAuthGetAuthUrlPayload,
 } from '@turingmod/shared';
 import {
+  createErrorMessage,
   createOAuthAuthUrlResponseMessage,
   createOAuthExchangeResultMessage,
 } from '@turingmod/shared';
 import type { IntegrationManager } from '../../integrations/IntegrationManager.js';
+import { OAuthNotConfiguredError } from '../../integrations/errors.js';
 import type { Logger } from '../../utils/Logger.js';
 
 /**
@@ -33,7 +36,7 @@ export class OAuthHandler {
    */
   async handleGetAuthUrl(
     message: IWebSocketMessage<OAuthGetAuthUrlPayload>
-  ): Promise<IWebSocketMessage<OAuthAuthUrlResponsePayload>> {
+  ): Promise<IWebSocketMessage<OAuthAuthUrlResponsePayload | ErrorPayload>> {
     const { integrationName } = message.payload;
 
     this.logger.info(`Getting auth URL for: ${integrationName}`);
@@ -43,6 +46,15 @@ export class OAuthHandler {
 
       return createOAuthAuthUrlResponseMessage(integrationName, authUrl, message.id);
     } catch (error) {
+      if (error instanceof OAuthNotConfiguredError) {
+        // Expected on first run — the frontend catches this and shows the
+        // Setup modal, so it's not a failure. Handle the response here
+        // (rather than re-throwing) so MessageRouter's catch-all doesn't
+        // also log it as an error.
+        this.logger.warn(`Auth URL requested for unconfigured integration: ${integrationName}`);
+        return createErrorMessage('OAUTH_NOT_CONFIGURED', error.message, message.id);
+      }
+
       this.logger.error(`Failed to get auth URL for ${integrationName}`, error);
 
       // Re-throw the error so the WebSocket layer handles it

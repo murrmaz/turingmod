@@ -5,6 +5,7 @@ import type { EventBus } from '../../core/EventBus.js';
 import type { IntegrationStateRepository } from '../../database/repositories/IntegrationStateRepository.js';
 import type { Logger } from '../../utils/Logger.js';
 import { BaseIntegration } from '../BaseIntegration.js';
+import { OAuthNotConfiguredError } from '../errors.js';
 import type { IOAuthIntegration } from '../interfaces/IOAuthIntegration.js';
 
 /**
@@ -216,7 +217,7 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
     };
 
     if (!(config.clientId && config.clientSecret)) {
-      throw new Error(
+      throw new OAuthNotConfiguredError(
         'Twitch credentials not configured. Please configure Client ID and Client Secret.'
       );
     }

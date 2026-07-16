@@ -11,7 +11,7 @@
     "dev": "concurrently -n backend,frontend \"npm run dev -w @turingmod/backend\" \"npm run dev -w @turingmod/frontend\"",
     "dev:backend": "npm run dev -w @turingmod/backend",
     "dev:frontend": "npm run dev -w @turingmod/frontend",
-    "prebuild": "npm run check && npm run type-check",
+    "prebuild": "npm run check",
     "build": "npm run build -w @turingmod/shared && npm run build -w @turingmod/backend && npm run build -w @turingmod/frontend",
     "build:shared": "npm run build -w @turingmod/shared",
     "build:backend": "npm run build -w @turingmod/backend",

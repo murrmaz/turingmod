@@ -385,7 +385,7 @@ export function createErrorMessage(
   if (details !== undefined) {
     payload.details = details;
   }
-  return createMessage(MessageType.ERROR, payload);
+  return createMessage(MessageType.ERROR, payload, originalMessageId);
 }
 
 /**

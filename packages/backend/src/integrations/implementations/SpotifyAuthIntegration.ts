@@ -3,6 +3,7 @@ import type { EventBus } from '../../core/EventBus.js';
 import type { IntegrationStateRepository } from '../../database/repositories/IntegrationStateRepository.js';
 import type { Logger } from '../../utils/Logger.js';
 import { BaseIntegration } from '../BaseIntegration.js';
+import { OAuthNotConfiguredError } from '../errors.js';
 import type { IOAuthIntegration } from '../interfaces/IOAuthIntegration.js';
 
 /**
@@ -174,7 +175,7 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
     };
 
     if (!(config.clientId && config.clientSecret)) {
-      throw new Error(
+      throw new OAuthNotConfiguredError(
         'Spotify credentials not configured. Please configure Client ID and Client Secret.'
       );
     }

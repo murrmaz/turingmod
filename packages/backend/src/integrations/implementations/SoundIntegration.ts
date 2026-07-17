@@ -55,7 +55,7 @@ export class SoundIntegration extends BaseIntegration {
       await sound.play(filePath, volume);
       this.logger.debug('Sound playback completed', { filePath });
     } catch (error) {
-      this.logger.error('Sound playback failed', { filePath, error });
+      this.logger.error('Sound playback failed', error, { filePath });
       this.emitError(error);
     }
   }

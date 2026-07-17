@@ -278,7 +278,7 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
 
     if (!response.ok) {
       const error = await response.text();
-      this.logger.error('Token refresh failed', { error });
+      this.logger.error('Token refresh failed', error);
       this.setStatus(
         IntegrationStatus.ERROR,
         'Token refresh failed \u2014 re-authorization required'

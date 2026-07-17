@@ -117,7 +117,7 @@ export class HttpServer {
       const errorDescription = urlObj.searchParams.get('error_description');
 
       if (error) {
-        this.logger.error('OAuth callback error', { integrationName, error, errorDescription });
+        this.logger.error('OAuth callback error', error, { integrationName, errorDescription });
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`
           <!DOCTYPE html>

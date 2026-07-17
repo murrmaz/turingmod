@@ -16,6 +16,15 @@ export interface LoggerOptions {
 }
 
 /**
+ * Rejects plain-object-shaped values (e.g. `{ error }`) while still allowing
+ * `Error`, `string`, and the opaque `unknown` a `catch` clause hands you.
+ * `unknown` doesn't structurally match `Record<string, unknown>`, so it
+ * passes through untouched; a literal like `{ error }` does match and
+ * collapses to `never`, turning it into a compile error at the call site.
+ */
+type NotPlainObject<T> = T extends Record<string, unknown> ? never : T;
+
+/**
  * Application logger wrapper around Pino
  * Provides consistent logging across the application
  */
@@ -81,28 +90,34 @@ export class Logger {
   }
 
   /**
-   * Log error message
+   * Log error message. `error` should be the caught Error (or unknown catch
+   * value) itself; use `meta` for any additional structured context.
+   * `NotPlainObject<E>` blocks passing an object literal like `{ error }`
+   * here as a compile error, while still allowing a bare `unknown` through.
    */
-  error(message: string, error?: Error | unknown, ...args: unknown[]): void {
+  error<E>(message: string, error?: NotPlainObject<E>, meta?: Record<string, unknown>): void {
     if (error instanceof Error) {
-      this.logger.error({ err: error, ...(args.length > 0 ? { ...args } : {}) }, message);
+      this.logger.error({ err: error, ...meta }, message);
     } else if (error !== undefined) {
-      this.logger.error({ error, ...(args.length > 0 ? { ...args } : {}) }, message);
+      this.logger.error({ error, ...meta }, message);
     } else {
-      this.logger.error(args.length > 0 ? { ...args } : {}, message);
+      this.logger.error(meta ?? {}, message);
     }
   }
 
   /**
-   * Log fatal message
+   * Log fatal message. `error` should be the caught Error (or unknown catch
+   * value) itself; use `meta` for any additional structured context.
+   * `NotPlainObject<E>` blocks passing an object literal like `{ error }`
+   * here as a compile error, while still allowing a bare `unknown` through.
    */
-  fatal(message: string, error?: Error | unknown, ...args: unknown[]): void {
+  fatal<E>(message: string, error?: NotPlainObject<E>, meta?: Record<string, unknown>): void {
     if (error instanceof Error) {
-      this.logger.fatal({ err: error, ...(args.length > 0 ? { ...args } : {}) }, message);
+      this.logger.fatal({ err: error, ...meta }, message);
     } else if (error !== undefined) {
-      this.logger.fatal({ error, ...(args.length > 0 ? { ...args } : {}) }, message);
+      this.logger.fatal({ error, ...meta }, message);
     } else {
-      this.logger.fatal(args.length > 0 ? { ...args } : {}, message);
+      this.logger.fatal(meta ?? {}, message);
     }
   }
 }

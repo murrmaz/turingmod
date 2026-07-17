@@ -86,7 +86,7 @@ export class ObsIntegration extends BaseIntegration {
       this.setStatus(IntegrationStatus.CONNECTED);
       this.logger.info('OBS integration started successfully');
     } catch (error) {
-      this.logger.error('Failed to connect to OBS', { error });
+      this.logger.error('Failed to connect to OBS', error);
       this.setStatus(
         IntegrationStatus.ERROR,
         error instanceof Error ? error.message : 'Failed to connect to OBS'
@@ -363,7 +363,7 @@ export class ObsIntegration extends BaseIntegration {
     });
 
     this.obs.on('ConnectionError', (error) => {
-      this.logger.error('OBS connection error', { error });
+      this.logger.error('OBS connection error', error);
       this.setStatus(
         IntegrationStatus.ERROR,
         error instanceof Error ? error.message : 'Connection error'

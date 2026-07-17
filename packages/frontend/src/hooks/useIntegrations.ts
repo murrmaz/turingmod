@@ -75,7 +75,7 @@ export function useIntegrations() {
    * Get integration status
    */
   const getIntegrationStatus = useCallback(
-    (name: string): string | undefined => {
+    (name: string): IntegrationStatus | undefined => {
       return getIntegration(name)?.status;
     },
     [getIntegration]

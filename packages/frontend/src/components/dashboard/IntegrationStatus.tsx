@@ -7,75 +7,31 @@ import Popover from '@cloudscape-design/components/popover';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import Table from '@cloudscape-design/components/table';
 import type { IntegrationInfo } from '@turingmod/shared';
-import { IntegrationStatus as IntegrationStatusEnum } from '@turingmod/shared';
-import { useState } from 'react';
 import { useAppState } from '../../context/AppStateContext';
-import { useIntegrations } from '../../hooks/useIntegrations';
-import { OAUTH_INTEGRATION_REGISTRY } from '../integrations/oauthIntegrationRegistry';
+import { useIntegrationActions } from '../../hooks/useIntegrationActions';
+import { IntegrationOAuthModals } from '../integrations/IntegrationOAuthModals';
 
 /**
  * Integration status component
  * Displays table of integrations and their statuses
  */
 export function IntegrationStatus() {
-  const { integrations, refreshIntegrations } = useAppState();
-  const { startIntegration, stopIntegration, areDependenciesMet, getMissingDependencies } =
-    useIntegrations();
-
-  // Which OAuth-capable integration's modals are currently active (keyed by integration name)
-  const [activeOAuthIntegration, setActiveOAuthIntegration] = useState<string | null>(null);
-  const [oauthModalVisible, setOauthModalVisible] = useState(false);
-  const [setupModalVisible, setSetupModalVisible] = useState(false);
-
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-
-  const getStatusColor = (status: IntegrationStatusEnum): 'blue' | 'green' | 'red' | 'grey' => {
-    switch (status) {
-      case IntegrationStatusEnum.CONNECTED:
-        return 'green';
-      case IntegrationStatusEnum.CONNECTING:
-        return 'blue';
-      case IntegrationStatusEnum.ERROR:
-        return 'red';
-      default:
-        return 'grey';
-    }
-  };
-
-  const handleAuthorize = (integrationName: string) => {
-    if (!OAUTH_INTEGRATION_REGISTRY[integrationName]) {
-      console.error(`No OAuth modal registered for integration "${integrationName}"`);
-      return;
-    }
-    setActiveOAuthIntegration(integrationName);
-    setOauthModalVisible(true);
-  };
-
-  const handleStart = async (integrationName: string) => {
-    setActionLoading(integrationName);
-    try {
-      await startIntegration(integrationName);
-    } catch (error) {
-      console.error(`Failed to start ${integrationName}`, error);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleStop = async (integrationName: string) => {
-    setActionLoading(integrationName);
-    try {
-      await stopIntegration(integrationName);
-    } catch (error) {
-      console.error(`Failed to stop ${integrationName}`, error);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleOAuthSuccess = () => {
-    refreshIntegrations();
-  };
+  const { integrations } = useAppState();
+  const {
+    activeOAuthIntegration,
+    oauthModalVisible,
+    setupModalVisible,
+    handleAuthorize,
+    handleStart,
+    handleStop,
+    handleOAuthSuccess,
+    closeOAuthModal,
+    closeSetupModal,
+    handleSetupSuccess,
+    handleNeedsSetup,
+    getActionState,
+    getStatusColor,
+  } = useIntegrationActions();
 
   return (
     <Container header={<Header variant="h2">Integration Status</Header>}>
@@ -110,16 +66,14 @@ export function IntegrationStatus() {
             id: 'actions',
             header: 'Actions',
             cell: (item: IntegrationInfo) => {
-              const isLoading = actionLoading === item.name;
-              const isConnected = item.status === IntegrationStatusEnum.CONNECTED;
-              const isStartable =
-                item.status === IntegrationStatusEnum.DISCONNECTED ||
-                item.status === IntegrationStatusEnum.ERROR;
-              const isOAuthIntegration = Boolean(item.oauth);
-
-              // Check dependencies
-              const hasUnmetDependencies = !areDependenciesMet(item.name);
-              const missingDeps = getMissingDependencies(item.name);
+              const {
+                isLoading,
+                isConnected,
+                isStartable,
+                isOAuthIntegration,
+                hasUnmetDependencies,
+                missingDependencies,
+              } = getActionState(item);
 
               return (
                 <SpaceBetween direction="horizontal" size="xs">
@@ -149,7 +103,7 @@ export function IntegrationStatus() {
                                 This integration requires the following to be connected first:
                               </Box>
                               <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                                {missingDeps.map((dep) => (
+                                {missingDependencies.map((dep) => (
                                   <li key={dep}>
                                     <strong>{dep}</strong>
                                   </li>
@@ -200,36 +154,16 @@ export function IntegrationStatus() {
         }
       />
 
-      {activeOAuthIntegration &&
-        (() => {
-          const entry = OAUTH_INTEGRATION_REGISTRY[activeOAuthIntegration];
-          if (!entry) {
-            return null;
-          }
-          const { oauthModal: OAuthModal, setupModal: SetupModal } = entry;
-          return (
-            <>
-              <SetupModal
-                visible={setupModalVisible}
-                onDismiss={() => setSetupModalVisible(false)}
-                onSuccess={() => {
-                  setSetupModalVisible(false);
-                  setOauthModalVisible(true);
-                }}
-              />
-
-              <OAuthModal
-                visible={oauthModalVisible}
-                onDismiss={() => setOauthModalVisible(false)}
-                onSuccess={handleOAuthSuccess}
-                onNeedsSetup={() => {
-                  setOauthModalVisible(false);
-                  setSetupModalVisible(true);
-                }}
-              />
-            </>
-          );
-        })()}
+      <IntegrationOAuthModals
+        activeIntegration={activeOAuthIntegration}
+        oauthModalVisible={oauthModalVisible}
+        setupModalVisible={setupModalVisible}
+        onOAuthDismiss={closeOAuthModal}
+        onSetupDismiss={closeSetupModal}
+        onSetupSuccess={handleSetupSuccess}
+        onOAuthSuccess={handleOAuthSuccess}
+        onNeedsSetup={handleNeedsSetup}
+      />
     </Container>
   );
 }

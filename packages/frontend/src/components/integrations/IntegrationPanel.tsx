@@ -7,78 +7,31 @@ import Header from '@cloudscape-design/components/header';
 import Popover from '@cloudscape-design/components/popover';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import type { IntegrationInfo } from '@turingmod/shared';
-import { IntegrationStatus } from '@turingmod/shared';
-import { useState } from 'react';
+import { useIntegrationActions } from '../../hooks/useIntegrationActions';
 import { useIntegrations } from '../../hooks/useIntegrations';
-import { OAUTH_INTEGRATION_REGISTRY } from './oauthIntegrationRegistry';
+import { IntegrationOAuthModals } from './IntegrationOAuthModals';
 
 /**
  * Integration panel component
  * Displays and manages integrations
  */
 export function IntegrationPanel() {
+  const { integrations } = useIntegrations();
   const {
-    integrations,
-    startIntegration,
-    stopIntegration,
-    refreshIntegrations,
-    areDependenciesMet,
-    getMissingDependencies,
-  } = useIntegrations();
-  const [loadingIntegration, setLoadingIntegration] = useState<string | null>(null);
-
-  // Which OAuth-capable integration's modals are currently active (keyed by integration name)
-  const [activeOAuthIntegration, setActiveOAuthIntegration] = useState<string | null>(null);
-  const [oauthModalVisible, setOauthModalVisible] = useState(false);
-  const [setupModalVisible, setSetupModalVisible] = useState(false);
-
-  const handleAuthorize = (integrationName: string) => {
-    if (!OAUTH_INTEGRATION_REGISTRY[integrationName]) {
-      console.error(`No OAuth modal registered for integration "${integrationName}"`);
-      return;
-    }
-    setActiveOAuthIntegration(integrationName);
-    setOauthModalVisible(true);
-  };
-
-  const handleOAuthSuccess = () => {
-    refreshIntegrations();
-  };
-
-  const handleStart = async (integrationName: string) => {
-    setLoadingIntegration(integrationName);
-    try {
-      await startIntegration(integrationName);
-    } catch (error) {
-      console.error('Failed to start integration', error);
-    } finally {
-      setLoadingIntegration(null);
-    }
-  };
-
-  const handleStop = async (integrationName: string) => {
-    setLoadingIntegration(integrationName);
-    try {
-      await stopIntegration(integrationName);
-    } catch (error) {
-      console.error('Failed to stop integration', error);
-    } finally {
-      setLoadingIntegration(null);
-    }
-  };
-
-  const getStatusColor = (status: IntegrationStatus): 'blue' | 'green' | 'red' | 'grey' => {
-    switch (status) {
-      case IntegrationStatus.CONNECTED:
-        return 'green';
-      case IntegrationStatus.CONNECTING:
-        return 'blue';
-      case IntegrationStatus.ERROR:
-        return 'red';
-      default:
-        return 'grey';
-    }
-  };
+    activeOAuthIntegration,
+    oauthModalVisible,
+    setupModalVisible,
+    handleAuthorize,
+    handleStart,
+    handleStop,
+    handleOAuthSuccess,
+    closeOAuthModal,
+    closeSetupModal,
+    handleSetupSuccess,
+    handleNeedsSetup,
+    getActionState,
+    getStatusColor,
+  } = useIntegrationActions();
 
   return (
     <SpaceBetween size="l">
@@ -124,19 +77,23 @@ export function IntegrationPanel() {
               {
                 id: 'actions',
                 content: (item: IntegrationInfo) => {
-                  const hasUnmetDependencies = !areDependenciesMet(item.name);
-                  const missingDeps = getMissingDependencies(item.name);
-                  const isOAuthIntegration = Boolean(item.oauth);
-                  const isStartable =
-                    item.status === IntegrationStatus.DISCONNECTED ||
-                    item.status === IntegrationStatus.ERROR;
+                  const {
+                    isLoading,
+                    isConnected,
+                    isStartable,
+                    isOAuthIntegration,
+                    hasUnmetDependencies,
+                    missingDependencies,
+                  } = getActionState(item);
 
                   return (
                     <SpaceBetween size="xs" direction="horizontal">
-                      {item.status === IntegrationStatus.CONNECTED ? (
+                      {isConnected ? (
                         <Button
+                          variant="normal"
+                          iconName="status-negative"
                           onClick={() => handleStop(item.name)}
-                          loading={loadingIntegration === item.name}
+                          loading={isLoading}
                         >
                           Stop
                         </Button>
@@ -146,7 +103,7 @@ export function IntegrationPanel() {
                             variant="primary"
                             iconName="unlocked"
                             onClick={() => handleAuthorize(item.name)}
-                            disabled={loadingIntegration === item.name}
+                            disabled={isLoading}
                           >
                             Authorize
                           </Button>
@@ -167,7 +124,7 @@ export function IntegrationPanel() {
                                       This integration requires the following to be connected first:
                                     </Box>
                                     <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                                      {missingDeps.map((dep) => (
+                                      {missingDependencies.map((dep) => (
                                         <li key={dep}>
                                           <strong>{dep}</strong>
                                         </li>
@@ -177,15 +134,16 @@ export function IntegrationPanel() {
                                 </Box>
                               }
                             >
-                              <Button variant="primary" disabled={true}>
+                              <Button variant="primary" iconName="status-positive" disabled={true}>
                                 Start
                               </Button>
                             </Popover>
                           ) : (
                             <Button
                               variant="primary"
+                              iconName="status-positive"
                               onClick={() => handleStart(item.name)}
-                              loading={loadingIntegration === item.name}
+                              loading={isLoading}
                             >
                               Start
                             </Button>
@@ -212,36 +170,16 @@ export function IntegrationPanel() {
         />
       </Container>
 
-      {activeOAuthIntegration &&
-        (() => {
-          const entry = OAUTH_INTEGRATION_REGISTRY[activeOAuthIntegration];
-          if (!entry) {
-            return null;
-          }
-          const { oauthModal: OAuthModal, setupModal: SetupModal } = entry;
-          return (
-            <>
-              <SetupModal
-                visible={setupModalVisible}
-                onDismiss={() => setSetupModalVisible(false)}
-                onSuccess={() => {
-                  setSetupModalVisible(false);
-                  setOauthModalVisible(true);
-                }}
-              />
-
-              <OAuthModal
-                visible={oauthModalVisible}
-                onDismiss={() => setOauthModalVisible(false)}
-                onSuccess={handleOAuthSuccess}
-                onNeedsSetup={() => {
-                  setOauthModalVisible(false);
-                  setSetupModalVisible(true);
-                }}
-              />
-            </>
-          );
-        })()}
+      <IntegrationOAuthModals
+        activeIntegration={activeOAuthIntegration}
+        oauthModalVisible={oauthModalVisible}
+        setupModalVisible={setupModalVisible}
+        onOAuthDismiss={closeOAuthModal}
+        onSetupDismiss={closeSetupModal}
+        onSetupSuccess={handleSetupSuccess}
+        onOAuthSuccess={handleOAuthSuccess}
+        onNeedsSetup={handleNeedsSetup}
+      />
     </SpaceBetween>
   );
 }

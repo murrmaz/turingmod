@@ -51,7 +51,7 @@ export class TwitchApiIntegration extends BaseIntegration {
     logger: Logger,
     private authIntegration: TwitchAuthIntegration
   ) {
-    super(logger, { integration: 'TwitchAPI' });
+    super(logger, { component: 'TwitchAPI' });
   }
 
   /**

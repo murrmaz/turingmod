@@ -55,7 +55,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
     private authIntegration: TwitchAuthIntegration,
     private apiIntegration: TwitchApiIntegration
   ) {
-    super(logger, { integration: 'TwitchEventSub' });
+    super(logger, { component: 'TwitchEventSub' });
   }
 
   /**

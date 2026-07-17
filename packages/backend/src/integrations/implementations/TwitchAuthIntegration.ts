@@ -65,7 +65,7 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
     logger: Logger,
     private stateRepo: IntegrationStateRepository
   ) {
-    super(logger, { integration: 'TwitchAuth' });
+    super(logger, { component: 'TwitchAuth' });
   }
 
   initialize(config: Record<string, unknown>): Promise<void> {

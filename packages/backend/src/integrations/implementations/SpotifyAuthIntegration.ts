@@ -65,7 +65,7 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
     logger: Logger,
     private stateRepo: IntegrationStateRepository
   ) {
-    super(logger, { integration: 'SpotifyAuth' });
+    super(logger, { component: 'SpotifyAuth' });
   }
 
   initialize(config: Record<string, unknown>): Promise<void> {

@@ -34,7 +34,7 @@ export class SpotifyApiIntegration extends BaseIntegration {
     logger: Logger,
     private authIntegration: SpotifyAuthIntegration
   ) {
-    super(logger, { integration: 'SpotifyAPI' });
+    super(logger, { component: 'SpotifyAPI' });
   }
 
   /**

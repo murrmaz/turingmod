@@ -1,6 +1,5 @@
 import type { PermissionLevel, User } from '@turingmod/shared';
 import type { DatabaseManager, SqlValue } from '../DatabaseManager.js';
-import type { IRepository } from '../interfaces/IRepository.js';
 
 /**
  * Database row structure for users table
@@ -19,7 +18,7 @@ interface UserRow {
  * User repository
  * Manages user data persistence
  */
-export class UserRepository implements IRepository<User> {
+export class UserRepository {
   constructor(private db: DatabaseManager) {}
 
   /**

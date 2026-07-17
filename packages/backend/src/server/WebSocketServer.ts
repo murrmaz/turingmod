@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import type { IWebSocketMessage } from '@turingmod/shared';
-import { createPongMessage } from '@turingmod/shared';
+import { MessageType, createErrorMessage, createPongMessage } from '@turingmod/shared';
 import { WebSocketServer as WSServer, WebSocket } from 'ws';
 import type { Logger } from '../utils/Logger.js';
 import type { MessageRouter } from './MessageRouter.js';
@@ -79,7 +79,7 @@ export class WebSocketServer {
       });
 
       // Handle ping
-      if (message.type === 'ping') {
+      if (message.type === MessageType.PING) {
         const pong = createPongMessage(message.id);
         this.sendToClient(clientId, pong);
         return;
@@ -96,15 +96,13 @@ export class WebSocketServer {
       this.logger.error('Failed to handle message', error, { clientId });
 
       // Send error response
-      this.sendToClient(clientId, {
-        id: crypto.randomUUID(),
-        type: 'error',
-        timestamp: Date.now(),
-        payload: {
-          code: 'MESSAGE_HANDLING_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        },
-      } as IWebSocketMessage<unknown>);
+      this.sendToClient(
+        clientId,
+        createErrorMessage(
+          'MESSAGE_HANDLING_ERROR',
+          error instanceof Error ? error.message : 'Unknown error'
+        )
+      );
     }
   }
 

@@ -5,7 +5,7 @@ import type {
   IntegrationStartPayload,
   IntegrationStopPayload,
 } from '@turingmod/shared';
-import { MessageType } from '@turingmod/shared';
+import { MessageType, createErrorMessage } from '@turingmod/shared';
 import type { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import type { Logger } from '../../utils/Logger.js';
 
@@ -53,16 +53,11 @@ export class IntegrationHandler {
     } catch (error) {
       this.logger.error(`Failed to start integration: ${integrationName}`, error);
 
-      return {
-        id: message.id,
-        type: MessageType.ERROR,
-        timestamp: Date.now(),
-        payload: {
-          code: 'INTEGRATION_START_FAILED',
-          message: error instanceof Error ? error.message : 'Failed to start integration',
-          originalMessageId: message.id,
-        },
-      };
+      return createErrorMessage(
+        'INTEGRATION_START_FAILED',
+        error instanceof Error ? error.message : 'Failed to start integration',
+        message.id
+      );
     }
   }
 
@@ -96,16 +91,11 @@ export class IntegrationHandler {
     } catch (error) {
       this.logger.error(`Failed to stop integration: ${integrationName}`, error);
 
-      return {
-        id: message.id,
-        type: MessageType.ERROR,
-        timestamp: Date.now(),
-        payload: {
-          code: 'INTEGRATION_STOP_FAILED',
-          message: error instanceof Error ? error.message : 'Failed to stop integration',
-          originalMessageId: message.id,
-        },
-      };
+      return createErrorMessage(
+        'INTEGRATION_STOP_FAILED',
+        error instanceof Error ? error.message : 'Failed to stop integration',
+        message.id
+      );
     }
   }
 
@@ -161,16 +151,11 @@ export class IntegrationHandler {
     } catch (error) {
       this.logger.error(`Failed to configure integration: ${integrationName}`, error);
 
-      return {
-        id: message.id,
-        type: MessageType.ERROR,
-        timestamp: Date.now(),
-        payload: {
-          code: 'INTEGRATION_CONFIGURE_FAILED',
-          message: error instanceof Error ? error.message : 'Failed to configure integration',
-          originalMessageId: message.id,
-        },
-      };
+      return createErrorMessage(
+        'INTEGRATION_CONFIGURE_FAILED',
+        error instanceof Error ? error.message : 'Failed to configure integration',
+        message.id
+      );
     }
   }
 }

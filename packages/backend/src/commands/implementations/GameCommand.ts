@@ -130,3 +130,5 @@ export class GameCommand implements ICommand {
     }
   }
 }
+
+export default GameCommand;

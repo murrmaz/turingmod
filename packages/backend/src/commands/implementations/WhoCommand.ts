@@ -69,3 +69,5 @@ export class WhoCommand implements ICommand {
     }
   }
 }
+
+export default WhoCommand;

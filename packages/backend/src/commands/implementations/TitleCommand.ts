@@ -109,3 +109,5 @@ export class TitleCommand implements ICommand {
     }
   }
 }
+
+export default TitleCommand;

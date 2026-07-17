@@ -97,3 +97,5 @@ export class ScheduleCommand implements ICommand {
     }
   }
 }
+
+export default ScheduleCommand;

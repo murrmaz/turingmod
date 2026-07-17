@@ -112,3 +112,5 @@ export class ContentWarningCommand implements ICommand {
     }
   }
 }
+
+export default ContentWarningCommand;

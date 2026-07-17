@@ -92,3 +92,5 @@ export class AdCommand implements ICommand {
     }
   }
 }
+
+export default AdCommand;

@@ -73,3 +73,5 @@ export class BonkCommand implements ICommand {
     this.bonkCounts.clear();
   }
 }
+
+export default BonkCommand;

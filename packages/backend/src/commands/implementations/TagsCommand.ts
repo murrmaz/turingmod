@@ -112,3 +112,5 @@ export class TagsCommand implements ICommand {
     }
   }
 }
+
+export default TagsCommand;

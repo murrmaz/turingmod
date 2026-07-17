@@ -72,3 +72,5 @@ export class UptimeCommand implements ICommand {
     }
   }
 }
+
+export default UptimeCommand;

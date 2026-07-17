@@ -8,8 +8,10 @@ import type { ICommand } from './interfaces/ICommand.js';
 /**
  * Auto-discover and register commands from the implementations directory.
  *
- * Convention: each file in implementations/ exports exactly one command class.
- * The class constructor accepts a Container parameter for dependency injection.
+ * Convention: each file in implementations/ has a default export of its command
+ * class, whose constructor accepts a Container parameter for dependency injection.
+ * Only the default export is registered — other exports from the same file
+ * (helpers, types) are ignored instead of being treated as commands.
  */
 export async function loadCommands(
   container: Container,
@@ -31,14 +33,16 @@ export async function loadCommands(
   }
 
   for (const file of commandFiles.values()) {
-    const mod: Record<string, unknown> = await import(`./implementations/${file}`);
+    const mod: { default?: new (c: Container) => ICommand } = await import(
+      `./implementations/${file}`
+    );
 
-    for (const exported of Object.values(mod)) {
-      if (typeof exported === 'function' && exported.prototype) {
-        const command = new (exported as new (c: Container) => ICommand)(container);
-        registry.register(command);
-      }
+    if (typeof mod.default !== 'function') {
+      throw new Error(`Command file '${file}' has no default export`);
     }
+
+    const command = new mod.default(container);
+    registry.register(command);
   }
 
   logger.info(`Loaded ${registry.count()} command(s) via auto-discovery`);

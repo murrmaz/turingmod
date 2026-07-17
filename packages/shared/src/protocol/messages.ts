@@ -3,17 +3,6 @@ import type { IntegrationInfo, IntegrationStatus } from '../types/integration.js
 import type { SimulatedUser } from '../types/user.js';
 
 /**
- * Generate a simple UUID v4
- */
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-/**
  * Base WebSocket message structure
  */
 export interface IWebSocketMessage<T = unknown> {
@@ -288,7 +277,7 @@ export interface OAuthCodeReceivedPayload {
  */
 export function createMessage<T>(type: MessageType, payload: T, id?: string): IWebSocketMessage<T> {
   return {
-    id: id ?? generateUUID(),
+    id: id ?? crypto.randomUUID(),
     type,
     timestamp: Date.now(),
     payload,

@@ -20,7 +20,15 @@
     "check": "biome check src",
     "check:fix": "biome check --write src"
   },
-  "keywords": ["turingmod", "shared", "types"],
+  "keywords": [
+    "turingmod",
+    "shared",
+    "types"
+  ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^6.0.0"
+  }
 }

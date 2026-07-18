@@ -56,6 +56,55 @@ export const TWITCH_OAUTH_PROVIDER: OAuthProviderConfig = {
   clientSecretHint: "Click 'New Secret' on Twitch to generate",
 };
 
+export const YOUTUBE_OAUTH_PROVIDER: OAuthProviderConfig = {
+  integrationName: 'youtube-auth',
+  displayName: 'YouTube',
+  popupWindowName: 'YouTubeAuth',
+  // Google's loopback flow requires the literal loopback IP (127.0.0.1), not `localhost`.
+  redirectUri: 'http://127.0.0.1:8080/callback/youtube',
+  registrationUrl: 'https://console.cloud.google.com/apis/credentials',
+  registrationLinkText: 'console.cloud.google.com/apis/credentials',
+  createButtonLabel: 'Create Credentials',
+  saveButtonLabel: 'Create',
+  fields: [
+    { label: 'Application type', value: 'Web application' },
+    { label: 'Name', value: 'TuringMod Local (or any name you prefer)' },
+    {
+      label: 'Authorized redirect URIs',
+      value: <code>http://127.0.0.1:8080/callback/youtube</code>,
+    },
+  ],
+  finalSteps: [
+    {
+      id: 'enable-api',
+      content: (
+        <>
+          Enable the <strong>YouTube Data API v3</strong> for your project under{' '}
+          <strong>&quot;APIs &amp; Services&quot;</strong>
+        </>
+      ),
+    },
+    {
+      id: 'copy-client-id',
+      content: (
+        <>
+          Copy your <strong>Client ID</strong>
+        </>
+      ),
+    },
+    {
+      id: 'copy-client-secret',
+      content: (
+        <>
+          Copy your <strong>Client Secret</strong>
+        </>
+      ),
+    },
+  ],
+  clientIdHint: 'Copy from your Google Cloud OAuth client',
+  clientSecretHint: 'Copy from your Google Cloud OAuth client',
+};
+
 export const SPOTIFY_OAUTH_PROVIDER: OAuthProviderConfig = {
   integrationName: 'spotify-auth',
   displayName: 'Spotify',

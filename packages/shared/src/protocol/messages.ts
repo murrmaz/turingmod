@@ -1,3 +1,4 @@
+import type { Platform } from '../constants/platform.js';
 import type { CommandContext, CommandInfo, CommandResult } from '../types/command.js';
 import type { IntegrationInfo, IntegrationStatus } from '../types/integration.js';
 import type { SimulatedUser } from '../types/user.js';
@@ -90,7 +91,7 @@ export interface CommandSimulatePayload {
   simulatedUser: SimulatedUser;
 
   /** Platform to simulate */
-  platform: string;
+  platform: Platform;
 }
 
 /**
@@ -140,6 +141,15 @@ export interface IntegrationConfigurePayload {
 export interface IntegrationStatusPayload {
   /** Integration information */
   integration: IntegrationInfo;
+}
+
+/**
+ * Command list request payload (client → server). Optionally scopes the returned commands to
+ * those available on a specific platform.
+ */
+export interface CommandListRequestPayload {
+  /** Platform to filter commands by. Omitted = all registered commands. */
+  platform?: Platform;
 }
 
 /**

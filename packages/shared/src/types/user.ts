@@ -1,4 +1,5 @@
 import type { PermissionLevel } from '../constants/permissions.js';
+import type { Platform } from '../constants/platform.js';
 
 /**
  * Represents a user in the system
@@ -7,8 +8,8 @@ export interface User {
   /** Unique identifier */
   id: string;
 
-  /** Platform the user belongs to (e.g., 'twitch', 'discord') */
-  platform: string;
+  /** Platform the user belongs to */
+  platform: Platform;
 
   /** Platform-specific user ID */
   platformUserId: string;

@@ -7,8 +7,9 @@ import Modal from '@cloudscape-design/components/modal';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import Table from '@cloudscape-design/components/table';
 import type { CommandInfo } from '@turingmod/shared';
-import { PermissionLevel } from '@turingmod/shared';
+import { PermissionLevel, Platform } from '@turingmod/shared';
 import { useState } from 'react';
+import { isCommandAvailableOnPlatform } from '../../constants/platformCapabilities';
 import { useAppState } from '../../context/AppStateContext';
 import { CommandSimulator } from './CommandSimulator';
 
@@ -20,6 +21,12 @@ export function CommandList() {
   const { commands } = useAppState();
   const [selectedCommand, setSelectedCommand] = useState<CommandInfo | null>(null);
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+  const [platform, setPlatform] = useState<Platform>(Platform.TWITCH);
+
+  // Only show commands available on the selected platform (Twitch-only commands hide on YouTube).
+  const visibleCommands = commands.filter((command) =>
+    isCommandAvailableOnPlatform(command.requiredCapabilities, platform)
+  );
 
   const handleTestCommand = (command: CommandInfo) => {
     setSelectedCommand(command);
@@ -85,7 +92,7 @@ export function CommandList() {
                 ),
               },
             ]}
-            items={commands}
+            items={visibleCommands}
             loadingText="Loading commands..."
             empty={
               <Box textAlign="center" color="inherit">
@@ -101,6 +108,8 @@ export function CommandList() {
         <CommandSimulator
           {...(selectedCommand?.name && { defaultCommand: selectedCommand.name })}
           defaultPermissionLevel={PermissionLevel.VIEWER}
+          platform={platform}
+          onPlatformChange={setPlatform}
         />
       </SpaceBetween>
 
@@ -113,6 +122,8 @@ export function CommandList() {
         <CommandSimulator
           {...(selectedCommand?.name && { defaultCommand: selectedCommand.name })}
           defaultPermissionLevel={PermissionLevel.VIEWER}
+          platform={platform}
+          onPlatformChange={setPlatform}
         />
       </Modal>
     </>

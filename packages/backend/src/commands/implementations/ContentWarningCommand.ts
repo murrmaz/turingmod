@@ -1,5 +1,5 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
-import { PermissionLevel } from '@turingmod/shared';
+import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import type { Container } from '../../core/Container.js';
 import type { TwitchApiIntegration } from '../../integrations/implementations/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../../integrations/implementations/TwitchAuthIntegration.js';
@@ -17,6 +17,7 @@ export class ContentWarningCommand implements ICommand {
   readonly usage = '!cw [label1,label2,...]';
   readonly permissions = [PermissionLevel.VIEWER];
   readonly cooldown = 0;
+  readonly requiredCapabilities = [PlatformCapability.CONTENT_LABELS];
 
   private twitchApi: TwitchApiIntegration;
   private authIntegration: TwitchAuthIntegration;

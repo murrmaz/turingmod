@@ -6,6 +6,7 @@
 // Constants
 export * from './constants/permissions.js';
 export * from './constants/endpoints.js';
+export * from './constants/platform.js';
 
 // Types
 export * from './types/user.js';

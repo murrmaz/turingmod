@@ -1,15 +1,16 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
-import { PermissionLevel } from '@turingmod/shared';
+import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import type { Container } from '../../core/Container.js';
-import type { TwitchApiIntegration } from '../../integrations/implementations/TwitchApiIntegration.js';
-import type { TwitchAuthIntegration } from '../../integrations/implementations/TwitchAuthIntegration.js';
+import type { StreamControlService } from '../../platforms/StreamControlService.js';
+import { formatPlatformList } from '../../platforms/platformNames.js';
 import type { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 import { checkPermission } from '../utils/permissionChecks.js';
 
 /**
  * !title command
- * Shows the current stream title, or sets it (moderator only)
+ * Shows the current stream title, or sets it (moderator only). Setting mirrors to every live
+ * platform that supports SET_TITLE.
  */
 export class TitleCommand implements ICommand {
   readonly name = 'title';
@@ -17,14 +18,13 @@ export class TitleCommand implements ICommand {
   readonly usage = '!title [new title]';
   readonly permissions = [PermissionLevel.VIEWER];
   readonly cooldown = 0;
+  readonly requiredCapabilities = [PlatformCapability.SET_TITLE];
 
-  private twitchApi: TwitchApiIntegration;
-  private authIntegration: TwitchAuthIntegration;
+  private streamControl: StreamControlService;
   private logger: Logger;
 
   constructor(container: Container) {
-    this.twitchApi = container.resolve<TwitchApiIntegration>('TwitchApiIntegration');
-    this.authIntegration = container.resolve<TwitchAuthIntegration>('TwitchAuthIntegration');
+    this.streamControl = container.resolve<StreamControlService>('StreamControlService');
     this.logger = container.resolve<Logger>('Logger').child({ command: 'title' });
   }
 
@@ -32,19 +32,7 @@ export class TitleCommand implements ICommand {
     const { user, args } = context;
 
     try {
-      const userId = this.authIntegration.getAuthenticatedUserId();
-      if (!userId) {
-        return {
-          success: false,
-          message: 'Not authenticated with Twitch',
-          error: {
-            code: 'NOT_AUTHENTICATED',
-            message: 'Complete OAuth first',
-          },
-        };
-      }
-
-      // Write mode: set new title
+      // Write mode: set new title (mirrors to all live platforms that support SET_TITLE)
       if (args.length > 1) {
         const permissionError = checkPermission(
           user.permissionLevel,
@@ -68,33 +56,34 @@ export class TitleCommand implements ICommand {
           };
         }
 
-        await this.twitchApi.setStreamTitle(userId, newTitle);
+        const mirror = await this.streamControl.setTitle(newTitle);
+
+        if (mirror.updated.length === 0) {
+          const reason = mirror.failures[0]?.error ?? 'No live platforms to update';
+          return {
+            success: false,
+            message: `Failed to update title: ${reason}`,
+            error: {
+              code: 'API_ERROR',
+              message: reason,
+            },
+          };
+        }
 
         return {
           success: true,
-          message: `Title updated to: ${newTitle}`,
-          data: { title: newTitle },
+          message: `Title updated on ${formatPlatformList(mirror.updated)}: ${newTitle}`,
+          data: { title: newTitle, updated: mirror.updated },
         };
       }
 
-      // Read mode: show current title
-      const channel = await this.twitchApi.getChannel(userId);
-
-      if (!channel) {
-        return {
-          success: false,
-          message: 'Failed to retrieve channel information',
-          error: {
-            code: 'API_ERROR',
-            message: 'Channel not found',
-          },
-        };
-      }
+      // Read mode: show current title on the origin platform
+      const info = await this.streamControl.getStreamInfo(context.platform);
 
       return {
         success: true,
-        message: `Stream Title: ${channel.title}`,
-        data: { title: channel.title },
+        message: `Stream Title: ${info.title}`,
+        data: { title: info.title },
       };
     } catch (error) {
       this.logger.error('Error in title command', error);

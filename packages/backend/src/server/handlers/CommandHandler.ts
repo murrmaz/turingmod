@@ -1,6 +1,7 @@
 import type {
   CommandExecutePayload,
   CommandListPayload,
+  CommandListRequestPayload,
   CommandResultPayload,
   CommandSimulatePayload,
   IWebSocketMessage,
@@ -8,6 +9,8 @@ import type {
 import { MessageType, createCommandResultMessage } from '@turingmod/shared';
 import type { CommandExecutor } from '../../commands/CommandExecutor.js';
 import type { CommandRegistry } from '../../commands/CommandRegistry.js';
+import type { ICommand } from '../../commands/interfaces/ICommand.js';
+import type { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import type { Logger } from '../../utils/Logger.js';
 
 /**
@@ -20,6 +23,7 @@ export class CommandHandler {
   constructor(
     private commandExecutor: CommandExecutor,
     private commandRegistry: CommandRegistry,
+    private platformRegistry: PlatformRegistry,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'CommandHandler' });
@@ -92,17 +96,26 @@ export class CommandHandler {
   }
 
   /**
-   * Handle command list request
+   * Handle command list request. When the request carries a platform, only commands available on
+   * that platform (requiredCapabilities ⊆ platform capabilities) are returned.
    */
-  handleList(message: IWebSocketMessage): Promise<IWebSocketMessage<CommandListPayload>> {
-    this.logger.debug('Getting command list');
+  handleList(
+    message: IWebSocketMessage<CommandListRequestPayload>
+  ): Promise<IWebSocketMessage<CommandListPayload>> {
+    const platform = message.payload?.platform;
+    this.logger.debug('Getting command list', { platform });
 
-    const commands = this.commandRegistry.getAll().map((cmd) => ({
+    const source: ICommand[] = platform
+      ? this.commandRegistry.getAllForPlatform(this.platformRegistry.capabilitiesFor(platform))
+      : this.commandRegistry.getAll();
+
+    const commands = source.map((cmd) => ({
       name: cmd.name,
       description: cmd.description,
       usage: cmd.usage,
       permissions: cmd.permissions,
       cooldown: cmd.cooldown,
+      requiredCapabilities: cmd.requiredCapabilities,
     }));
 
     return Promise.resolve({

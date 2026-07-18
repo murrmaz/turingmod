@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { CommandContext, CommandResult } from '@turingmod/shared';
-import { PermissionLevel } from '@turingmod/shared';
+import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import type { Container } from '../../core/Container.js';
 import type { EventBus } from '../../core/EventBus.js';
 import type { ICommand } from '../interfaces/ICommand.js';
@@ -16,6 +16,8 @@ export class BonkCommand implements ICommand {
   readonly usage = '!bonk @username';
   readonly permissions = [PermissionLevel.VIEWER]; // Everyone can use it
   readonly cooldown = 5; // 5 second cooldown
+  // Sound + chat only — available on every platform.
+  readonly requiredCapabilities: PlatformCapability[] = [];
 
   private bonkCounts = new Map<string, number>();
   private eventBus: EventBus;

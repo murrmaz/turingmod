@@ -1,15 +1,17 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
-import { PermissionLevel } from '@turingmod/shared';
+import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import type { Container } from '../../core/Container.js';
-import type { TwitchApiIntegration } from '../../integrations/implementations/TwitchApiIntegration.js';
-import type { TwitchAuthIntegration } from '../../integrations/implementations/TwitchAuthIntegration.js';
+import type { StreamControlService } from '../../platforms/StreamControlService.js';
+import { formatPlatformList } from '../../platforms/platformNames.js';
 import type { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 import { checkPermission } from '../utils/permissionChecks.js';
 
 /**
  * !game command
- * Shows the current stream game/category, or sets it (moderator only)
+ * Shows the current stream game/category, or sets it (moderator only). Setting mirrors to every
+ * live platform that supports SET_GAME (Twitch only in practice). Category name → id resolution
+ * lives inside TwitchPlatform.
  */
 export class GameCommand implements ICommand {
   readonly name = 'game';
@@ -17,14 +19,13 @@ export class GameCommand implements ICommand {
   readonly usage = '!game [game name]';
   readonly permissions = [PermissionLevel.VIEWER];
   readonly cooldown = 0;
+  readonly requiredCapabilities = [PlatformCapability.SET_GAME];
 
-  private twitchApi: TwitchApiIntegration;
-  private authIntegration: TwitchAuthIntegration;
+  private streamControl: StreamControlService;
   private logger: Logger;
 
   constructor(container: Container) {
-    this.twitchApi = container.resolve<TwitchApiIntegration>('TwitchApiIntegration');
-    this.authIntegration = container.resolve<TwitchAuthIntegration>('TwitchAuthIntegration');
+    this.streamControl = container.resolve<StreamControlService>('StreamControlService');
     this.logger = container.resolve<Logger>('Logger').child({ command: 'game' });
   }
 
@@ -32,19 +33,7 @@ export class GameCommand implements ICommand {
     const { user, args } = context;
 
     try {
-      const userId = this.authIntegration.getAuthenticatedUserId();
-      if (!userId) {
-        return {
-          success: false,
-          message: 'Not authenticated with Twitch',
-          error: {
-            code: 'NOT_AUTHENTICATED',
-            message: 'Complete OAuth first',
-          },
-        };
-      }
-
-      // Write mode: set new game
+      // Write mode: set new game (mirrors to all live platforms that support SET_GAME)
       if (args.length > 1) {
         const permissionError = checkPermission(
           user.permissionLevel,
@@ -68,43 +57,31 @@ export class GameCommand implements ICommand {
           };
         }
 
-        const game = await this.twitchApi.searchGame(gameName);
+        const mirror = await this.streamControl.setGame(gameName);
 
-        if (!game) {
+        if (mirror.updated.length === 0) {
+          const reason = mirror.failures[0]?.error ?? 'No live platforms to update';
           return {
             success: false,
-            message: `Game not found: ${gameName}. Try another name.`,
+            message: `Failed to update game: ${reason}`,
             error: {
-              code: 'GAME_NOT_FOUND',
-              message: `No game found matching "${gameName}"`,
+              code: 'API_ERROR',
+              message: reason,
             },
           };
         }
 
-        await this.twitchApi.setStreamGame(userId, game.id);
-
         return {
           success: true,
-          message: `Game changed to: ${game.name}`,
-          data: { gameId: game.id, gameName: game.name },
+          message: `Game changed to ${gameName} on ${formatPlatformList(mirror.updated)}`,
+          data: { gameName, updated: mirror.updated },
         };
       }
 
-      // Read mode: show current game
-      const channel = await this.twitchApi.getChannel(userId);
+      // Read mode: show current game on the origin platform
+      const info = await this.streamControl.getStreamInfo(context.platform);
 
-      if (!channel) {
-        return {
-          success: false,
-          message: 'Failed to retrieve channel information',
-          error: {
-            code: 'API_ERROR',
-            message: 'Channel not found',
-          },
-        };
-      }
-
-      if (!channel.gameName || channel.gameName === '') {
+      if (!info.game || info.game === '') {
         return {
           success: true,
           message: 'No game/category set',
@@ -114,8 +91,8 @@ export class GameCommand implements ICommand {
 
       return {
         success: true,
-        message: `Current Game: ${channel.gameName}`,
-        data: { gameId: channel.gameId, gameName: channel.gameName },
+        message: `Current Game: ${info.game}`,
+        data: { gameName: info.game },
       };
     } catch (error) {
       this.logger.error('Error in game command', error);

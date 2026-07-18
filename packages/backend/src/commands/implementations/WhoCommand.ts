@@ -1,5 +1,5 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
-import { PermissionLevel } from '@turingmod/shared';
+import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import type { Container } from '../../core/Container.js';
 import type { TwitchApiIntegration } from '../../integrations/implementations/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../../integrations/implementations/TwitchAuthIntegration.js';
@@ -16,6 +16,8 @@ export class WhoCommand implements ICommand {
   readonly usage = '!who';
   readonly permissions = [PermissionLevel.VIEWER];
   readonly cooldown = 0;
+  // Reads the broadcaster bio via getUserById — no follow-age lookup, so no capability gate.
+  readonly requiredCapabilities: PlatformCapability[] = [];
 
   private twitchApi: TwitchApiIntegration;
   private authIntegration: TwitchAuthIntegration;

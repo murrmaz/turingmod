@@ -1,4 +1,4 @@
-import type { PermissionLevel, User } from '@turingmod/shared';
+import type { PermissionLevel, Platform, User } from '@turingmod/shared';
 import type { DatabaseManager, SqlValue } from '../DatabaseManager.js';
 
 /**
@@ -27,7 +27,7 @@ export class UserRepository {
   private rowToEntity(row: UserRow): User {
     return {
       id: row.id,
-      platform: row.platform,
+      platform: row.platform as Platform,
       platformUserId: row.platform_user_id,
       username: row.username,
       permissionLevel: row.permission_level,

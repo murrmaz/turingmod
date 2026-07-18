@@ -1,7 +1,11 @@
 import type { ComponentType } from 'react';
 import { OAuthModal, type OAuthModalProps } from './OAuthModal';
 import { SetupModal, type SetupModalProps } from './SetupModal';
-import { SPOTIFY_OAUTH_PROVIDER, TWITCH_OAUTH_PROVIDER } from './oauthProviders';
+import {
+  SPOTIFY_OAUTH_PROVIDER,
+  TWITCH_OAUTH_PROVIDER,
+  YOUTUBE_OAUTH_PROVIDER,
+} from './oauthProviders';
 
 type OAuthModalRuntimeProps = Omit<OAuthModalProps, 'provider'>;
 type SetupModalRuntimeProps = Omit<SetupModalProps, 'provider'>;
@@ -40,5 +44,9 @@ export const OAUTH_INTEGRATION_REGISTRY: Record<string, OAuthIntegrationEntry> =
   'spotify-auth': {
     oauthModal: bindOAuthModal(SPOTIFY_OAUTH_PROVIDER),
     setupModal: bindSetupModal(SPOTIFY_OAUTH_PROVIDER),
+  },
+  'youtube-auth': {
+    oauthModal: bindOAuthModal(YOUTUBE_OAUTH_PROVIDER),
+    setupModal: bindSetupModal(YOUTUBE_OAUTH_PROVIDER),
   },
 };

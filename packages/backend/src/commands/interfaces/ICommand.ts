@@ -1,4 +1,9 @@
-import type { CommandContext, CommandResult, PermissionLevel } from '@turingmod/shared';
+import type {
+  CommandContext,
+  CommandResult,
+  PermissionLevel,
+  PlatformCapability,
+} from '@turingmod/shared';
 
 /**
  * Command interface
@@ -19,6 +24,9 @@ export interface ICommand {
 
   /** Cooldown in seconds (0 = no cooldown) */
   readonly cooldown: number;
+
+  /** Platform capabilities this command requires. Empty = available on every platform. */
+  readonly requiredCapabilities: PlatformCapability[];
 
   /**
    * Execute the command

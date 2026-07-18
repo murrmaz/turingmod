@@ -1,4 +1,5 @@
 import type { PermissionLevel } from '../constants/permissions.js';
+import type { Platform, PlatformCapability } from '../constants/platform.js';
 
 /**
  * Command metadata exposed to clients
@@ -19,6 +20,9 @@ export interface CommandInfo {
 
   /** Cooldown in seconds (0 = no cooldown) */
   cooldown: number;
+
+  /** Platform capabilities this command requires (empty = available on every platform) */
+  requiredCapabilities: PlatformCapability[];
 }
 
 /**
@@ -28,7 +32,7 @@ export interface CommandContext {
   /** User executing the command */
   user: {
     id: string;
-    platform: string;
+    platform: Platform;
     platformUserId: string;
     username: string;
     permissionLevel: PermissionLevel;
@@ -38,7 +42,7 @@ export interface CommandContext {
   args: string[];
 
   /** Platform where command was executed */
-  platform: string;
+  platform: Platform;
 
   /** Additional platform-specific metadata */
   metadata: Record<string, unknown>;
@@ -82,7 +86,7 @@ export interface CommandHistoryEntry {
   userId: string;
 
   /** Platform where command was executed */
-  platform: string;
+  platform: Platform;
 
   /** Command arguments */
   args: string[];

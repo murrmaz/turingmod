@@ -8,7 +8,7 @@ import Input from '@cloudscape-design/components/input';
 import Select from '@cloudscape-design/components/select';
 import type { SelectProps } from '@cloudscape-design/components/select';
 import SpaceBetween from '@cloudscape-design/components/space-between';
-import { PermissionLevel } from '@turingmod/shared';
+import { PermissionLevel, Platform } from '@turingmod/shared';
 import { useState } from 'react';
 import { useCommands } from '../../hooks/useCommands';
 
@@ -18,7 +18,16 @@ import { useCommands } from '../../hooks/useCommands';
 export interface CommandSimulatorProps {
   defaultCommand?: string;
   defaultPermissionLevel?: PermissionLevel;
+  /** Controlled platform value. When provided, the parent owns the selection. */
+  platform?: Platform;
+  /** Notified when the user changes the platform, so the parent can filter its command list. */
+  onPlatformChange?: (platform: Platform) => void;
 }
+
+const PLATFORM_OPTIONS: SelectProps.Option[] = [
+  { label: 'Twitch', value: Platform.TWITCH },
+  { label: 'YouTube', value: Platform.YOUTUBE },
+];
 
 /**
  * Command simulator component
@@ -27,6 +36,8 @@ export interface CommandSimulatorProps {
 export function CommandSimulator({
   defaultCommand = '',
   defaultPermissionLevel = PermissionLevel.VIEWER,
+  platform,
+  onPlatformChange,
 }: CommandSimulatorProps) {
   const { simulateCommand } = useCommands();
   const [commandText, setCommandText] = useState(defaultCommand ? `!${defaultCommand}` : '');
@@ -35,6 +46,8 @@ export function CommandSimulator({
     label: defaultPermissionLevel,
     value: defaultPermissionLevel,
   });
+  const [internalPlatform, setInternalPlatform] = useState<Platform>(platform ?? Platform.TWITCH);
+  const selectedPlatform = platform ?? internalPlatform;
   const [isExecuting, setIsExecuting] = useState(false);
   const [result, setResult] = useState<{
     success: boolean;
@@ -48,6 +61,14 @@ export function CommandSimulator({
     { label: 'Moderator', value: PermissionLevel.MODERATOR },
     { label: 'Broadcaster', value: PermissionLevel.BROADCASTER },
   ];
+
+  const selectedPlatformOption =
+    PLATFORM_OPTIONS.find((option) => option.value === selectedPlatform) ?? null;
+
+  const handlePlatformChange = (next: Platform) => {
+    setInternalPlatform(next);
+    onPlatformChange?.(next);
+  };
 
   const handleExecute = async () => {
     if (!commandText.trim()) {
@@ -68,7 +89,7 @@ export function CommandSimulator({
           username,
           permissionLevel: permissionLevel.value as PermissionLevel,
         },
-        'twitch'
+        selectedPlatform
       );
 
       setResult({
@@ -94,6 +115,16 @@ export function CommandSimulator({
       }
     >
       <SpaceBetween size="l">
+        <FormField label="Platform" description="The platform to simulate the command on">
+          <Select
+            selectedOption={selectedPlatformOption}
+            onChange={(event) =>
+              handlePlatformChange(event.detail.selectedOption.value as Platform)
+            }
+            options={PLATFORM_OPTIONS}
+          />
+        </FormField>
+
         <FormField label="Command Text" description="Enter the command to test (e.g., !bonk @user)">
           <Input
             value={commandText}

@@ -1,5 +1,6 @@
 import {
   type CommandExecutePayload,
+  type CommandListRequestPayload,
   type CommandSimulatePayload,
   type IWebSocketMessage,
   type IntegrationConfigurePayload,
@@ -30,6 +31,14 @@ import { SpotifyAuthIntegration } from './integrations/implementations/SpotifyAu
 import { TwitchApiIntegration } from './integrations/implementations/TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from './integrations/implementations/TwitchAuthIntegration.js';
 import { TwitchEventSubIntegration } from './integrations/implementations/TwitchEventSubIntegration.js';
+import { YouTubeApiIntegration } from './integrations/implementations/YouTubeApiIntegration.js';
+import { YouTubeAuthIntegration } from './integrations/implementations/YouTubeAuthIntegration.js';
+import { YouTubeChatIntegration } from './integrations/implementations/YouTubeChatIntegration.js';
+import { ChatRouter } from './platforms/ChatRouter.js';
+import { PlatformRegistry } from './platforms/PlatformRegistry.js';
+import { StreamControlService } from './platforms/StreamControlService.js';
+import { TwitchPlatform } from './platforms/TwitchPlatform.js';
+import { YouTubePlatform } from './platforms/YouTubePlatform.js';
 import { HttpServer } from './server/HttpServer.js';
 import { MessageRouter } from './server/MessageRouter.js';
 import { WebSocketServer } from './server/WebSocketServer.js';
@@ -103,6 +112,32 @@ export function setupDependencies(container: Container): void {
       )
   );
 
+  // Platform provider layer (singletons)
+  container.registerSingleton('PlatformRegistry', () => new PlatformRegistry());
+
+  container.registerSingleton(
+    'TwitchPlatform',
+    () =>
+      new TwitchPlatform(
+        container.resolve<TwitchAuthIntegration>('TwitchAuthIntegration'),
+        container.resolve<TwitchApiIntegration>('TwitchApiIntegration')
+      )
+  );
+
+  container.registerSingleton(
+    'YouTubePlatform',
+    () => new YouTubePlatform(container.resolve<YouTubeApiIntegration>('YouTubeApiIntegration'))
+  );
+
+  container.registerSingleton(
+    'StreamControlService',
+    () =>
+      new StreamControlService(
+        container.resolve<PlatformRegistry>('PlatformRegistry'),
+        container.resolve<Logger>('Logger')
+      )
+  );
+
   // Command system (singletons)
   container.registerSingleton(
     'CommandRegistry',
@@ -115,6 +150,18 @@ export function setupDependencies(container: Container): void {
       new CommandExecutor(
         container.resolve<CommandRegistry>('CommandRegistry'),
         container.resolve<CommandHistoryRepository>('CommandHistoryRepository'),
+        container.resolve<PlatformRegistry>('PlatformRegistry'),
+        container.resolve<Logger>('Logger')
+      )
+  );
+
+  container.registerSingleton(
+    'ChatRouter',
+    () =>
+      new ChatRouter(
+        container.resolve<EventBus>('EventBus'),
+        container.resolve<CommandExecutor>('CommandExecutor'),
+        container.resolve<PlatformRegistry>('PlatformRegistry'),
         container.resolve<Logger>('Logger')
       )
   );
@@ -180,6 +227,38 @@ export function setupDependencies(container: Container): void {
         container.resolve<EventBus>('EventBus'),
         container.resolve<Logger>('Logger'),
         container.resolve<SpotifyAuthIntegration>('SpotifyAuthIntegration')
+      )
+  );
+
+  // Register YouTube integrations (with dependency chain: Auth → API → Chat)
+  container.registerSingleton(
+    'YouTubeAuthIntegration',
+    () =>
+      new YouTubeAuthIntegration(
+        container.resolve<EventBus>('EventBus'),
+        container.resolve<Logger>('Logger'),
+        container.resolve<IntegrationStateRepository>('IntegrationStateRepository')
+      )
+  );
+
+  container.registerSingleton(
+    'YouTubeApiIntegration',
+    () =>
+      new YouTubeApiIntegration(
+        container.resolve<EventBus>('EventBus'),
+        container.resolve<Logger>('Logger'),
+        container.resolve<YouTubeAuthIntegration>('YouTubeAuthIntegration')
+      )
+  );
+
+  container.registerSingleton(
+    'YouTubeChatIntegration',
+    () =>
+      new YouTubeChatIntegration(
+        container.resolve<EventBus>('EventBus'),
+        container.resolve<Logger>('Logger'),
+        container.resolve<YouTubeAuthIntegration>('YouTubeAuthIntegration'),
+        container.resolve<YouTubeApiIntegration>('YouTubeApiIntegration')
       )
   );
 
@@ -254,6 +333,7 @@ export function setupDependencies(container: Container): void {
       new CommandHandler(
         container.resolve<CommandExecutor>('CommandExecutor'),
         container.resolve<CommandRegistry>('CommandRegistry'),
+        container.resolve<PlatformRegistry>('PlatformRegistry'),
         container.resolve<Logger>('Logger')
       )
   );
@@ -318,11 +398,25 @@ export async function initializeComponents(container: Container): Promise<void> 
   integrationManager.register(container.resolve<SpotifyAuthIntegration>('SpotifyAuthIntegration'));
   integrationManager.register(container.resolve<SpotifyApiIntegration>('SpotifyApiIntegration'));
 
+  // Register YouTube integrations (order matters: Auth → API → Chat)
+  integrationManager.register(container.resolve<YouTubeAuthIntegration>('YouTubeAuthIntegration'));
+  integrationManager.register(container.resolve<YouTubeApiIntegration>('YouTubeApiIntegration'));
+  integrationManager.register(container.resolve<YouTubeChatIntegration>('YouTubeChatIntegration'));
+
   // Register other integrations
   integrationManager.register(container.resolve<DiscordIntegration>('DiscordIntegration'));
   integrationManager.register(container.resolve<ArduinoIntegration>('ArduinoIntegration'));
   integrationManager.register(container.resolve<ObsIntegration>('ObsIntegration'));
   integrationManager.register(container.resolve<SoundIntegration>('SoundIntegration'));
+
+  // Populate the platform provider registry (Platform → IStreamPlatform)
+  const platformRegistry = container.resolve<PlatformRegistry>('PlatformRegistry');
+  platformRegistry.register(container.resolve<TwitchPlatform>('TwitchPlatform'));
+  platformRegistry.register(container.resolve<YouTubePlatform>('YouTubePlatform'));
+
+  // Construct the reply-routing seam. The live chat→command→reply loop is deferred (Phase 5):
+  // start() leaves its EventBus subscription off until the loop is enabled for all platforms.
+  container.resolve<ChatRouter>('ChatRouter').start();
 
   // Register message handlers
   const messageRouter = container.resolve<MessageRouter>('MessageRouter');
@@ -338,7 +432,9 @@ export async function initializeComponents(container: Container): Promise<void> 
     commandHandler.handleSimulate(msg as IWebSocketMessage<CommandSimulatePayload>)
   );
 
-  messageRouter.registerHandler(MessageType.COMMAND_LIST, (msg) => commandHandler.handleList(msg));
+  messageRouter.registerHandler(MessageType.COMMAND_LIST, (msg) =>
+    commandHandler.handleList(msg as IWebSocketMessage<CommandListRequestPayload>)
+  );
 
   messageRouter.registerHandler(MessageType.INTEGRATION_START, (msg) =>
     integrationHandler.handleStart(msg as IWebSocketMessage<IntegrationStartPayload>)

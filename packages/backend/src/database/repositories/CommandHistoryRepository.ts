@@ -1,4 +1,4 @@
-import type { CommandHistoryEntry } from '@turingmod/shared';
+import type { CommandHistoryEntry, Platform } from '@turingmod/shared';
 import type { DatabaseManager, SqlValue } from '../DatabaseManager.js';
 
 /**
@@ -30,7 +30,7 @@ export class CommandHistoryRepository {
       id: row.id,
       commandName: row.command_name,
       userId: row.user_id,
-      platform: row.platform,
+      platform: row.platform as Platform,
       args: JSON.parse(row.args),
       result: JSON.parse(row.result),
       isSimulation: row.is_simulation === 1,

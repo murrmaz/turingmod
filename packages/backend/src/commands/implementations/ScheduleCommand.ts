@@ -1,5 +1,5 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
-import { PermissionLevel } from '@turingmod/shared';
+import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import type { Container } from '../../core/Container.js';
 import type { TwitchApiIntegration } from '../../integrations/implementations/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../../integrations/implementations/TwitchAuthIntegration.js';
@@ -17,6 +17,7 @@ export class ScheduleCommand implements ICommand {
   readonly usage = '!schedule';
   readonly permissions = [PermissionLevel.VIEWER];
   readonly cooldown = 0;
+  readonly requiredCapabilities = [PlatformCapability.SCHEDULE];
 
   private twitchApi: TwitchApiIntegration;
   private authIntegration: TwitchAuthIntegration;

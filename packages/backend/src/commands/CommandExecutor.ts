@@ -1,6 +1,7 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { hasPermission } from '@turingmod/shared';
 import type { CommandHistoryRepository } from '../database/repositories/CommandHistoryRepository.js';
+import type { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import type { Logger } from '../utils/Logger.js';
 import type { CommandRegistry } from './CommandRegistry.js';
 
@@ -24,6 +25,7 @@ export class CommandExecutor {
   constructor(
     private registry: CommandRegistry,
     private historyRepository: CommandHistoryRepository,
+    private platformRegistry: PlatformRegistry,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'CommandExecutor' });
@@ -44,9 +46,16 @@ export class CommandExecutor {
       isSimulation: context.isSimulation,
     });
 
-    // Get command
+    // Get command. A command that exists but whose requiredCapabilities are not satisfied by the
+    // origin platform is treated as hidden — it returns the same COMMAND_NOT_FOUND result as an
+    // unknown command (design decision: hidden == unknown on that platform).
     const command = this.registry.get(commandName);
-    if (!command) {
+    const platformCapabilities = this.platformRegistry.capabilitiesFor(context.platform);
+    const isAvailable =
+      command?.requiredCapabilities.every((capability) => platformCapabilities.has(capability)) ??
+      false;
+
+    if (!(command && isAvailable)) {
       const result: CommandResult = {
         success: false,
         message: `Unknown command: ${commandName}`,

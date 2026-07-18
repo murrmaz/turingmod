@@ -64,7 +64,7 @@ export class UserRepository {
   /**
    * Find all users
    */
-  async findAll(filter?: Partial<User>): Promise<User[]> {
+  findAll(filter?: Partial<User>): Promise<User[]> {
     let sql = 'SELECT * FROM users';
     const params: SqlValue[] = [];
 
@@ -84,7 +84,7 @@ export class UserRepository {
     }
 
     const rows = this.db.query<UserRow>(sql, params);
-    return rows.map((row) => this.rowToEntity(row));
+    return Promise.resolve(rows.map((row) => this.rowToEntity(row)));
   }
 
   /**

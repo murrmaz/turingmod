@@ -67,7 +67,7 @@ export class CommandHistoryRepository {
   /**
    * Find history entries by user
    */
-  async findByUserId(userId: string, limit = 50): Promise<CommandHistoryEntry[]> {
+  findByUserId(userId: string, limit = 50): Promise<CommandHistoryEntry[]> {
     const rows = this.db.query<CommandHistoryRow>(
       `SELECT * FROM command_history
        WHERE user_id = ?
@@ -75,13 +75,13 @@ export class CommandHistoryRepository {
        LIMIT ?`,
       [userId, limit]
     );
-    return rows.map((row) => this.rowToEntity(row));
+    return Promise.resolve(rows.map((row) => this.rowToEntity(row)));
   }
 
   /**
    * Find history entries by command name
    */
-  async findByCommandName(commandName: string, limit = 50): Promise<CommandHistoryEntry[]> {
+  findByCommandName(commandName: string, limit = 50): Promise<CommandHistoryEntry[]> {
     const rows = this.db.query<CommandHistoryRow>(
       `SELECT * FROM command_history
        WHERE command_name = ?
@@ -89,13 +89,13 @@ export class CommandHistoryRepository {
        LIMIT ?`,
       [commandName, limit]
     );
-    return rows.map((row) => this.rowToEntity(row));
+    return Promise.resolve(rows.map((row) => this.rowToEntity(row)));
   }
 
   /**
    * Find recent history entries
    */
-  async findRecent(limit = 50, includeSimulations = true): Promise<CommandHistoryEntry[]> {
+  findRecent(limit = 50, includeSimulations = true): Promise<CommandHistoryEntry[]> {
     let sql = 'SELECT * FROM command_history';
     const params: SqlValue[] = [];
 
@@ -107,7 +107,7 @@ export class CommandHistoryRepository {
     params.push(limit);
 
     const rows = this.db.query<CommandHistoryRow>(sql, params);
-    return rows.map((row) => this.rowToEntity(row));
+    return Promise.resolve(rows.map((row) => this.rowToEntity(row)));
   }
 
   /**

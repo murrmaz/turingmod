@@ -70,21 +70,21 @@ export class IntegrationStateRepository {
   /**
    * Find all integration configs
    */
-  async findAll(): Promise<IntegrationConfig[]> {
+  findAll(): Promise<IntegrationConfig[]> {
     const rows = this.db.query<IntegrationStateRow>(
       'SELECT * FROM integration_state ORDER BY name'
     );
-    return rows.map((row) => this.rowToEntity(row));
+    return Promise.resolve(rows.map((row) => this.rowToEntity(row)));
   }
 
   /**
    * Find all enabled integrations
    */
-  async findAllEnabled(): Promise<IntegrationConfig[]> {
+  findAllEnabled(): Promise<IntegrationConfig[]> {
     const rows = this.db.query<IntegrationStateRow>(
       'SELECT * FROM integration_state WHERE enabled = 1 ORDER BY name'
     );
-    return rows.map((row) => this.rowToEntity(row));
+    return Promise.resolve(rows.map((row) => this.rowToEntity(row)));
   }
 
   /**

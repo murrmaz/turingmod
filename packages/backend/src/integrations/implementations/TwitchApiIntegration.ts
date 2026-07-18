@@ -1,10 +1,10 @@
 import { IntegrationStatus } from '@turingmod/shared';
-import { ApiClient } from '@twurple/api';
 import type {
   HelixChannelUpdate,
   HelixCreateCustomRewardData,
   HelixUpdateCustomRewardData,
 } from '@twurple/api';
+import { ApiClient } from '@twurple/api';
 import type { RefreshingAuthProvider } from '@twurple/auth';
 import type { EventBus } from '../../core/EventBus.js';
 import type { Logger } from '../../utils/Logger.js';

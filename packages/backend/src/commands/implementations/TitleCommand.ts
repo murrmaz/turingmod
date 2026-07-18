@@ -1,8 +1,8 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import type { Container } from '../../core/Container.js';
-import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import { formatPlatformList } from '../../platforms/platformNames.js';
+import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import type { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 import { checkPermission } from '../utils/permissionChecks.js';

@@ -2,10 +2,10 @@ import {
   type CommandExecutePayload,
   type CommandListRequestPayload,
   type CommandSimulatePayload,
-  type IWebSocketMessage,
   type IntegrationConfigurePayload,
   type IntegrationStartPayload,
   type IntegrationStopPayload,
+  type IWebSocketMessage,
   MessageType,
   type OAuthExchangeCodePayload,
   type OAuthGetAuthUrlPayload,
@@ -40,11 +40,11 @@ import { StreamControlService } from './platforms/StreamControlService.js';
 import { TwitchPlatform } from './platforms/TwitchPlatform.js';
 import { YouTubePlatform } from './platforms/YouTubePlatform.js';
 import { HttpServer } from './server/HttpServer.js';
-import { MessageRouter } from './server/MessageRouter.js';
-import { WebSocketServer } from './server/WebSocketServer.js';
 import { CommandHandler } from './server/handlers/CommandHandler.js';
 import { IntegrationHandler } from './server/handlers/IntegrationHandler.js';
 import { OAuthHandler } from './server/handlers/OAuthHandler.js';
+import { MessageRouter } from './server/MessageRouter.js';
+import { WebSocketServer } from './server/WebSocketServer.js';
 import { TuringModConfig } from './utils/Config.js';
 import { Encryption } from './utils/Encryption.js';
 import { Logger } from './utils/Logger.js';

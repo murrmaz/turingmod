@@ -160,7 +160,7 @@ export class YouTubeApiIntegration extends BaseIntegration {
     const response = await youtube.liveChatMessages.list({
       liveChatId,
       part: ['snippet', 'authorDetails'],
-      ...(pageToken !== undefined ? { pageToken } : {}),
+      ...(pageToken === undefined ? {} : { pageToken }),
     });
 
     return response.data;

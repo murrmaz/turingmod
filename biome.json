@@ -1,13 +1,20 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
     "useIgnoreFile": true
   },
   "files": {
-    "include": ["packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"],
-    "ignore": ["node_modules", "**/dist", "**/build", "**/*.d.ts", "**/*.tsbuildinfo"]
+    "includes": [
+      "**/packages/**/*/src/**/*.ts",
+      "**/packages/**/*/src/**/*.tsx",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/build",
+      "!**/*.d.ts",
+      "!**/*.tsbuildinfo"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -15,27 +22,24 @@
     "indentWidth": 2,
     "lineWidth": 100
   },
-  "organizeImports": {
-    "enabled": true
-  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "complexity": {
         "noExtraBooleanCast": "error",
-        "noMultipleSpacesInRegularExpressionLiterals": "error",
         "noUselessCatch": "error",
         "noUselessConstructor": "error",
         "noUselessFragments": "error",
         "noUselessLabel": "error",
         "noUselessRename": "error",
         "noUselessSwitchCase": "error",
-        "noWith": "error",
         "useFlatMap": "error",
         "useLiteralKeys": "error",
         "useOptionalChain": "error",
-        "useSimplifiedLogicExpression": "error"
+        "useSimplifiedLogicExpression": "error",
+        "noAdjacentSpacesInRegex": "error"
       },
       "correctness": {
         "noConstAssign": "error",
@@ -44,14 +48,14 @@
         "noInvalidUseBeforeDeclaration": "error",
         "noUnusedVariables": "error",
         "useExhaustiveDependencies": "warn",
-        "useHookAtTopLevel": "error"
+        "useHookAtTopLevel": "error",
+        "useValidTypeof": "error"
       },
       "style": {
         "noNegationElse": "warn",
         "noParameterAssign": "warn",
         "noRestrictedGlobals": "error",
         "noShoutyConstants": "warn",
-        "noVar": "error",
         "useConst": "error",
         "useDefaultParameterLast": "error",
         "useEnumInitializers": "error",
@@ -103,7 +107,8 @@
         "noGlobalIsNan": "error",
         "noShadowRestrictedNames": "error",
         "useAwait": "warn",
-        "useValidTypeof": "error"
+        "noWith": "error",
+        "noVar": "error"
       }
     }
   },
@@ -117,7 +122,7 @@
   },
   "overrides": [
     {
-      "include": ["packages/frontend/src/**/*.tsx"],
+      "includes": ["**/packages/frontend/src/**/*.tsx"],
       "linter": {
         "rules": {
           "correctness": {

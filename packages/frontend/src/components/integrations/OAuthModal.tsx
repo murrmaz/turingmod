@@ -5,12 +5,12 @@ import Modal from '@cloudscape-design/components/modal';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import Spinner from '@cloudscape-design/components/spinner';
 import {
+  createOAuthExchangeCodeMessage,
+  createOAuthGetAuthUrlMessage,
   MessageType,
   type OAuthAuthUrlResponsePayload,
   type OAuthCodeReceivedPayload,
   type OAuthExchangeResultPayload,
-  createOAuthExchangeCodeMessage,
-  createOAuthGetAuthUrlMessage,
 } from '@turingmod/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWebSocketContext } from '../../context/WebSocketContext';

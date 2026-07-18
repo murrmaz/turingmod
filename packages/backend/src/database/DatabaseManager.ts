@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 import initSqlJs, { type Database, type SqlValue } from 'sql.js';
 
 export type { SqlValue } from 'sql.js';
+
 import type { Logger } from '../utils/Logger.js';
 
 /**

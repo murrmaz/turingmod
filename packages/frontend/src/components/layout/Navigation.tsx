@@ -1,5 +1,5 @@
-import SideNavigation from '@cloudscape-design/components/side-navigation';
 import type { SideNavigationProps } from '@cloudscape-design/components/side-navigation';
+import SideNavigation from '@cloudscape-design/components/side-navigation';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 /**

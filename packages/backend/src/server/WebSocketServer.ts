@@ -1,7 +1,7 @@
 import type { Server as HttpServer } from 'node:http';
 import type { IWebSocketMessage } from '@turingmod/shared';
-import { MessageType, createErrorMessage, createPongMessage } from '@turingmod/shared';
-import { WebSocketServer as WSServer, WebSocket } from 'ws';
+import { createErrorMessage, createPongMessage, MessageType } from '@turingmod/shared';
+import { WebSocket, WebSocketServer as WSServer } from 'ws';
 import type { Logger } from '../utils/Logger.js';
 import type { MessageRouter } from './MessageRouter.js';
 

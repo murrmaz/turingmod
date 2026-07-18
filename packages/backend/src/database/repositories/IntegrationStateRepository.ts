@@ -1,5 +1,5 @@
-import { IntegrationStatus } from '@turingmod/shared';
 import type { IntegrationConfig } from '@turingmod/shared';
+import { IntegrationStatus } from '@turingmod/shared';
 import type { Encryption } from '../../utils/Encryption.js';
 import type { DatabaseManager } from '../DatabaseManager.js';
 

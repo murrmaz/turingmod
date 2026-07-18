@@ -1,5 +1,5 @@
-import { IntegrationStatus } from '@turingmod/shared';
 import type { IntegrationInfo } from '@turingmod/shared';
+import { IntegrationStatus } from '@turingmod/shared';
 import type { EventBus } from '../core/EventBus.js';
 import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import type { Logger } from '../utils/Logger.js';

@@ -1,5 +1,5 @@
-import pino from 'pino';
 import type { Logger as PinoLogger } from 'pino';
+import pino from 'pino';
 import pinoPretty from 'pino-pretty';
 
 /**
@@ -101,10 +101,10 @@ export class Logger {
   error<E>(message: string, error?: NotPlainObject<E>, meta?: Record<string, unknown>): void {
     if (error instanceof Error) {
       this.logger.error({ err: error, ...meta }, message);
-    } else if (error !== undefined) {
-      this.logger.error({ error, ...meta }, message);
-    } else {
+    } else if (error === undefined) {
       this.logger.error(meta ?? {}, message);
+    } else {
+      this.logger.error({ error, ...meta }, message);
     }
   }
 
@@ -117,10 +117,10 @@ export class Logger {
   fatal<E>(message: string, error?: NotPlainObject<E>, meta?: Record<string, unknown>): void {
     if (error instanceof Error) {
       this.logger.fatal({ err: error, ...meta }, message);
-    } else if (error !== undefined) {
-      this.logger.fatal({ error, ...meta }, message);
-    } else {
+    } else if (error === undefined) {
       this.logger.fatal(meta ?? {}, message);
+    } else {
+      this.logger.fatal({ error, ...meta }, message);
     }
   }
 }

@@ -11,8 +11,8 @@ import {
   createOAuthAuthUrlResponseMessage,
   createOAuthExchangeResultMessage,
 } from '@turingmod/shared';
-import type { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import { OAuthNotConfiguredError } from '../../integrations/errors.js';
+import type { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import type { Logger } from '../../utils/Logger.js';
 
 /**

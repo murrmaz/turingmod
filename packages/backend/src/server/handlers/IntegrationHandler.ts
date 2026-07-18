@@ -1,11 +1,11 @@
 import type {
-  IWebSocketMessage,
   IntegrationConfigurePayload,
   IntegrationListPayload,
   IntegrationStartPayload,
   IntegrationStopPayload,
+  IWebSocketMessage,
 } from '@turingmod/shared';
-import { MessageType, createErrorMessage } from '@turingmod/shared';
+import { createErrorMessage, MessageType } from '@turingmod/shared';
 import type { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import type { Logger } from '../../utils/Logger.js';
 

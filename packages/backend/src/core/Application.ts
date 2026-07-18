@@ -1,7 +1,7 @@
 import {
-  type IntegrationStatus,
   createIntegrationStatusMessage,
   createOAuthCodeReceivedMessage,
+  type IntegrationStatus,
 } from '@turingmod/shared';
 import type { DatabaseManager } from '../database/DatabaseManager.js';
 import type { MigrationRunner } from '../database/migrations/MigrationRunner.js';

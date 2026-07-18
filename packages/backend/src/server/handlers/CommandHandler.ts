@@ -6,7 +6,7 @@ import type {
   CommandSimulatePayload,
   IWebSocketMessage,
 } from '@turingmod/shared';
-import { MessageType, createCommandResultMessage } from '@turingmod/shared';
+import { createCommandResultMessage, MessageType } from '@turingmod/shared';
 import type { CommandExecutor } from '../../commands/CommandExecutor.js';
 import type { CommandRegistry } from '../../commands/CommandRegistry.js';
 import type { ICommand } from '../../commands/interfaces/ICommand.js';

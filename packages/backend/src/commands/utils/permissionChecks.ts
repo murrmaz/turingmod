@@ -1,5 +1,5 @@
 import type { CommandResult } from '@turingmod/shared';
-import { type PermissionLevel, hasPermission } from '@turingmod/shared';
+import { hasPermission, type PermissionLevel } from '@turingmod/shared';
 
 /**
  * Gate a write-path sub-action within a command that is otherwise open to a

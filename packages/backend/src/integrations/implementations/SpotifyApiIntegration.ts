@@ -1,5 +1,5 @@
-import { SpotifyApi } from '@spotify/web-api-ts-sdk';
 import type { PlaybackState } from '@spotify/web-api-ts-sdk';
+import { SpotifyApi } from '@spotify/web-api-ts-sdk';
 import { IntegrationStatus } from '@turingmod/shared';
 import type { EventBus } from '../../core/EventBus.js';
 import type { Logger } from '../../utils/Logger.js';

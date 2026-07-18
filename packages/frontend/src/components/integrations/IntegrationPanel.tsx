@@ -108,47 +108,43 @@ export function IntegrationPanel() {
                             Authorize
                           </Button>
                         )
-                      ) : (
-                        <>
-                          {hasUnmetDependencies ? (
-                            <Popover
-                              dismissButton={false}
-                              position="top"
-                              size="medium"
-                              triggerType="custom"
-                              content={
-                                <Box padding="s">
-                                  <SpaceBetween size="xs">
-                                    <Box variant="strong">Dependencies Required</Box>
-                                    <Box variant="p">
-                                      This integration requires the following to be connected first:
-                                    </Box>
-                                    <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                                      {missingDependencies.map((dep) => (
-                                        <li key={dep}>
-                                          <strong>{dep}</strong>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </SpaceBetween>
+                      ) : hasUnmetDependencies ? (
+                        <Popover
+                          dismissButton={false}
+                          position="top"
+                          size="medium"
+                          triggerType="custom"
+                          content={
+                            <Box padding="s">
+                              <SpaceBetween size="xs">
+                                <Box variant="strong">Dependencies Required</Box>
+                                <Box variant="p">
+                                  This integration requires the following to be connected first:
                                 </Box>
-                              }
-                            >
-                              <Button variant="primary" iconName="status-positive" disabled={true}>
-                                Start
-                              </Button>
-                            </Popover>
-                          ) : (
-                            <Button
-                              variant="primary"
-                              iconName="status-positive"
-                              onClick={() => handleStart(item.name)}
-                              loading={isLoading}
-                            >
-                              Start
-                            </Button>
-                          )}
-                        </>
+                                <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                                  {missingDependencies.map((dep) => (
+                                    <li key={dep}>
+                                      <strong>{dep}</strong>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </SpaceBetween>
+                            </Box>
+                          }
+                        >
+                          <Button variant="primary" iconName="status-positive" disabled={true}>
+                            Start
+                          </Button>
+                        </Popover>
+                      ) : (
+                        <Button
+                          variant="primary"
+                          iconName="status-positive"
+                          onClick={() => handleStart(item.name)}
+                          loading={isLoading}
+                        >
+                          Start
+                        </Button>
                       )}
                     </SpaceBetween>
                   );

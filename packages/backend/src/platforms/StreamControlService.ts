@@ -1,8 +1,8 @@
 import type { Platform } from '@turingmod/shared';
 import { PlatformCapability } from '@turingmod/shared';
 import type { Logger } from '../utils/Logger.js';
-import type { PlatformRegistry } from './PlatformRegistry.js';
 import type { StreamInfo } from './interfaces/IStreamPlatform.js';
+import type { PlatformRegistry } from './PlatformRegistry.js';
 
 /**
  * Outcome of a mirrored write. Records which platforms accepted the change and any that failed,

@@ -1,11 +1,11 @@
 import type { ComponentType } from 'react';
 import { OAuthModal, type OAuthModalProps } from './OAuthModal';
-import { SetupModal, type SetupModalProps } from './SetupModal';
 import {
   SPOTIFY_OAUTH_PROVIDER,
   TWITCH_OAUTH_PROVIDER,
   YOUTUBE_OAUTH_PROVIDER,
 } from './oauthProviders';
+import { SetupModal, type SetupModalProps } from './SetupModal';
 
 type OAuthModalRuntimeProps = Omit<OAuthModalProps, 'provider'>;
 type SetupModalRuntimeProps = Omit<SetupModalProps, 'provider'>;

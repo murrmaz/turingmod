@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
-import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join } from 'node:path';
 import type { EventBus } from '../core/EventBus.js';
 import type { IntegrationManager } from '../integrations/IntegrationManager.js';

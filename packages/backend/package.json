@@ -40,7 +40,7 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/node": "^22.10.5",
+    "@types/node": "^24.0.0",
     "@types/sql.js": "^1.4.9",
     "@types/ws": "^8.5.13",
     "tsx": "^4.7.0",

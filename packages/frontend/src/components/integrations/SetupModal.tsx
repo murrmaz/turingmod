@@ -6,7 +6,7 @@ import Input from '@cloudscape-design/components/input';
 import Link from '@cloudscape-design/components/link';
 import Modal from '@cloudscape-design/components/modal';
 import SpaceBetween from '@cloudscape-design/components/space-between';
-import { type IntegrationConfigurePayload, MessageType, createMessage } from '@turingmod/shared';
+import { createMessage, type IntegrationConfigurePayload, MessageType } from '@turingmod/shared';
 import { Fragment, useState } from 'react';
 import { useWebSocketContext } from '../../context/WebSocketContext';
 import type { OAuthProviderConfig } from './oauthProviders';

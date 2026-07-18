@@ -1,5 +1,6 @@
 import pino from 'pino';
 import type { Logger as PinoLogger } from 'pino';
+import pinoPretty from 'pino-pretty';
 
 /**
  * Logger configuration options
@@ -38,18 +39,20 @@ export class Logger {
       level,
     };
 
-    if (pretty) {
-      config.transport = {
-        target: 'pino-pretty',
-        options: {
+    // Built in-process (rather than via `transport`, which runs pino-pretty in a worker
+    // thread and can only accept JSON-serializable options) so `messageFormat` can be a
+    // function that folds `component` into the message line.
+    const prettyStream = pretty
+      ? pinoPretty({
           colorize: true,
           translateTime: 'HH:MM:ss.l',
-          ignore: 'pid,hostname',
-        },
-      };
-    }
+          ignore: 'pid,hostname,component',
+          messageFormat: (log, messageKey) =>
+            log.component ? `[${log.component}] ${log[messageKey]}` : String(log[messageKey]),
+        })
+      : undefined;
 
-    this.logger = pino(config);
+    this.logger = prettyStream ? pino(config, prettyStream) : pino(config);
   }
 
   /**

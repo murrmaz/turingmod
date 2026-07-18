@@ -1,6 +1,6 @@
 import type { Application } from './core/Application.js';
 import { Container } from './core/Container.js';
-import { initializeComponents, setupDependencies } from './setup.js';
+import { initializeComponents, initializeDatabase, setupDependencies } from './setup.js';
 import type { Logger } from './utils/Logger.js';
 
 /**
@@ -20,13 +20,17 @@ async function main(): Promise<void> {
   logger.info('  TuringMod - Twitch Streamer Tool  ');
   logger.info('========================================');
 
+  // Open the database and run migrations first — the Encryption singleton reads its salt from
+  // the settings table, and it gets resolved transitively as soon as components are registered.
+  await initializeDatabase(container);
+
   // Initialize components (register commands, integrations, handlers)
   await initializeComponents(container);
 
   // Get application instance
   const app = container.resolve<Application>('Application');
 
-  // Initialize application (database, migrations)
+  // Initialize application (load integrations from database)
   await app.initialize();
 
   // Start application (servers, integrations)

@@ -4,7 +4,6 @@ import {
   type IntegrationStatus,
 } from '@turingmod/shared';
 import type { DatabaseManager } from '../database/DatabaseManager.js';
-import type { MigrationRunner } from '../database/migrations/MigrationRunner.js';
 import type { IntegrationManager } from '../integrations/IntegrationManager.js';
 import type { HttpServer } from '../server/HttpServer.js';
 import type { WebSocketServer } from '../server/WebSocketServer.js';
@@ -20,7 +19,6 @@ export class Application {
 
   constructor(
     private databaseManager: DatabaseManager,
-    private migrationRunner: MigrationRunner,
     private httpServer: HttpServer,
     private webSocketServer: WebSocketServer,
     private integrationManager: IntegrationManager,
@@ -32,21 +30,13 @@ export class Application {
 
   /**
    * Initialize the application
-   * Sets up database and loads configuration
+   * Loads integrations from the database (already initialized/migrated in index.ts, ahead of
+   * component registration, since the Encryption singleton needs its salt row to exist before
+   * anything that depends on it — e.g. IntegrationStateRepository — is first resolved)
    */
   async initialize(): Promise<void> {
     this.logger.info('Initializing TuringMod...');
 
-    // 1. Initialize database
-    this.logger.info('Initializing database');
-    await this.databaseManager.initialize();
-
-    // 2. Run migrations
-    this.logger.info('Running database migrations');
-    const { initialSchema } = await import('../database/migrations/001_initial_schema.js');
-    await this.migrationRunner.runMigrations([initialSchema]);
-
-    // 3. Load integrations from database
     this.logger.info('Loading integrations');
     await this.integrationManager.loadIntegrations();
 

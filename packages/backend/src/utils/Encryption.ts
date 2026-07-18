@@ -1,23 +1,46 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from 'node:crypto';
+import type { DatabaseManager } from '../database/DatabaseManager.js';
 
 /**
  * Encryption utility for securing API tokens and sensitive data
  * Uses AES-256-GCM for authenticated encryption
  */
 export class Encryption {
+  private static readonly SALT_LENGTH = 32;
+  private static readonly SALT_SETTINGS_KEY = 'encryption_salt';
+
   private readonly algorithm = 'aes-256-gcm';
   private readonly keyLength = 32; // 256 bits
   private readonly ivLength = 16; // 128 bits
-  // private readonly saltLength = 32;
   private readonly authTagLength = 16;
 
   private key: Buffer;
 
-  constructor(masterPassword: string) {
-    // Derive encryption key from master password
-    // In production, this should use a stored salt
-    const salt = Buffer.from('turingmod-salt-v1'); // Fixed salt for consistency
+  constructor(masterPassword: string, salt: Buffer) {
     this.key = scryptSync(masterPassword, salt, this.keyLength);
+  }
+
+  /**
+   * Read this install's salt from the settings table, generating and persisting a random one on
+   * first run. Storing it (rather than hardcoding it) means an attacker who obtains a single
+   * ciphertext without the database can no longer reuse a precomputed table across installs — they
+   * need the matching salt too, which only exists in that install's own database.
+   */
+  static getOrCreateSalt(db: DatabaseManager): Buffer {
+    const row = db.queryOne<{ value: string }>('SELECT value FROM settings WHERE key = ?', [
+      Encryption.SALT_SETTINGS_KEY,
+    ]);
+    if (row) {
+      return Buffer.from(row.value, 'base64');
+    }
+
+    const salt = randomBytes(Encryption.SALT_LENGTH);
+    db.run('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)', [
+      Encryption.SALT_SETTINGS_KEY,
+      salt.toString('base64'),
+      Date.now(),
+    ]);
+    return salt;
   }
 
   /**

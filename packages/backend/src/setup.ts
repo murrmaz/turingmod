@@ -69,11 +69,6 @@ export function setupDependencies(container: Container): void {
 
   container.registerSingleton('EventBus', () => new EventBus());
 
-  container.registerSingleton(
-    'Encryption',
-    () => new Encryption(container.resolve<TuringModConfig>('Config').masterPassword)
-  );
-
   // Database (singletons)
   container.registerSingleton(
     'DatabaseManager',
@@ -92,6 +87,14 @@ export function setupDependencies(container: Container): void {
         container.resolve<Logger>('Logger')
       )
   );
+
+  // Reads its per-install salt from the settings table, so callers must not resolve this until
+  // after initializeDatabase() (below) has run — see index.ts for the required call order.
+  container.registerSingleton('Encryption', () => {
+    const masterPassword = container.resolve<TuringModConfig>('Config').masterPassword;
+    const salt = Encryption.getOrCreateSalt(container.resolve<DatabaseManager>('DatabaseManager'));
+    return new Encryption(masterPassword, salt);
+  });
 
   // Repositories (singletons)
   container.registerSingleton(
@@ -370,7 +373,6 @@ export function setupDependencies(container: Container): void {
     () =>
       new Application(
         container.resolve<DatabaseManager>('DatabaseManager'),
-        container.resolve<MigrationRunner>('MigrationRunner'),
         container.resolve<HttpServer>('HttpServer'),
         container.resolve<WebSocketServer>('WebSocketServer'),
         container.resolve<IntegrationManager>('IntegrationManager'),
@@ -378,6 +380,22 @@ export function setupDependencies(container: Container): void {
         container.resolve<Logger>('Logger')
       )
   );
+}
+
+/**
+ * Open the database and run migrations. Must run before initializeComponents(), since resolving
+ * the Encryption singleton (pulled in transitively by the OAuth integrations' auth classes) reads
+ * its salt from the settings table and requires the schema to already exist.
+ */
+export async function initializeDatabase(container: Container): Promise<void> {
+  const logger = container.resolve<Logger>('Logger');
+
+  logger.info('Initializing database');
+  await container.resolve<DatabaseManager>('DatabaseManager').initialize();
+
+  logger.info('Running database migrations');
+  const { initialSchema } = await import('./database/migrations/001_initial_schema.js');
+  await container.resolve<MigrationRunner>('MigrationRunner').runMigrations([initialSchema]);
 }
 
 /**

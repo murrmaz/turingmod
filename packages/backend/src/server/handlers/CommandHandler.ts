@@ -4,14 +4,20 @@ import type {
   CommandListRequestPayload,
   CommandResultPayload,
   CommandSimulatePayload,
+  ErrorPayload,
   IWebSocketMessage,
 } from '@turingmod/shared';
-import { createCommandResultMessage, MessageType } from '@turingmod/shared';
+import { createCommandResultMessage, createErrorMessage, MessageType } from '@turingmod/shared';
 import type { CommandExecutor } from '../../commands/CommandExecutor.js';
 import type { CommandRegistry } from '../../commands/CommandRegistry.js';
 import type { ICommand } from '../../commands/interfaces/ICommand.js';
 import type { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import type { Logger } from '../../utils/Logger.js';
+import {
+  isCommandExecutePayload,
+  isCommandListRequestPayload,
+  isCommandSimulatePayload,
+} from '../validation.js';
 
 /**
  * Command message handler
@@ -34,7 +40,11 @@ export class CommandHandler {
    */
   async handleExecute(
     message: IWebSocketMessage<CommandExecutePayload>
-  ): Promise<IWebSocketMessage<CommandResultPayload>> {
+  ): Promise<IWebSocketMessage<CommandResultPayload | ErrorPayload>> {
+    if (!isCommandExecutePayload(message.payload)) {
+      return createErrorMessage('INVALID_PAYLOAD', 'Malformed command.execute payload', message.id);
+    }
+
     const { command, args, context } = message.payload;
 
     this.logger.info('Executing command', { command, user: context.user.username });
@@ -54,7 +64,15 @@ export class CommandHandler {
    */
   async handleSimulate(
     message: IWebSocketMessage<CommandSimulatePayload>
-  ): Promise<IWebSocketMessage<CommandResultPayload>> {
+  ): Promise<IWebSocketMessage<CommandResultPayload | ErrorPayload>> {
+    if (!isCommandSimulatePayload(message.payload)) {
+      return createErrorMessage(
+        'INVALID_PAYLOAD',
+        'Malformed command.simulate payload',
+        message.id
+      );
+    }
+
     const { commandText, simulatedUser, platform } = message.payload;
 
     this.logger.info('Simulating command', {
@@ -101,7 +119,13 @@ export class CommandHandler {
    */
   handleList(
     message: IWebSocketMessage<CommandListRequestPayload>
-  ): Promise<IWebSocketMessage<CommandListPayload>> {
+  ): Promise<IWebSocketMessage<CommandListPayload | ErrorPayload>> {
+    if (!isCommandListRequestPayload(message.payload)) {
+      return Promise.resolve(
+        createErrorMessage('INVALID_PAYLOAD', 'Malformed command.list payload', message.id)
+      );
+    }
+
     const platform = message.payload?.platform;
     this.logger.debug('Getting command list', { platform });
 

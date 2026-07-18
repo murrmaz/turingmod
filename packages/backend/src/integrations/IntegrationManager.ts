@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { IntegrationInfo } from '@turingmod/shared';
 import { IntegrationStatus } from '@turingmod/shared';
 import type { EventBus } from '../core/EventBus.js';
@@ -13,6 +14,18 @@ import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 export class IntegrationManager {
   private integrations = new Map<string, IIntegration>();
   private logger: Logger;
+
+  /**
+   * OAuth `state` -> the client/integration that started the flow. Lets the
+   * HTTP callback (which has no WebSocket identity of its own) find out
+   * which client to send the authorization code back to, instead of
+   * broadcasting it to every connected client. Single-use, TTL-bounded.
+   */
+  private pendingOAuthStates = new Map<
+    string,
+    { integrationName: string; clientId: string; expiresAt: number }
+  >();
+  private static readonly OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
   constructor(
     private stateRepository: IntegrationStateRepository,
@@ -302,10 +315,58 @@ export class IntegrationManager {
    * environment variables for first-time setup. Required scopes always come
    * from the integration itself, never the caller.
    */
-  async getOAuthAuthorizationUrl(name: string): Promise<string> {
+  async getOAuthAuthorizationUrl(name: string, clientId: string): Promise<string> {
     const integration = this.getOAuthIntegration(name);
     const config = await this.resolveOAuthConfig(integration, name);
-    return integration.getAuthorizationUrl(config);
+    const state = this.createOAuthState(name, clientId);
+    return integration.getAuthorizationUrl(config, state);
+  }
+
+  /**
+   * Record a pending OAuth flow and return the single-use `state` value to
+   * send to the provider.
+   */
+  private createOAuthState(integrationName: string, clientId: string): string {
+    this.pruneExpiredOAuthStates();
+
+    const state = randomUUID();
+    this.pendingOAuthStates.set(state, {
+      integrationName,
+      clientId,
+      expiresAt: Date.now() + IntegrationManager.OAUTH_STATE_TTL_MS,
+    });
+
+    return state;
+  }
+
+  /**
+   * Consume a `state` value from the OAuth callback: valid only once, only
+   * for the integration it was issued for, and only within its TTL. Returns
+   * the clientId to route the authorization code back to, or null if the
+   * state is missing, expired, reused, or for the wrong integration.
+   */
+  consumeOAuthState(integrationName: string, state: string | null): string | null {
+    if (!state) {
+      return null;
+    }
+
+    const entry = this.pendingOAuthStates.get(state);
+    this.pendingOAuthStates.delete(state);
+
+    if (!entry || entry.expiresAt <= Date.now() || entry.integrationName !== integrationName) {
+      return null;
+    }
+
+    return entry.clientId;
+  }
+
+  private pruneExpiredOAuthStates(): void {
+    const now = Date.now();
+    for (const [state, entry] of this.pendingOAuthStates) {
+      if (entry.expiresAt <= now) {
+        this.pendingOAuthStates.delete(state);
+      }
+    }
   }
 
   /**

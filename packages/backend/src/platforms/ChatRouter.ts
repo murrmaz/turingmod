@@ -20,13 +20,10 @@ interface ChatCommandEvent {
  * Reply-routing seam for the live chat → command → reply loop.
  *
  * Executes an incoming `chat.command` and posts the result back to the platform the command
- * originated on. The live loop is intentionally OFF (see multi-platform-chat.md Phase 5): the
- * reply path is unwired today, so leaving it off is not a regression. A later task flips
- * `liveLoopEnabled` to true to turn it on for all platforms at once.
+ * originated on.
  */
 export class ChatRouter {
-  /** TODO(phase5): flip to true to enable the live chat→command→reply loop for all platforms. */
-  private readonly liveLoopEnabled = false;
+  private readonly liveLoopEnabled = true;
 
   private logger: Logger;
 
@@ -70,6 +67,13 @@ export class ChatRouter {
       return;
     }
 
-    await platform.sendChatMessage(result.message);
+    try {
+      await platform.sendChatMessage(result.message);
+    } catch (error) {
+      this.logger.error('Failed to send command reply to chat', error, {
+        platform: event.platform,
+        command: event.command,
+      });
+    }
   }
 }

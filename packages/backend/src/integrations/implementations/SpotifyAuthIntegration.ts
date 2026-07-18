@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { IntegrationStatus } from '@turingmod/shared';
 import type { EventBus } from '../../core/EventBus.js';
 import type { IntegrationStateRepository } from '../../database/repositories/IntegrationStateRepository.js';
@@ -103,7 +104,10 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
       this.setStatus(IntegrationStatus.DISCONNECTED);
       this.eventBus.emit('integration.auth-required', {
         integration: this.name,
-        authUrl: this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>),
+        authUrl: this.getAuthorizationUrl(
+          this.config as unknown as Record<string, unknown>,
+          randomUUID()
+        ),
       });
       return Promise.resolve();
     }
@@ -193,13 +197,14 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
   /**
    * Generate OAuth authorization URL
    */
-  getAuthorizationUrl(config: Record<string, unknown>): string {
+  getAuthorizationUrl(config: Record<string, unknown>, state: string): string {
     const { clientId, redirectUri, scopes } = config as unknown as SpotifyAuthConfig;
     const params = new URLSearchParams({
       client_id: clientId,
       response_type: 'code',
       redirect_uri: redirectUri,
       scope: scopes.join(' '),
+      state,
     });
 
     return `https://accounts.spotify.com/authorize?${params.toString()}`;
@@ -286,7 +291,10 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
       if (this.config) {
         this.eventBus.emit('integration.auth-required', {
           integration: this.name,
-          authUrl: this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>),
+          authUrl: this.getAuthorizationUrl(
+            this.config as unknown as Record<string, unknown>,
+            randomUUID()
+          ),
         });
       }
       throw new Error(`Token refresh failed: ${error}`);

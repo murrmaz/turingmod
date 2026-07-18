@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from 'node:crypto';
 
 /**
  * Encryption utility for securing API tokens and sensitive data
@@ -87,7 +87,6 @@ export class Encryption {
    * Generate a hash of the key for verification
    */
   getKeyHash(): string {
-    const { createHash } = require('node:crypto');
     return createHash('sha256').update(this.key).digest('hex');
   }
 }

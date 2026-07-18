@@ -14,7 +14,7 @@ const DEFAULT_POLL_INTERVAL_MS = 5_000;
 /**
  * YouTube Chat Integration
  * Polls the active broadcast's live chat and normalizes each message into the same `chat.message`
- * / `chat.command` EventBus events Twitch emits, so the (deferred) ChatRouter is platform-agnostic.
+ * / `chat.command` EventBus events Twitch emits, so ChatRouter is platform-agnostic.
  *
  * The liveChatId is only available while a broadcast is active, so this idles gracefully when
  * offline and re-resolves the chat id on each new stream (see multi-platform-chat.md §11).

@@ -113,6 +113,7 @@ export class HttpServer {
       // Parse query parameters
       const urlObj = new URL(url, `http://localhost:${this.port}`);
       const code = urlObj.searchParams.get('code');
+      const state = urlObj.searchParams.get('state');
       const error = urlObj.searchParams.get('error');
       const errorDescription = urlObj.searchParams.get('error_description');
 
@@ -143,12 +144,39 @@ export class HttpServer {
         return;
       }
 
+      // Resolve `state` back to the WebSocket client that started this flow.
+      // Rejects missing/expired/reused/mismatched state so the code can
+      // never be routed (or attributed) to the wrong client.
+      const clientId = this.integrationManager.consumeOAuthState(integrationName, state);
+      if (!clientId) {
+        this.logger.warn('OAuth callback rejected: invalid or expired state', {
+          integrationName,
+        });
+        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.end(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>Authorization Failed</title>
+            </head>
+            <body style="font-family: system-ui; padding: 40px; text-align: center;">
+              <h1>Authorization Failed</h1>
+              <p>This authorization request is invalid or has expired.</p>
+              <p>Please close this window and try connecting again from TuringMod.</p>
+            </body>
+          </html>
+        `);
+        return;
+      }
+
       this.logger.info('OAuth callback received with code', { integrationName });
 
-      // Emit event with the code for the appropriate integration
+      // Emit event with the code for the client that started this flow
       this.eventBus.emit('oauth:callback', {
         integrationName,
         code,
+        clientId,
       });
 
       // Return success page

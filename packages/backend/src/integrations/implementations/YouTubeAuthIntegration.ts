@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { IntegrationStatus } from '@turingmod/shared';
 import { google } from 'googleapis';
 import type { EventBus } from '../../core/EventBus.js';
@@ -103,7 +104,10 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
       this.setStatus(IntegrationStatus.DISCONNECTED);
       this.eventBus.emit('integration.auth-required', {
         integration: this.name,
-        authUrl: this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>),
+        authUrl: this.getAuthorizationUrl(
+          this.config as unknown as Record<string, unknown>,
+          randomUUID()
+        ),
       });
       return Promise.resolve();
     }
@@ -187,13 +191,14 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
    * Generate OAuth authorization URL. `access_type: 'offline'` + `prompt: 'consent'` ensures a
    * refresh token is issued.
    */
-  getAuthorizationUrl(config: Record<string, unknown>): string {
+  getAuthorizationUrl(config: Record<string, unknown>, state: string): string {
     const typed = config as unknown as YouTubeAuthConfig;
     const client = this.buildClient(typed);
     return client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
       scope: typed.scopes,
+      state,
     });
   }
 

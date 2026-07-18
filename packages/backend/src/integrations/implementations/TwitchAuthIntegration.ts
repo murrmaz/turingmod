@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { IntegrationStatus } from '@turingmod/shared';
 import type { AccessToken, RefreshingAuthProvider } from '@twurple/auth';
 import { RefreshingAuthProvider as TwurpleRefreshingAuthProvider } from '@twurple/auth';
@@ -104,7 +105,10 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
         this.setStatus(IntegrationStatus.DISCONNECTED);
         this.eventBus.emit('integration.auth-required', {
           integration: this.name,
-          authUrl: this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>),
+          authUrl: this.getAuthorizationUrl(
+            this.config as unknown as Record<string, unknown>,
+            randomUUID()
+          ),
         });
         return;
       }
@@ -147,7 +151,10 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
         if (this.config) {
           this.eventBus.emit('integration.auth-required', {
             integration: this.name,
-            authUrl: this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>),
+            authUrl: this.getAuthorizationUrl(
+              this.config as unknown as Record<string, unknown>,
+              randomUUID()
+            ),
           });
         }
       });
@@ -235,13 +242,14 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
   /**
    * Generate OAuth authorization URL
    */
-  getAuthorizationUrl(config: Record<string, unknown>): string {
+  getAuthorizationUrl(config: Record<string, unknown>, state: string): string {
     const { clientId, redirectUri, scopes } = config as unknown as TwitchAuthConfig;
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
       response_type: 'code',
       scope: scopes.join(' '),
+      state,
     });
 
     return `https://id.twitch.tv/oauth2/authorize?${params.toString()}`;

@@ -17,6 +17,8 @@ export class DatabaseManager {
   private logger: Logger;
   private saveInterval: NodeJS.Timeout | null = null;
   private isDirty = false;
+  /** Chain all saves through this so the auto-save timer and close() never write concurrently. */
+  private savePromise: Promise<void> = Promise.resolve();
 
   constructor(dbPath: string, logger: Logger) {
     this.dbPath = dbPath;
@@ -158,20 +160,34 @@ export class DatabaseManager {
   }
 
   /**
-   * Save database to file
+   * Save database to file. Queued behind any in-flight save so concurrent callers (the
+   * auto-save timer and close()) never write to dbPath at the same time.
    */
-  async save(): Promise<void> {
+  save(): Promise<void> {
+    const nextSave = this.savePromise.then(
+      () => this.performSave(),
+      () => this.performSave()
+    );
+    this.savePromise = nextSave;
+    return nextSave;
+  }
+
+  private async performSave(): Promise<void> {
     if (!this.db) {
       return;
     }
+
+    // Clear the flag before export/write (not after) so a mutation that lands while
+    // writeFile() is in flight re-dirties the DB instead of being silently lost.
+    this.isDirty = false;
 
     try {
       const data = this.db.export();
       const buffer = Buffer.from(data);
       await writeFile(this.dbPath, buffer);
-      this.isDirty = false;
       this.logger.debug('Database saved to disk');
     } catch (error) {
+      this.isDirty = true;
       this.logger.error('Failed to save database', error);
       throw error;
     }

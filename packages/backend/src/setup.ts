@@ -2,6 +2,7 @@ import {
   type CommandExecutePayload,
   type CommandListRequestPayload,
   type CommandSimulatePayload,
+  DEFAULT_FRONTEND_DEV_PORT,
   type IntegrationConfigurePayload,
   type IntegrationStartPayload,
   type IntegrationStopPayload,
@@ -317,14 +318,21 @@ export function setupDependencies(container: Container): void {
     () => new MessageRouter(container.resolve<Logger>('Logger'))
   );
 
-  container.registerSingleton(
-    'WebSocketServer',
-    () =>
-      new WebSocketServer(
-        container.resolve<MessageRouter>('MessageRouter'),
-        container.resolve<Logger>('Logger')
-      )
-  );
+  container.registerSingleton('WebSocketServer', () => {
+    const config = container.resolve<TuringModConfig>('Config');
+    // Same-origin production origin plus the Vite dev server origin (always
+    // bound to 127.0.0.1 per vite.config.ts, regardless of backend HOST) —
+    // the only two pages ever allowed to open a WS connection to us.
+    const allowedOrigins = [
+      `http://${config.host}:${config.wsPort}`,
+      `http://127.0.0.1:${DEFAULT_FRONTEND_DEV_PORT}`,
+    ];
+    return new WebSocketServer(
+      container.resolve<MessageRouter>('MessageRouter'),
+      allowedOrigins,
+      container.resolve<Logger>('Logger')
+    );
+  });
 
   // Message handlers (singletons)
   container.registerSingleton(
@@ -414,8 +422,7 @@ export async function initializeComponents(container: Container): Promise<void> 
   platformRegistry.register(container.resolve<TwitchPlatform>('TwitchPlatform'));
   platformRegistry.register(container.resolve<YouTubePlatform>('YouTubePlatform'));
 
-  // Construct the reply-routing seam. The live chat→command→reply loop is deferred (Phase 5):
-  // start() leaves its EventBus subscription off until the loop is enabled for all platforms.
+  // Construct the reply-routing seam and start the live chat→command→reply loop.
   container.resolve<ChatRouter>('ChatRouter').start();
 
   // Register message handlers
@@ -452,8 +459,8 @@ export async function initializeComponents(container: Container): Promise<void> 
     integrationHandler.handleConfigure(msg as IWebSocketMessage<IntegrationConfigurePayload>)
   );
 
-  messageRouter.registerHandler(MessageType.OAUTH_GET_AUTH_URL, (msg) =>
-    oauthHandler.handleGetAuthUrl(msg as IWebSocketMessage<OAuthGetAuthUrlPayload>)
+  messageRouter.registerHandler(MessageType.OAUTH_GET_AUTH_URL, (msg, clientId) =>
+    oauthHandler.handleGetAuthUrl(msg as IWebSocketMessage<OAuthGetAuthUrlPayload>, clientId)
   );
 
   messageRouter.registerHandler(MessageType.OAUTH_EXCHANGE_CODE, (msg) =>

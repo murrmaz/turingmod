@@ -101,17 +101,23 @@ export class Application {
       this.logger.error('Integration error', data.error, { name: data.name });
     });
 
-    // OAuth callback received (broadcast to all WebSocket clients)
-    this.eventBus.on('oauth:callback', (data: { integrationName: string; code: string }) => {
-      this.logger.info('OAuth callback received, broadcasting to clients', {
-        integrationName: data.integrationName,
-      });
+    // OAuth callback received: deliver the code only to the client that
+    // started this flow (correlated via the `state` value), never broadcast
+    // it — any other connected client could otherwise redeem it first.
+    this.eventBus.on(
+      'oauth:callback',
+      (data: { integrationName: string; code: string; clientId: string }) => {
+        this.logger.info('OAuth callback received, notifying originating client', {
+          integrationName: data.integrationName,
+          clientId: data.clientId,
+        });
 
-      // Broadcast code to all WebSocket clients
-      this.webSocketServer.broadcast(
-        createOAuthCodeReceivedMessage(data.integrationName, data.code)
-      );
-    });
+        this.webSocketServer.sendToClient(
+          data.clientId,
+          createOAuthCodeReceivedMessage(data.integrationName, data.code)
+        );
+      }
+    );
   }
 
   /**

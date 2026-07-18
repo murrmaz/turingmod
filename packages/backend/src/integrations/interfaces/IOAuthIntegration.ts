@@ -17,8 +17,13 @@ export interface IOAuthIntegration extends IIntegration {
    */
   getEnvConfig(): Record<string, unknown>;
 
-  /** Generate the provider's authorization URL for the given config. */
-  getAuthorizationUrl(config: Record<string, unknown>): string;
+  /**
+   * Generate the provider's authorization URL for the given config. `state`
+   * is an opaque, server-generated, single-use value that must be echoed
+   * back unmodified by the provider on the callback — it's how the callback
+   * gets correlated back to the WebSocket client that started the flow.
+   */
+  getAuthorizationUrl(config: Record<string, unknown>, state: string): string;
 
   /** Exchange an authorization code for tokens, persisting them. */
   exchangeCode(code: string): Promise<unknown>;

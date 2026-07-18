@@ -16,6 +16,14 @@ export class WebSocketServer {
 
   constructor(
     private messageRouter: MessageRouter,
+    /**
+     * Origins allowed to open a WebSocket connection. Browsers don't apply
+     * same-origin restrictions to WebSocket connections, so without this
+     * check any page open in the user's browser — regardless of which site
+     * served it — could connect and receive broadcasts (cross-site
+     * WebSocket hijacking). Binding to localhost does not prevent this.
+     */
+    private allowedOrigins: string[],
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'WebSocketServer' });
@@ -25,11 +33,20 @@ export class WebSocketServer {
    * Start the WebSocket server attached to HTTP server
    */
   start(httpServer: HttpServer): void {
-    this.logger.info('Starting WebSocket server');
+    this.logger.info('Starting WebSocket server', { allowedOrigins: this.allowedOrigins });
 
     this.wss = new WSServer({
       server: httpServer,
       path: '/ws',
+      verifyClient: ({ origin }, callback) => {
+        if (origin && this.allowedOrigins.includes(origin)) {
+          callback(true);
+          return;
+        }
+
+        this.logger.warn('Rejected WebSocket connection: disallowed origin', { origin });
+        callback(false, 403, 'Forbidden');
+      },
     });
 
     this.wss.on('connection', (ws: WebSocket) => {

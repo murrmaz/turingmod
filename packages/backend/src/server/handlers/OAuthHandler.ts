@@ -14,6 +14,7 @@ import {
 import { OAuthNotConfiguredError } from '../../integrations/errors.js';
 import type { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import type { Logger } from '../../utils/Logger.js';
+import { isOAuthExchangeCodePayload, isOAuthGetAuthUrlPayload } from '../validation.js';
 
 /**
  * OAuth message handler
@@ -35,14 +36,26 @@ export class OAuthHandler {
    * Handle get authorization URL request
    */
   async handleGetAuthUrl(
-    message: IWebSocketMessage<OAuthGetAuthUrlPayload>
+    message: IWebSocketMessage<OAuthGetAuthUrlPayload>,
+    clientId: string
   ): Promise<IWebSocketMessage<OAuthAuthUrlResponsePayload | ErrorPayload>> {
+    if (!isOAuthGetAuthUrlPayload(message.payload)) {
+      return createErrorMessage(
+        'INVALID_PAYLOAD',
+        'Malformed oauth.getAuthUrl payload',
+        message.id
+      );
+    }
+
     const { integrationName } = message.payload;
 
     this.logger.info(`Getting auth URL for: ${integrationName}`);
 
     try {
-      const authUrl = await this.integrationManager.getOAuthAuthorizationUrl(integrationName);
+      const authUrl = await this.integrationManager.getOAuthAuthorizationUrl(
+        integrationName,
+        clientId
+      );
 
       return createOAuthAuthUrlResponseMessage(integrationName, authUrl, message.id);
     } catch (error) {
@@ -68,6 +81,16 @@ export class OAuthHandler {
   async handleExchangeCode(
     message: IWebSocketMessage<OAuthExchangeCodePayload>
   ): Promise<IWebSocketMessage<OAuthExchangeResultPayload>> {
+    if (!isOAuthExchangeCodePayload(message.payload)) {
+      const { integrationName } = (message.payload ?? {}) as { integrationName?: unknown };
+      return createOAuthExchangeResultMessage(
+        typeof integrationName === 'string' ? integrationName : 'unknown',
+        false,
+        'Malformed oauth.exchangeCode payload',
+        message.id
+      );
+    }
+
     const { integrationName, code } = message.payload;
 
     this.logger.info(`Exchanging code for: ${integrationName}`);

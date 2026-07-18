@@ -55,7 +55,10 @@ export abstract class BaseIntegration implements IIntegration {
    */
   protected setStatus(status: IntegrationStatus, errorMessage?: string): void {
     this.status = status;
-    this.errorMessage = status === IntegrationStatus.ERROR ? errorMessage : undefined;
+    this.errorMessage =
+      status === IntegrationStatus.ERROR || status === IntegrationStatus.NEEDS_REAUTH
+        ? errorMessage
+        : undefined;
     this.events.emit('status', status);
   }
 

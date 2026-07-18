@@ -153,6 +153,27 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
   }
 
   /**
+   * Inspect an error thrown by a YouTube Data API call and report whether it looks like an OAuth
+   * failure (expired/revoked refresh token) rather than an ordinary API error. The googleapis
+   * client refreshes access tokens transparently inside each request, so a dead refresh token
+   * only ever surfaces this way — there's no separate refresh-failure event to listen for.
+   */
+  isAuthError(error: unknown): boolean {
+    const status = (error as { code?: number; response?: { status?: number } } | null)?.code;
+    const responseStatus = (error as { response?: { status?: number } } | null)?.response?.status;
+    const message = error instanceof Error ? error.message : String(error);
+    return status === 401 || responseStatus === 401 || message.includes('invalid_grant');
+  }
+
+  /**
+   * Flag this integration as needing the user to redo the OAuth flow. Called by
+   * YouTubeApiIntegration when isAuthError() identifies a refresh failure.
+   */
+  markAuthRequired(message = 'Token refresh failed — re-authorization required'): void {
+    this.setStatus(IntegrationStatus.NEEDS_REAUTH, message);
+  }
+
+  /**
    * OAuth scopes this integration requires (IOAuthIntegration)
    */
   getRequiredScopes(): string[] {

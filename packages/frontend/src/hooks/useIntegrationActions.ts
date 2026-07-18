@@ -14,6 +14,7 @@ export interface IntegrationActionState {
   isConnected: boolean;
   isStartable: boolean;
   isOAuthIntegration: boolean;
+  needsReauth: boolean;
   hasUnmetDependencies: boolean;
   missingDependencies: string[];
 }
@@ -102,8 +103,11 @@ export function useIntegrationActions() {
       isLoading: loadingIntegration === item.name,
       isConnected: item.status === IntegrationStatus.CONNECTED,
       isStartable:
-        item.status === IntegrationStatus.DISCONNECTED || item.status === IntegrationStatus.ERROR,
+        item.status === IntegrationStatus.DISCONNECTED ||
+        item.status === IntegrationStatus.ERROR ||
+        item.status === IntegrationStatus.NEEDS_REAUTH,
       isOAuthIntegration: Boolean(item.oauth),
+      needsReauth: item.status === IntegrationStatus.NEEDS_REAUTH,
       hasUnmetDependencies: !areDependenciesMet(item.name),
       missingDependencies: getMissingDependencies(item.name),
     }),
@@ -117,6 +121,7 @@ export function useIntegrationActions() {
       case IntegrationStatus.CONNECTING:
         return 'blue';
       case IntegrationStatus.ERROR:
+      case IntegrationStatus.NEEDS_REAUTH:
         return 'red';
       default:
         return 'grey';

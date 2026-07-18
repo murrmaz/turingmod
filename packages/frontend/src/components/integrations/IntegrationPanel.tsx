@@ -82,6 +82,7 @@ export function IntegrationPanel() {
                     isConnected,
                     isStartable,
                     isOAuthIntegration,
+                    needsReauth,
                     hasUnmetDependencies,
                     missingDependencies,
                   } = getActionState(item);
@@ -105,7 +106,7 @@ export function IntegrationPanel() {
                             onClick={() => handleAuthorize(item.name)}
                             disabled={isLoading}
                           >
-                            Authorize
+                            {needsReauth ? 'Reconnect' : 'Authorize'}
                           </Button>
                         )
                       ) : hasUnmetDependencies ? (

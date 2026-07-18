@@ -145,18 +145,9 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
       this.authProvider.onRefreshFailure((_userId, error) => {
         this.logger.error('Token refresh failed', error);
         this.setStatus(
-          IntegrationStatus.ERROR,
+          IntegrationStatus.NEEDS_REAUTH,
           'Token refresh failed \u2014 re-authorization required'
         );
-        if (this.config) {
-          this.eventBus.emit('integration.auth-required', {
-            integration: this.name,
-            authUrl: this.getAuthorizationUrl(
-              this.config as unknown as Record<string, unknown>,
-              randomUUID()
-            ),
-          });
-        }
       });
 
       this.setStatus(IntegrationStatus.CONNECTED);

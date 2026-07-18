@@ -130,8 +130,14 @@ export class YouTubeChatIntegration extends BaseIntegration {
       this.scheduleNextPoll(page.pollingIntervalMillis ?? DEFAULT_POLL_INTERVAL_MS);
     } catch (error) {
       // A broadcast ending typically surfaces as an API error; drop the chat id and idle until a
-      // new stream appears.
-      this.logger.warn('YouTube chat poll failed; will re-resolve active broadcast', error);
+      // new stream appears. A dead refresh token surfaces the same way, but
+      // apiIntegration's calls already flag youtube-auth as NEEDS_REAUTH in that case, so this is
+      // just about choosing an accurate log message.
+      if (this.authIntegration.isAuthError(error)) {
+        this.logger.warn('YouTube chat poll failed due to an auth error; re-authorization needed');
+      } else {
+        this.logger.warn('YouTube chat poll failed; will re-resolve active broadcast', error);
+      }
       this.resetBroadcast();
       this.scheduleNextPoll(IDLE_POLL_INTERVAL_MS);
     }

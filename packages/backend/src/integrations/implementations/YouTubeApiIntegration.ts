@@ -104,12 +104,14 @@ export class YouTubeApiIntegration extends BaseIntegration {
   async getActiveBroadcast(): Promise<ActiveBroadcast | null> {
     const youtube = this.requireClient();
 
-    const response = await youtube.liveBroadcasts.list({
-      part: ['snippet', 'status'],
-      broadcastStatus: 'active',
-      broadcastType: 'all',
-      mine: true,
-    });
+    const response = await this.withAuthErrorDetection(() =>
+      youtube.liveBroadcasts.list({
+        part: ['snippet', 'status'],
+        broadcastStatus: 'active',
+        broadcastType: 'all',
+        mine: true,
+      })
+    );
 
     const broadcast = response.data.items?.[0];
     if (!broadcast?.id) {
@@ -133,18 +135,20 @@ export class YouTubeApiIntegration extends BaseIntegration {
   async sendLiveChatMessage(liveChatId: string, message: string): Promise<void> {
     const youtube = this.requireClient();
 
-    await youtube.liveChatMessages.insert({
-      part: ['snippet'],
-      requestBody: {
-        snippet: {
-          liveChatId,
-          type: 'textMessageEvent',
-          textMessageDetails: {
-            messageText: message,
+    await this.withAuthErrorDetection(() =>
+      youtube.liveChatMessages.insert({
+        part: ['snippet'],
+        requestBody: {
+          snippet: {
+            liveChatId,
+            type: 'textMessageEvent',
+            textMessageDetails: {
+              messageText: message,
+            },
           },
         },
-      },
-    });
+      })
+    );
   }
 
   /**
@@ -157,11 +161,13 @@ export class YouTubeApiIntegration extends BaseIntegration {
   ): Promise<youtube_v3.Schema$LiveChatMessageListResponse> {
     const youtube = this.requireClient();
 
-    const response = await youtube.liveChatMessages.list({
-      liveChatId,
-      part: ['snippet', 'authorDetails'],
-      ...(pageToken === undefined ? {} : { pageToken }),
-    });
+    const response = await this.withAuthErrorDetection(() =>
+      youtube.liveChatMessages.list({
+        liveChatId,
+        part: ['snippet', 'authorDetails'],
+        ...(pageToken === undefined ? {} : { pageToken }),
+      })
+    );
 
     return response.data;
   }
@@ -183,13 +189,15 @@ export class YouTubeApiIntegration extends BaseIntegration {
       snippet.scheduledStartTime = broadcast.scheduledStartTime;
     }
 
-    await youtube.liveBroadcasts.update({
-      part: ['snippet'],
-      requestBody: {
-        id: broadcast.id,
-        snippet,
-      },
-    });
+    await this.withAuthErrorDetection(() =>
+      youtube.liveBroadcasts.update({
+        part: ['snippet'],
+        requestBody: {
+          id: broadcast.id,
+          snippet,
+        },
+      })
+    );
   }
 
   /**
@@ -208,5 +216,21 @@ export class YouTubeApiIntegration extends BaseIntegration {
       throw new Error('YouTube API client not initialized');
     }
     return this.youtube;
+  }
+
+  /**
+   * Run a YouTube Data API call, flagging the auth integration as needing re-authorization if the
+   * failure looks like a dead refresh token. The underlying error is always rethrown so existing
+   * callers see the same failure they always did.
+   */
+  private async withAuthErrorDetection<T>(apiCall: () => Promise<T>): Promise<T> {
+    try {
+      return await apiCall();
+    } catch (error) {
+      if (this.authIntegration.isAuthError(error)) {
+        this.authIntegration.markAuthRequired();
+      }
+      throw error;
+    }
   }
 }

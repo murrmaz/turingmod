@@ -6,6 +6,8 @@ export enum IntegrationStatus {
   CONNECTING = 'connecting',
   CONNECTED = 'connected',
   ERROR = 'error',
+  /** Was connected, but token refresh failed — needs the user to redo the OAuth flow. */
+  NEEDS_REAUTH = 'needs_reauth',
 }
 
 /**
@@ -21,7 +23,7 @@ export interface IntegrationInfo {
   /** Timestamp of last successful connection */
   lastConnected?: number;
 
-  /** Error message if status is ERROR */
+  /** Error message if status is ERROR or NEEDS_REAUTH */
   errorMessage?: string;
 
   /** Additional integration-specific metadata */

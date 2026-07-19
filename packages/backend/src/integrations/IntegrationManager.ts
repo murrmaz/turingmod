@@ -419,9 +419,9 @@ export class IntegrationManager {
    * Get all integration statuses
    */
   getAllStatuses(): IntegrationInfo[] {
-    return Array.from(this.integrations.values()).map((integration) =>
-      this.toIntegrationInfo(integration)
-    );
+    return Array.from(this.integrations.values())
+      .map((integration) => this.toIntegrationInfo(integration))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /**

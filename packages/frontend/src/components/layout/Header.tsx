@@ -1,4 +1,5 @@
 import TopNavigation from '@cloudscape-design/components/top-navigation';
+import logo from '../../assets/logo.svg';
 import { useWebSocket } from '../../hooks/useWebSocket';
 
 /**
@@ -15,8 +16,8 @@ export function Header() {
           href: '/',
           title: 'TuringMod',
           logo: {
-            src: '',
-            alt: 'TuringMod',
+            src: logo,
+            alt: 'TuringMod logo',
           },
         }}
         utilities={[

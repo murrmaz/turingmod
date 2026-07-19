@@ -1,6 +1,6 @@
 # TuringMod
 
-A local Twitch streamer tool that provides chat command handling, platform integrations, and a web-based UI for streamers.
+The Swiss Army knife of stream automation — chat commands, music, Discord, OBS, hardware gadgets, and more, all wired into one local control panel.
 
 ## Features
 

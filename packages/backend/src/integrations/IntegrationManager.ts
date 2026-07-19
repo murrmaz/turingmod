@@ -185,20 +185,11 @@ export class IntegrationManager {
       throw new Error(`Integration not found: ${name}`);
     }
 
-    // Check dependencies
-    if (integration.getDependencies) {
-      const deps = integration.getDependencies();
-      for (const dep of deps) {
-        const depIntegration = this.integrations.get(dep);
-        if (!depIntegration) {
-          throw new Error(`Dependency not found: ${dep} (required by ${name})`);
-        }
-        if (depIntegration.getStatus() !== IntegrationStatus.CONNECTED) {
-          throw new Error(
-            `Cannot start ${name}: dependency ${dep} is not connected (status: ${depIntegration.getStatus()})`
-          );
-        }
-      }
+    const dependencyError = this.getUnmetDependencyError(integration);
+    if (dependencyError) {
+      integration.reportError(dependencyError);
+      await this.stateRepository.updateStatus(name, IntegrationStatus.ERROR, dependencyError);
+      throw new Error(dependencyError);
     }
 
     this.logger.info(`Starting integration: ${name}`);
@@ -223,6 +214,25 @@ export class IntegrationManager {
       );
       throw error;
     }
+  }
+
+  /**
+   * Check whether an integration's declared dependencies are all connected.
+   * Returns a human-readable error message describing the first unmet
+   * dependency, or null if all dependencies are satisfied.
+   */
+  private getUnmetDependencyError(integration: IIntegration): string | null {
+    const deps = integration.getDependencies?.() ?? [];
+    for (const dep of deps) {
+      const depIntegration = this.integrations.get(dep);
+      if (!depIntegration) {
+        return `Dependency not found: ${dep} (required by ${integration.name})`;
+      }
+      if (depIntegration.getStatus() !== IntegrationStatus.CONNECTED) {
+        return `Cannot start ${integration.name}: dependency ${dep} is not connected (status: ${depIntegration.getStatus()})`;
+      }
+    }
+    return null;
   }
 
   /**

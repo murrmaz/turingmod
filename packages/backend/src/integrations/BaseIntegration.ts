@@ -42,6 +42,10 @@ export abstract class BaseIntegration implements IIntegration {
     return this.errorMessage;
   }
 
+  reportError(message: string): void {
+    this.setStatus(IntegrationStatus.ERROR, message);
+  }
+
   on(event: string, handler: (...args: unknown[]) => void): void {
     this.events.on(event, handler);
   }

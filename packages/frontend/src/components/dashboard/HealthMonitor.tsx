@@ -5,9 +5,37 @@ import Container from '@cloudscape-design/components/container';
 import Header from '@cloudscape-design/components/header';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
+import type { IntegrationInfo } from '@turingmod/shared';
 import { useAppState } from '../../context/AppStateContext';
 import { useIntegrationActions } from '../../hooks/useIntegrationActions';
 import { useWebSocket } from '../../hooks/useWebSocket';
+
+/**
+ * Badge for a single integration's light-row entry. This row is a glance
+ * surface (hover, not click), so the explanation rides on the native
+ * `title` attribute rather than a Cloudscape Popover — Popover only opens
+ * on click, which doesn't fit a row of plain, non-interactive badges.
+ */
+function IntegrationLight({ integration }: { integration: IntegrationInfo }) {
+  const { getActionState, getStatusColor } = useIntegrationActions();
+  const { hasUnmetDependencies, missingDependencies } = getActionState(integration);
+
+  let title: string | undefined;
+  if (integration.errorMessage) {
+    title = integration.errorMessage;
+  } else if (hasUnmetDependencies) {
+    title = `Requires: ${missingDependencies.join(', ')}`;
+  }
+
+  return (
+    <Badge
+      color={getStatusColor(integration.status)}
+      nativeAttributes={title ? { title } : undefined}
+    >
+      {integration.name}
+    </Badge>
+  );
+}
 
 /**
  * Health monitor component
@@ -17,7 +45,6 @@ import { useWebSocket } from '../../hooks/useWebSocket';
 export function HealthMonitor() {
   const { isConnected } = useWebSocket();
   const { isHealthy, integrations } = useAppState();
-  const { getStatusColor } = useIntegrationActions();
 
   return (
     <Container header={<Header variant="h2">System Health</Header>}>
@@ -40,9 +67,7 @@ export function HealthMonitor() {
           <Box variant="awsui-key-label">Integrations</Box>
           <SpaceBetween direction="horizontal" size="xs">
             {integrations.map((integration) => (
-              <Badge key={integration.name} color={getStatusColor(integration.status)}>
-                {integration.name}
-              </Badge>
+              <IntegrationLight key={integration.name} integration={integration} />
             ))}
           </SpaceBetween>
         </div>

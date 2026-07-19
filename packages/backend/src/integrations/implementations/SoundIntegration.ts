@@ -54,7 +54,7 @@ export class SoundIntegration extends BaseIntegration {
         const errorMessage = `No audio player found on PATH (tried: ${LINUX_PLAYER_CANDIDATES.join(', ')}). Install one of these to enable sound playback.`;
         this.logger.error(errorMessage);
         this.setStatus(IntegrationStatus.ERROR, errorMessage);
-        return;
+        throw new Error(errorMessage);
       }
       this.logger.info('Resolved Linux audio player', { command: this.linuxPlayerCommand });
     }

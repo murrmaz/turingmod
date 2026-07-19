@@ -61,4 +61,12 @@ export interface IIntegration {
    * @returns Error message string, or undefined if no error
    */
   getErrorMessage?(): string | undefined;
+
+  /**
+   * Report a failure that happened outside the integration's own start()/stop()
+   * lifecycle (e.g. a caller like IntegrationManager declining to start it
+   * because a dependency isn't ready). Transitions status to ERROR with the
+   * given message so it's visible on the wire, same as an internal failure.
+   */
+  reportError(message: string): void;
 }

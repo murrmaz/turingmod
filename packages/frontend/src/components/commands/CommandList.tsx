@@ -1,9 +1,7 @@
 import Badge from '@cloudscape-design/components/badge';
 import Box from '@cloudscape-design/components/box';
-import Button from '@cloudscape-design/components/button';
 import Container from '@cloudscape-design/components/container';
 import Header from '@cloudscape-design/components/header';
-import Modal from '@cloudscape-design/components/modal';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import Table from '@cloudscape-design/components/table';
 import type { CommandInfo } from '@turingmod/shared';
@@ -15,23 +13,16 @@ import { CommandSimulator } from './CommandSimulator';
 
 /**
  * Command list component
- * Displays table of available commands
+ * Displays table of available commands; testing happens in the CommandSimulator below.
  */
 export function CommandList() {
   const { commands } = useAppState();
-  const [selectedCommand, setSelectedCommand] = useState<CommandInfo | null>(null);
-  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [platform, setPlatform] = useState<Platform>(Platform.TWITCH);
 
   // Only show commands available on the selected platform (Twitch-only commands hide on YouTube).
   const visibleCommands = commands.filter((command) =>
     isCommandAvailableOnPlatform(command.requiredCapabilities, platform)
   );
-
-  const handleTestCommand = (command: CommandInfo) => {
-    setSelectedCommand(command);
-    setIsSimulatorOpen(true);
-  };
 
   const getPermissionColor = (level: string): 'blue' | 'green' | 'red' | 'grey' => {
     switch (level) {
@@ -48,84 +39,60 @@ export function CommandList() {
   };
 
   return (
-    <>
-      <SpaceBetween size="l">
-        <Container
-          header={
-            <Header variant="h1" description="Manage and test chat commands">
-              Commands
-            </Header>
-          }
-        >
-          <Table
-            columnDefinitions={[
-              {
-                id: 'name',
-                header: 'Command',
-                cell: (item: CommandInfo) => `!${item.name}`,
-                sortingField: 'name',
-              },
-              {
-                id: 'description',
-                header: 'Description',
-                cell: (item: CommandInfo) => item.description,
-              },
-              {
-                id: 'permissions',
-                header: 'Permission Level',
-                cell: (item: CommandInfo) => (
-                  <Badge color={getPermissionColor(item.permissions[0] || 'viewer')}>
-                    {item.permissions.join(', ')}
-                  </Badge>
-                ),
-              },
-              {
-                id: 'cooldown',
-                header: 'Cooldown',
-                cell: (item: CommandInfo) => `${item.cooldown}s`,
-              },
-              {
-                id: 'actions',
-                header: 'Actions',
-                cell: (item: CommandInfo) => (
-                  <Button onClick={() => handleTestCommand(item)}>Test</Button>
-                ),
-              },
-            ]}
-            items={visibleCommands}
-            loadingText="Loading commands..."
-            empty={
-              <Box textAlign="center" color="inherit">
-                <b>No commands available</b>
-                <Box padding={{ bottom: 's' }} variant="p" color="inherit">
-                  Commands will appear here once the backend is connected.
-                </Box>
-              </Box>
-            }
-          />
-        </Container>
-
-        <CommandSimulator
-          {...(selectedCommand?.name && { defaultCommand: selectedCommand.name })}
-          defaultPermissionLevel={PermissionLevel.VIEWER}
-          platform={platform}
-          onPlatformChange={setPlatform}
-        />
-      </SpaceBetween>
-
-      <Modal
-        visible={isSimulatorOpen}
-        onDismiss={() => setIsSimulatorOpen(false)}
-        header={`Test Command: !${selectedCommand?.name}`}
-        size="large"
+    <SpaceBetween size="l">
+      <Container
+        header={
+          <Header variant="h1" description="Manage and test chat commands">
+            Commands
+          </Header>
+        }
       >
-        <CommandSimulator
-          {...(selectedCommand?.name && { defaultCommand: selectedCommand.name })}
-          defaultPermissionLevel={PermissionLevel.VIEWER}
-          platform={platform}
-          onPlatformChange={setPlatform}
+        <Table
+          columnDefinitions={[
+            {
+              id: 'name',
+              header: 'Command',
+              cell: (item: CommandInfo) => `!${item.name}`,
+              sortingField: 'name',
+            },
+            {
+              id: 'description',
+              header: 'Description',
+              cell: (item: CommandInfo) => item.description,
+            },
+            {
+              id: 'permissions',
+              header: 'Permission Level',
+              cell: (item: CommandInfo) => (
+                <Badge color={getPermissionColor(item.permissions[0] || 'viewer')}>
+                  {item.permissions.join(', ')}
+                </Badge>
+              ),
+            },
+            {
+              id: 'cooldown',
+              header: 'Cooldown',
+              cell: (item: CommandInfo) => `${item.cooldown}s`,
+            },
+          ]}
+          items={visibleCommands}
+          loadingText="Loading commands..."
+          empty={
+            <Box textAlign="center" color="inherit">
+              <b>No commands available</b>
+              <Box padding={{ bottom: 's' }} variant="p" color="inherit">
+                Commands will appear here once the backend is connected.
+              </Box>
+            </Box>
+          }
         />
-      </Modal>
-    </>
+      </Container>
+
+      <CommandSimulator
+        defaultPermissionLevel={PermissionLevel.VIEWER}
+        platform={platform}
+        onPlatformChange={setPlatform}
+      />
+    </SpaceBetween>
   );
 }

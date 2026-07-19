@@ -6,8 +6,8 @@ import type { EventBus } from '../../core/EventBus.js';
 import type { IntegrationStateRepository } from '../../database/repositories/IntegrationStateRepository.js';
 import type { Logger } from '../../utils/Logger.js';
 import { BaseIntegration } from '../BaseIntegration.js';
-import { OAuthNotConfiguredError } from '../errors.js';
 import type { IOAuthIntegration } from '../interfaces/IOAuthIntegration.js';
+import { buildOAuthEnvConfig, validateOAuthConfig } from '../oauthConfigHelpers.js';
 
 /**
  * Twitch Auth Configuration
@@ -73,18 +73,7 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
     this.logger.info('Initializing Twitch Auth integration');
 
     this.config = config as unknown as TwitchAuthConfig;
-
-    // Validate config
-    if (!(this.config.clientId && this.config.clientSecret)) {
-      throw new Error('Missing clientId or clientSecret in configuration');
-    }
-
-    // Callers (e.g. the setup UI) intentionally omit scopes — this integration
-    // is the single source of truth for them. Fill them in so getAuthorizationUrl()
-    // never sees an undefined/empty scopes array.
-    if (!this.config.scopes || this.config.scopes.length === 0) {
-      this.config.scopes = this.getRequiredScopes();
-    }
+    validateOAuthConfig(this.config, this.getRequiredScopes());
 
     this.logger.info('Twitch Auth integration initialized');
     return Promise.resolve();
@@ -207,20 +196,13 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
    * any config has been saved to the database (IOAuthIntegration).
    */
   getEnvConfig(): Record<string, unknown> {
-    const config: TwitchAuthConfig = {
-      clientId: process.env.TWITCH_CLIENT_ID || '',
-      clientSecret: process.env.TWITCH_CLIENT_SECRET || '',
+    return buildOAuthEnvConfig<TwitchAuthConfig>({
+      providerLabel: 'Twitch',
+      clientIdEnvVar: 'TWITCH_CLIENT_ID',
+      clientSecretEnvVar: 'TWITCH_CLIENT_SECRET',
       redirectUri: TWITCH_REDIRECT_URI,
       scopes: TWITCH_REQUIRED_SCOPES,
-    };
-
-    if (!(config.clientId && config.clientSecret)) {
-      throw new OAuthNotConfiguredError(
-        'Twitch credentials not configured. Please configure Client ID and Client Secret.'
-      );
-    }
-
-    return config as unknown as Record<string, unknown>;
+    }) as unknown as Record<string, unknown>;
   }
 
   /**

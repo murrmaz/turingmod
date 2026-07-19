@@ -191,12 +191,6 @@ export class HttpServer {
           <body style="font-family: system-ui; padding: 40px; text-align: center;">
             <h1>Authorization Successful</h1>
             <p>You can close this window and return to TuringMod.</p>
-            <script>
-              // Try to close the window after a short delay
-              setTimeout(() => {
-                window.close();
-              }, 2000);
-            </script>
           </body>
         </html>
       `);

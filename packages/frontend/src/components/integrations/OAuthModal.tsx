@@ -177,7 +177,10 @@ export function OAuthModal({
       if (message.type === MessageType.OAUTH_CODE_RECEIVED) {
         const payload = message.payload as OAuthCodeReceivedPayload;
         if (payload.integrationName === provider.integrationName) {
-          // Automatically exchange the code
+          // The popup's job is done the moment we have the code — close it now
+          // rather than waiting on the exchange, so it can't race the backend's
+          // own (independent) window-close behavior.
+          closePopup();
           exchangeCode(payload.code);
         }
       }
@@ -186,7 +189,7 @@ export function OAuthModal({
     return () => {
       unsubscribe();
     };
-  }, [subscribe, exchangeCode, provider.integrationName]);
+  }, [subscribe, exchangeCode, closePopup, provider.integrationName]);
 
   // Fetch auth URL when modal becomes visible
   useEffect(() => {

@@ -12,8 +12,7 @@ export function Dashboard() {
   return (
     <SpaceBetween size="l">
       <Container header={<Header variant="h1">Dashboard</Header>}>
-        Welcome to TuringMod — The Swiss Army Knife of Stream Automation. Twitch, Spotify, Discord,
-        OBS, Arduino — it does a little bit of everything.
+        Welcome to TuringMod — The Swiss Army Knife of Stream Automation.
       </Container>
 
       <HealthMonitor />

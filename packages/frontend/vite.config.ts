@@ -24,5 +24,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    // React + React Router + Cloudscape's AppLayout shell (icons, theming, nav)
+    // are needed on every route and land in one chunk around 800 kB raw.
+    // Route-level code splitting (see App.tsx) already keeps page-specific
+    // code out of this chunk; there's no further split available for the shell.
+    chunkSizeWarningLimit: 1000,
   },
 });

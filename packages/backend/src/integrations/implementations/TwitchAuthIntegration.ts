@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { IntegrationStatus } from '@turingmod/shared';
+import { HttpStatusCodeError } from '@twurple/api-call';
 import type { AccessToken, RefreshingAuthProvider } from '@twurple/auth';
-import { RefreshingAuthProvider as TwurpleRefreshingAuthProvider } from '@twurple/auth';
+import {
+  InvalidTokenError,
+  InvalidTokenTypeError,
+  RefreshingAuthProvider as TwurpleRefreshingAuthProvider,
+} from '@twurple/auth';
 import type { EventBus } from '../../core/EventBus.js';
 import type { IntegrationStateRepository } from '../../database/repositories/IntegrationStateRepository.js';
 import type { Logger } from '../../utils/Logger.js';
@@ -108,16 +113,11 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
         clientSecret: this.config.clientSecret,
       });
 
-      // Add user with token data (returns the authenticated user ID)
-      this.userId = await this.authProvider.addUserForToken({
-        accessToken: this.config.accessToken,
-        refreshToken: this.config.refreshToken,
-        expiresIn: this.config.expiresIn,
-        obtainmentTimestamp: this.config.obtainmentTimestamp || Date.now(),
-        scope: this.config.scopes,
-      } as AccessToken);
-
-      // Listen for token refresh
+      // Listen for token refresh. Registered before addUserForToken() below,
+      // because that call can itself trigger an immediate refresh (if the
+      // stored token is already expired) and fire this event synchronously
+      // from inside the call \u2014 a listener added afterwards would miss it,
+      // leaving the refreshed token stranded in memory and never persisted.
       this.authProvider.onRefresh(async (_userId, newToken) => {
         this.logger.info('Access token refreshed');
 
@@ -139,6 +139,15 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
         );
       });
 
+      // Add user with token data (returns the authenticated user ID)
+      this.userId = await this.authProvider.addUserForToken({
+        accessToken: this.config.accessToken,
+        refreshToken: this.config.refreshToken,
+        expiresIn: this.config.expiresIn,
+        obtainmentTimestamp: this.config.obtainmentTimestamp || Date.now(),
+        scope: this.config.scopes,
+      } as AccessToken);
+
       this.setStatus(IntegrationStatus.CONNECTED);
       this.logger.info('Twitch Auth integration started successfully');
 
@@ -148,10 +157,17 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
       });
     } catch (error) {
       this.logger.error('Failed to start Twitch Auth integration', error);
-      this.setStatus(
-        IntegrationStatus.ERROR,
-        error instanceof Error ? error.message : 'Unknown error'
-      );
+      if (isReauthRequiredError(error)) {
+        this.setStatus(
+          IntegrationStatus.NEEDS_REAUTH,
+          'Refresh token is invalid or revoked — re-authorization required'
+        );
+      } else {
+        this.setStatus(
+          IntegrationStatus.ERROR,
+          error instanceof Error ? error.message : 'Unknown error'
+        );
+      }
       throw error;
     }
   }
@@ -315,4 +331,18 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
       true
     );
   }
+}
+
+/**
+ * Whether a `start()` failure means the refresh token itself is dead (revoked
+ * or expired) rather than some transient/unexpected error. Twurple throws
+ * `InvalidTokenError`/`InvalidTokenTypeError` directly for a missing or
+ * malformed token; a dead refresh token surfaces as Twitch's token endpoint
+ * rejecting the refresh request with an HTTP 400.
+ */
+function isReauthRequiredError(error: unknown): boolean {
+  if (error instanceof InvalidTokenError || error instanceof InvalidTokenTypeError) {
+    return true;
+  }
+  return error instanceof HttpStatusCodeError && error.statusCode === 400;
 }

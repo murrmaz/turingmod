@@ -26,6 +26,11 @@ export function Navigation() {
       text: 'Integrations',
       href: '/integrations',
     },
+    {
+      type: 'link',
+      text: 'History',
+      href: '/history',
+    },
   ];
 
   return (

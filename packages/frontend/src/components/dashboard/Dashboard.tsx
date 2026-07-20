@@ -2,6 +2,7 @@ import Container from '@cloudscape-design/components/container';
 import Header from '@cloudscape-design/components/header';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import { HealthMonitor } from './HealthMonitor';
+import { LiveLog } from './LiveLog';
 
 /**
  * Dashboard page
@@ -16,6 +17,8 @@ export function Dashboard() {
       </Container>
 
       <HealthMonitor />
+
+      <LiveLog />
     </SpaceBetween>
   );
 }

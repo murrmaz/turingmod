@@ -9,6 +9,7 @@ export * from './constants/permissions.js';
 export * from './constants/platform.js';
 // Protocol
 export * from './protocol/messages.js';
+export * from './types/activity.js';
 export * from './types/command.js';
 export * from './types/integration.js';
 // Types

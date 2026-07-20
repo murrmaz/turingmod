@@ -1,4 +1,5 @@
 import type { Platform } from '../constants/platform.js';
+import type { ActivityCategory, ActivityLogEntry } from '../types/activity.js';
 import type { CommandContext, CommandInfo, CommandResult } from '../types/command.js';
 import type { IntegrationInfo, IntegrationStatus } from '../types/integration.js';
 import type { SimulatedUser } from '../types/user.js';
@@ -43,6 +44,12 @@ export enum MessageType {
 
   // Server → Client: Event notifications
   EVENT_NOTIFICATION = 'event.notification',
+
+  // Client → Server: Activity log query
+  ACTIVITY_QUERY = 'activity.query',
+
+  // Server → Client: Activity log query response
+  ACTIVITY_LIST = 'activity.list',
 
   // Server → Client: Health updates
   HEALTH_UPDATE = 'health.update',
@@ -172,11 +179,30 @@ export interface IntegrationListPayload {
  * Event notification payload
  */
 export interface EventNotificationPayload {
-  /** Event type (e.g., 'twitch.chat.message') */
-  event: string;
+  /** The activity log entry to append to the live feed */
+  entry: ActivityLogEntry;
+}
 
-  /** Event data */
-  data: Record<string, unknown>;
+/**
+ * Activity query payload (client → server)
+ */
+export interface ActivityQueryPayload {
+  /** Max entries to return (default 100 server-side, capped at 500) */
+  limit?: number;
+
+  /** Filter to a single category. Omit = all categories */
+  category?: ActivityCategory;
+
+  /** Timestamp cursor for "load older"; omit = most recent */
+  before?: number;
+}
+
+/**
+ * Activity list payload (server → client)
+ */
+export interface ActivityListPayload {
+  /** Matching activity log entries */
+  entries: ActivityLogEntry[];
 }
 
 /**
@@ -353,10 +379,28 @@ export function createIntegrationStatusMessage(
  * Create an event notification message
  */
 export function createEventNotificationMessage(
-  event: string,
-  data: Record<string, unknown>
+  entry: ActivityLogEntry
 ): IWebSocketMessage<EventNotificationPayload> {
-  return createMessage(MessageType.EVENT_NOTIFICATION, { event, data });
+  return createMessage(MessageType.EVENT_NOTIFICATION, { entry });
+}
+
+/**
+ * Create an activity query message
+ */
+export function createActivityQueryMessage(
+  payload: ActivityQueryPayload
+): IWebSocketMessage<ActivityQueryPayload> {
+  return createMessage(MessageType.ACTIVITY_QUERY, payload);
+}
+
+/**
+ * Create an activity list message
+ */
+export function createActivityListMessage(
+  entries: ActivityLogEntry[],
+  originalMessageId: string
+): IWebSocketMessage<ActivityListPayload> {
+  return createMessage(MessageType.ACTIVITY_LIST, { entries }, originalMessageId);
 }
 
 /**

@@ -1,4 +1,5 @@
 import {
+  type ActivityQueryPayload,
   type CommandExecutePayload,
   type CommandListRequestPayload,
   type CommandSimulatePayload,
@@ -11,6 +12,7 @@ import {
   type OAuthExchangeCodePayload,
   type OAuthGetAuthUrlPayload,
 } from '@turingmod/shared';
+import { ActivityForwarder } from './activity/ActivityForwarder.js';
 import { CommandExecutor } from './commands/CommandExecutor.js';
 import { CommandRegistry } from './commands/CommandRegistry.js';
 import { loadCommands } from './commands/loadCommands.js';
@@ -19,6 +21,7 @@ import type { Container } from './core/Container.js';
 import { EventBus } from './core/EventBus.js';
 import { DatabaseManager } from './database/DatabaseManager.js';
 import { MigrationRunner } from './database/migrations/MigrationRunner.js';
+import { ActivityLogRepository } from './database/repositories/ActivityLogRepository.js';
 import { CommandHistoryRepository } from './database/repositories/CommandHistoryRepository.js';
 import { IntegrationStateRepository } from './database/repositories/IntegrationStateRepository.js';
 import { UserRepository } from './database/repositories/UserRepository.js';
@@ -41,6 +44,7 @@ import { StreamControlService } from './platforms/StreamControlService.js';
 import { TwitchPlatform } from './platforms/TwitchPlatform.js';
 import { YouTubePlatform } from './platforms/YouTubePlatform.js';
 import { HttpServer } from './server/HttpServer.js';
+import { ActivityHandler } from './server/handlers/ActivityHandler.js';
 import { CommandHandler } from './server/handlers/CommandHandler.js';
 import { IntegrationHandler } from './server/handlers/IntegrationHandler.js';
 import { OAuthHandler } from './server/handlers/OAuthHandler.js';
@@ -108,6 +112,11 @@ export function setupDependencies(container: Container): void {
   );
 
   container.registerSingleton(
+    'ActivityLogRepository',
+    () => new ActivityLogRepository(container.resolve<DatabaseManager>('DatabaseManager'))
+  );
+
+  container.registerSingleton(
     'IntegrationStateRepository',
     () =>
       new IntegrationStateRepository(
@@ -155,6 +164,7 @@ export function setupDependencies(container: Container): void {
         container.resolve<CommandRegistry>('CommandRegistry'),
         container.resolve<CommandHistoryRepository>('CommandHistoryRepository'),
         container.resolve<PlatformRegistry>('PlatformRegistry'),
+        container.resolve<EventBus>('EventBus'),
         container.resolve<Logger>('Logger')
       )
   );
@@ -337,6 +347,17 @@ export function setupDependencies(container: Container): void {
     );
   });
 
+  container.registerSingleton(
+    'ActivityForwarder',
+    () =>
+      new ActivityForwarder(
+        container.resolve<EventBus>('EventBus'),
+        container.resolve<WebSocketServer>('WebSocketServer'),
+        container.resolve<ActivityLogRepository>('ActivityLogRepository'),
+        container.resolve<Logger>('Logger')
+      )
+  );
+
   // Message handlers (singletons)
   container.registerSingleton(
     'CommandHandler',
@@ -363,6 +384,15 @@ export function setupDependencies(container: Container): void {
     () =>
       new OAuthHandler(
         container.resolve<IntegrationManager>('IntegrationManager'),
+        container.resolve<Logger>('Logger')
+      )
+  );
+
+  container.registerSingleton(
+    'ActivityHandler',
+    () =>
+      new ActivityHandler(
+        container.resolve<ActivityLogRepository>('ActivityLogRepository'),
         container.resolve<Logger>('Logger')
       )
   );
@@ -443,11 +473,15 @@ export async function initializeComponents(container: Container): Promise<void> 
   // Construct the reply-routing seam and start the live chat→command→reply loop.
   container.resolve<ChatRouter>('ChatRouter').start();
 
+  // Start forwarding EventBus activity to the live tail (broadcast) and activity_log (persist).
+  container.resolve<ActivityForwarder>('ActivityForwarder').start();
+
   // Register message handlers
   const messageRouter = container.resolve<MessageRouter>('MessageRouter');
   const commandHandler = container.resolve<CommandHandler>('CommandHandler');
   const integrationHandler = container.resolve<IntegrationHandler>('IntegrationHandler');
   const oauthHandler = container.resolve<OAuthHandler>('OAuthHandler');
+  const activityHandler = container.resolve<ActivityHandler>('ActivityHandler');
 
   messageRouter.registerHandler(MessageType.COMMAND_EXECUTE, (msg) =>
     commandHandler.handleExecute(msg as IWebSocketMessage<CommandExecutePayload>)
@@ -483,6 +517,10 @@ export async function initializeComponents(container: Container): Promise<void> 
 
   messageRouter.registerHandler(MessageType.OAUTH_EXCHANGE_CODE, (msg) =>
     oauthHandler.handleExchangeCode(msg as IWebSocketMessage<OAuthExchangeCodePayload>)
+  );
+
+  messageRouter.registerHandler(MessageType.ACTIVITY_QUERY, (msg) =>
+    activityHandler.handleQuery(msg as IWebSocketMessage<ActivityQueryPayload>)
   );
 
   logger.info('Components initialized');

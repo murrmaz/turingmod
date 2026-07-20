@@ -16,6 +16,9 @@ const IntegrationPanel = lazy(() =>
     default: m.IntegrationPanel,
   }))
 );
+const History = lazy(() =>
+  import('./components/history/History').then((m) => ({ default: m.History }))
+);
 
 function RouteFallback() {
   return <Spinner size="large" />;
@@ -36,6 +39,7 @@ export function App() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="commands" element={<CommandList />} />
                 <Route path="integrations" element={<IntegrationPanel />} />
+                <Route path="history" element={<History />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Route>
             </Routes>

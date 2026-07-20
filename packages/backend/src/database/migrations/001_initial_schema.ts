@@ -97,10 +97,32 @@ export const initialSchema: Migration = {
         created_at INTEGER NOT NULL
       )
     `);
+
+    // Activity log table - denormalized feed of commands/events/status/errors (chat excluded)
+    db.exec(`
+      CREATE TABLE activity_log (
+        id TEXT PRIMARY KEY,
+        category TEXT NOT NULL,
+        event TEXT NOT NULL,
+        data TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+      )
+    `);
+
+    db.exec(`
+      CREATE INDEX idx_activity_log_timestamp
+      ON activity_log(timestamp)
+    `);
+
+    db.exec(`
+      CREATE INDEX idx_activity_log_category_timestamp
+      ON activity_log(category, timestamp)
+    `);
   },
 
   down(db: DatabaseManager): void {
     // Drop all tables in reverse order
+    db.exec('DROP TABLE IF EXISTS activity_log');
     db.exec('DROP TABLE IF EXISTS encryption_keys');
     db.exec('DROP TABLE IF EXISTS settings');
     db.exec('DROP TABLE IF EXISTS integration_state');

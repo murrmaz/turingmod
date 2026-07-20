@@ -1,4 +1,5 @@
 import type {
+  ActivityQueryPayload,
   CommandExecutePayload,
   CommandListRequestPayload,
   CommandSimulatePayload,
@@ -8,7 +9,7 @@ import type {
   OAuthExchangeCodePayload,
   OAuthGetAuthUrlPayload,
 } from '@turingmod/shared';
-import { PermissionLevel, Platform } from '@turingmod/shared';
+import { ActivityCategory, PermissionLevel, Platform } from '@turingmod/shared';
 
 /**
  * Runtime shape checks for inbound WebSocket payloads. The wire format is untyped JSON, so
@@ -39,6 +40,10 @@ function isPlatform(value: unknown): value is Platform {
 
 function isPermissionLevel(value: unknown): value is PermissionLevel {
   return (Object.values(PermissionLevel) as unknown[]).includes(value);
+}
+
+function isActivityCategory(value: unknown): value is ActivityCategory {
+  return (Object.values(ActivityCategory) as unknown[]).includes(value);
 }
 
 export function isCommandExecutePayload(payload: unknown): payload is CommandExecutePayload {
@@ -124,5 +129,21 @@ export function isOAuthExchangeCodePayload(payload: unknown): payload is OAuthEx
     isPlainObject(payload) &&
     isNonEmptyString(payload.integrationName) &&
     isNonEmptyString(payload.code)
+  );
+}
+
+export function isActivityQueryPayload(payload: unknown): payload is ActivityQueryPayload {
+  // The payload itself is optional; treat missing as {} (no filters).
+  if (payload === undefined) {
+    return true;
+  }
+  if (!isPlainObject(payload)) {
+    return false;
+  }
+  const { limit, category, before } = payload;
+  return (
+    (limit === undefined || typeof limit === 'number') &&
+    (category === undefined || isActivityCategory(category)) &&
+    (before === undefined || typeof before === 'number')
   );
 }

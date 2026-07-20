@@ -1,5 +1,6 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { hasPermission } from '@turingmod/shared';
+import type { EventBus } from '../core/EventBus.js';
 import type { CommandHistoryRepository } from '../database/repositories/CommandHistoryRepository.js';
 import type { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import type { Logger } from '../utils/Logger.js';
@@ -26,6 +27,7 @@ export class CommandExecutor {
     private registry: CommandRegistry,
     private historyRepository: CommandHistoryRepository,
     private platformRegistry: PlatformRegistry,
+    private eventBus: EventBus,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'CommandExecutor' });
@@ -186,6 +188,17 @@ export class CommandExecutor {
         result,
         isSimulation: context.isSimulation,
         executedAt: Date.now(),
+      });
+
+      await this.eventBus.emit('command.executed', {
+        command: commandName,
+        username: context.user.username,
+        userId: context.user.id,
+        platform: context.platform,
+        success: result.success,
+        message: result.message,
+        errorCode: result.error?.code,
+        isSimulation: context.isSimulation,
       });
     } catch (error) {
       this.logger.error('Failed to log command execution', error);

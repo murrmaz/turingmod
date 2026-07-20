@@ -16,26 +16,17 @@ export type WebSocketEventHandler = (data?: unknown) => void;
 export interface WebSocketClientConfig {
   /** WebSocket URL */
   url: string;
-
-  /** Auto-reconnect on disconnect */
-  autoReconnect?: boolean;
-
-  /** Reconnect interval in milliseconds */
-  reconnectInterval?: number;
-
-  /** Max reconnect attempts (0 = infinite) */
-  maxReconnectAttempts?: number;
 }
 
 /**
  * WebSocket client wrapper
- * Provides auto-reconnect, message queuing, and event subscription
+ * Connects only when explicitly told to (initial load or user action) —
+ * no background retry/backoff. A failed or dropped connection just reports
+ * its state and waits for the next explicit connect() call.
  */
 export class WebSocketClient {
   private ws: WebSocket | null = null;
   private config: Required<WebSocketClientConfig>;
-  private reconnectAttempts = 0;
-  private reconnectTimer: number | null = null;
   private messageQueue: IWebSocketMessage[] = [];
   private eventHandlers: Map<WebSocketEventType, Set<WebSocketEventHandler>> = new Map();
   private messageHandlers: Map<string, WebSocketEventHandler> = new Map();
@@ -44,9 +35,6 @@ export class WebSocketClient {
   constructor(config: WebSocketClientConfig) {
     this.config = {
       url: config.url,
-      autoReconnect: config.autoReconnect ?? true,
-      reconnectInterval: config.reconnectInterval ?? 3000,
-      maxReconnectAttempts: config.maxReconnectAttempts ?? 0,
     };
 
     // Initialize event handler maps
@@ -71,7 +59,6 @@ export class WebSocketClient {
 
       this.ws.onopen = () => {
         this.isConnecting = false;
-        this.reconnectAttempts = 0;
         console.log('[WebSocket] Connected');
 
         // Flush message queue
@@ -87,11 +74,6 @@ export class WebSocketClient {
 
         // Emit close event
         this.emit('close', event);
-
-        // Attempt reconnect
-        if (this.config.autoReconnect) {
-          this.scheduleReconnect();
-        }
       };
 
       this.ws.onerror = (event) => {
@@ -124,10 +106,6 @@ export class WebSocketClient {
       this.isConnecting = false;
       console.error('[WebSocket] Connection failed', error);
       this.emit('error', error);
-
-      if (this.config.autoReconnect) {
-        this.scheduleReconnect();
-      }
     }
   }
 
@@ -135,13 +113,6 @@ export class WebSocketClient {
    * Disconnect from WebSocket server
    */
   disconnect(): void {
-    this.config.autoReconnect = false;
-
-    if (this.reconnectTimer !== null) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -251,28 +222,5 @@ export class WebSocketClient {
         this.send(message);
       }
     }
-  }
-
-  /**
-   * Schedule reconnect attempt
-   */
-  private scheduleReconnect(): void {
-    if (
-      this.config.maxReconnectAttempts > 0 &&
-      this.reconnectAttempts >= this.config.maxReconnectAttempts
-    ) {
-      console.log('[WebSocket] Max reconnect attempts reached');
-      return;
-    }
-
-    this.reconnectAttempts++;
-    const delay = this.config.reconnectInterval * Math.min(this.reconnectAttempts, 5);
-
-    console.log(`[WebSocket] Scheduling reconnect attempt ${this.reconnectAttempts} in ${delay}ms`);
-
-    this.reconnectTimer = window.setTimeout(() => {
-      this.reconnectTimer = null;
-      this.connect();
-    }, delay);
   }
 }

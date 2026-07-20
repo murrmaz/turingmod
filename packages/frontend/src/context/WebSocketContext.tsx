@@ -53,12 +53,7 @@ export function WebSocketProvider({
 
   // Initialize WebSocket client
   useEffect(() => {
-    const client = new WebSocketClient({
-      url,
-      autoReconnect: true,
-      reconnectInterval: 3000,
-      maxReconnectAttempts: 0, // Infinite
-    });
+    const client = new WebSocketClient({ url });
 
     // Set up event handlers
     client.on('open', () => {

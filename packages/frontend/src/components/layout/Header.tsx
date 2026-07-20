@@ -7,7 +7,7 @@ import { useWebSocket } from '../../hooks/useWebSocket';
  * Displays app title and connection status
  */
 export function Header() {
-  const { isConnected } = useWebSocket();
+  const { isConnected, connect } = useWebSocket();
 
   return (
     <div id="app-header">
@@ -25,7 +25,21 @@ export function Header() {
             type: 'button',
             text: isConnected ? 'Connected' : 'Disconnected',
             iconName: isConnected ? 'status-positive' : 'status-negative',
+            disableUtilityCollapse: true,
           },
+          // No background retry — reconnecting is always an explicit user action,
+          // surfaced as its own labeled button rather than an implicit click target.
+          ...(isConnected
+            ? []
+            : [
+                {
+                  type: 'button' as const,
+                  text: 'Reconnect',
+                  iconName: 'refresh' as const,
+                  variant: 'primary-button' as const,
+                  onClick: connect,
+                },
+              ]),
         ]}
       />
     </div>

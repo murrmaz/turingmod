@@ -11,6 +11,7 @@
     "start": "node dist/index.js",
     "clean": "rm -rf dist *.tsbuildinfo",
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
     "lint": "biome lint src",
     "lint:fix": "biome lint --write src",
     "check": "biome check src",

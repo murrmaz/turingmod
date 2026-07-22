@@ -13,9 +13,6 @@ export interface AppState {
 
   /** Available commands */
   commands: CommandInfo[];
-
-  /** System health status */
-  isHealthy: boolean;
 }
 
 /**
@@ -46,7 +43,6 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
   const { subscribe, sendAndWaitForResponse, isConnected } = useWebSocketContext();
   const [integrations, setIntegrations] = useState<IntegrationInfo[]>([]);
   const [commands, setCommands] = useState<CommandInfo[]>([]);
-  const [isHealthy, setIsHealthy] = useState(false);
 
   // Refresh integrations list
   const refreshIntegrations = useCallback(async () => {
@@ -117,18 +113,14 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
   // Initial data load
   useEffect(() => {
     if (isConnected) {
-      setIsHealthy(true);
       refreshIntegrations();
       refreshCommands();
-    } else {
-      setIsHealthy(false);
     }
   }, [isConnected, refreshIntegrations, refreshCommands]);
 
   const value: AppStateContextValue = {
     integrations,
     commands,
-    isHealthy,
     refreshIntegrations,
     refreshCommands,
   };

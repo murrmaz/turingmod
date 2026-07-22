@@ -11,6 +11,21 @@ export function Header() {
 
   return (
     <div id="app-header">
+      {!isConnected && (
+        <div
+          role="alert"
+          style={{
+            backgroundColor: '#8b0000',
+            color: '#ffffff',
+            textAlign: 'center',
+            padding: '6px 16px',
+            fontWeight: 'bold',
+            fontSize: '14px',
+          }}
+        >
+          Disconnected from server — some features are unavailable
+        </div>
+      )}
       <TopNavigation
         identity={{
           href: '/',
@@ -20,18 +35,21 @@ export function Header() {
             alt: 'TuringMod logo',
           },
         }}
-        utilities={[
-          {
-            type: 'button',
-            text: isConnected ? 'Connected' : 'Disconnected',
-            iconName: isConnected ? 'status-positive' : 'status-negative',
-            disableUtilityCollapse: true,
-          },
-          // No background retry — reconnecting is always an explicit user action,
-          // surfaced as its own labeled button rather than an implicit click target.
-          ...(isConnected
-            ? []
-            : [
+        utilities={
+          isConnected
+            ? [
+                {
+                  type: 'button',
+                  text: 'Connected',
+                  iconName: 'status-positive',
+                  disableUtilityCollapse: true,
+                },
+              ]
+            : // No background retry — reconnecting is always an explicit user action,
+              // surfaced as its own labeled button rather than an implicit click target.
+              // The red banner above already conveys "disconnected," so no need to
+              // restate it here too.
+              [
                 {
                   type: 'button' as const,
                   text: 'Reconnect',
@@ -39,8 +57,8 @@ export function Header() {
                   variant: 'primary-button' as const,
                   onClick: connect,
                 },
-              ]),
-        ]}
+              ]
+        }
       />
     </div>
   );

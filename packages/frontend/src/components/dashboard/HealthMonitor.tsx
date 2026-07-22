@@ -1,10 +1,8 @@
 import Badge from '@cloudscape-design/components/badge';
 import Box from '@cloudscape-design/components/box';
-import ColumnLayout from '@cloudscape-design/components/column-layout';
 import Container from '@cloudscape-design/components/container';
 import Header from '@cloudscape-design/components/header';
 import SpaceBetween from '@cloudscape-design/components/space-between';
-import StatusIndicator from '@cloudscape-design/components/status-indicator';
 import type { IntegrationInfo } from '@turingmod/shared';
 import { useAppState } from '../../context/AppStateContext';
 import { useIntegrationActions } from '../../hooks/useIntegrationActions';
@@ -38,33 +36,22 @@ function IntegrationLight({ integration }: { integration: IntegrationInfo }) {
 
 /**
  * Health monitor component
- * Displays system health and a condensed per-integration status light row.
- * Detailed integration info/actions live on the Integrations page. Connection
- * status itself lives only in the header (visible on every page); repeating
- * it here would just be the same fact shown twice.
+ * Displays a condensed per-integration status light row. Detailed integration
+ * info/actions live on the Integrations page. Connection status itself lives
+ * only in the header (visible on every page, and called out with a red banner
+ * when disconnected); repeating it here would just be the same fact shown twice.
  */
 export function HealthMonitor() {
-  const { isHealthy, integrations } = useAppState();
+  const { integrations } = useAppState();
 
   return (
     <Container header={<Header variant="h2">System Health</Header>}>
-      <ColumnLayout columns={2} variant="text-grid">
-        <div>
-          <Box variant="awsui-key-label">System Status</Box>
-          <StatusIndicator type={isHealthy ? 'success' : 'warning'}>
-            {isHealthy ? 'Healthy' : 'Degraded'}
-          </StatusIndicator>
-        </div>
-
-        <div>
-          <Box variant="awsui-key-label">Integrations</Box>
-          <SpaceBetween direction="horizontal" size="xs">
-            {integrations.map((integration) => (
-              <IntegrationLight key={integration.name} integration={integration} />
-            ))}
-          </SpaceBetween>
-        </div>
-      </ColumnLayout>
+      <Box variant="awsui-key-label">Integrations</Box>
+      <SpaceBetween direction="horizontal" size="xs">
+        {integrations.map((integration) => (
+          <IntegrationLight key={integration.name} integration={integration} />
+        ))}
+      </SpaceBetween>
     </Container>
   );
 }

@@ -1,5 +1,5 @@
 import { IntegrationStatus, PermissionLevel } from '@turingmod/shared';
-import type { ApiClient, HelixUser } from '@twurple/api';
+import type { ApiClient, HelixEventSubSubscriptionStatus, HelixUser } from '@twurple/api';
 import type { RefreshingAuthProvider } from '@twurple/auth';
 import type { EventSubChannelChatMessageEvent } from '@twurple/eventsub-base';
 import { EventSubWsListener } from '@twurple/eventsub-ws';
@@ -122,6 +122,25 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       // Create EventSub WebSocket listener
       this.eventSubListener = new EventSubWsListener({
         apiClient: this.apiClient,
+      });
+
+      // Fires when Twitch revokes an individual subscription. Most reasons
+      // are transport-layer conditions Twurple's own websocket reconnect
+      // already handles (websocket_*) or unrelated to auth (moderator_removed,
+      // version_removed); only 'authorization_revoked' and 'user_removed'
+      // mean the whole OAuth grant is dead and no reconnect will fix it.
+      this.eventSubListener.onRevoke((subscription, status) => {
+        this.logger.warn(`EventSub subscription revoked: ${subscription.id} (${status})`);
+        if (isAuthorizationRevokedStatus(status)) {
+          this.setStatus(
+            IntegrationStatus.NEEDS_REAUTH,
+            'Twitch revoked authorization — re-authorization required'
+          );
+          // Let TwitchAuthIntegration know independently of its own refresh
+          // cycle, since a revoked subscription doesn't necessarily mean the
+          // next token refresh attempt will fail on its own.
+          this.eventBus.emit('twitch.authorization-revoked', { reason: status });
+        }
       });
 
       // Start listening
@@ -365,4 +384,14 @@ export class TwitchEventSubIntegration extends BaseIntegration {
 
     return PermissionLevel.VIEWER;
   }
+}
+
+/**
+ * Whether an EventSub subscription revocation means the whole OAuth grant is
+ * dead, rather than a transport-layer condition Twurple's websocket reconnect
+ * logic already manages, or an unrelated change (e.g. a moderator losing the
+ * role that backed the subscription).
+ */
+function isAuthorizationRevokedStatus(status: HelixEventSubSubscriptionStatus): boolean {
+  return status === 'authorization_revoked' || status === 'user_removed';
 }

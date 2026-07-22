@@ -65,6 +65,7 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
   private authProvider: RefreshingAuthProvider | null = null;
   private config: TwitchAuthConfig | null = null;
   private userId: string | null = null;
+  private unsubscribeAuthorizationRevoked: (() => void) | null = null;
 
   constructor(
     private eventBus: EventBus,
@@ -106,6 +107,25 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
         });
         return;
       }
+
+      // Other Twitch integrations (e.g. EventSub) can detect that Twitch
+      // revoked our authorization independently of our own refresh cycle.
+      // Listen rather than being told directly, so this integration decides
+      // for itself how to react instead of exposing a setter for its status.
+      // Unsubscribe any listener from a prior start() first: IntegrationManager
+      // doesn't call stop() after a failed start(), so a retry would otherwise
+      // register a duplicate on top of the still-live one.
+      this.unsubscribeAuthorizationRevoked?.();
+      this.unsubscribeAuthorizationRevoked = this.eventBus.on(
+        'twitch.authorization-revoked',
+        () => {
+          this.logger.warn('Authorization revoked (reported by another integration)');
+          this.setStatus(
+            IntegrationStatus.NEEDS_REAUTH,
+            'Twitch revoked authorization — re-authorization required'
+          );
+        }
+      );
 
       // Create auth provider
       this.authProvider = new TwurpleRefreshingAuthProvider({
@@ -174,6 +194,9 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
 
   stop(): Promise<void> {
     this.logger.info('Stopping Twitch Auth integration');
+
+    this.unsubscribeAuthorizationRevoked?.();
+    this.unsubscribeAuthorizationRevoked = null;
 
     this.authProvider = null;
     this.setStatus(IntegrationStatus.DISCONNECTED);

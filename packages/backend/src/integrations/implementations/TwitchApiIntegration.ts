@@ -5,7 +5,8 @@ import type {
   HelixUpdateCustomRewardData,
 } from '@twurple/api';
 import { ApiClient } from '@twurple/api';
-import type { RefreshingAuthProvider } from '@twurple/auth';
+import { HttpStatusCodeError } from '@twurple/api-call';
+import { CachedRefreshFailureError, type RefreshingAuthProvider } from '@twurple/auth';
 import type { EventBus } from '../../core/EventBus.js';
 import type { Logger } from '../../utils/Logger.js';
 import { BaseIntegration } from '../BaseIntegration.js';
@@ -123,122 +124,118 @@ export class TwitchApiIntegration extends BaseIntegration {
   }
 
   /**
-   * Get channel information
+   * Run a Helix API call through the live client, detecting when Twitch
+   * rejects it because the OAuth grant itself is gone (not just some other
+   * API error) and reporting that the same way TwitchEventSubIntegration
+   * does — by publishing a fact on the event bus rather than reaching into
+   * TwitchAuthIntegration directly.
    */
-  async getChannel(userId: string) {
+  private async call<T>(fn: (apiClient: ApiClient) => Promise<T>): Promise<T> {
     if (!this.apiClient) {
       throw new Error('API client not initialized');
     }
 
-    return await this.apiClient.channels.getChannelInfoById(userId);
+    try {
+      return await fn(this.apiClient);
+    } catch (error) {
+      if (isAuthorizationRevokedError(error)) {
+        this.setStatus(
+          IntegrationStatus.NEEDS_REAUTH,
+          'Twitch rejected an API call as unauthorized — re-authorization required'
+        );
+        this.eventBus.emit('twitch.authorization-revoked', { reason: 'api-call-unauthorized' });
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get channel information
+   */
+  async getChannel(userId: string) {
+    return await this.call((apiClient) => apiClient.channels.getChannelInfoById(userId));
   }
 
   /**
    * Get user by username
    */
   async getUserByName(username: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.users.getUserByName(username);
+    return await this.call((apiClient) => apiClient.users.getUserByName(username));
   }
 
   /**
    * Create a clip
    */
   async createClip(broadcasterId: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.clips.createClip({
-      channel: broadcasterId,
-    });
+    return await this.call((apiClient) =>
+      apiClient.clips.createClip({
+        channel: broadcasterId,
+      })
+    );
   }
 
   /**
    * Send a chat message
    */
   async sendChatMessage(broadcasterId: string, message: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.chat.sendChatMessage(broadcasterId, message);
+    return await this.call((apiClient) => apiClient.chat.sendChatMessage(broadcasterId, message));
   }
 
   /**
    * Send a chat announcement
    */
   async sendAnnouncement(broadcasterId: string, message: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    await this.apiClient.chat.sendAnnouncement(broadcasterId, { message });
+    await this.call((apiClient) => apiClient.chat.sendAnnouncement(broadcasterId, { message }));
   }
 
   /**
    * Delete a chat message, or all messages if no messageId is provided
    */
   async deleteChatMessage(broadcasterId: string, messageId?: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    await this.apiClient.moderation.deleteChatMessages(broadcasterId, messageId);
+    await this.call((apiClient) =>
+      apiClient.moderation.deleteChatMessages(broadcasterId, messageId)
+    );
   }
 
   /**
    * Permanently ban a user from the channel
    */
   async banUser(broadcasterId: string, userId: string, reason: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.moderation.banUser(broadcasterId, {
-      user: userId,
-      reason,
-    });
+    return await this.call((apiClient) =>
+      apiClient.moderation.banUser(broadcasterId, {
+        user: userId,
+        reason,
+      })
+    );
   }
 
   /**
    * Timeout a user for a specified duration
    */
   async timeoutUser(broadcasterId: string, userId: string, duration: number, reason: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.moderation.banUser(broadcasterId, {
-      user: userId,
-      duration,
-      reason,
-    });
+    return await this.call((apiClient) =>
+      apiClient.moderation.banUser(broadcasterId, {
+        user: userId,
+        duration,
+        reason,
+      })
+    );
   }
 
   /**
    * Remove a ban or timeout from a user
    */
   async unbanUser(broadcasterId: string, userId: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    await this.apiClient.moderation.unbanUser(broadcasterId, userId);
+    await this.call((apiClient) => apiClient.moderation.unbanUser(broadcasterId, userId));
   }
 
   /**
    * Warn a user in chat
    */
   async warnUser(broadcasterId: string, userId: string, reason: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.moderation.warnUser(broadcasterId, userId, reason);
+    return await this.call((apiClient) =>
+      apiClient.moderation.warnUser(broadcasterId, userId, reason)
+    );
   }
 
   // ── Channel Info ──────────────────────────────────────────────────────
@@ -247,11 +244,7 @@ export class TwitchApiIntegration extends BaseIntegration {
    * Update channel information (title, game, tags, etc.)
    */
   async updateChannelInfo(userId: string, data: HelixChannelUpdate): Promise<void> {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    await this.apiClient.channels.updateChannelInfo(userId, data);
+    await this.call((apiClient) => apiClient.channels.updateChannelInfo(userId, data));
   }
 
   /**
@@ -279,22 +272,14 @@ export class TwitchApiIntegration extends BaseIntegration {
    * Search for a game/category by name
    */
   async searchGame(gameName: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.games.getGameByName(gameName);
+    return await this.call((apiClient) => apiClient.games.getGameByName(gameName));
   }
 
   /**
    * Get user by user ID
    */
   async getUserById(userId: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.users.getUserById(userId);
+    return await this.call((apiClient) => apiClient.users.getUserById(userId));
   }
 
   // ── Followers ─────────────────────────────────────────────────────────
@@ -304,11 +289,9 @@ export class TwitchApiIntegration extends BaseIntegration {
    * Each follower has a followDate for computing follow age.
    */
   async getChannelFollowers(broadcasterId: string, userId?: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.channels.getChannelFollowers(broadcasterId, userId);
+    return await this.call((apiClient) =>
+      apiClient.channels.getChannelFollowers(broadcasterId, userId)
+    );
   }
 
   // ── Streams ───────────────────────────────────────────────────────────
@@ -318,22 +301,16 @@ export class TwitchApiIntegration extends BaseIntegration {
    * Use stream.startDate to calculate uptime.
    */
   async getStream(userId: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.streams.getStreamByUserId(userId);
+    return await this.call((apiClient) => apiClient.streams.getStreamByUserId(userId));
   }
 
   /**
    * Create a stream marker at the current position in the broadcast.
    */
   async createStreamMarker(broadcasterId: string, description?: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.streams.createStreamMarker(broadcasterId, description);
+    return await this.call((apiClient) =>
+      apiClient.streams.createStreamMarker(broadcasterId, description)
+    );
   }
 
   // ── Shoutout ──────────────────────────────────────────────────────────
@@ -343,10 +320,6 @@ export class TwitchApiIntegration extends BaseIntegration {
    * Twitch rate limits: once per 2 minutes globally, same target once per 60 minutes.
    */
   async shoutoutUser(fromBroadcasterId: string, toUserId: string): Promise<ShoutoutResult> {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
     const now = Date.now();
     const globalCooldownMs = 2 * 60 * 1000;
     const targetCooldownMs = 60 * 60 * 1000;
@@ -372,7 +345,7 @@ export class TwitchApiIntegration extends BaseIntegration {
       }
     }
 
-    await this.apiClient.chat.shoutoutUser(fromBroadcasterId, toUserId);
+    await this.call((apiClient) => apiClient.chat.shoutoutUser(fromBroadcasterId, toUserId));
 
     this.lastShoutoutTimestamp = now;
     this.shoutoutCooldowns.set(toUserId, now);
@@ -386,33 +359,27 @@ export class TwitchApiIntegration extends BaseIntegration {
    * Get all custom channel point rewards.
    */
   async getCustomRewards(broadcasterId: string, onlyManageable?: boolean) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.channelPoints.getCustomRewards(broadcasterId, onlyManageable);
+    return await this.call((apiClient) =>
+      apiClient.channelPoints.getCustomRewards(broadcasterId, onlyManageable)
+    );
   }
 
   /**
    * Get a specific custom channel point reward by ID.
    */
   async getCustomRewardById(broadcasterId: string, rewardId: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.channelPoints.getCustomRewardById(broadcasterId, rewardId);
+    return await this.call((apiClient) =>
+      apiClient.channelPoints.getCustomRewardById(broadcasterId, rewardId)
+    );
   }
 
   /**
    * Create a new custom channel point reward.
    */
   async createCustomReward(broadcasterId: string, data: HelixCreateCustomRewardData) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.channelPoints.createCustomReward(broadcasterId, data);
+    return await this.call((apiClient) =>
+      apiClient.channelPoints.createCustomReward(broadcasterId, data)
+    );
   }
 
   /**
@@ -423,22 +390,18 @@ export class TwitchApiIntegration extends BaseIntegration {
     rewardId: string,
     data: HelixUpdateCustomRewardData
   ) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.channelPoints.updateCustomReward(broadcasterId, rewardId, data);
+    return await this.call((apiClient) =>
+      apiClient.channelPoints.updateCustomReward(broadcasterId, rewardId, data)
+    );
   }
 
   /**
    * Delete a custom channel point reward.
    */
   async deleteCustomReward(broadcasterId: string, rewardId: string): Promise<void> {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    await this.apiClient.channelPoints.deleteCustomReward(broadcasterId, rewardId);
+    await this.call((apiClient) =>
+      apiClient.channelPoints.deleteCustomReward(broadcasterId, rewardId)
+    );
   }
 
   // ── Schedule ──────────────────────────────────────────────────────────
@@ -447,11 +410,7 @@ export class TwitchApiIntegration extends BaseIntegration {
    * Get the stream schedule for a broadcaster.
    */
   async getSchedule(broadcasterId: string): ReturnType<ApiClient['schedule']['getSchedule']> {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.schedule.getSchedule(broadcasterId);
+    return await this.call((apiClient) => apiClient.schedule.getSchedule(broadcasterId));
   }
 
   // ── Ad Management ─────────────────────────────────────────────────────
@@ -460,22 +419,14 @@ export class TwitchApiIntegration extends BaseIntegration {
    * Get the broadcaster's ad schedule (next ad, snooze count, preroll free time, etc.)
    */
   async getAdSchedule(broadcasterId: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.channels.getAdSchedule(broadcasterId);
+    return await this.call((apiClient) => apiClient.channels.getAdSchedule(broadcasterId));
   }
 
   /**
    * Snooze the broadcaster's next ad break, if a snooze is available.
    */
   async snoozeNextAd(broadcasterId: string): ReturnType<ApiClient['channels']['snoozeNextAd']> {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.channels.snoozeNextAd(broadcasterId);
+    return await this.call((apiClient) => apiClient.channels.snoozeNextAd(broadcasterId));
   }
 
   // ── Videos ────────────────────────────────────────────────────────────
@@ -484,22 +435,14 @@ export class TwitchApiIntegration extends BaseIntegration {
    * Get videos for a user (most recent first by default).
    */
   async getVideosByUser(userId: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.videos.getVideosByUser(userId);
+    return await this.call((apiClient) => apiClient.videos.getVideosByUser(userId));
   }
 
   /**
    * Delete videos by their IDs.
    */
   async deleteVideos(broadcasterId: string, videoIds: string[]): Promise<void> {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    await this.apiClient.videos.deleteVideosByIds(broadcasterId, videoIds);
+    await this.call((apiClient) => apiClient.videos.deleteVideosByIds(broadcasterId, videoIds));
   }
 
   // ── Content Classification Labels ─────────────────────────────────────
@@ -508,11 +451,7 @@ export class TwitchApiIntegration extends BaseIntegration {
    * Get all available content classification labels.
    */
   async getContentClassificationLabels(locale?: string) {
-    if (!this.apiClient) {
-      throw new Error('API client not initialized');
-    }
-
-    return await this.apiClient.contentClassificationLabels.getAll(locale);
+    return await this.call((apiClient) => apiClient.contentClassificationLabels.getAll(locale));
   }
 
   /**
@@ -521,4 +460,18 @@ export class TwitchApiIntegration extends BaseIntegration {
   async setContentClassificationLabels(userId: string, labelIds: string[]): Promise<void> {
     await this.updateChannelInfo(userId, { contentClassificationLabels: labelIds });
   }
+}
+
+/**
+ * Whether a Helix API call failure means the OAuth grant itself is dead,
+ * rather than some unrelated API error (rate limit, bad request, 404, etc.).
+ * `CachedRefreshFailureError` means Twurple already knows this user's token
+ * can't be refreshed; a 401 means Twitch rejected this specific request as
+ * unauthorized.
+ */
+function isAuthorizationRevokedError(error: unknown): boolean {
+  if (error instanceof CachedRefreshFailureError) {
+    return true;
+  }
+  return error instanceof HttpStatusCodeError && error.statusCode === 401;
 }

@@ -27,12 +27,39 @@ function jsonResponse(status: number, body: unknown): Promise<Response> {
   );
 }
 
-function makeIntegration(stateRepo: Pick<IntegrationStateRepository, 'upsert'>) {
+function makeIntegration(
+  stateRepo: Pick<IntegrationStateRepository, 'upsert'>,
+  eventBus: EventBus = new EventBus()
+) {
   return new TwitchAuthIntegration(
-    new EventBus(),
+    eventBus,
     new Logger({ level: 'silent' }),
     stateRepo as IntegrationStateRepository
   );
+}
+
+function successfulTokenExchange() {
+  vi.mocked(fetch).mockImplementation((input) => {
+    const url = input.toString();
+    if (url.includes('/oauth2/token')) {
+      return jsonResponse(200, {
+        access_token: 'refreshed-access-token',
+        refresh_token: 'refreshed-refresh-token',
+        expires_in: 14400,
+        scope: ['chat:read'],
+      });
+    }
+    if (url.includes('/oauth2/validate')) {
+      return jsonResponse(200, {
+        client_id: CONFIG.clientId,
+        login: 'streamer',
+        user_id: 'user-123',
+        scopes: ['chat:read'],
+        expires_in: 14400,
+      });
+    }
+    throw new Error(`Unexpected fetch call: ${url}`);
+  });
 }
 
 describe('TwitchAuthIntegration', () => {
@@ -50,28 +77,7 @@ describe('TwitchAuthIntegration', () => {
   it('persists a token refreshed during addUserForToken (not just refreshes triggered later)', async () => {
     const upsert = vi.fn().mockResolvedValue(undefined);
     const integration = makeIntegration({ upsert });
-
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = input.toString();
-      if (url.includes('/oauth2/token')) {
-        return jsonResponse(200, {
-          access_token: 'refreshed-access-token',
-          refresh_token: 'refreshed-refresh-token',
-          expires_in: 14400,
-          scope: ['chat:read'],
-        });
-      }
-      if (url.includes('/oauth2/validate')) {
-        return jsonResponse(200, {
-          client_id: CONFIG.clientId,
-          login: 'streamer',
-          user_id: 'user-123',
-          scopes: ['chat:read'],
-          expires_in: 14400,
-        });
-      }
-      throw new Error(`Unexpected fetch call: ${url}`);
-    });
+    successfulTokenExchange();
 
     await integration.initialize(CONFIG);
     await integration.start();
@@ -102,5 +108,59 @@ describe('TwitchAuthIntegration', () => {
 
     expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
     expect(integration.getErrorMessage()).toMatch(/re-authorization required/i);
+  });
+
+  it('marks itself NEEDS_REAUTH when another integration reports the authorization was revoked', async () => {
+    const eventBus = new EventBus();
+    const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
+    successfulTokenExchange();
+
+    await integration.initialize(CONFIG);
+    await integration.start();
+    expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
+
+    // Simulates TwitchEventSubIntegration detecting a revoked subscription
+    // and publishing the fact, independent of this integration's own
+    // refresh-failure detection.
+    await eventBus.emit('twitch.authorization-revoked', { reason: 'authorization_revoked' });
+
+    expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
+    expect(integration.getErrorMessage()).toMatch(/re-authorization required/i);
+  });
+
+  it('stops reacting to authorization-revoked events after being stopped', async () => {
+    const eventBus = new EventBus();
+    const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
+    successfulTokenExchange();
+
+    await integration.initialize(CONFIG);
+    await integration.start();
+    await integration.stop();
+
+    expect(eventBus.listenerCount('twitch.authorization-revoked')).toBe(0);
+
+    await eventBus.emit('twitch.authorization-revoked', { reason: 'authorization_revoked' });
+
+    expect(integration.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
+  });
+
+  it('does not accumulate listeners across repeated failed start() retries', async () => {
+    const eventBus = new EventBus();
+    const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
+
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = input.toString();
+      if (url.includes('/oauth2/token')) {
+        return jsonResponse(400, { status: 400, message: 'Invalid refresh token' });
+      }
+      throw new Error(`Unexpected fetch call: ${url}`);
+    });
+
+    await integration.initialize(CONFIG);
+    await expect(integration.start()).rejects.toThrow();
+    await expect(integration.start()).rejects.toThrow();
+    await expect(integration.start()).rejects.toThrow();
+
+    expect(eventBus.listenerCount('twitch.authorization-revoked')).toBe(1);
   });
 });

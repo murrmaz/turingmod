@@ -65,6 +65,17 @@ export class IntegrationManager {
         name: integration.name,
         status,
       });
+
+      // A dependency that needs re-authorization can no longer refresh
+      // credentials. Dependents captured a live reference to it (e.g. an
+      // auth provider or API client) at their own start() time and won't
+      // notice on their own, so stop them rather than let them keep running
+      // against dead credentials.
+      if (status === IntegrationStatus.NEEDS_REAUTH) {
+        this.stopDependents(integration.name).catch((error) => {
+          this.logger.error(`Failed to stop dependents of ${integration.name}`, error);
+        });
+      }
     });
 
     integration.on('error', (...args: unknown[]) => {
@@ -254,6 +265,50 @@ export class IntegrationManager {
       this.logger.error(`Failed to stop integration: ${name}`, error);
       throw error;
     }
+  }
+
+  /**
+   * Stop every integration that (transitively) depends on `name`, most
+   * downstream first, so none of them are left holding a stale reference
+   * (auth provider, API client) obtained from a dependency that can no
+   * longer be trusted.
+   */
+  private async stopDependents(name: string): Promise<void> {
+    const dependents = this.getTransitiveDependents(name);
+    if (dependents.length === 0) return;
+
+    // topologicalSort orders dependencies before dependents; reverse it so
+    // the most downstream integration (e.g. eventsub before api) stops first.
+    const stopOrder = this.topologicalSort(dependents).reverse();
+
+    for (const dependentName of stopOrder) {
+      const dependent = this.integrations.get(dependentName);
+      if (!dependent || dependent.getStatus() === IntegrationStatus.DISCONNECTED) {
+        continue;
+      }
+
+      this.logger.warn(`Stopping ${dependentName}: dependency ${name} needs re-authorization`);
+      try {
+        await this.stopIntegration(dependentName);
+      } catch (error) {
+        this.logger.error(`Failed to stop ${dependentName}`, error);
+      }
+    }
+  }
+
+  /**
+   * All integrations that depend on `name`, directly or transitively.
+   */
+  private getTransitiveDependents(name: string): string[] {
+    const dependents: string[] = [];
+    for (const integration of this.integrations.values()) {
+      const deps = integration.getDependencies?.() ?? [];
+      if (deps.includes(name)) {
+        dependents.push(integration.name);
+        dependents.push(...this.getTransitiveDependents(integration.name));
+      }
+    }
+    return dependents;
   }
 
   /**

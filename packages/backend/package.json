@@ -25,6 +25,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1",
     "@spotify/web-api-ts-sdk": "^1.2.0",
     "@turingmod/shared": "*",
     "@twurple/api": "^8.0.0",

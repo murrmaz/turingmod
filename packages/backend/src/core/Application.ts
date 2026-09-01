@@ -1,7 +1,9 @@
 import {
   createIntegrationStatusMessage,
   createOAuthCodeReceivedMessage,
+  createYouTubeChatStateMessage,
   type IntegrationStatus,
+  type YouTubeChatState,
 } from '@turingmod/shared';
 import type { DatabaseManager } from '../database/DatabaseManager.js';
 import type { IntegrationManager } from '../integrations/IntegrationManager.js';
@@ -85,6 +87,13 @@ export class Application {
         }
       }
     );
+
+    // YouTube chat lifecycle: idle → resolving → streaming. Broadcast so the console's go-live
+    // control shows whether chat actually connected, not just that the request was accepted.
+    this.eventBus.on<{ state: YouTubeChatState }>('youtube.chat.state', (data) => {
+      this.logger.info('YouTube chat state changed', data);
+      this.webSocketServer.broadcast(createYouTubeChatStateMessage(data.state));
+    });
 
     // Integration errors
     this.eventBus.on<{ name: string; error: Error }>('integration:error', (data) => {

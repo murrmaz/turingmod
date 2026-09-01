@@ -23,7 +23,7 @@ npm run type-check         # TypeScript type checking across all workspaces
 
 ```
 
-There is no test runner configured. Type checking (`npm run type-check`) is the primary verification step.
+Vitest is configured in the backend workspace (`npm test --workspace @turingmod/backend`); tests live beside their subjects as `*.test.ts`. Type checking (`npm run type-check`) remains the primary verification step, since coverage is partial.
 
 ## Quick Reference: File Locations
 
@@ -38,8 +38,9 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Backend Manager**: `packages/backend/src/integrations/IntegrationManager.ts`
 - **Base Class**: `packages/backend/src/integrations/BaseIntegration.ts` — shared status/error/event-emitter plumbing; all integrations extend this
 - **Interfaces**: `packages/backend/src/integrations/interfaces/IIntegration.ts`, `IOAuthIntegration.ts` (extends `IIntegration` for OAuth-capable integrations)
-- **Implementations**: `packages/backend/src/integrations/implementations/*.ts` (Twitch, Spotify, Discord, OBS, Arduino, Sound)
-- **WebSocket Handler**: `packages/backend/src/server/handlers/IntegrationHandler.ts`, `OAuthHandler.ts`
+- **Implementations**: `packages/backend/src/integrations/implementations/*.ts` (Twitch, YouTube, Spotify, Discord, OBS, Arduino, Sound)
+- **YouTube chat gRPC client**: `packages/backend/src/integrations/implementations/youtube/YouTubeChatStream.ts` + the vendored proto at `packages/backend/proto/stream_list.proto`
+- **WebSocket Handler**: `packages/backend/src/server/handlers/IntegrationHandler.ts`, `OAuthHandler.ts`, `YouTubeHandler.ts`
 - **Types & Enums**: `packages/shared/src/types/integration.ts`
 
 ### Commands System
@@ -94,7 +95,11 @@ All integrations extend `BaseIntegration` (`integrations/BaseIntegration.ts`), w
 
 `IntegrationManager` resolves dependencies via topological sort before startup. Integrations declare dependencies through `getDependencies()`.
 
-**Twitch** is split into three integrations following SRP: `TwitchAuthIntegration` (OAuth) → `TwitchApiIntegration` (Helix API) → `TwitchEventSubIntegration` (real-time events). Spotify follows the same pattern: `SpotifyAuthIntegration` → `SpotifyApiIntegration`. Discord, OBS, Arduino, and Sound are single-file integrations with no auth/api split.
+**Twitch** is split into three integrations following SRP: `TwitchAuthIntegration` (OAuth) → `TwitchApiIntegration` (Helix API) → `TwitchEventSubIntegration` (real-time events). **YouTube** follows the same three-part shape: `YouTubeAuthIntegration` → `YouTubeApiIntegration` → `YouTubeChatIntegration`. Spotify has an auth/api split only: `SpotifyAuthIntegration` → `SpotifyApiIntegration`. Discord, OBS, Arduino, and Sound are single-file integrations with no auth/api split.
+
+**YouTube chat is gRPC, not REST.** `liveChatMessages.streamList` (server-streaming) is absent from the YouTube v3 REST discovery document and therefore absent from the `googleapis` package, which is generated from discovery and has no gRPC transport. So `YouTubeChatStream` loads Google's `stream_list.proto` with `@grpc/proto-loader` at runtime — there is no codegen step, and the proto is vendored because Google publishes it only as a docs code block. The one local edit to that file is a `google/protobuf/duration.proto` import the published snippet omits.
+
+`YouTubeChatIntegration` has no periodic timers. It idles until a go-live signal — OBS's `obs.stream.stateChanged` (`OBS_WEBSOCKET_OUTPUT_STARTED`), or a `youtube.goLive` message from the console — then resolves the broadcast's `liveChatId` with a bounded retry (a broadcast doesn't expose one until YouTube transitions it to `live`) and opens the stream. Its `idle → resolving → streaming` transitions are broadcast to the frontend as `YOUTUBE_CHAT_STATE`.
 
 OAuth-capable integrations (currently `TwitchAuthIntegration`, `SpotifyAuthIntegration`) additionally implement `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and expose it via a `get oauth()` getter (`null` on `BaseIntegration` by default). This is the single source of truth for OAuth capability — `IntegrationManager`/`HttpServer` derive callback routing and the frontend's OAuth affordance from it instead of checking integration names.
 

@@ -3,6 +3,7 @@ import Header from '@cloudscape-design/components/header';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import { HealthMonitor } from './HealthMonitor';
 import { LiveLog } from './LiveLog';
+import { YouTubeChatControl } from './YouTubeChatControl';
 
 /**
  * Dashboard page
@@ -17,6 +18,8 @@ export function Dashboard() {
       </Container>
 
       <HealthMonitor />
+
+      <YouTubeChatControl />
 
       <LiveLog />
     </SpaceBetween>

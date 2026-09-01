@@ -152,27 +152,6 @@ export class YouTubeApiIntegration extends BaseIntegration {
   }
 
   /**
-   * List live chat messages after a page token, for polling. Returns the raw API response so the
-   * Chat integration can read `nextPageToken` and `pollingIntervalMillis`.
-   */
-  async listLiveChatMessages(
-    liveChatId: string,
-    pageToken?: string
-  ): Promise<youtube_v3.Schema$LiveChatMessageListResponse> {
-    const youtube = this.requireClient();
-
-    const response = await this.withAuthErrorDetection(() =>
-      youtube.liveChatMessages.list({
-        liveChatId,
-        part: ['snippet', 'authorDetails'],
-        ...(pageToken === undefined ? {} : { pageToken }),
-      })
-    );
-
-    return response.data;
-  }
-
-  /**
    * Set the active broadcast's title. YouTube has no game/tags equivalent, so only the title is
    * mutated; the broadcast's scheduledStartTime is preserved (required by liveBroadcasts.update).
    */

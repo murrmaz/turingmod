@@ -8,6 +8,7 @@ import type {
   IntegrationStopPayload,
   OAuthExchangeCodePayload,
   OAuthGetAuthUrlPayload,
+  YouTubeChatControlPayload,
 } from '@turingmod/shared';
 import { ActivityCategory, PermissionLevel, Platform } from '@turingmod/shared';
 
@@ -146,4 +147,11 @@ export function isActivityQueryPayload(payload: unknown): payload is ActivityQue
     (category === undefined || isActivityCategory(category)) &&
     (before === undefined || typeof before === 'number')
   );
+}
+
+export function isYouTubeChatControlPayload(
+  payload: unknown
+): payload is YouTubeChatControlPayload {
+  // The request carries no fields, so anything object-shaped (or absent) is acceptable.
+  return payload === undefined || isPlainObject(payload);
 }

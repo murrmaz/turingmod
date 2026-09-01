@@ -64,6 +64,13 @@ export enum MessageType {
   OAUTH_EXCHANGE_RESULT = 'oauth.exchangeResult',
   OAUTH_CODE_RECEIVED = 'oauth.codeReceived', // Server → Client: OAuth code captured from callback
 
+  // YouTube chat go-live control. YouTube has no push notification for "a broadcast started"
+  // (see YouTubeChatIntegration), so the console can tell the backend to go look for one.
+  YOUTUBE_GO_LIVE = 'youtube.goLive', // Client → Server: connect to the active broadcast's chat
+  YOUTUBE_GO_OFFLINE = 'youtube.goOffline', // Client → Server: disconnect from chat
+  YOUTUBE_GET_CHAT_STATE = 'youtube.getChatState', // Client → Server: read current state on load
+  YOUTUBE_CHAT_STATE = 'youtube.chatState', // Server → Client: idle / resolving / streaming
+
   // Bidirectional: Connection health
   PING = 'ping',
   PONG = 'pong',
@@ -148,6 +155,29 @@ export interface IntegrationConfigurePayload {
 export interface IntegrationStatusPayload {
   /** Integration information */
   integration: IntegrationInfo;
+}
+
+/**
+ * Where the YouTube chat integration is in its lifecycle. `IntegrationStatus` only says whether the
+ * integration is enabled; this says whether chat is actually connected.
+ *
+ * - `idle` — running, but waiting for a go-live signal
+ * - `resolving` — a signal arrived; looking for an active broadcast's liveChatId
+ * - `streaming` — connected to live chat and receiving messages
+ */
+export type YouTubeChatState = 'idle' | 'resolving' | 'streaming';
+
+/**
+ * YouTube go-live / go-offline request payload (client → server). Empty — the message type is the
+ * whole request — but named so the handler's runtime guard has something to check.
+ */
+export type YouTubeChatControlPayload = Record<string, never>;
+
+/**
+ * YouTube chat state payload (server → client).
+ */
+export interface YouTubeChatStatePayload {
+  state: YouTubeChatState;
 }
 
 /**
@@ -503,4 +533,14 @@ export function createOAuthCodeReceivedMessage(
   code: string
 ): IWebSocketMessage<OAuthCodeReceivedPayload> {
   return createMessage(MessageType.OAUTH_CODE_RECEIVED, { integrationName, code });
+}
+
+/**
+ * Create a YouTube chat state message
+ */
+export function createYouTubeChatStateMessage(
+  state: YouTubeChatState,
+  originalMessageId?: string
+): IWebSocketMessage<YouTubeChatStatePayload> {
+  return createMessage(MessageType.YOUTUBE_CHAT_STATE, { state }, originalMessageId);
 }

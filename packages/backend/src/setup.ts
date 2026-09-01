@@ -11,6 +11,7 @@ import {
   MessageType,
   type OAuthExchangeCodePayload,
   type OAuthGetAuthUrlPayload,
+  type YouTubeChatControlPayload,
 } from '@turingmod/shared';
 import { ActivityForwarder } from './activity/ActivityForwarder.js';
 import { CommandExecutor } from './commands/CommandExecutor.js';
@@ -48,6 +49,7 @@ import { ActivityHandler } from './server/handlers/ActivityHandler.js';
 import { CommandHandler } from './server/handlers/CommandHandler.js';
 import { IntegrationHandler } from './server/handlers/IntegrationHandler.js';
 import { OAuthHandler } from './server/handlers/OAuthHandler.js';
+import { YouTubeHandler } from './server/handlers/YouTubeHandler.js';
 import { MessageRouter } from './server/MessageRouter.js';
 import { WebSocketServer } from './server/WebSocketServer.js';
 import { TuringModConfig } from './utils/Config.js';
@@ -389,6 +391,15 @@ export function setupDependencies(container: Container): void {
   );
 
   container.registerSingleton(
+    'YouTubeHandler',
+    () =>
+      new YouTubeHandler(
+        container.resolve<YouTubeChatIntegration>('YouTubeChatIntegration'),
+        container.resolve<Logger>('Logger')
+      )
+  );
+
+  container.registerSingleton(
     'ActivityHandler',
     () =>
       new ActivityHandler(
@@ -482,6 +493,7 @@ export async function initializeComponents(container: Container): Promise<void> 
   const integrationHandler = container.resolve<IntegrationHandler>('IntegrationHandler');
   const oauthHandler = container.resolve<OAuthHandler>('OAuthHandler');
   const activityHandler = container.resolve<ActivityHandler>('ActivityHandler');
+  const youtubeHandler = container.resolve<YouTubeHandler>('YouTubeHandler');
 
   messageRouter.registerHandler(MessageType.COMMAND_EXECUTE, (msg) =>
     commandHandler.handleExecute(msg as IWebSocketMessage<CommandExecutePayload>)
@@ -521,6 +533,18 @@ export async function initializeComponents(container: Container): Promise<void> 
 
   messageRouter.registerHandler(MessageType.ACTIVITY_QUERY, (msg) =>
     activityHandler.handleQuery(msg as IWebSocketMessage<ActivityQueryPayload>)
+  );
+
+  messageRouter.registerHandler(MessageType.YOUTUBE_GO_LIVE, (msg) =>
+    youtubeHandler.handleGoLive(msg as IWebSocketMessage<YouTubeChatControlPayload>)
+  );
+
+  messageRouter.registerHandler(MessageType.YOUTUBE_GO_OFFLINE, (msg) =>
+    youtubeHandler.handleGoOffline(msg as IWebSocketMessage<YouTubeChatControlPayload>)
+  );
+
+  messageRouter.registerHandler(MessageType.YOUTUBE_GET_CHAT_STATE, (msg) =>
+    youtubeHandler.handleGetState(msg as IWebSocketMessage<YouTubeChatControlPayload>)
   );
 
   logger.info('Components initialized');

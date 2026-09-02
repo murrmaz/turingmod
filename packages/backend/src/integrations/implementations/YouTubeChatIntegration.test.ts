@@ -1,5 +1,4 @@
 import { EventEmitter } from 'node:events';
-import { status as GrpcStatus } from '@grpc/grpc-js';
 import { PermissionLevel, Platform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/EventBus.js';
@@ -12,17 +11,26 @@ import type { LiveChatMessageListResponse } from './youtube/YouTubeChatStream.js
 /** The integration's reconnect backoff ceiling; long enough to step past any scheduled retry. */
 const RECONNECT_CEILING_MS = 30_000;
 
-function grpcError(code: number): Error {
-  return Object.assign(new Error(`grpc ${code}`), { code });
+/** A failed request that got far enough to receive a status, as gaxios reports it. */
+function httpError(status: number): Error {
+  return Object.assign(new Error(`HTTP ${status}`), { response: { status } });
+}
+
+/** A connection that failed or was severed before any status arrived. */
+function transportError(code: string): Error {
+  return Object.assign(new Error(code), { code });
 }
 
 /**
- * Stand-in for the gRPC server stream.
+ * Stand-in for the response stream.
  *
- * A real EventEmitter on purpose, so it reproduces the two behaviours that make cancellation
- * dangerous: grpc-js reports a cancelled call by emitting `'error'` with CANCELLED on a later tick,
- * and Node throws when `'error'` is emitted with no listener attached. A fake that merely recorded
+ * A real EventEmitter on purpose, so it reproduces the behaviour that makes cancellation dangerous:
+ * Node throws when `'error'` is emitted with no listener attached. A fake that merely recorded
  * `cancel()` would let an unhandled-error crash pass the suite.
+ *
+ * The post-cancel error emit deliberately over-approximates the real wrapper, which suppresses its
+ * own abort fallout. The integration must not depend on that suppression — its listeners are the
+ * load-bearing guard — so the fake keeps emitting.
  */
 class FakeCall extends EventEmitter {
   cancelled = false;
@@ -30,7 +38,7 @@ class FakeCall extends EventEmitter {
   cancel(): void {
     this.cancelled = true;
     process.nextTick(() => {
-      this.emit('error', grpcError(GrpcStatus.CANCELLED));
+      this.emit('error', transportError('ABORT_ERR'));
     });
   }
 
@@ -38,8 +46,12 @@ class FakeCall extends EventEmitter {
     this.emit('data', response);
   }
 
-  emitError(code: number): void {
-    this.emit('error', grpcError(code));
+  emitError(status: number): void {
+    this.emit('error', httpError(status));
+  }
+
+  emitTransportError(code: string): void {
+    this.emit('error', transportError(code));
   }
 
   emitEnd(): void {
@@ -95,6 +107,12 @@ describe('YouTubeChatIntegration', () => {
   };
   let api: { getActiveBroadcast: ReturnType<typeof vi.fn> };
   let call: FakeCall;
+  /**
+   * The authorized OAuth2 client, handed straight to the stream wrapper. Identity matters — the
+   * wrapper keys its cached API client on it — so this is one stable object, not a fresh literal
+   * per call.
+   */
+  const authClient = {};
 
   /** Let pending promise chains settle without advancing the clock. */
   const flush = () => vi.advanceTimersByTimeAsync(0);
@@ -104,8 +122,8 @@ describe('YouTubeChatIntegration', () => {
     eventBus = new EventBus();
     call = new FakeCall();
 
-    // Each open must yield a fresh call, as grpc-js does — reusing one object would stack listeners
-    // across reconnects and double-deliver every message.
+    // Each open must yield a fresh call — reusing one object would stack listeners across
+    // reconnects and double-deliver every message.
     streamMock.stream.mockReset().mockImplementation(() => {
       call = new FakeCall();
       return call;
@@ -113,9 +131,7 @@ describe('YouTubeChatIntegration', () => {
     streamMock.close.mockReset();
 
     auth = {
-      getAuthClient: vi.fn(() => ({
-        getAccessToken: () => Promise.resolve({ token: 'access-token' }),
-      })),
+      getAuthClient: vi.fn(() => authClient),
       isAuthError: vi.fn(() => false),
       markAuthRequired: vi.fn(),
     };
@@ -158,7 +174,7 @@ describe('YouTubeChatIntegration', () => {
       await flush();
 
       expect(integration.getState()).toBe('streaming');
-      expect(streamMock.stream).toHaveBeenCalledWith('chat-1', 'access-token', undefined);
+      expect(streamMock.stream).toHaveBeenCalledWith('chat-1', authClient, undefined);
     });
 
     it('resolves when OBS reports that streaming started', async () => {
@@ -333,10 +349,10 @@ describe('YouTubeChatIntegration', () => {
     it('reconnects from the stored page token when the connection drops', async () => {
       await connect();
 
-      call.emitError(GrpcStatus.UNAVAILABLE);
+      call.emitError(503);
       await vi.advanceTimersByTimeAsync(1_000);
 
-      expect(streamMock.stream).toHaveBeenLastCalledWith('chat-1', 'access-token', 'page-1');
+      expect(streamMock.stream).toHaveBeenLastCalledWith('chat-1', authClient, 'page-1');
       expect(integration.getState()).toBe('streaming');
     });
 
@@ -347,7 +363,7 @@ describe('YouTubeChatIntegration', () => {
       });
 
       await connect();
-      call.emitError(GrpcStatus.UNAVAILABLE);
+      call.emitError(503);
       await vi.advanceTimersByTimeAsync(1_000);
 
       // The reconnect resumes from nextPageToken, so its first response is real traffic, not
@@ -361,13 +377,13 @@ describe('YouTubeChatIntegration', () => {
     it('backs off exponentially across repeated drops', async () => {
       await connect();
 
-      call.emitError(GrpcStatus.UNAVAILABLE);
+      call.emitError(503);
       await vi.advanceTimersByTimeAsync(999);
       expect(streamMock.stream).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(1);
       expect(streamMock.stream).toHaveBeenCalledTimes(2);
 
-      call.emitError(GrpcStatus.UNAVAILABLE);
+      call.emitError(503);
       await vi.advanceTimersByTimeAsync(1_999);
       expect(streamMock.stream).toHaveBeenCalledTimes(2);
       await vi.advanceTimersByTimeAsync(1);
@@ -386,7 +402,7 @@ describe('YouTubeChatIntegration', () => {
     it('returns to idle when the chat has ended', async () => {
       await connect();
 
-      call.emitError(GrpcStatus.FAILED_PRECONDITION);
+      call.emitError(400);
       await flush();
 
       expect(integration.getState()).toBe('idle');
@@ -396,10 +412,53 @@ describe('YouTubeChatIntegration', () => {
     it('returns to idle when the chat is not found', async () => {
       await connect();
 
-      call.emitError(GrpcStatus.NOT_FOUND);
+      call.emitError(404);
       await flush();
 
       expect(integration.getState()).toBe('idle');
+    });
+
+    it('returns to idle when the chat cannot be read', async () => {
+      await connect();
+
+      call.emitError(403);
+      await flush();
+
+      expect(integration.getState()).toBe('idle');
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('reconnects when the connection is severed without a status', async () => {
+      await connect();
+
+      // The likeliest failure by far: the status arrives once at the start, so everything that goes
+      // wrong for the rest of a multi-hour stream is a socket error with no status at all.
+      call.emitTransportError('ECONNRESET');
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(streamMock.stream).toHaveBeenLastCalledWith('chat-1', authClient, 'page-1');
+      expect(integration.getState()).toBe('streaming');
+    });
+
+    it('backs off rather than hammering when rate limited', async () => {
+      await connect();
+
+      call.emitError(429);
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(integration.getState()).toBe('streaming');
+      expect(streamMock.stream).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns to idle on a status-less error that is not a dropped connection', async () => {
+      await connect();
+
+      // A bug in our own parsing, say. Reconnecting would loop on it; idling surfaces it instead.
+      call.emitTransportError('ERR_SOMETHING_UNEXPECTED');
+      await flush();
+
+      expect(integration.getState()).toBe('idle');
+      expect(vi.getTimerCount()).toBe(0);
     });
 
     it('flags re-authorization when the broadcast lookup fails on a dead token', async () => {
@@ -417,9 +476,9 @@ describe('YouTubeChatIntegration', () => {
     it('refreshes and reconnects when an aged-out access token is rejected', async () => {
       await connect();
 
-      // Ordinary hourly expiry: a call's metadata is fixed when it opens, so a long stream will be
-      // rejected eventually. That is not a re-authorization.
-      call.emitError(GrpcStatus.UNAUTHENTICATED);
+      // Ordinary hourly expiry: a request's authorization is fixed when it opens, so a long stream
+      // will be rejected eventually. That is not a re-authorization.
+      call.emitError(401);
       await vi.advanceTimersByTimeAsync(1_000);
 
       expect(auth.markAuthRequired).not.toHaveBeenCalled();
@@ -430,9 +489,9 @@ describe('YouTubeChatIntegration', () => {
     it('flags re-authorization when a refreshed token is rejected too', async () => {
       await connect();
 
-      call.emitError(GrpcStatus.UNAUTHENTICATED);
+      call.emitError(401);
       await vi.advanceTimersByTimeAsync(1_000);
-      call.emitError(GrpcStatus.UNAUTHENTICATED);
+      call.emitError(401);
       await flush();
 
       expect(auth.markAuthRequired).toHaveBeenCalled();
@@ -442,14 +501,14 @@ describe('YouTubeChatIntegration', () => {
     it('treats a token rejection after a good response as fresh expiry again', async () => {
       await connect();
 
-      call.emitError(GrpcStatus.UNAUTHENTICATED);
+      call.emitError(401);
       await vi.advanceTimersByTimeAsync(1_000);
       call.emitData({ items: [textMessage('still here')] });
       await flush();
 
       // The successful response clears the retry flag, so the next expiry is not mistaken for a
       // dead grant an hour later.
-      call.emitError(GrpcStatus.UNAUTHENTICATED);
+      call.emitError(401);
       await vi.advanceTimersByTimeAsync(1_000);
 
       expect(auth.markAuthRequired).not.toHaveBeenCalled();
@@ -479,23 +538,17 @@ describe('YouTubeChatIntegration', () => {
       expect(vi.getTimerCount()).toBe(0);
     });
 
-    it('retries rather than wedging when no access token comes back', async () => {
-      auth.getAuthClient.mockReturnValue({
-        getAccessToken: () => Promise.resolve({ token: null }),
-      });
+    it('returns to idle when auth has gone away before the stream opens', async () => {
+      auth.getAuthClient.mockReturnValue(null);
 
       integration.requestResolve('test');
       await flush();
 
-      // Must not sit in a state with no call and no timer — nothing could recover it.
-      expect(vi.getTimerCount()).toBeGreaterThan(0);
-
-      auth.getAuthClient.mockReturnValue({
-        getAccessToken: () => Promise.resolve({ token: 'access-token' }),
-      });
-      await vi.advanceTimersByTimeAsync(1_000);
-
-      expect(integration.getState()).toBe('streaming');
+      // No client means the grant is gone, not that the network hiccuped; reconnecting would just
+      // fail the same way. Idle with no timers pending, waiting for the next go-live signal.
+      expect(streamMock.stream).not.toHaveBeenCalled();
+      expect(integration.getState()).toBe('idle');
+      expect(vi.getTimerCount()).toBe(0);
     });
   });
 
@@ -554,14 +607,14 @@ describe('YouTubeChatIntegration', () => {
       expect(vi.getTimerCount()).toBe(0);
     });
 
-    it('survives the CANCELLED error grpc-js emits after cancel()', async () => {
+    it('survives an abort error delivered after cancel()', async () => {
       await connect();
 
       integration.requestStop('console');
 
-      // grpc-js delivers CANCELLED on a later tick. If the integration had detached its error
-      // listener during teardown, this emit would be unhandled and Node would throw — taking the
-      // backend down on every disconnect.
+      // Aborting a request can surface an error a tick later. If the integration had detached its
+      // error listener during teardown, this emit would be unhandled and Node would throw — taking
+      // the backend down on every disconnect.
       await expect(flush()).resolves.not.toThrow();
 
       expect(call.listenerCount('error')).toBeGreaterThan(0);

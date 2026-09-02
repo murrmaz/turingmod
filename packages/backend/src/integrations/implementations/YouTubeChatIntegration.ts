@@ -1,5 +1,3 @@
-import type * as grpc from '@grpc/grpc-js';
-import { status as GrpcStatus } from '@grpc/grpc-js';
 import type { YouTubeChatState } from '@turingmod/shared';
 import { IntegrationStatus, PermissionLevel, Platform } from '@turingmod/shared';
 import type { youtube_v3 } from 'googleapis';
@@ -37,19 +35,85 @@ const MAX_RECONNECT_ATTEMPTS = 8;
 const OBS_OUTPUT_STARTED = 'OBS_WEBSOCKET_OUTPUT_STARTED';
 const OBS_OUTPUT_STOPPED = 'OBS_WEBSOCKET_OUTPUT_STOPPED';
 
-/** gRPC codes that mean "the connection dropped", as opposed to "the chat is gone". */
-const RECONNECTABLE_CODES: ReadonlySet<number> = new Set([
-  GrpcStatus.UNAVAILABLE,
-  GrpcStatus.INTERNAL,
-  GrpcStatus.DEADLINE_EXCEEDED,
+/**
+ * HTTP statuses that mean "the chat is gone", as opposed to "the connection dropped". 400 is what
+ * the streaming endpoint returns for a chat that has ended (the transcoded form of the RPC's
+ * FAILED_PRECONDITION), 404 for a liveChatId that no longer resolves, and 403 for a chat the
+ * grant can see but not read.
+ */
+const TERMINAL_STATUSES: ReadonlySet<number> = new Set([400, 403, 404]);
+
+/**
+ * Statuses worth retrying. Everything 5xx is a server-side blip, and 429 is rate limiting that the
+ * existing exponential backoff already answers correctly.
+ *
+ * A dropped connection is the other reconnectable case, and it arrives with no HTTP status at all
+ * — see {@link isTransportError}.
+ */
+const isReconnectableStatus = (status: number): boolean => status >= 500 || status === 429;
+
+/**
+ * Node/undici error codes for a connection that failed or was severed mid-stream. A long-lived
+ * response is far more likely to end this way than with a status, since the status arrives once at
+ * the start and everything after that is just a socket.
+ */
+const TRANSPORT_ERROR_CODES: ReadonlySet<string> = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ECONNABORTED',
+  'EPIPE',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'ERR_STREAM_PREMATURE_CLOSE',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
 ]);
+
+/**
+ * The HTTP status of a failed request, or undefined when the failure never got that far. Gaxios
+ * puts it on the error's `response`, and also mirrors it onto `status` on newer errors.
+ */
+function getHttpStatus(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null) {
+    return undefined;
+  }
+
+  const { status, response } = error as {
+    status?: unknown;
+    response?: { status?: unknown } | undefined;
+  };
+
+  if (typeof response?.status === 'number') {
+    return response.status;
+  }
+  return typeof status === 'number' ? status : undefined;
+}
+
+/** Whether a status-less failure is a dropped connection rather than a genuine surprise. */
+function isTransportError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  if (typeof code === 'string' && TRANSPORT_ERROR_CODES.has(code)) {
+    return true;
+  }
+  // Node reports a server closing a keep-alive connection with this message and no useful code.
+  return typeof message === 'string' && message.includes('socket hang up');
+}
 
 /**
  * YouTube Chat Integration
  *
- * Streams the active broadcast's live chat over the `liveChatMessages.streamList` server-streaming
- * gRPC RPC and normalizes each message into the same `chat.message` / `chat.command` EventBus
- * events Twitch emits, so ChatRouter stays platform-agnostic.
+ * Streams the active broadcast's live chat over the `youtube.v3.liveChat.messages.stream`
+ * server-streaming RPC and normalizes each message into the same `chat.message` / `chat.command`
+ * EventBus events Twitch emits, so ChatRouter stays platform-agnostic.
  *
  * There are no periodic timers. The integration idles until something says the broadcaster went
  * live — an OBS output-started event, or an explicit request from the console — then resolves the
@@ -85,10 +149,10 @@ export class YouTubeChatIntegration extends BaseIntegration {
   private epoch = 0;
 
   /**
-   * Whether the current stream has already retried once after an UNAUTHENTICATED. An access token
-   * expires roughly hourly and gRPC metadata is fixed for the life of a call, so the first
-   * rejection is ordinary expiry: reconnect with a fresh token. A second rejection before any
-   * successful response means the grant itself is dead.
+   * Whether the current stream has already retried once after a 401. An access token expires
+   * roughly hourly and a request's authorization is fixed when it opens, so the first rejection is
+   * ordinary expiry: reconnecting makes the OAuth client mint a fresh token. A second rejection
+   * before any successful response means the grant itself is dead.
    */
   private authRetried = false;
 
@@ -257,81 +321,46 @@ export class YouTubeChatIntegration extends BaseIntegration {
     }, RESOLVE_RETRY_INTERVAL_MS);
   }
 
-  /** Open (or reopen) the gRPC message stream for the resolved chat. */
+  /** Open (or reopen) the message stream for the resolved chat. */
   private openStream(): void {
     const liveChatId = this.liveChatId;
     if (!(this.running && liveChatId)) {
       return;
     }
 
-    const epoch = this.epoch;
-
-    void this.getAccessToken()
-      .then((accessToken) => {
-        if (this.isStale(epoch) || this.liveChatId !== liveChatId) {
-          return;
-        }
-
-        if (!accessToken) {
-          // The client returned no token without throwing. Treat it as transient and let the
-          // bounded reconnect decide when to give up, rather than stalling with no call and no
-          // timer — that would wedge the state machine so no later signal could recover it.
-          this.logger.warn('No YouTube access token available; retrying');
-          this.scheduleReconnect();
-          return;
-        }
-
-        this.setState('streaming');
-        const call = this.chatStream.stream(liveChatId, accessToken, this.nextPageToken);
-        this.call = call;
-
-        // Listeners stay attached for the life of the call and check whether it is still the
-        // current one. Detaching them instead would leave the CANCELLED error grpc-js emits after
-        // cancel() unhandled, which Node turns into a thrown exception.
-        call.on('data', (response) => {
-          if (this.call === call) {
-            this.handleResponse(response);
-          }
-        });
-        call.on('error', (error) => {
-          if (this.call === call) {
-            this.handleStreamError(error);
-          }
-        });
-        call.on('end', () => {
-          if (this.call === call) {
-            this.handleStreamEnd();
-          }
-        });
-
-        this.logger.info('YouTube live chat stream open');
-      })
-      .catch((error) => {
-        if (this.isStale(epoch)) {
-          return;
-        }
-        if (!this.handleAuthError(error)) {
-          this.logger.warn('Failed to open YouTube chat stream', error);
-          this.scheduleReconnect();
-        }
-      });
-  }
-
-  /**
-   * Fetch a currently-valid access token. The OAuth2 client refreshes on demand and its existing
-   * `tokens` listener persists the result, but gRPC metadata is fixed for the life of a call, so
-   * this has to be re-read on every (re)connect.
-   */
-  private async getAccessToken(): Promise<string | null> {
+    // The client attaches and refreshes the access token itself, so opening a stream needs nothing
+    // but the authorized client. Its absence means auth was torn down under us.
     const authClient = this.authIntegration.getAuthClient();
     if (!authClient) {
       this.logger.warn('No YouTube auth client available; cannot open chat stream');
       this.teardown();
-      return null;
+      return;
     }
 
-    const { token } = await authClient.getAccessToken();
-    return token ?? null;
+    this.setState('streaming');
+    const call = this.chatStream.stream(liveChatId, authClient, this.nextPageToken);
+    this.call = call;
+
+    // Listeners stay attached for the life of the call and check whether it is still the current
+    // one, because the request opens asynchronously and can still deliver events after we've moved
+    // on. Detaching them instead would risk an unhandled 'error', which Node turns into a throw.
+    call.on('data', (response) => {
+      if (this.call === call) {
+        this.handleResponse(response);
+      }
+    });
+    call.on('error', (error) => {
+      if (this.call === call) {
+        this.handleStreamError(error);
+      }
+    });
+    call.on('end', () => {
+      if (this.call === call) {
+        this.handleStreamEnd();
+      }
+    });
+
+    this.logger.info('YouTube live chat stream open');
   }
 
   private handleResponse(response: LiveChatMessageListResponse): void {
@@ -362,18 +391,20 @@ export class YouTubeChatIntegration extends BaseIntegration {
     }
   }
 
-  private handleStreamError(error: grpc.ServiceError): void {
+  private handleStreamError(error: unknown): void {
     this.detachCall();
 
     if (!this.running) {
       return;
     }
 
-    if (error.code === GrpcStatus.UNAUTHENTICATED) {
-      // Access tokens last about an hour and a call's metadata is fixed when it opens, so a
-      // long-running stream will eventually be rejected purely because its token aged out. That is
-      // not a re-authorization: reconnecting mints a fresh token. Only a second rejection, with no
-      // successful response in between, means the grant itself is dead.
+    const status = getHttpStatus(error);
+
+    if (status === 401) {
+      // Access tokens last about an hour and a request's authorization is fixed when it opens, so
+      // a long-running stream will eventually be rejected purely because its token aged out. That
+      // is not a re-authorization: reconnecting mints a fresh token. Only a second rejection, with
+      // no successful response in between, means the grant itself is dead.
       if (this.authRetried) {
         this.logger.warn('YouTube chat stream rejected a refreshed token; re-authorization needed');
         this.authIntegration.markAuthRequired();
@@ -394,17 +425,15 @@ export class YouTubeChatIntegration extends BaseIntegration {
       return;
     }
 
-    if (error.code === GrpcStatus.FAILED_PRECONDITION || error.code === GrpcStatus.NOT_FOUND) {
+    if (status !== undefined && TERMINAL_STATUSES.has(status)) {
       // The chat ended, was disabled, or the broadcast is gone. Wait for the next go-live signal.
-      this.logger.info('YouTube live chat is no longer available; returning to idle', {
-        code: error.code,
-      });
+      this.logger.info('YouTube live chat is no longer available; returning to idle', { status });
       this.teardown();
       return;
     }
 
-    if (RECONNECTABLE_CODES.has(error.code)) {
-      this.logger.warn('YouTube chat stream dropped; reconnecting', { code: error.code });
+    if (status === undefined ? isTransportError(error) : isReconnectableStatus(status)) {
+      this.logger.warn('YouTube chat stream dropped; reconnecting', { status });
       this.scheduleReconnect();
       return;
     }
@@ -455,7 +484,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
   }
 
   /**
-   * Flag a dead refresh token if that's what an error is. The gRPC path bypasses
+   * Flag a dead refresh token if that's what an error is. The streaming path bypasses
    * YouTubeApiIntegration's withAuthErrorDetection(), so this integration reports re-auth itself.
    * Returns true when the error was handled as an auth failure.
    */
@@ -473,10 +502,11 @@ export class YouTubeChatIntegration extends BaseIntegration {
   /**
    * Stop treating the current call as current, WITHOUT removing its listeners.
    *
-   * grpc-js reports a cancelled call by emitting `'error'` with a CANCELLED status on a later tick.
-   * Removing the error listener here would leave that emit unhandled, and Node throws on an
-   * unhandled `'error'` — crashing the backend on every disconnect. Leaving the listeners attached
-   * lets them absorb it; they check call identity, so they no-op for a call we've moved past.
+   * A stream's events can arrive a tick or more after we've stopped caring — the request opens
+   * asynchronously, and a body can emit right up until it is destroyed. Removing the error listener
+   * here would risk leaving one of those emits unhandled, and Node throws on an unhandled `'error'`
+   * — crashing the backend. Leaving the listeners attached lets them absorb it; they check call
+   * identity, so they no-op for a call we've moved past.
    */
   private detachCall(): void {
     this.call = null;
@@ -498,8 +528,8 @@ export class YouTubeChatIntegration extends BaseIntegration {
       this.reconnectTimer = null;
     }
 
-    // Detach before cancelling so the CANCELLED error this triggers is recognized as belonging to
-    // a call we've already abandoned, rather than kicking off a reconnect.
+    // Detach before cancelling so any abort fallout is recognized as belonging to a call we've
+    // already abandoned, rather than kicking off a reconnect.
     const cancelled = this.call;
     this.detachCall();
     cancelled?.cancel();

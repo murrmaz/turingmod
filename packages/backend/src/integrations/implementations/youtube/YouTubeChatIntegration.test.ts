@@ -64,7 +64,7 @@ const streamMock = vi.hoisted(() => ({
   close: vi.fn(),
 }));
 
-vi.mock('./youtube/YouTubeChatStream.js', () => ({
+vi.mock('./YouTubeChatStream.js', () => ({
   // biome-ignore lint/style/useNamingConvention: mirrors the exported class name.
   YouTubeChatStream: class {
     stream = streamMock.stream;

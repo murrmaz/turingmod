@@ -1,4 +1,4 @@
-import { IntegrationStatus, PermissionLevel } from '@turingmod/shared';
+import { IntegrationStatus, PermissionLevel, Platform } from '@turingmod/shared';
 import type { ApiClient, HelixEventSubSubscriptionStatus, HelixUser } from '@twurple/api';
 import type { RefreshingAuthProvider } from '@twurple/auth';
 import type { EventSubChannelChatMessageEvent } from '@twurple/eventsub-base';
@@ -338,7 +338,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
 
     // Emit chat message event
     this.eventBus.emit('chat.message', {
-      platform: 'twitch',
+      platform: Platform.TWITCH,
       platformUserId: event.chatterId,
       username: event.chatterDisplayName,
       message: event.messageText,
@@ -358,12 +358,12 @@ export class TwitchEventSubIntegration extends BaseIntegration {
         args,
         user: {
           id: event.chatterId,
-          platform: 'twitch',
+          platform: Platform.TWITCH,
           platformUserId: event.chatterId,
           username: event.chatterDisplayName,
           permissionLevel,
         },
-        platform: 'twitch',
+        platform: Platform.TWITCH,
         metadata: {
           badges: badgeNames,
           channelId: event.broadcasterId,

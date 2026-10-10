@@ -33,7 +33,7 @@
     "@twurple/chat": "^8.0.0",
     "@twurple/eventsub-base": "^8.0.0",
     "@twurple/eventsub-ws": "^8.0.0",
-    "googleapis": "^178.0.0",
+    "googleapis": "^185.0.0",
     "obs-websocket-js": "^5.0.7",
     "pino": "^10.0.0",
     "pino-pretty": "^13.0.0",

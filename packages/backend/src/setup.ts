@@ -73,7 +73,10 @@ export function setupDependencies(container: Container): void {
       })
   );
 
-  container.registerSingleton('EventBus', () => new EventBus());
+  container.registerSingleton(
+    'EventBus',
+    () => new EventBus(container.resolve<Logger>('Logger'), { component: 'EventBus' })
+  );
 
   // Database (singletons)
   container.registerSingleton(

@@ -1,3 +1,5 @@
+import type { Logger } from '../utils/Logger.js';
+
 /**
  * Event handler function type
  */
@@ -9,6 +11,11 @@ type EventHandler<T = unknown> = (data: T) => void | Promise<void>;
  */
 export class EventBus {
   private handlers = new Map<string, Set<EventHandler>>();
+  logger: Logger;
+
+  constructor(logger: Logger, loggerContext: Record<string, string>) {
+    this.logger = logger.child(loggerContext);
+  }
 
   /**
    * Subscribe to an event
@@ -79,7 +86,7 @@ export class EventBus {
           promises.push(result);
         }
       } catch (error) {
-        console.error(`Error in event handler for ${event}:`, error);
+        this.logger.error(`Error in asynchronous event handler for ${event}:`, error);
       }
     }
 
@@ -101,7 +108,7 @@ export class EventBus {
       try {
         handler(data);
       } catch (error) {
-        console.error(`Error in event handler for ${event}:`, error);
+        this.logger.error(`Error in synchronous event handler for ${event}:`, error);
       }
     }
   }

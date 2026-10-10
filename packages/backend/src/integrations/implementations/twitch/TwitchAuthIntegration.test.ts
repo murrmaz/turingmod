@@ -29,7 +29,7 @@ function jsonResponse(status: number, body: unknown): Promise<Response> {
 
 function makeIntegration(
   stateRepo: Pick<IntegrationStateRepository, 'upsert'>,
-  eventBus: EventBus = new EventBus()
+  eventBus: EventBus = new EventBus(new Logger({ level: 'silent' }), { component: 'EventBus' })
 ) {
   return new TwitchAuthIntegration(
     eventBus,
@@ -111,7 +111,7 @@ describe('TwitchAuthIntegration', () => {
   });
 
   it('marks itself NEEDS_REAUTH when another integration reports the authorization was revoked', async () => {
-    const eventBus = new EventBus();
+    const eventBus = new EventBus(new Logger({ level: 'silent' }), { component: 'EventBus' });
     const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
     successfulTokenExchange();
 
@@ -129,7 +129,7 @@ describe('TwitchAuthIntegration', () => {
   });
 
   it('stops reacting to authorization-revoked events after being stopped', async () => {
-    const eventBus = new EventBus();
+    const eventBus = new EventBus(new Logger({ level: 'silent' }), { component: 'EventBus' });
     const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
     successfulTokenExchange();
 
@@ -145,7 +145,7 @@ describe('TwitchAuthIntegration', () => {
   });
 
   it('does not accumulate listeners across repeated failed start() retries', async () => {
-    const eventBus = new EventBus();
+    const eventBus = new EventBus(new Logger({ level: 'silent' }), { component: 'EventBus' });
     const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
 
     vi.mocked(fetch).mockImplementation((input) => {

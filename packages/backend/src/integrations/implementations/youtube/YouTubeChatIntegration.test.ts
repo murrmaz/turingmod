@@ -1,12 +1,12 @@
 import { EventEmitter } from 'node:events';
 import { PermissionLevel, Platform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EventBus } from '../../core/EventBus.js';
-import { Logger } from '../../utils/Logger.js';
+import { EventBus } from '../../../core/EventBus.js';
+import { Logger } from '../../../utils/Logger.js';
 import type { ActiveBroadcast, YouTubeApiIntegration } from './YouTubeApiIntegration.js';
 import type { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
 import { YouTubeChatIntegration } from './YouTubeChatIntegration.js';
-import type { LiveChatMessageListResponse } from './youtube/YouTubeChatStream.js';
+import type { LiveChatMessageListResponse } from './YouTubeChatStream.js';
 
 /** The integration's reconnect backoff ceiling; long enough to step past any scheduled retry. */
 const RECONNECT_CEILING_MS = 30_000;

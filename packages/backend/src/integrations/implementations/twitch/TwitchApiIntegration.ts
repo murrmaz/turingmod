@@ -7,9 +7,9 @@ import type {
 import { ApiClient } from '@twurple/api';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import { CachedRefreshFailureError, type RefreshingAuthProvider } from '@twurple/auth';
-import type { EventBus } from '../../core/EventBus.js';
-import type { Logger } from '../../utils/Logger.js';
-import { BaseIntegration } from '../BaseIntegration.js';
+import type { EventBus } from '../../../core/EventBus.js';
+import type { Logger } from '../../../utils/Logger.js';
+import { BaseIntegration } from '../../BaseIntegration.js';
 import type { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
 /**

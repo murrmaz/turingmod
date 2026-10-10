@@ -1,8 +1,8 @@
 import { IntegrationStatus } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EventBus } from '../../core/EventBus.js';
-import type { IntegrationStateRepository } from '../../database/repositories/IntegrationStateRepository.js';
-import { Logger } from '../../utils/Logger.js';
+import { EventBus } from '../../../core/EventBus.js';
+import type { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
+import { Logger } from '../../../utils/Logger.js';
 import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
 const CONFIG = {

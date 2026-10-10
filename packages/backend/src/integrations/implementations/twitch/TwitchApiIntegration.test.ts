@@ -2,8 +2,8 @@ import { IntegrationStatus } from '@turingmod/shared';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import { CachedRefreshFailureError, type RefreshingAuthProvider } from '@twurple/auth';
 import { describe, expect, it, vi } from 'vitest';
-import { EventBus } from '../../core/EventBus.js';
-import { Logger } from '../../utils/Logger.js';
+import { EventBus } from '../../../core/EventBus.js';
+import { Logger } from '../../../utils/Logger.js';
 import { TwitchApiIntegration } from './TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 

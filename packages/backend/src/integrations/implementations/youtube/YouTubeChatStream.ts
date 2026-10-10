@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events';
 import type { Readable } from 'node:stream';
 import { google, type youtube_v3 } from 'googleapis';
-import type { YouTubeOAuth2Client } from '../YouTubeAuthIntegration.js';
 import { JsonFrameParser } from './parseJsonFrames.js';
+import type { YouTubeOAuth2Client } from './YouTubeAuthIntegration.js';
 
 /**
  * One response frame from the server stream — the client's own type, so the items are genuinely

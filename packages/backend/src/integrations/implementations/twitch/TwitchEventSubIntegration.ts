@@ -3,9 +3,9 @@ import type { ApiClient, HelixEventSubSubscriptionStatus, HelixUser } from '@twu
 import type { RefreshingAuthProvider } from '@twurple/auth';
 import type { EventSubChannelChatMessageEvent } from '@twurple/eventsub-base';
 import { EventSubWsListener } from '@twurple/eventsub-ws';
-import type { EventBus } from '../../core/EventBus.js';
-import type { Logger } from '../../utils/Logger.js';
-import { BaseIntegration } from '../BaseIntegration.js';
+import type { EventBus } from '../../../core/EventBus.js';
+import type { Logger } from '../../../utils/Logger.js';
+import { BaseIntegration } from '../../BaseIntegration.js';
 import type { TwitchApiIntegration } from './TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 

@@ -1,6 +1,6 @@
 import { Platform, PlatformCapability } from '@turingmod/shared';
-import type { TwitchApiIntegration } from '../integrations/implementations/TwitchApiIntegration.js';
-import type { TwitchAuthIntegration } from '../integrations/implementations/TwitchAuthIntegration.js';
+import type { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
+import type { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import type { IStreamPlatform, StreamInfo } from './interfaces/IStreamPlatform.js';
 
 /**

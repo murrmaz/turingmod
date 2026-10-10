@@ -1,16 +1,16 @@
 import type { YouTubeChatState } from '@turingmod/shared';
 import { IntegrationStatus, PermissionLevel, Platform } from '@turingmod/shared';
 import type { youtube_v3 } from 'googleapis';
-import type { EventBus } from '../../core/EventBus.js';
-import type { Logger } from '../../utils/Logger.js';
-import { BaseIntegration } from '../BaseIntegration.js';
+import type { EventBus } from '../../../core/EventBus.js';
+import type { Logger } from '../../../utils/Logger.js';
+import { BaseIntegration } from '../../BaseIntegration.js';
 import type { YouTubeApiIntegration } from './YouTubeApiIntegration.js';
 import type { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
 import {
   type LiveChatMessageListResponse,
   type LiveChatStreamCall,
   YouTubeChatStream,
-} from './youtube/YouTubeChatStream.js';
+} from './YouTubeChatStream.js';
 
 /** How often to re-check for an active broadcast after a go-live signal. */
 const RESOLVE_RETRY_INTERVAL_MS = 5_000;

@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
 import { IntegrationStatus } from '@turingmod/shared';
-import type { EventBus } from '../../core/EventBus.js';
-import type { Logger } from '../../utils/Logger.js';
-import { BaseIntegration } from '../BaseIntegration.js';
+import type { EventBus } from '../../../core/EventBus.js';
+import type { Logger } from '../../../utils/Logger.js';
+import { BaseIntegration } from '../../BaseIntegration.js';
 
 interface SoundPlayEvent {
   filePath: string;

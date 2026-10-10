@@ -1,8 +1,8 @@
 import { IntegrationStatus } from '@turingmod/shared';
 import { google, type youtube_v3 } from 'googleapis';
-import type { EventBus } from '../../core/EventBus.js';
-import type { Logger } from '../../utils/Logger.js';
-import { BaseIntegration } from '../BaseIntegration.js';
+import type { EventBus } from '../../../core/EventBus.js';
+import type { Logger } from '../../../utils/Logger.js';
+import { BaseIntegration } from '../../BaseIntegration.js';
 import type { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
 
 /**

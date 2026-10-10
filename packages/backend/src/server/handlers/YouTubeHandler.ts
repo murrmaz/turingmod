@@ -1,6 +1,6 @@
 import type { IWebSocketMessage, YouTubeChatControlPayload } from '@turingmod/shared';
 import { createErrorMessage, createYouTubeChatStateMessage } from '@turingmod/shared';
-import type { YouTubeChatIntegration } from '../../integrations/implementations/YouTubeChatIntegration.js';
+import type { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import type { Logger } from '../../utils/Logger.js';
 import { isYouTubeChatControlPayload } from '../validation.js';
 

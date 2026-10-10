@@ -1,8 +1,8 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import type { Container } from '../../core/Container.js';
-import type { TwitchApiIntegration } from '../../integrations/implementations/TwitchApiIntegration.js';
-import type { TwitchAuthIntegration } from '../../integrations/implementations/TwitchAuthIntegration.js';
+import type { TwitchApiIntegration } from '../../integrations/implementations/twitch/TwitchApiIntegration.js';
+import type { TwitchAuthIntegration } from '../../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import { formatDuration } from '../../utils/FormatHelpers.js';
 import type { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';

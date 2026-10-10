@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { IntegrationStatus } from '@turingmod/shared';
 import { google } from 'googleapis';
-import type { EventBus } from '../../core/EventBus.js';
-import type { IntegrationStateRepository } from '../../database/repositories/IntegrationStateRepository.js';
-import type { Logger } from '../../utils/Logger.js';
-import { BaseIntegration } from '../BaseIntegration.js';
-import type { IOAuthIntegration } from '../interfaces/IOAuthIntegration.js';
-import { buildOAuthEnvConfig, validateOAuthConfig } from '../oauthConfigHelpers.js';
+import type { EventBus } from '../../../core/EventBus.js';
+import type { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
+import type { Logger } from '../../../utils/Logger.js';
+import { BaseIntegration } from '../../BaseIntegration.js';
+import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
+import { buildOAuthEnvConfig, validateOAuthConfig } from '../../oauthConfigHelpers.js';
 
 /**
  * YouTube Auth Configuration

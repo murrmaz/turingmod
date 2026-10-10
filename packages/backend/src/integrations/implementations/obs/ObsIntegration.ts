@@ -1,8 +1,8 @@
 import { IntegrationStatus } from '@turingmod/shared';
 import OBSWebSocket from 'obs-websocket-js';
-import type { EventBus } from '../../core/EventBus.js';
-import type { Logger } from '../../utils/Logger.js';
-import { BaseIntegration } from '../BaseIntegration.js';
+import type { EventBus } from '../../../core/EventBus.js';
+import type { Logger } from '../../../utils/Logger.js';
+import { BaseIntegration } from '../../BaseIntegration.js';
 
 interface ObsConfig {
   url: string | undefined;

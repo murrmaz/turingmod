@@ -1,5 +1,5 @@
 import { Platform, PlatformCapability } from '@turingmod/shared';
-import type { YouTubeApiIntegration } from '../integrations/implementations/YouTubeApiIntegration.js';
+import type { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
 import type { IStreamPlatform, StreamInfo } from './interfaces/IStreamPlatform.js';
 
 /**

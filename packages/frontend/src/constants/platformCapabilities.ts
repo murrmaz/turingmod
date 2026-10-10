@@ -16,6 +16,7 @@ export const PLATFORM_CAPABILITIES: Record<Platform, ReadonlySet<PlatformCapabil
     PlatformCapability.SCHEDULE,
     PlatformCapability.CONTENT_LABELS,
     PlatformCapability.FOLLOW_INFO,
+    PlatformCapability.BROADCASTER_ABOUT,
   ]),
   [Platform.YOUTUBE]: new Set([
     PlatformCapability.SEND_CHAT,

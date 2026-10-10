@@ -1,8 +1,19 @@
 import type { Platform } from '@turingmod/shared';
 import { PlatformCapability } from '@turingmod/shared';
 import type { Logger } from '../utils/Logger.js';
-import type { StreamInfo } from './interfaces/IStreamPlatform.js';
+import type {
+  AdBreakInfo,
+  IStreamPlatform,
+  ScheduleSegment,
+  StreamInfo,
+} from './interfaces/IStreamPlatform.js';
 import type { PlatformRegistry } from './PlatformRegistry.js';
+import { platformDisplayName } from './platformNames.js';
+
+/** The IStreamPlatform methods that are optional because a capability guards them. */
+type OptionalPlatformMethod = {
+  [K in keyof IStreamPlatform]-?: undefined extends IStreamPlatform[K] ? K : never;
+}[keyof IStreamPlatform];
 
 /**
  * Outcome of a mirrored write. Records which platforms accepted the change and any that failed,
@@ -63,6 +74,73 @@ export class StreamControlService {
     return target.getUptime();
   }
 
+  // The capability-guarded reads below are async purely so a drifted capability set surfaces
+  // as a rejected promise rather than a synchronous throw, whichever way the caller waits.
+
+  /** Ad-break state on a platform, or null if that platform is offline. */
+  async getNextAdBreak(platform: Platform): Promise<AdBreakInfo | null> {
+    return await this.capableMethod(platform, PlatformCapability.ADS, 'getNextAdBreak')();
+  }
+
+  /** Upcoming scheduled broadcasts on a platform, soonest first. */
+  async getSchedule(platform: Platform): Promise<ScheduleSegment[]> {
+    return await this.capableMethod(platform, PlatformCapability.SCHEDULE, 'getSchedule')();
+  }
+
+  /** Content classification labels currently set on a platform's channel. */
+  async getContentLabels(platform: Platform): Promise<string[]> {
+    return await this.capableMethod(
+      platform,
+      PlatformCapability.CONTENT_LABELS,
+      'getContentLabels'
+    )();
+  }
+
+  /** Replace a platform's content classification labels. */
+  async setContentLabels(platform: Platform, labels: string[]): Promise<void> {
+    return await this.capableMethod(
+      platform,
+      PlatformCapability.CONTENT_LABELS,
+      'setContentLabels'
+    )(labels);
+  }
+
+  /** The broadcaster's channel bio on a platform, or null if unset. */
+  async getBroadcasterAbout(platform: Platform): Promise<string | null> {
+    return await this.capableMethod(
+      platform,
+      PlatformCapability.BROADCASTER_ABOUT,
+      'getBroadcasterAbout'
+    )();
+  }
+
+  /**
+   * Resolve one of the optional, capability-guarded IStreamPlatform methods, bound to its
+   * façade. Asserts the platform both advertises `capability` and implements `method` —
+   * commands are capability-filtered before they run, so reaching either throw means a
+   * façade's capability set and its method set have drifted apart.
+   */
+  private capableMethod<K extends OptionalPlatformMethod>(
+    platform: Platform,
+    capability: PlatformCapability,
+    method: K
+  ): NonNullable<IStreamPlatform[K]> {
+    const target = this.registry.get(platform);
+    if (!target) {
+      throw new Error(`Platform not available: ${platform}`);
+    }
+    if (!target.getCapabilities().has(capability)) {
+      throw new Error(`${platform} does not support ${capability}`);
+    }
+
+    const fn = target[method];
+    if (typeof fn !== 'function') {
+      throw new Error(`${platform} advertises ${capability} but does not implement ${method}`);
+    }
+
+    return fn.bind(target) as NonNullable<IStreamPlatform[K]>;
+  }
+
   /**
    * Fan a write out to every live platform whose capability set includes `capability`,
    * collecting per-platform successes and failures.
@@ -78,6 +156,18 @@ export class StreamControlService {
         continue;
       }
 
+      // A broken OAuth grant must not reach chat: a mirrored write replies in public, so the
+      // whole channel would see the state of the broadcaster's tokens. It mustn't vanish
+      // either, or the command reports the misleading "No live platforms to update". Log it
+      // for the streamer and skip.
+      const unavailable = platform.getUnavailableReason();
+      if (unavailable) {
+        this.logger.warn(
+          `Skipping ${platformDisplayName(platform.platform)} for ${capability}: ${unavailable}`
+        );
+        continue;
+      }
+
       let live: boolean;
       try {
         live = await platform.isLive();
@@ -87,6 +177,9 @@ export class StreamControlService {
       }
 
       if (!live) {
+        this.logger.debug(
+          `Skipping ${platformDisplayName(platform.platform)} for ${capability}: not broadcasting`
+        );
         continue;
       }
 

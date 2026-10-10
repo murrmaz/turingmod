@@ -199,6 +199,9 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
     this.unsubscribeAuthorizationRevoked = null;
 
     this.authProvider = null;
+    // Clear the id alongside the provider: leaving it set made getAuthenticatedUserId()
+    // report a usable broadcaster after a stop(), while every call behind it would fail.
+    this.userId = null;
     this.setStatus(IntegrationStatus.DISCONNECTED);
 
     this.logger.info('Twitch Auth integration stopped');

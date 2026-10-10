@@ -1,50 +1,38 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import type { Container } from '../../core/Container.js';
-import type { TwitchApiIntegration } from '../../integrations/implementations/twitch/TwitchApiIntegration.js';
-import type { TwitchAuthIntegration } from '../../integrations/implementations/twitch/TwitchAuthIntegration.js';
+import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import type { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
+import { toCommandError } from '../utils/commandErrors.js';
 import { checkPermission } from '../utils/permissionChecks.js';
 
 /**
  * !cw command
- * Shows or sets content classification labels (content warnings)
+ * Shows or sets content classification labels (content warnings) on the platform the command
+ * came from.
  */
 export class ContentWarningCommand implements ICommand {
   readonly name = 'cw';
   readonly description = 'Show or set content classification labels';
   readonly usage = '!cw [label1,label2,...]';
   readonly permissions = [PermissionLevel.VIEWER];
-  readonly cooldown = 0;
+  /** Per-viewer, to keep a Helix-backed read off the rate limit. Throttles the viewer-readable branch; moderators are exempt, so !cw <labels> stays responsive. */
+  readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.CONTENT_LABELS];
 
-  private twitchApi: TwitchApiIntegration;
-  private authIntegration: TwitchAuthIntegration;
+  private streamControl: StreamControlService;
   private logger: Logger;
 
   constructor(container: Container) {
-    this.twitchApi = container.resolve<TwitchApiIntegration>('TwitchApiIntegration');
-    this.authIntegration = container.resolve<TwitchAuthIntegration>('TwitchAuthIntegration');
+    this.streamControl = container.resolve<StreamControlService>('StreamControlService');
     this.logger = container.resolve<Logger>('Logger').child({ command: 'cw' });
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {
-    const { user, args } = context;
+    const { user, args, platform } = context;
 
     try {
-      const userId = this.authIntegration.getAuthenticatedUserId();
-      if (!userId) {
-        return {
-          success: false,
-          message: 'Not authenticated with Twitch',
-          error: {
-            code: 'NOT_AUTHENTICATED',
-            message: 'Complete OAuth first',
-          },
-        };
-      }
-
       // Write mode: set new labels
       if (args.length > 1) {
         const permissionError = checkPermission(
@@ -56,13 +44,14 @@ export class ContentWarningCommand implements ICommand {
           return permissionError;
         }
 
-        const labelsInput = args.slice(1).join(' ').trim();
-        const labels = labelsInput
+        const labels = args
+          .slice(1)
+          .join(' ')
           .split(',')
           .map((label) => label.trim())
           .filter((label) => label !== '');
 
-        await this.twitchApi.setContentClassificationLabels(userId, labels);
+        await this.streamControl.setContentLabels(platform, labels);
 
         return {
           success: true,
@@ -72,22 +61,9 @@ export class ContentWarningCommand implements ICommand {
       }
 
       // Read mode: show current labels
-      const channel = await this.twitchApi.getChannel(userId);
+      const labels = await this.streamControl.getContentLabels(platform);
 
-      if (!channel) {
-        return {
-          success: false,
-          message: 'Failed to retrieve channel information',
-          error: {
-            code: 'API_ERROR',
-            message: 'Channel not found',
-          },
-        };
-      }
-
-      const labels = channel.contentClassificationLabels;
-
-      if (!labels || labels.length === 0) {
+      if (labels.length === 0) {
         return {
           success: true,
           message: 'Content Labels: None',
@@ -102,14 +78,7 @@ export class ContentWarningCommand implements ICommand {
       };
     } catch (error) {
       this.logger.error('Error in cw command', error);
-      return {
-        success: false,
-        message: 'Failed to get/set content labels',
-        error: {
-          code: 'API_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        },
-      };
+      return toCommandError(error, 'Failed to get/set content labels');
     }
   }
 }

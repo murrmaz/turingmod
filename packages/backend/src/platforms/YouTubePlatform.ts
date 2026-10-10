@@ -1,5 +1,6 @@
 import { Platform, PlatformCapability } from '@turingmod/shared';
 import type { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
+import { unavailableReason } from './availability.js';
 import type { IStreamPlatform, StreamInfo } from './interfaces/IStreamPlatform.js';
 
 /**
@@ -18,6 +19,10 @@ export class YouTubePlatform implements IStreamPlatform {
       PlatformCapability.SET_TITLE,
       PlatformCapability.UPTIME,
     ]);
+  }
+
+  getUnavailableReason(): string | null {
+    return unavailableReason(this.api, this.platform);
   }
 
   async isLive(): Promise<boolean> {

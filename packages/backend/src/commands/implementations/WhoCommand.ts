@@ -1,52 +1,37 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
-import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
+import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import type { Container } from '../../core/Container.js';
-import type { TwitchApiIntegration } from '../../integrations/implementations/twitch/TwitchApiIntegration.js';
-import type { TwitchAuthIntegration } from '../../integrations/implementations/twitch/TwitchAuthIntegration.js';
+import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import type { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
+import { toCommandError } from '../utils/commandErrors.js';
 
 /**
  * !who command
- * Shows the broadcaster's bio/description
+ * Shows the broadcaster's bio/description on the platform the command came from.
  */
 export class WhoCommand implements ICommand {
   readonly name = 'who';
   readonly description = 'Show the broadcaster bio/description';
   readonly usage = '!who';
   readonly permissions = [PermissionLevel.VIEWER];
-  readonly cooldown = 0;
-  // Reads the broadcaster bio via getUserById — no follow-age lookup, so no capability gate.
-  readonly requiredCapabilities: PlatformCapability[] = [];
+  /** Per-viewer, to keep a Helix-backed read off the rate limit. The channel bio almost never changes. */
+  readonly cooldown = 60;
+  readonly requiredCapabilities = [PlatformCapability.BROADCASTER_ABOUT];
 
-  private twitchApi: TwitchApiIntegration;
-  private authIntegration: TwitchAuthIntegration;
+  private streamControl: StreamControlService;
   private logger: Logger;
 
   constructor(container: Container) {
-    this.twitchApi = container.resolve<TwitchApiIntegration>('TwitchApiIntegration');
-    this.authIntegration = container.resolve<TwitchAuthIntegration>('TwitchAuthIntegration');
+    this.streamControl = container.resolve<StreamControlService>('StreamControlService');
     this.logger = container.resolve<Logger>('Logger').child({ command: 'who' });
   }
 
-  async execute(_context: CommandContext): Promise<CommandResult> {
+  async execute(context: CommandContext): Promise<CommandResult> {
     try {
-      const userId = this.authIntegration.getAuthenticatedUserId();
-      if (!userId) {
-        return {
-          success: false,
-          message: 'Not authenticated with Twitch',
-          error: {
-            code: 'NOT_AUTHENTICATED',
-            message: 'Complete OAuth first',
-          },
-        };
-      }
+      const description = await this.streamControl.getBroadcasterAbout(context.platform);
 
-      const user = await this.twitchApi.getUserById(userId);
-      const description = user?.description;
-
-      if (!description || description.trim() === '') {
+      if (!description) {
         return {
           success: true,
           message: 'No description set',
@@ -60,14 +45,7 @@ export class WhoCommand implements ICommand {
       };
     } catch (error) {
       this.logger.error('Error in who command', error);
-      return {
-        success: false,
-        message: 'Failed to retrieve broadcaster info',
-        error: {
-          code: 'API_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        },
-      };
+      return toCommandError(error, 'Failed to retrieve broadcaster info');
     }
   }
 }

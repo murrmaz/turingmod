@@ -17,7 +17,8 @@ export class TagsCommand implements ICommand {
   readonly description = 'Show or set the stream tags';
   readonly usage = '!tags [tag1,tag2,...]';
   readonly permissions = [PermissionLevel.VIEWER];
-  readonly cooldown = 0;
+  /** Per-viewer, to keep a Helix-backed read off the rate limit. Throttles the viewer-readable branch; moderators are exempt, so !tags <list> stays responsive. */
+  readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.SET_TAGS];
 
   private streamControl: StreamControlService;

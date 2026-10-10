@@ -1,67 +1,52 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import type { Container } from '../../core/Container.js';
-import type { TwitchApiIntegration } from '../../integrations/implementations/twitch/TwitchApiIntegration.js';
-import type { TwitchAuthIntegration } from '../../integrations/implementations/twitch/TwitchAuthIntegration.js';
+import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import { formatDuration } from '../../utils/FormatHelpers.js';
 import type { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
+import { toCommandError } from '../utils/commandErrors.js';
 
 /**
  * !ad command
- * Shows time until the next ad break
+ * Shows time until the next ad break on the platform the command came from.
  */
 export class AdCommand implements ICommand {
   readonly name = 'ad';
   readonly description = 'Show time until next ad break';
   readonly usage = '!ad';
   readonly permissions = [PermissionLevel.VIEWER];
-  readonly cooldown = 0;
+  /** Per-viewer, to keep a Helix-backed read off the rate limit. Two Helix calls per invocation, for an answer that only moves minute to minute. */
+  readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.ADS];
 
-  private twitchApi: TwitchApiIntegration;
-  private authIntegration: TwitchAuthIntegration;
+  private streamControl: StreamControlService;
   private logger: Logger;
 
   constructor(container: Container) {
-    this.twitchApi = container.resolve<TwitchApiIntegration>('TwitchApiIntegration');
-    this.authIntegration = container.resolve<TwitchAuthIntegration>('TwitchAuthIntegration');
+    this.streamControl = container.resolve<StreamControlService>('StreamControlService');
     this.logger = container.resolve<Logger>('Logger').child({ command: 'ad' });
   }
 
-  async execute(_context: CommandContext): Promise<CommandResult> {
+  async execute(context: CommandContext): Promise<CommandResult> {
     try {
-      const userId = this.authIntegration.getAuthenticatedUserId();
-      if (!userId) {
-        return {
-          success: false,
-          message: 'Not authenticated with Twitch',
-          error: {
-            code: 'NOT_AUTHENTICATED',
-            message: 'Complete OAuth first',
-          },
-        };
-      }
+      const adBreak = await this.streamControl.getNextAdBreak(context.platform);
 
-      const stream = await this.twitchApi.getStream(userId);
-
-      if (!stream) {
+      if (!adBreak) {
         return {
           success: true,
           message: 'Stream is offline - no ads scheduled',
         };
       }
 
-      const adSchedule = await this.twitchApi.getAdSchedule(userId);
-
-      if (!adSchedule?.nextAdDate) {
+      if (!adBreak.nextAdDate) {
         return {
           success: true,
           message: 'Ad information unavailable',
         };
       }
 
-      const timeUntilAd = adSchedule.nextAdDate.getTime() - Date.now();
+      const timeUntilAd = adBreak.nextAdDate.getTime() - Date.now();
 
       if (timeUntilAd <= 0) {
         return {
@@ -70,26 +55,17 @@ export class AdCommand implements ICommand {
         };
       }
 
-      const formattedTime = formatDuration(timeUntilAd);
-
       return {
         success: true,
-        message: `Next ad in ${formattedTime}`,
+        message: `Next ad in ${formatDuration(timeUntilAd)}`,
         data: {
-          nextAdAt: adSchedule.nextAdDate.toISOString(),
+          nextAdAt: adBreak.nextAdDate.toISOString(),
           timeUntilAd,
         },
       };
     } catch (error) {
       this.logger.error('Error in ad command', error);
-      return {
-        success: false,
-        message: 'Failed to retrieve ad schedule',
-        error: {
-          code: 'API_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        },
-      };
+      return toCommandError(error, 'Failed to retrieve ad schedule');
     }
   }
 }

@@ -5,18 +5,23 @@ import { formatPlatformList } from '../../platforms/platformNames.js';
 import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import type { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
-import { checkPermission } from '../utils/permissionChecks.js';
+import { toCommandError } from '../utils/commandErrors.js';
 
 /**
  * !title command
- * Shows the current stream title, or sets it (moderator only). Setting mirrors to every live
- * platform that supports SET_TITLE.
+ * Sets the stream title, mirroring to every live platform that supports SET_TITLE.
+ *
+ * Write-only by design. A read mode would have to answer "what is the title?" with a single
+ * string while each platform holds its own — and a partially-applied mirror (Twitch updated,
+ * YouTube refused) makes that answer actively misleading. Viewers can already see the title on
+ * the stream page, so the read side was redundant for most of chat and incoherent for the rest.
  */
 export class TitleCommand implements ICommand {
   readonly name = 'title';
-  readonly description = 'Show or set the stream title';
-  readonly usage = '!title [new title]';
-  readonly permissions = [PermissionLevel.VIEWER];
+  readonly description = 'Set the stream title';
+  readonly usage = '!title <new title>';
+  readonly permissions = [PermissionLevel.MODERATOR];
+  /** No cooldown needed: write-only and moderator-only, and moderators are exempt anyway. */
   readonly cooldown = 0;
   readonly requiredCapabilities = [PlatformCapability.SET_TITLE];
 
@@ -29,72 +34,44 @@ export class TitleCommand implements ICommand {
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {
-    const { user, args } = context;
+    // No inner permission check: the command has no viewer-readable branch left, so
+    // CommandExecutor's top-level gate on `permissions` already rejects non-moderators.
+    const newTitle = context.args.slice(1).join(' ').trim();
+
+    if (newTitle === '') {
+      return {
+        success: false,
+        message: `Usage: ${this.usage}`,
+        error: {
+          code: 'INVALID_INPUT',
+          message: 'Title must not be empty',
+        },
+      };
+    }
 
     try {
-      // Write mode: set new title (mirrors to all live platforms that support SET_TITLE)
-      if (args.length > 1) {
-        const permissionError = checkPermission(
-          user.permissionLevel,
-          PermissionLevel.MODERATOR,
-          'edit stream title'
-        );
-        if (permissionError) {
-          return permissionError;
-        }
+      const mirror = await this.streamControl.setTitle(newTitle);
 
-        const newTitle = args.slice(1).join(' ').trim();
-
-        if (newTitle === '') {
-          return {
-            success: false,
-            message: 'Title cannot be empty',
-            error: {
-              code: 'INVALID_INPUT',
-              message: 'Title must not be empty',
-            },
-          };
-        }
-
-        const mirror = await this.streamControl.setTitle(newTitle);
-
-        if (mirror.updated.length === 0) {
-          const reason = mirror.failures[0]?.error ?? 'No live platforms to update';
-          return {
-            success: false,
-            message: `Failed to update title: ${reason}`,
-            error: {
-              code: 'API_ERROR',
-              message: reason,
-            },
-          };
-        }
-
+      if (mirror.updated.length === 0) {
+        const reason = mirror.failures[0]?.error ?? 'No live platforms to update';
         return {
-          success: true,
-          message: `Title updated on ${formatPlatformList(mirror.updated)}: ${newTitle}`,
-          data: { title: newTitle, updated: mirror.updated },
+          success: false,
+          message: `Failed to update title: ${reason}`,
+          error: {
+            code: 'API_ERROR',
+            message: reason,
+          },
         };
       }
 
-      // Read mode: show current title on the origin platform
-      const info = await this.streamControl.getStreamInfo(context.platform);
-
       return {
         success: true,
-        message: `Stream Title: ${info.title}`,
-        data: { title: info.title },
+        message: `Title updated on ${formatPlatformList(mirror.updated)}: ${newTitle}`,
+        data: { title: newTitle, updated: mirror.updated },
       };
     } catch (error) {
       this.logger.error('Error in title command', error);
-      return {
-        success: false,
-        message: 'Failed to get/set stream title',
-        error: {
-          code: 'API_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        },
-      };
+      return toCommandError(error, 'Failed to update stream title');
     }
   }
 }

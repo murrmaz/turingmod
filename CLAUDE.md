@@ -49,6 +49,15 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Loader**: `packages/backend/src/commands/loadCommands.ts`
 - **WebSocket Handler**: `packages/backend/src/server/handlers/CommandHandler.ts`
 
+### Platform Provider Layer
+- **Interface**: `packages/backend/src/platforms/interfaces/IStreamPlatform.ts` — platform-agnostic façade; capability-guarded methods are optional
+- **Implementations**: `packages/backend/src/platforms/TwitchPlatform.ts`, `YouTubePlatform.ts`
+- **Registry**: `packages/backend/src/platforms/PlatformRegistry.ts` (Platform → façade)
+- **Mirroring/reads**: `packages/backend/src/platforms/StreamControlService.ts` — the seam commands depend on
+- **Auth reporting**: `packages/backend/src/platforms/availability.ts` (`unavailableReason`) + `errors.ts` (`NotAuthenticatedError`)
+- **Chat routing**: `packages/backend/src/platforms/ChatRouter.ts`
+- **Display names**: `packages/backend/src/platforms/platformNames.ts`
+
 ### WebSocket Protocol
 - **Server**: `packages/backend/src/server/WebSocketServer.ts`
 - **Router**: `packages/backend/src/server/MessageRouter.ts`
@@ -115,6 +124,30 @@ All messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/me
 
 sql.js (WASM SQLite, no native compilation). `DatabaseManager` handles auto-save every 5 seconds if dirty. Access via repository pattern: `UserRepository`, `CommandHistoryRepository`, `IntegrationStateRepository`. Integration configs are encrypted with AES-256-GCM before storage.
 
+### Platform Provider Layer
+
+`IStreamPlatform` is a platform-agnostic façade over one platform's integration group, registered
+in `PlatformRegistry` and consumed through `StreamControlService`. Commands depend on this seam, not
+on integrations — a command should never resolve `TwitchApiIntegration`/`TwitchAuthIntegration` from
+the container. Platform-specific logic (Twitch category name → id resolution) lives inside the
+façade, and the DTOs crossing it (`StreamInfo`, `ScheduleSegment`, `AdBreakInfo`) are agnostic, so no
+Twurple/googleapis types leak into the interface.
+
+Capabilities that only some platforms have are declared in `PlatformCapability` and exposed as
+*optional* interface methods. `StreamControlService.capableMethod()` resolves one and asserts the
+façade both advertises the capability and implements the method, so a drifted capability set fails
+loudly. A command declares `requiredCapabilities` and is hidden on platforms that don't satisfy them
+(`CommandExecutor` treats hidden as `COMMAND_NOT_FOUND`); the frontend mirrors the same sets manually
+in `packages/frontend/src/constants/platformCapabilities.ts`.
+
+**Commands never check authentication.** The façade decides, and only reports a problem once nothing
+can recover it automatically — an expired access token is refreshed transparently by the provider, so
+`NotAuthenticatedError` means a human must redo OAuth. Two paths handle it differently:
+`requireUserId()` throws `NotAuthenticatedError`, which `toCommandError()`
+(`commands/utils/commandErrors.ts`) maps to a `NOT_AUTHENTICATED` result; mirrored *writes* instead
+call `getUnavailableReason()` and log a warning, because a mirror replies in public chat where the
+broadcaster's token state doesn't belong.
+
 ### Frontend State
 
 React Context for state management: `WebSocketContext` (connection + send/subscribe) and `AppStateContext` (commands, integrations, health). Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`.
@@ -143,4 +176,6 @@ Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend b
 - **IntegrationStatus enum** — never use string literals for integration status.
 - **Integration lifecycle** — always call `initialize(config)` before `start()`.
 - **New commands** go in `packages/backend/src/commands/implementations/` and implement `ICommand`. They're auto-discovered by `loadCommands()`.
+- **Commands reach platforms through `StreamControlService`**, never through an integration directly, and never check auth themselves (see Platform Provider Layer).
+- **API-backed read commands need a cooldown.** `ICommand.cooldown` is per-viewer seconds; `CommandExecutor` exempts moderators and above, so a shared read/write command (`!game`, `!tags`, `!cw`) can be throttled for viewers without blocking a moderator's write.
 - **New integrations** extend `BaseIntegration`, get registered in `setup.ts` (both container + `initializeComponents`), and need a `MessageRouter` handler if they accept WebSocket messages. OAuth-capable integrations also implement `IOAuthIntegration`, override `get oauth()` to return `this`, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.

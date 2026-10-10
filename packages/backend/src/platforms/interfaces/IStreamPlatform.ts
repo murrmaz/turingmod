@@ -10,6 +10,24 @@ export interface StreamInfo {
 }
 
 /**
+ * Ad-break state for a live broadcast. A null `nextAdDate` means the platform is live but has
+ * no ad scheduled (or won't say), which is distinct from the stream being offline entirely —
+ * callers get `null` instead of this object in that case.
+ */
+export interface AdBreakInfo {
+  nextAdDate: Date | null;
+}
+
+/**
+ * One upcoming scheduled broadcast, in platform-agnostic form.
+ */
+export interface ScheduleSegment {
+  startDate: Date;
+  title?: string;
+  category?: string;
+}
+
+/**
  * Platform-agnostic façade over one streaming platform. Implemented by TwitchPlatform and
  * YouTubePlatform, each delegating to that platform's integration trio. Capability-guarded
  * methods are optional; callers must check getCapabilities() (or go through
@@ -20,6 +38,16 @@ export interface IStreamPlatform {
 
   /** Which PlatformCapabilities this platform currently supports. */
   getCapabilities(): Set<PlatformCapability>;
+
+  /**
+   * Null when this platform can be acted on, otherwise a human-readable reason it can't
+   * (OAuth never completed, authorization revoked, connection failed).
+   *
+   * Exists so callers that must not surface auth problems to chat — a mirrored write replies
+   * in public, where the broadcaster's token state doesn't belong — can still tell "skipped
+   * because offline" apart from "skipped because broken", and log the latter.
+   */
+  getUnavailableReason(): string | null;
 
   /** True if the platform is connected AND currently broadcasting. */
   isLive(): Promise<boolean>;
@@ -35,4 +63,34 @@ export interface IStreamPlatform {
 
   /** Milliseconds the current broadcast has been live, or null if offline. */
   getUptime(): Promise<number | null>;
+
+  /**
+   * Ad-break state for the current broadcast, or null if the stream is offline.
+   * Requires PlatformCapability.ADS.
+   */
+  getNextAdBreak?(): Promise<AdBreakInfo | null>;
+
+  /**
+   * Upcoming scheduled broadcasts, soonest first; empty if none.
+   * Requires PlatformCapability.SCHEDULE.
+   */
+  getSchedule?(): Promise<ScheduleSegment[]>;
+
+  /**
+   * Content classification labels currently set on the channel.
+   * Requires PlatformCapability.CONTENT_LABELS.
+   */
+  getContentLabels?(): Promise<string[]>;
+
+  /**
+   * Replace the channel's content classification labels.
+   * Requires PlatformCapability.CONTENT_LABELS.
+   */
+  setContentLabels?(labels: string[]): Promise<void>;
+
+  /**
+   * The broadcaster's channel bio/description, or null if unset.
+   * Requires PlatformCapability.BROADCASTER_ABOUT.
+   */
+  getBroadcasterAbout?(): Promise<string | null>;
 }

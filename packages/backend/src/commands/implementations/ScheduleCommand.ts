@@ -1,68 +1,36 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import type { Container } from '../../core/Container.js';
-import type { TwitchApiIntegration } from '../../integrations/implementations/twitch/TwitchApiIntegration.js';
-import type { TwitchAuthIntegration } from '../../integrations/implementations/twitch/TwitchAuthIntegration.js';
+import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import { formatScheduleDate } from '../../utils/FormatHelpers.js';
 import type { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
+import { toCommandError } from '../utils/commandErrors.js';
 
 /**
  * !schedule command
- * Shows the next scheduled stream
+ * Shows the next scheduled stream on the platform the command came from.
  */
 export class ScheduleCommand implements ICommand {
   readonly name = 'schedule';
   readonly description = 'Show upcoming stream schedule';
   readonly usage = '!schedule';
   readonly permissions = [PermissionLevel.VIEWER];
-  readonly cooldown = 0;
+  /** Per-viewer, to keep a Helix-backed read off the rate limit. The schedule changes rarely, and this is the largest payload of these reads. */
+  readonly cooldown = 60;
   readonly requiredCapabilities = [PlatformCapability.SCHEDULE];
 
-  private twitchApi: TwitchApiIntegration;
-  private authIntegration: TwitchAuthIntegration;
+  private streamControl: StreamControlService;
   private logger: Logger;
 
   constructor(container: Container) {
-    this.twitchApi = container.resolve<TwitchApiIntegration>('TwitchApiIntegration');
-    this.authIntegration = container.resolve<TwitchAuthIntegration>('TwitchAuthIntegration');
+    this.streamControl = container.resolve<StreamControlService>('StreamControlService');
     this.logger = container.resolve<Logger>('Logger').child({ command: 'schedule' });
   }
 
-  async execute(_context: CommandContext): Promise<CommandResult> {
+  async execute(context: CommandContext): Promise<CommandResult> {
     try {
-      const userId = this.authIntegration.getAuthenticatedUserId();
-      if (!userId) {
-        return {
-          success: false,
-          message: 'Not authenticated with Twitch',
-          error: {
-            code: 'NOT_AUTHENTICATED',
-            message: 'Complete OAuth first',
-          },
-        };
-      }
-
-      const schedule = await this.twitchApi.getSchedule(userId);
-
-      if (!schedule) {
-        return {
-          success: true,
-          message: 'No upcoming scheduled streams',
-        };
-      }
-
-      // Access segments from the schedule data
-      const scheduleData = schedule.data;
-      const segments = scheduleData.segments;
-
-      if (!segments || segments.length === 0) {
-        return {
-          success: true,
-          message: 'No upcoming scheduled streams',
-        };
-      }
-
+      const segments = await this.streamControl.getSchedule(context.platform);
       const nextSegment = segments[0];
 
       if (!nextSegment) {
@@ -73,8 +41,8 @@ export class ScheduleCommand implements ICommand {
       }
 
       const formattedDate = formatScheduleDate(nextSegment.startDate);
-      const category = nextSegment.categoryName ? ` (${nextSegment.categoryName})` : '';
       const title = nextSegment.title ? ` - ${nextSegment.title}` : '';
+      const category = nextSegment.category ? ` (${nextSegment.category})` : '';
 
       return {
         success: true,
@@ -82,19 +50,12 @@ export class ScheduleCommand implements ICommand {
         data: {
           startDate: nextSegment.startDate.toISOString(),
           title: nextSegment.title,
-          categoryName: nextSegment.categoryName,
+          categoryName: nextSegment.category,
         },
       };
     } catch (error) {
       this.logger.error('Error in schedule command', error);
-      return {
-        success: false,
-        message: 'Failed to retrieve stream schedule',
-        error: {
-          code: 'API_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        },
-      };
+      return toCommandError(error, 'Failed to retrieve stream schedule');
     }
   }
 }

@@ -15,7 +15,8 @@ export class UptimeCommand implements ICommand {
   readonly description = 'Show how long the stream has been live';
   readonly usage = '!uptime';
   readonly permissions = [PermissionLevel.VIEWER];
-  readonly cooldown = 0;
+  /** Per-viewer, to keep a Helix-backed read off the rate limit. A Helix call for a number nobody needs twice in half a minute. */
+  readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.UPTIME];
 
   private streamControl: StreamControlService;

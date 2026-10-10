@@ -19,4 +19,5 @@ export enum PlatformCapability {
   SCHEDULE = 'schedule', // Twitch only
   CONTENT_LABELS = 'content_labels', // Twitch only
   FOLLOW_INFO = 'follow_info', // Twitch only (follow age lookups)
+  BROADCASTER_ABOUT = 'broadcaster_about', // Twitch only (channel bio/description lookups)
 }

@@ -18,7 +18,8 @@ export class GameCommand implements ICommand {
   readonly description = 'Show or set the stream game/category';
   readonly usage = '!game [game name]';
   readonly permissions = [PermissionLevel.VIEWER];
-  readonly cooldown = 0;
+  /** Per-viewer, to keep a Helix-backed read off the rate limit. Throttles the viewer-readable branch; moderators are exempt, so !game <name> stays responsive. */
+  readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.SET_GAME];
 
   private streamControl: StreamControlService;

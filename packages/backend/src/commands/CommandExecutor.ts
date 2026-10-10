@@ -1,10 +1,11 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
-import { hasPermission } from '@turingmod/shared';
+import { hasPermission, PermissionLevel } from '@turingmod/shared';
 import type { EventBus } from '../core/EventBus.js';
 import type { CommandHistoryRepository } from '../database/repositories/CommandHistoryRepository.js';
 import type { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import type { Logger } from '../utils/Logger.js';
 import type { CommandRegistry } from './CommandRegistry.js';
+import type { ICommand } from './interfaces/ICommand.js';
 
 /**
  * Cooldown tracker
@@ -88,8 +89,8 @@ export class CommandExecutor {
       return result;
     }
 
-    // Check cooldown (skip for simulations)
-    if (!context.isSimulation && command.cooldown > 0) {
+    // Check cooldown
+    if (this.cooldownApplies(command, context)) {
       const cooldownKey = `${user.id}:${commandName}`;
       const cooldownEntry = this.cooldowns.get(cooldownKey);
 
@@ -129,8 +130,8 @@ export class CommandExecutor {
     try {
       const result = await command.execute(context);
 
-      // Set cooldown (skip for simulations)
-      if (!context.isSimulation && command.cooldown > 0) {
+      // Set cooldown
+      if (this.cooldownApplies(command, context)) {
         const cooldownKey = `${user.id}:${commandName}`;
         this.cooldowns.set(cooldownKey, {
           userId: user.id,
@@ -203,6 +204,21 @@ export class CommandExecutor {
     } catch (error) {
       this.logger.error('Failed to log command execution', error);
     }
+  }
+
+  /**
+   * Whether `command`'s cooldown applies to this invocation.
+   *
+   * Moderators and above are exempt. Cooldowns exist to stop a viewer spamming the API-backed
+   * read commands, and several of those expose a moderator-only write branch under the same
+   * name (!game, !tags, !cw) — a shared cooldown would block a mod correcting a typo. Checked
+   * at both the read and the write of the cooldown map so the two can't diverge.
+   */
+  private cooldownApplies(command: ICommand, context: CommandContext): boolean {
+    if (context.isSimulation || command.cooldown <= 0) {
+      return false;
+    }
+    return !hasPermission(context.user.permissionLevel, PermissionLevel.MODERATOR);
   }
 
   /**

@@ -1,7 +1,14 @@
-import { Platform, PlatformCapability } from '@turingmod/shared';
+import { IntegrationStatus, Platform, PlatformCapability } from '@turingmod/shared';
 import type { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
-import type { IStreamPlatform, StreamInfo } from './interfaces/IStreamPlatform.js';
+import { unavailableReason } from './availability.js';
+import { NotAuthenticatedError } from './errors.js';
+import type {
+  AdBreakInfo,
+  IStreamPlatform,
+  ScheduleSegment,
+  StreamInfo,
+} from './interfaces/IStreamPlatform.js';
 
 /**
  * IStreamPlatform façade over the Twitch integration trio. Resolves the broadcaster id from
@@ -27,11 +34,24 @@ export class TwitchPlatform implements IStreamPlatform {
       PlatformCapability.SCHEDULE,
       PlatformCapability.CONTENT_LABELS,
       PlatformCapability.FOLLOW_INFO,
+      PlatformCapability.BROADCASTER_ABOUT,
     ]);
   }
 
+  getUnavailableReason(): string | null {
+    const reason = unavailableReason(this.auth, this.platform);
+    if (reason) {
+      return reason;
+    }
+    // Connected but without a broadcaster id is not a state start() leaves behind; treat it
+    // as unusable rather than letting a later call fail with a vaguer error.
+    return this.auth.getAuthenticatedUserId() ? null : 'Twitch broadcaster id unavailable';
+  }
+
   async isLive(): Promise<boolean> {
-    const userId = this.auth.getAuthenticatedUserId();
+    // Defined to answer false rather than throw, so StreamControlService can skip an
+    // unauthenticated platform while mirroring instead of recording it as a failure.
+    const userId = this.authenticatedUserId();
     if (!userId) {
       return false;
     }
@@ -82,7 +102,8 @@ export class TwitchPlatform implements IStreamPlatform {
   }
 
   async getUptime(): Promise<number | null> {
-    const userId = this.auth.getAuthenticatedUserId();
+    // Null rather than a throw: "not authenticated" and "offline" are the same answer here.
+    const userId = this.authenticatedUserId();
     if (!userId) {
       return null;
     }
@@ -93,11 +114,81 @@ export class TwitchPlatform implements IStreamPlatform {
     return Date.now() - stream.startDate.getTime();
   }
 
-  private requireUserId(): string {
-    const userId = this.auth.getAuthenticatedUserId();
-    if (!userId) {
-      throw new Error('Not authenticated with Twitch');
+  async getNextAdBreak(): Promise<AdBreakInfo | null> {
+    const userId = this.requireUserId();
+    const stream = await this.api.getStream(userId);
+    if (!stream) {
+      return null;
     }
-    return userId;
+    const adSchedule = await this.api.getAdSchedule(userId);
+    return { nextAdDate: adSchedule?.nextAdDate ?? null };
+  }
+
+  async getSchedule(): Promise<ScheduleSegment[]> {
+    const userId = this.requireUserId();
+    const schedule = await this.api.getSchedule(userId);
+    const segments = schedule?.data?.segments ?? [];
+
+    return segments.map((segment) => {
+      const mapped: ScheduleSegment = { startDate: segment.startDate };
+      if (segment.title) {
+        mapped.title = segment.title;
+      }
+      if (segment.categoryName) {
+        mapped.category = segment.categoryName;
+      }
+      return mapped;
+    });
+  }
+
+  async getContentLabels(): Promise<string[]> {
+    const userId = this.requireUserId();
+    const channel = await this.api.getChannel(userId);
+    if (!channel) {
+      throw new Error('Failed to retrieve channel information');
+    }
+    return channel.contentClassificationLabels ?? [];
+  }
+
+  async setContentLabels(labels: string[]): Promise<void> {
+    const userId = this.requireUserId();
+    await this.api.setContentClassificationLabels(userId, labels);
+  }
+
+  async getBroadcasterAbout(): Promise<string | null> {
+    const userId = this.requireUserId();
+    const user = await this.api.getUserById(userId);
+    const description = user?.description?.trim();
+    return description ? description : null;
+  }
+
+  /**
+   * The broadcaster id, but only while auth is actually usable. Keyed on the integration's
+   * status rather than the id alone: the id outlives a stop(), so a non-null id on its own
+   * doesn't prove the API client behind it still exists.
+   */
+  private authenticatedUserId(): string | null {
+    if (this.auth.getStatus() !== IntegrationStatus.CONNECTED) {
+      return null;
+    }
+    return this.auth.getAuthenticatedUserId();
+  }
+
+  /**
+   * Resolve the broadcaster id or explain why Twitch is unusable. Token expiry never lands
+   * here — the RefreshingAuthProvider renews in the background and only downgrades the
+   * integration's status once a refresh has definitively failed.
+   */
+  private requireUserId(): string {
+    const userId = this.authenticatedUserId();
+    if (userId) {
+      return userId;
+    }
+
+    throw new NotAuthenticatedError(
+      Platform.TWITCH,
+      this.auth.getStatus() === IntegrationStatus.NEEDS_REAUTH,
+      this.getUnavailableReason() ?? 'Not connected to Twitch'
+    );
   }
 }

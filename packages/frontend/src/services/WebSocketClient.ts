@@ -1,4 +1,4 @@
-import type { ErrorPayload, IWebSocketMessage } from '@turingmod/shared';
+import { createErrorMessage, type ErrorPayload, type IWebSocketMessage } from '@turingmod/shared';
 
 /**
  * WebSocket event types
@@ -72,6 +72,8 @@ export class WebSocketClient {
         this.isConnecting = false;
         console.log('[WebSocket] Disconnected', event.code, event.reason);
 
+        this.handleConnectionLoss('Connection closed');
+
         // Emit close event
         this.emit('close', event);
       };
@@ -117,6 +119,7 @@ export class WebSocketClient {
       this.ws.close();
       this.ws = null;
     }
+    this.handleConnectionLoss('Connection closed');
   }
 
   /**
@@ -203,6 +206,27 @@ export class WebSocketClient {
           console.error(`[WebSocket] Event handler error (${event})`, error);
         }
       }
+    }
+  }
+
+  /**
+   * Reject all in-flight requests and drop queued messages. Called on both an
+   * explicit disconnect() and the socket's close event, so pending callers fail
+   * fast instead of waiting out their timeout.
+   */
+  private handleConnectionLoss(reason: string): void {
+    if (this.messageHandlers.size > 0) {
+      console.log('[WebSocket] Rejecting pending requests', this.messageHandlers.size, reason);
+      const pending = Array.from(this.messageHandlers.entries());
+      this.messageHandlers.clear();
+      for (const [id, handler] of pending) {
+        handler(createErrorMessage('CONNECTION_CLOSED', reason, id));
+      }
+    }
+
+    if (this.messageQueue.length > 0) {
+      console.log('[WebSocket] Dropping queued messages', this.messageQueue.length, reason);
+      this.messageQueue = [];
     }
   }
 

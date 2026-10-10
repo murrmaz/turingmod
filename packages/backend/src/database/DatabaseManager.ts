@@ -1,24 +1,21 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import initSqlJs, { type Database, type SqlValue } from 'sql.js';
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 
-export type { SqlValue } from 'sql.js';
+export type SqlValue = SQLInputValue;
 
 import type { Logger } from '../utils/Logger.js';
 
 /**
- * Database Manager for sql.js
- * Manages SQLite database connection and persistence
+ * Database Manager for node:sqlite
+ * Manages SQLite database connection; every write commits durably to the file as it happens,
+ * so there is no in-memory/on-disk divergence to flush or lose on crash.
  */
 export class DatabaseManager {
-  private db: Database | null = null;
+  private db: DatabaseSync | null = null;
   private dbPath: string;
   private logger: Logger;
-  private saveInterval: NodeJS.Timeout | null = null;
-  private isDirty = false;
-  /** Chain all saves through this so the auto-save timer and close() never write concurrently. */
-  private savePromise: Promise<void> = Promise.resolve();
 
   constructor(dbPath: string, logger: Logger) {
     this.dbPath = dbPath;
@@ -27,37 +24,25 @@ export class DatabaseManager {
 
   /**
    * Initialize the database
-   * Loads from file if exists, creates new if not
+   * Opens the file if it exists, creates a new one if not
    */
   async initialize(): Promise<void> {
     this.logger.info('Initializing database', { path: this.dbPath });
 
-    const sql = await initSqlJs();
-
-    // Check if database file exists
-    if (existsSync(this.dbPath)) {
-      // Load existing database
-      this.logger.info('Loading existing database');
-      const buffer = await readFile(this.dbPath);
-      this.db = new sql.Database(buffer);
-    } else {
-      // Create new database
+    const isNew = !existsSync(this.dbPath);
+    if (isNew) {
       this.logger.info('Creating new database');
 
-      // Ensure directory exists
       const dir = dirname(this.dbPath);
       if (!existsSync(dir)) {
         await mkdir(dir, { recursive: true });
       }
-
-      this.db = new sql.Database();
-
-      // Save initial empty database
-      await this.save();
+    } else {
+      this.logger.info('Loading existing database');
     }
 
-    // Start auto-save interval (every 5 seconds if dirty)
-    this.startAutoSave();
+    this.db = new DatabaseSync(this.dbPath);
+    this.db.exec('PRAGMA journal_mode = WAL');
 
     this.logger.info('Database initialized successfully');
   }
@@ -65,7 +50,7 @@ export class DatabaseManager {
   /**
    * Get the database connection
    */
-  getConnection(): Database {
+  getConnection(): DatabaseSync {
     if (!this.db) {
       throw new Error('Database not initialized. Call initialize() first.');
     }
@@ -78,7 +63,6 @@ export class DatabaseManager {
   exec(sql: string): void {
     const db = this.getConnection();
     db.exec(sql);
-    this.isDirty = true;
   }
 
   /**
@@ -87,24 +71,16 @@ export class DatabaseManager {
   query<T = unknown>(sql: string, params: SqlValue[] = []): T[] {
     const db = this.getConnection();
     const stmt = db.prepare(sql);
-    stmt.bind(params);
-
-    const results: T[] = [];
-    while (stmt.step()) {
-      const row = stmt.getAsObject();
-      results.push(row as T);
-    }
-    stmt.free();
-
-    return results;
+    return stmt.all(...params) as T[];
   }
 
   /**
    * Run a query and return first result
    */
   queryOne<T = unknown>(sql: string, params: SqlValue[] = []): T | null {
-    const results = this.query<T>(sql, params);
-    return results[0] ?? null;
+    const db = this.getConnection();
+    const stmt = db.prepare(sql);
+    return (stmt.get(...params) as T | undefined) ?? null;
   }
 
   /**
@@ -112,15 +88,13 @@ export class DatabaseManager {
    */
   run(sql: string, params: SqlValue[] = []): { changes: number; lastInsertRowid: number } {
     const db = this.getConnection();
-    db.run(sql, params);
-    this.isDirty = true;
+    const stmt = db.prepare(sql);
+    const result = stmt.run(...params);
 
-    // Get changes and last insert rowid
-    const changes = db.getRowsModified();
-    const lastInsertRowid =
-      this.queryOne<{ id: number }>('SELECT last_insert_rowid() as id')?.id ?? 0;
-
-    return { changes, lastInsertRowid };
+    return {
+      changes: Number(result.changes),
+      lastInsertRowid: Number(result.lastInsertRowid),
+    };
   }
 
   /**
@@ -160,79 +134,11 @@ export class DatabaseManager {
   }
 
   /**
-   * Save database to file. Queued behind any in-flight save so concurrent callers (the
-   * auto-save timer and close()) never write to dbPath at the same time.
-   */
-  save(): Promise<void> {
-    const nextSave = this.savePromise.then(
-      () => this.performSave(),
-      () => this.performSave()
-    );
-    this.savePromise = nextSave;
-    return nextSave;
-  }
-
-  private async performSave(): Promise<void> {
-    if (!this.db) {
-      return;
-    }
-
-    // Clear the flag before export/write (not after) so a mutation that lands while
-    // writeFile() is in flight re-dirties the DB instead of being silently lost.
-    this.isDirty = false;
-
-    try {
-      const data = this.db.export();
-      const buffer = Buffer.from(data);
-      await writeFile(this.dbPath, buffer);
-      this.logger.debug('Database saved to disk');
-    } catch (error) {
-      this.isDirty = true;
-      this.logger.error('Failed to save database', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Start auto-save interval
-   */
-  private startAutoSave(): void {
-    this.saveInterval = setInterval(async () => {
-      if (this.isDirty) {
-        try {
-          await this.save();
-        } catch (error) {
-          this.logger.error('Auto-save failed', error);
-        }
-      }
-    }, 5000); // Save every 5 seconds if dirty
-  }
-
-  /**
-   * Stop auto-save interval
-   */
-  private stopAutoSave(): void {
-    if (this.saveInterval) {
-      clearInterval(this.saveInterval);
-      this.saveInterval = null;
-    }
-  }
-
-  /**
    * Close the database connection
    */
-  async close(): Promise<void> {
+  close(): void {
     this.logger.info('Closing database');
 
-    // Stop auto-save
-    this.stopAutoSave();
-
-    // Final save
-    if (this.isDirty) {
-      await this.save();
-    }
-
-    // Close database
     if (this.db) {
       this.db.close();
       this.db = null;

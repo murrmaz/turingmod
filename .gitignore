@@ -53,6 +53,7 @@ desktop.ini
 
 # Artificial Intelligence
 .claude/
+docs/ARCHITECTURE_REVIEW.md
 
 # Linters
 .biome/

@@ -23,7 +23,7 @@ npm run type-check         # TypeScript type checking across all workspaces
 
 ```
 
-Vitest is configured in the backend workspace (`npm test --workspace @turingmod/backend`); tests live beside their subjects as `*.test.ts`. Type checking (`npm run type-check`) remains the primary verification step, since coverage is partial.
+Vitest is configured in both the backend and frontend workspaces (`npm test --workspace @turingmod/backend`, `npm test --workspace @turingmod/frontend`); tests live beside their subjects as `*.test.ts`. Type checking (`npm run type-check`) remains the primary verification step, since coverage is partial.
 
 ## Quick Reference: File Locations
 
@@ -122,7 +122,7 @@ All messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/me
 
 ### Database
 
-sql.js (WASM SQLite, no native compilation). `DatabaseManager` handles auto-save every 5 seconds if dirty. Access via repository pattern: `UserRepository`, `CommandHistoryRepository`, `IntegrationStateRepository`. Integration configs are encrypted with AES-256-GCM before storage.
+`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `UserRepository`, `CommandHistoryRepository`, `IntegrationStateRepository`. Integration configs are encrypted with AES-256-GCM before storage.
 
 ### Platform Provider Layer
 

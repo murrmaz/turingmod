@@ -199,7 +199,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
   }
 
   start(): Promise<void> {
-    this.logger.info('Starting YouTube Chat integration');
+    this.logger.debug('Starting YouTube Chat integration');
     this.setStatus(IntegrationStatus.CONNECTING);
 
     if (!this.authIntegration.getAuthClient()) {
@@ -209,13 +209,13 @@ export class YouTubeChatIntegration extends BaseIntegration {
     this.running = true;
     this.subscribeToGoLiveSignals();
     this.setStatus(IntegrationStatus.CONNECTED);
-    this.logger.info('YouTube Chat integration started; idle until a go-live signal');
+    this.logger.debug('YouTube Chat integration started; idle until a go-live signal');
 
     return Promise.resolve();
   }
 
   stop(): Promise<void> {
-    this.logger.info('Stopping YouTube Chat integration');
+    this.logger.debug('Stopping YouTube Chat integration');
 
     this.running = false;
     this.unsubscribeObs?.();
@@ -224,7 +224,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
     this.chatStream.close();
     this.setStatus(IntegrationStatus.DISCONNECTED);
 
-    this.logger.info('YouTube Chat integration stopped');
+    this.logger.debug('YouTube Chat integration stopped');
     return Promise.resolve();
   }
 

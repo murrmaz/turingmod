@@ -33,7 +33,7 @@ export class WebSocketServer {
    * Start the WebSocket server attached to HTTP server
    */
   start(httpServer: HttpServer): void {
-    this.logger.info('Starting WebSocket server', { allowedOrigins: this.allowedOrigins });
+    this.logger.debug('Starting WebSocket server', { allowedOrigins: this.allowedOrigins });
 
     this.wss = new WSServer({
       server: httpServer,
@@ -63,7 +63,7 @@ export class WebSocketServer {
     const clientId = crypto.randomUUID();
     this.clients.set(clientId, ws);
 
-    this.logger.info('Client connected', { clientId, total: this.clients.size });
+    this.logger.debug('Client connected', { clientId, total: this.clients.size });
 
     // Set up event handlers
     ws.on('message', (data: Buffer) => {
@@ -128,7 +128,7 @@ export class WebSocketServer {
    */
   private handleDisconnection(clientId: string): void {
     this.clients.delete(clientId);
-    this.logger.info('Client disconnected', { clientId, total: this.clients.size });
+    this.logger.debug('Client disconnected', { clientId, total: this.clients.size });
   }
 
   /**

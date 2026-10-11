@@ -22,20 +22,20 @@ export class ArduinoIntegration extends BaseIntegration {
   }
 
   initialize(_config: Record<string, unknown>): Promise<void> {
-    this.logger.info('Arduino integration initialized (placeholder)');
+    this.logger.debug('Arduino integration initialized (placeholder)');
     // TODO: Initialize serial port connection
     return Promise.resolve();
   }
 
   start(): Promise<void> {
-    this.logger.info('Arduino integration started (placeholder)');
+    this.logger.debug('Arduino integration started (placeholder)');
     this.setStatus(IntegrationStatus.CONNECTED);
     // TODO: Open serial port
     return Promise.resolve();
   }
 
   stop(): Promise<void> {
-    this.logger.info('Arduino integration stopped');
+    this.logger.debug('Arduino integration stopped');
     this.setStatus(IntegrationStatus.DISCONNECTED);
     return Promise.resolve();
   }

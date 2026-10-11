@@ -33,7 +33,7 @@ export class HttpServer {
    * Start the HTTP server
    */
   async start(): Promise<void> {
-    this.logger.info('Starting HTTP server', {
+    this.logger.debug('Starting HTTP server', {
       host: this.host,
       port: this.port,
       frontendPath: this.frontendDistPath,

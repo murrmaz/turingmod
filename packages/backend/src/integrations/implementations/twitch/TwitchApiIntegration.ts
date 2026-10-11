@@ -86,7 +86,7 @@ export class TwitchApiIntegration extends BaseIntegration {
   }
 
   start(): Promise<void> {
-    this.logger.info('Starting Twitch API integration');
+    this.logger.debug('Starting Twitch API integration');
     this.setStatus(IntegrationStatus.CONNECTING);
 
     try {
@@ -111,7 +111,7 @@ export class TwitchApiIntegration extends BaseIntegration {
   }
 
   stop(): Promise<void> {
-    this.logger.info('Stopping Twitch API integration');
+    this.logger.debug('Stopping Twitch API integration');
 
     this.apiClient = null;
     this.authProvider = null;
@@ -119,7 +119,7 @@ export class TwitchApiIntegration extends BaseIntegration {
     this.lastShoutoutTimestamp = 0;
     this.setStatus(IntegrationStatus.DISCONNECTED);
 
-    this.logger.info('Twitch API integration stopped');
+    this.logger.debug('Twitch API integration stopped');
     return Promise.resolve();
   }
 

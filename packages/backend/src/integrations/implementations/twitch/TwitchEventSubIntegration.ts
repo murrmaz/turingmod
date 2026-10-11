@@ -93,7 +93,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   }
 
   async start(): Promise<void> {
-    this.logger.info('Starting Twitch EventSub integration');
+    this.logger.debug('Starting Twitch EventSub integration');
     this.setStatus(IntegrationStatus.CONNECTING);
 
     try {
@@ -181,7 +181,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   }
 
   async stop(): Promise<void> {
-    this.logger.info('Stopping Twitch EventSub integration');
+    this.logger.debug('Stopping Twitch EventSub integration');
 
     if (this.eventSubListener) {
       await this.eventSubListener.stop();
@@ -193,7 +193,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
     this.broadcasterId = null;
     this.setStatus(IntegrationStatus.DISCONNECTED);
 
-    this.logger.info('Twitch EventSub integration stopped');
+    this.logger.debug('Twitch EventSub integration stopped');
   }
 
   /**

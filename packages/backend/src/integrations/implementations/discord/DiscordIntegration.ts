@@ -22,20 +22,20 @@ export class DiscordIntegration extends BaseIntegration {
   }
 
   initialize(_config: Record<string, unknown>): Promise<void> {
-    this.logger.info('Discord integration initialized (placeholder)');
+    this.logger.debug('Discord integration initialized (placeholder)');
     // TODO: Initialize Discord client
     return Promise.resolve();
   }
 
   start(): Promise<void> {
-    this.logger.info('Discord integration started (placeholder)');
+    this.logger.debug('Discord integration started (placeholder)');
     this.setStatus(IntegrationStatus.CONNECTED);
     // TODO: Connect to Discord
     return Promise.resolve();
   }
 
   stop(): Promise<void> {
-    this.logger.info('Discord integration stopped');
+    this.logger.debug('Discord integration stopped');
     this.setStatus(IntegrationStatus.DISCONNECTED);
     return Promise.resolve();
   }

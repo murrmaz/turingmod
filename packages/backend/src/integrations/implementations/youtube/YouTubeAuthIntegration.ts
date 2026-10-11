@@ -93,7 +93,7 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
       throw new Error('Integration not initialized. Call initialize() first.');
     }
 
-    this.logger.info('Starting YouTube Auth integration');
+    this.logger.debug('Starting YouTube Auth integration');
     this.setStatus(IntegrationStatus.CONNECTING);
 
     // Check if we have tokens
@@ -124,12 +124,12 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
   }
 
   stop(): Promise<void> {
-    this.logger.info('Stopping YouTube Auth integration');
+    this.logger.debug('Stopping YouTube Auth integration');
 
     this.oauth2Client = null;
     this.setStatus(IntegrationStatus.DISCONNECTED);
 
-    this.logger.info('YouTube Auth integration stopped');
+    this.logger.debug('YouTube Auth integration stopped');
     return Promise.resolve();
   }
 

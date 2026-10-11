@@ -61,12 +61,12 @@ export class SpotifyApiIntegration extends BaseIntegration {
   }
 
   initialize(_config: Record<string, unknown>): Promise<void> {
-    this.logger.info('Spotify API integration initialized (no config needed)');
+    this.logger.debug('Spotify API integration initialized (no config needed)');
     return Promise.resolve();
   }
 
   start(): Promise<void> {
-    this.logger.info('Starting Spotify API integration');
+    this.logger.debug('Starting Spotify API integration');
     this.setStatus(IntegrationStatus.CONNECTING);
 
     try {
@@ -77,7 +77,7 @@ export class SpotifyApiIntegration extends BaseIntegration {
       }
 
       this.setStatus(IntegrationStatus.CONNECTED);
-      this.logger.info('Spotify API integration started successfully');
+      this.logger.debug('Spotify API integration started successfully');
 
       return Promise.resolve();
     } catch (error) {
@@ -91,13 +91,13 @@ export class SpotifyApiIntegration extends BaseIntegration {
   }
 
   stop(): Promise<void> {
-    this.logger.info('Stopping Spotify API integration');
+    this.logger.debug('Stopping Spotify API integration');
 
     this.sdk = null;
     this.sdkCredentials = null;
     this.setStatus(IntegrationStatus.DISCONNECTED);
 
-    this.logger.info('Spotify API integration stopped');
+    this.logger.debug('Spotify API integration stopped');
     return Promise.resolve();
   }
 

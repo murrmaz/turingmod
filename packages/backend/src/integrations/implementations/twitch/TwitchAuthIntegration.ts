@@ -98,7 +98,7 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
       throw new Error('Integration not initialized. Call initialize() first.');
     }
 
-    this.logger.info('Starting Twitch Auth integration');
+    this.logger.debug('Starting Twitch Auth integration');
     this.setStatus(IntegrationStatus.CONNECTING);
 
     try {
@@ -195,7 +195,7 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
   }
 
   stop(): Promise<void> {
-    this.logger.info('Stopping Twitch Auth integration');
+    this.logger.debug('Stopping Twitch Auth integration');
 
     this.unsubscribeAuthorizationRevoked?.();
     this.unsubscribeAuthorizationRevoked = null;
@@ -206,7 +206,7 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
     this.userId = null;
     this.setStatus(IntegrationStatus.DISCONNECTED);
 
-    this.logger.info('Twitch Auth integration stopped');
+    this.logger.debug('Twitch Auth integration stopped');
     return Promise.resolve();
   }
 

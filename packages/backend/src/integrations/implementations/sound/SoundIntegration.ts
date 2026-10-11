@@ -59,7 +59,7 @@ export class SoundIntegration extends BaseIntegration {
         this.setStatus(IntegrationStatus.ERROR, errorMessage);
         throw new Error(errorMessage);
       }
-      this.logger.info('Resolved Linux audio player', { command: this.linuxPlayerCommand });
+      this.logger.debug('Resolved Linux audio player', { command: this.linuxPlayerCommand });
     }
 
     this.unsubscribe = this.eventBus.on<SoundPlayEvent>('sound.play', (data) => {
@@ -67,7 +67,7 @@ export class SoundIntegration extends BaseIntegration {
     });
 
     this.setStatus(IntegrationStatus.CONNECTED);
-    this.logger.info('Sound integration started');
+    this.logger.debug('Sound integration started');
   }
 
   stop(): Promise<void> {
@@ -77,7 +77,7 @@ export class SoundIntegration extends BaseIntegration {
     }
 
     this.setStatus(IntegrationStatus.DISCONNECTED);
-    this.logger.info('Sound integration stopped');
+    this.logger.debug('Sound integration stopped');
     return Promise.resolve();
   }
 

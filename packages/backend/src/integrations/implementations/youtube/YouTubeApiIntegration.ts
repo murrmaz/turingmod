@@ -77,7 +77,7 @@ export class YouTubeApiIntegration extends BaseIntegration {
   }
 
   start(): Promise<void> {
-    this.logger.info('Starting YouTube API integration');
+    this.logger.debug('Starting YouTube API integration');
     this.setStatus(IntegrationStatus.CONNECTING);
 
     try {
@@ -87,7 +87,7 @@ export class YouTubeApiIntegration extends BaseIntegration {
       }
 
       this.setStatus(IntegrationStatus.CONNECTED);
-      this.logger.info('YouTube API integration started successfully');
+      this.logger.debug('YouTube API integration started successfully');
 
       return Promise.resolve();
     } catch (error) {
@@ -101,13 +101,13 @@ export class YouTubeApiIntegration extends BaseIntegration {
   }
 
   stop(): Promise<void> {
-    this.logger.info('Stopping YouTube API integration');
+    this.logger.debug('Stopping YouTube API integration');
 
     this.youtube = null;
     this.authClient = null;
     this.setStatus(IntegrationStatus.DISCONNECTED);
 
-    this.logger.info('YouTube API integration stopped');
+    this.logger.debug('YouTube API integration stopped');
     return Promise.resolve();
   }
 

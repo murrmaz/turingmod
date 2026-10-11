@@ -16,7 +16,7 @@ async function main(): Promise<void> {
   const logger = container.resolve(Logger);
 
   logger.info('========================================');
-  logger.info('  TuringMod - Twitch Streamer Tool  ');
+  logger.info('               TuringMod                ');
   logger.info('========================================');
 
   // Open the database and run migrations first — the Encryption singleton reads its salt from

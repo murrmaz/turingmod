@@ -73,12 +73,12 @@ export class ObsIntegration extends BaseIntegration {
       password: config.password as string | undefined,
     };
 
-    this.logger.info('OBS integration initialized', { url: this.config.url });
+    this.logger.debug('OBS integration initialized', { url: this.config.url });
     return Promise.resolve();
   }
 
   async start(): Promise<void> {
-    this.logger.info('Starting OBS integration');
+    this.logger.debug('Starting OBS integration');
     this.setStatus(IntegrationStatus.CONNECTING);
 
     try {
@@ -87,7 +87,7 @@ export class ObsIntegration extends BaseIntegration {
       this.subscribeToObsEvents();
 
       this.setStatus(IntegrationStatus.CONNECTED);
-      this.logger.info('OBS integration started successfully');
+      this.logger.debug('OBS integration started successfully');
     } catch (error) {
       this.logger.error('Failed to connect to OBS', error);
       this.setStatus(
@@ -99,13 +99,13 @@ export class ObsIntegration extends BaseIntegration {
   }
 
   async stop(): Promise<void> {
-    this.logger.info('Stopping OBS integration');
+    this.logger.debug('Stopping OBS integration');
 
     this.obs.removeAllListeners();
     await this.obs.disconnect();
 
     this.setStatus(IntegrationStatus.DISCONNECTED);
-    this.logger.info('OBS integration stopped');
+    this.logger.debug('OBS integration stopped');
   }
 
   /**

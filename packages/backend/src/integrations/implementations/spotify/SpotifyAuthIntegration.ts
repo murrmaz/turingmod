@@ -92,7 +92,7 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
       throw new Error('Integration not initialized. Call initialize() first.');
     }
 
-    this.logger.info('Starting Spotify Auth integration');
+    this.logger.debug('Starting Spotify Auth integration');
     this.setStatus(IntegrationStatus.CONNECTING);
 
     // Check if we have tokens
@@ -108,17 +108,17 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
     }
 
     this.setStatus(IntegrationStatus.CONNECTED);
-    this.logger.info('Spotify Auth integration started successfully');
+    this.logger.debug('Spotify Auth integration started successfully');
 
     return Promise.resolve();
   }
 
   stop(): Promise<void> {
-    this.logger.info('Stopping Spotify Auth integration');
+    this.logger.debug('Stopping Spotify Auth integration');
 
     this.setStatus(IntegrationStatus.DISCONNECTED);
 
-    this.logger.info('Spotify Auth integration stopped');
+    this.logger.debug('Spotify Auth integration stopped');
     return Promise.resolve();
   }
 

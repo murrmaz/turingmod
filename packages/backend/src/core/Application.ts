@@ -79,7 +79,7 @@ export class Application {
     this.eventBus.on<{ name: string; status: IntegrationStatus; lastConnected?: number }>(
       'integration:status',
       (data) => {
-        this.logger.info('Integration status changed', data);
+        this.logger.debug('Integration status changed', data);
 
         // Get full integration info with metadata from IntegrationManager
         const integrationInfo = this.integrationManager.getStatus(data.name);

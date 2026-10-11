@@ -299,7 +299,7 @@ export class IntegrationManager {
       throw new Error(`Integration not found: ${name}`);
     }
 
-    this.logger.info(`Stopping integration: ${name}`);
+    this.logger.debug(`Stopping integration: ${name}`);
 
     try {
       await integration.stop();

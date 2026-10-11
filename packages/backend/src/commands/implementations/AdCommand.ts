@@ -1,9 +1,9 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
-import type { Container } from '../../core/Container.js';
-import type { StreamControlService } from '../../platforms/StreamControlService.js';
+import { injectable } from 'tsyringe';
+import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { formatDuration } from '../../utils/FormatHelpers.js';
-import type { Logger } from '../../utils/Logger.js';
+import { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
 
@@ -11,6 +11,7 @@ import { toCommandError } from '../utils/commandErrors.js';
  * !ad command
  * Shows time until the next ad break on the platform the command came from.
  */
+@injectable()
 export class AdCommand implements ICommand {
   readonly name = 'ad';
   readonly description = 'Show time until next ad break';
@@ -20,12 +21,13 @@ export class AdCommand implements ICommand {
   readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.ADS];
 
-  private streamControl: StreamControlService;
   private logger: Logger;
 
-  constructor(container: Container) {
-    this.streamControl = container.resolve<StreamControlService>('StreamControlService');
-    this.logger = container.resolve<Logger>('Logger').child({ command: 'ad' });
+  constructor(
+    private streamControl: StreamControlService,
+    logger: Logger
+  ) {
+    this.logger = logger.child({ command: 'ad' });
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {

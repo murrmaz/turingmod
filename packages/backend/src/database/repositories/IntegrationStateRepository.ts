@@ -1,7 +1,8 @@
 import type { IntegrationConfig } from '@turingmod/shared';
 import { IntegrationStatus } from '@turingmod/shared';
-import type { Encryption } from '../../utils/Encryption.js';
-import type { DatabaseManager } from '../DatabaseManager.js';
+import { injectable, singleton } from 'tsyringe';
+import { Encryption } from '../../utils/Encryption.js';
+import { DatabaseManager } from '../DatabaseManager.js';
 
 /**
  * Database row structure for integration_state table
@@ -22,6 +23,8 @@ interface IntegrationStateRow {
  * Integration state repository
  * Manages integration configurations with encrypted storage
  */
+@injectable()
+@singleton()
 export class IntegrationStateRepository {
   constructor(
     private db: DatabaseManager,

@@ -119,7 +119,7 @@ describe('YouTubeChatIntegration', () => {
 
   beforeEach(async () => {
     vi.useFakeTimers();
-    eventBus = new EventBus(new Logger({ level: 'silent' }), { component: 'EventBus' });
+    eventBus = new EventBus(new Logger({ level: 'silent' }));
     call = new FakeCall();
 
     // Each open must yield a fresh call — reusing one object would stack listeners across

@@ -2,14 +2,15 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
-import type { Container } from '../../core/Container.js';
-import type { EventBus } from '../../core/EventBus.js';
+import { injectable } from 'tsyringe';
+import { EventBus } from '../../core/EventBus.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 
 /**
  * Example command: !bonk
  * Bonks a user (playful command for demonstration)
  */
+@injectable()
 export class BonkCommand implements ICommand {
   readonly name = 'bonk';
   readonly description = 'Bonk a user (playful command)';
@@ -20,11 +21,9 @@ export class BonkCommand implements ICommand {
   readonly requiredCapabilities: PlatformCapability[] = [];
 
   private bonkCounts = new Map<string, number>();
-  private eventBus: EventBus;
   private bonkSoundPath: string;
 
-  constructor(container: Container) {
-    this.eventBus = container.resolve<EventBus>('EventBus');
+  constructor(private eventBus: EventBus) {
     const dirname = fileURLToPath(new URL('.', import.meta.url));
     this.bonkSoundPath = join(dirname, '..', '..', '..', 'data', 'bonk.mp3');
   }

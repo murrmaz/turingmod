@@ -7,10 +7,11 @@ import type {
 import { ApiClient } from '@twurple/api';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import { CachedRefreshFailureError, type RefreshingAuthProvider } from '@twurple/auth';
-import type { EventBus } from '../../../core/EventBus.js';
-import type { Logger } from '../../../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { EventBus } from '../../../core/EventBus.js';
+import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
-import type { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
+import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
 /**
  * Twitch API Configuration
@@ -38,6 +39,8 @@ export interface ShoutoutResult {
  *
  * Depends on: TwitchAuthIntegration
  */
+@injectable()
+@singleton()
 export class TwitchApiIntegration extends BaseIntegration {
   readonly name = 'twitch-api';
   readonly version = '1.0.0';

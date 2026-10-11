@@ -1,6 +1,7 @@
 import type { IWebSocketMessage } from '@turingmod/shared';
 import { MessageType } from '@turingmod/shared';
-import type { Logger } from '../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { Logger } from '../utils/Logger.js';
 
 /**
  * Message handler function type
@@ -14,6 +15,8 @@ type MessageHandler = (
  * Message router
  * Routes WebSocket messages to appropriate handlers
  */
+@injectable()
+@singleton()
 export class MessageRouter {
   private handlers = new Map<MessageType, MessageHandler>();
   private logger: Logger;

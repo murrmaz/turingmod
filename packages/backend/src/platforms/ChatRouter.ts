@@ -1,8 +1,9 @@
 import type { CommandContext, Platform } from '@turingmod/shared';
-import type { CommandExecutor } from '../commands/CommandExecutor.js';
-import type { EventBus } from '../core/EventBus.js';
-import type { Logger } from '../utils/Logger.js';
-import type { PlatformRegistry } from './PlatformRegistry.js';
+import { injectable, singleton } from 'tsyringe';
+import { CommandExecutor } from '../commands/CommandExecutor.js';
+import { EventBus } from '../core/EventBus.js';
+import { Logger } from '../utils/Logger.js';
+import { PlatformRegistry } from './PlatformRegistry.js';
 
 /**
  * Shape of a `chat.command` EventBus event. Emitted identically by every platform's chat
@@ -22,6 +23,8 @@ interface ChatCommandEvent {
  * Executes an incoming `chat.command` and posts the result back to the platform the command
  * originated on.
  */
+@injectable()
+@singleton()
 export class ChatRouter {
   private readonly liveLoopEnabled = true;
 

@@ -1,4 +1,5 @@
-import type { Logger } from '../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { Logger } from '../utils/Logger.js';
 
 /**
  * Event handler function type
@@ -9,12 +10,14 @@ type EventHandler<T = unknown> = (data: T) => void | Promise<void>;
  * Internal event bus for decoupled communication between components
  * Enables loose coupling following the Dependency Inversion Principle
  */
+@injectable()
+@singleton()
 export class EventBus {
   private handlers = new Map<string, Set<EventHandler>>();
   logger: Logger;
 
-  constructor(logger: Logger, loggerContext: Record<string, string>) {
-    this.logger = logger.child(loggerContext);
+  constructor(logger: Logger) {
+    this.logger = logger.child({ component: 'EventBus' });
   }
 
   /**

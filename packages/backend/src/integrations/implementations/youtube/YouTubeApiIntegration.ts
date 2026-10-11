@@ -1,9 +1,10 @@
 import { IntegrationStatus } from '@turingmod/shared';
 import { google, type youtube_v3 } from 'googleapis';
-import type { EventBus } from '../../../core/EventBus.js';
-import type { Logger } from '../../../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { EventBus } from '../../../core/EventBus.js';
+import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
-import type { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
+import { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
 
 /**
  * YouTube API Configuration
@@ -37,6 +38,8 @@ export interface ActiveBroadcast {
  *
  * Depends on: YouTubeAuthIntegration
  */
+@injectable()
+@singleton()
 export class YouTubeApiIntegration extends BaseIntegration {
   readonly name = 'youtube-api';
   readonly version = '1.0.0';

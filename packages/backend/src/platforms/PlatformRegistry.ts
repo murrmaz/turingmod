@@ -1,10 +1,13 @@
 import type { Platform, PlatformCapability } from '@turingmod/shared';
+import { injectable, singleton } from 'tsyringe';
 import type { IStreamPlatform } from './interfaces/IStreamPlatform.js';
 
 /**
  * Registry mapping each Platform to its IStreamPlatform façade. Populated in setup.ts and
  * consulted by StreamControlService, CommandExecutor, and ChatRouter.
  */
+@injectable()
+@singleton()
 export class PlatformRegistry {
   private platforms = new Map<Platform, IStreamPlatform>();
 

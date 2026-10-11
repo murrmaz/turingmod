@@ -1,5 +1,6 @@
 import type { PermissionLevel, Platform, User } from '@turingmod/shared';
-import type { DatabaseManager, SqlValue } from '../DatabaseManager.js';
+import { injectable, singleton } from 'tsyringe';
+import { DatabaseManager, type SqlValue } from '../DatabaseManager.js';
 
 /**
  * Database row structure for users table
@@ -18,6 +19,8 @@ interface UserRow {
  * User repository
  * Manages user data persistence
  */
+@injectable()
+@singleton()
 export class UserRepository {
   constructor(private db: DatabaseManager) {}
 

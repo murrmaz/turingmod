@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
 import { IntegrationStatus } from '@turingmod/shared';
-import type { EventBus } from '../../../core/EventBus.js';
-import type { Logger } from '../../../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { EventBus } from '../../../core/EventBus.js';
+import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 
 interface SoundPlayEvent {
@@ -28,6 +29,8 @@ Start-Sleep -s $player.NaturalDuration.TimeSpan.TotalSeconds
 Exit
 `;
 
+@injectable()
+@singleton()
 export class SoundIntegration extends BaseIntegration {
   readonly name = 'sound';
   readonly version = '1.0.0';

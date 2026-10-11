@@ -8,11 +8,12 @@ import type {
   IWebSocketMessage,
 } from '@turingmod/shared';
 import { createCommandResultMessage, createErrorMessage, MessageType } from '@turingmod/shared';
-import type { CommandExecutor } from '../../commands/CommandExecutor.js';
-import type { CommandRegistry } from '../../commands/CommandRegistry.js';
+import { injectable, singleton } from 'tsyringe';
+import { CommandExecutor } from '../../commands/CommandExecutor.js';
+import { CommandRegistry } from '../../commands/CommandRegistry.js';
 import type { ICommand } from '../../commands/interfaces/ICommand.js';
-import type { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
-import type { Logger } from '../../utils/Logger.js';
+import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
+import { Logger } from '../../utils/Logger.js';
 import {
   isCommandExecutePayload,
   isCommandListRequestPayload,
@@ -23,6 +24,8 @@ import {
  * Command message handler
  * Handles command execution and simulation requests
  */
+@injectable()
+@singleton()
 export class CommandHandler {
   private logger: Logger;
 

@@ -11,9 +11,10 @@ import {
   createOAuthAuthUrlResponseMessage,
   createOAuthExchangeResultMessage,
 } from '@turingmod/shared';
+import { injectable, singleton } from 'tsyringe';
 import { OAuthNotConfiguredError } from '../../integrations/errors.js';
-import type { IntegrationManager } from '../../integrations/IntegrationManager.js';
-import type { Logger } from '../../utils/Logger.js';
+import { IntegrationManager } from '../../integrations/IntegrationManager.js';
+import { Logger } from '../../utils/Logger.js';
 import { isOAuthExchangeCodePayload, isOAuthGetAuthUrlPayload } from '../validation.js';
 
 /**
@@ -22,6 +23,8 @@ import { isOAuthExchangeCodePayload, isOAuthGetAuthUrlPayload } from '../validat
  * a new OAuth-capable provider requires no changes here — only implementing
  * IOAuthIntegration.
  */
+@injectable()
+@singleton()
 export class OAuthHandler {
   private logger: Logger;
 

@@ -5,17 +5,20 @@ import {
   type IntegrationStatus,
   type YouTubeChatState,
 } from '@turingmod/shared';
-import type { DatabaseManager } from '../database/DatabaseManager.js';
-import type { IntegrationManager } from '../integrations/IntegrationManager.js';
-import type { HttpServer } from '../server/HttpServer.js';
-import type { WebSocketServer } from '../server/WebSocketServer.js';
-import type { Logger } from '../utils/Logger.js';
-import type { EventBus } from './EventBus.js';
+import { injectable, singleton } from 'tsyringe';
+import { DatabaseManager } from '../database/DatabaseManager.js';
+import { IntegrationManager } from '../integrations/IntegrationManager.js';
+import { HttpServer } from '../server/HttpServer.js';
+import { WebSocketServer } from '../server/WebSocketServer.js';
+import { Logger } from '../utils/Logger.js';
+import { EventBus } from './EventBus.js';
 
 /**
  * Main application class
  * Orchestrates initialization, startup, and shutdown of all components
  */
+@injectable()
+@singleton()
 export class Application {
   private logger: Logger;
 

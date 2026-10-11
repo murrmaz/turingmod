@@ -1,8 +1,8 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
-import type { Container } from '../../core/Container.js';
-import type { StreamControlService } from '../../platforms/StreamControlService.js';
-import type { Logger } from '../../utils/Logger.js';
+import { injectable } from 'tsyringe';
+import { StreamControlService } from '../../platforms/StreamControlService.js';
+import { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
 
@@ -10,6 +10,7 @@ import { toCommandError } from '../utils/commandErrors.js';
  * !who command
  * Shows the broadcaster's bio/description on the platform the command came from.
  */
+@injectable()
 export class WhoCommand implements ICommand {
   readonly name = 'who';
   readonly description = 'Show the broadcaster bio/description';
@@ -19,12 +20,13 @@ export class WhoCommand implements ICommand {
   readonly cooldown = 60;
   readonly requiredCapabilities = [PlatformCapability.BROADCASTER_ABOUT];
 
-  private streamControl: StreamControlService;
   private logger: Logger;
 
-  constructor(container: Container) {
-    this.streamControl = container.resolve<StreamControlService>('StreamControlService');
-    this.logger = container.resolve<Logger>('Logger').child({ command: 'who' });
+  constructor(
+    private streamControl: StreamControlService,
+    logger: Logger
+  ) {
+    this.logger = logger.child({ command: 'who' });
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {

@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Development (starts both backend + frontend via concurrently)
 npm run dev                # Backend on :8080, Frontend on :3000
-npm run dev:backend        # Backend only (tsx watch)
+npm run dev:backend        # Backend only (tsc --watch + node --watch)
 npm run dev:frontend       # Frontend only (Vite dev server)
 
 # Building (prebuild runs check + type-check automatically)
@@ -71,7 +71,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Migrations**: `packages/backend/src/database/migrations/*.ts` (run automatically on startup via `Application.initialize()`)
 
 ### Core Infrastructure
-- **DI Container**: `packages/backend/src/core/Container.ts`
+- **DI**: [tsyringe](https://github.com/microsoft/tsyringe) — `@injectable()`/`@singleton()` on class definitions; `registerRootFactories()` in `setup.ts` for the handful of classes tsyringe can't auto-construct
 - **EventBus**: `packages/backend/src/core/EventBus.ts`
 - **Application**: `packages/backend/src/core/Application.ts`
 - **Setup/Bootstrap**: `packages/backend/src/setup.ts`
@@ -87,14 +87,18 @@ Use this to quickly locate files without searching. Organized by system/feature.
 npm workspaces monorepo with three packages:
 
 - **`packages/shared`** (`@turingmod/shared`) — WebSocket protocol types, message creators, shared enums (IntegrationStatus, PermissionLevel, MessageType). Must be built first since both other packages depend on it.
-- **`packages/backend`** (`@turingmod/backend`) — Node.js server with WebSocket + HTTP. Uses `tsx` for development with watch mode.
+- **`packages/backend`** (`@turingmod/backend`) — Node.js server with WebSocket + HTTP. Dev mode runs `tsc --build --watch` and `node --watch dist/index.js` concurrently (not `tsx`: esbuild's TS transform — what `tsx` uses — doesn't emit `emitDecoratorMetadata`, which tsyringe's constructor injection needs).
 - **`packages/frontend`** (`@turingmod/frontend`) — React 18 + Vite 6 + Cloudscape Design System. Dev server proxies `/ws` to backend.
 
 ### Backend Core Flow
 
-Entry point: `packages/backend/src/index.ts` → calls `setupDependencies()` and `initializeComponents()` from `setup.ts` → resolves `Application` → `app.initialize()` → `app.start()`.
+Entry point: `packages/backend/src/index.ts` → calls `registerRootFactories()` and `initializeComponents()` from `setup.ts` → resolves `Application` → `app.initialize()` → `app.start()`.
 
-**Dependency injection** uses a custom `Container` (`core/Container.ts`) with string token registration. All services are singletons registered in `setup.ts`. No DI framework — just `container.registerSingleton(token, factory)` and `container.resolve<T>(token)`.
+**Dependency injection** uses [tsyringe](https://github.com/microsoft/tsyringe), Microsoft's lightweight constructor-injection container. Every injectable class is decorated `@injectable()` (and `@singleton()` for app-lifetime singletons, which is effectively all of them); tsyringe resolves a class's dependencies by reading its constructor's typed parameters via `reflect-metadata` — no string tokens, and a typo'd dependency is a compile error, not a runtime "Service not registered" failure. This reflection-based inference requires TypeScript's real compiler (`emitDecoratorMetadata`) to emit `design:paramtypes` — esbuild does not support this, which is why dev mode runs through `tsc --watch` rather than `tsx` (see above).
+
+A handful of classes take primitives or derived values rather than other injectable classes (e.g. `Logger`'s log level, `DatabaseManager`'s file path, `Encryption`'s master password + DB-stored salt, `HttpServer`/`WebSocketServer`'s port/host/allowed-origins) — these can't be auto-constructed from decorated parameters, so they're registered via `container.register(Token, { useFactory: instanceCachingFactory(...) })` in `registerRootFactories()` (`setup.ts`) instead. `instanceCachingFactory` preserves the old container's lazy-singleton semantics, which matters for `Encryption`: its factory reads a salt from the database and must not run before `initializeDatabase()` has created the schema.
+
+Commands remain auto-discovered by directory scan (`loadCommands.ts`): each file's default-exported class is `@injectable()`, and the loader calls `container.resolve(mod.default)` instead of registering it anywhere — tsyringe can construct any `@injectable()` class on demand, so dropping a new command file in `commands/implementations/` still requires no other wiring.
 
 **Message routing**: WebSocket messages arrive at `WebSocketServer` → `MessageRouter` dispatches by `MessageType` → handler classes (`CommandHandler`, `IntegrationHandler`, `OAuthHandler`) process and return response messages.
 
@@ -178,4 +182,4 @@ Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend b
 - **New commands** go in `packages/backend/src/commands/implementations/` and implement `ICommand`. They're auto-discovered by `loadCommands()`.
 - **Commands reach platforms through `StreamControlService`**, never through an integration directly, and never check auth themselves (see Platform Provider Layer).
 - **API-backed read commands need a cooldown.** `ICommand.cooldown` is per-viewer seconds; `CommandExecutor` exempts moderators and above, so a shared read/write command (`!game`, `!tags`, `!cw`) can be throttled for viewers without blocking a moderator's write.
-- **New integrations** extend `BaseIntegration`, get registered in `setup.ts` (both container + `initializeComponents`), and need a `MessageRouter` handler if they accept WebSocket messages. OAuth-capable integrations also implement `IOAuthIntegration`, override `get oauth()` to return `this`, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.
+- **New integrations** extend `BaseIntegration`, get decorated `@injectable()`/`@singleton()`, get registered with `IntegrationManager` in `setup.ts`'s `initializeComponents()`, and need a `MessageRouter` handler if they accept WebSocket messages. OAuth-capable integrations also implement `IOAuthIntegration`, override `get oauth()` to return `this`, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.

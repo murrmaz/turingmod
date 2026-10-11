@@ -7,9 +7,10 @@ import {
   InvalidTokenTypeError,
   RefreshingAuthProvider as TwurpleRefreshingAuthProvider,
 } from '@twurple/auth';
-import type { EventBus } from '../../../core/EventBus.js';
-import type { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
-import type { Logger } from '../../../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { EventBus } from '../../../core/EventBus.js';
+import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
+import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
 import { buildOAuthEnvConfig, validateOAuthConfig } from '../../oauthConfigHelpers.js';
@@ -58,6 +59,8 @@ const TWITCH_REDIRECT_URI = `http://localhost:8080${TWITCH_CALLBACK_PATH}`;
  * - Automatic token refresh
  * - Providing valid tokens to other Twitch integrations
  */
+@injectable()
+@singleton()
 export class TwitchAuthIntegration extends BaseIntegration implements IOAuthIntegration {
   readonly name = 'twitch-auth';
   readonly version = '1.0.0';

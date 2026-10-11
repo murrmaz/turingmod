@@ -1,6 +1,7 @@
 import { IntegrationStatus, Platform, PlatformCapability } from '@turingmod/shared';
-import type { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
-import type { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
+import { injectable, singleton } from 'tsyringe';
+import { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
+import { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import { unavailableReason } from './availability.js';
 import { NotAuthenticatedError } from './errors.js';
 import type {
@@ -15,6 +16,8 @@ import type {
  * TwitchAuthIntegration and delegates reads/writes to TwitchApiIntegration's Helix methods.
  * Category search (name → id) stays Twitch-specific and lives here rather than in commands.
  */
+@injectable()
+@singleton()
 export class TwitchPlatform implements IStreamPlatform {
   readonly platform = Platform.TWITCH;
 

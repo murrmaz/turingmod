@@ -1,12 +1,15 @@
 import { IntegrationStatus } from '@turingmod/shared';
-import type { EventBus } from '../../../core/EventBus.js';
-import type { Logger } from '../../../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { EventBus } from '../../../core/EventBus.js';
+import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 
 /**
  * Arduino integration (placeholder)
  * TODO: Implement serial port communication
  */
+@injectable()
+@singleton()
 export class ArduinoIntegration extends BaseIntegration {
   readonly name = 'arduino';
   readonly version = '1.0.0';

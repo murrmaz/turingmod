@@ -122,6 +122,16 @@
   },
   "overrides": [
     {
+      "includes": ["**/packages/backend/src/**/*.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useImportType": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["**/packages/frontend/src/**/*.tsx"],
       "linter": {
         "rules": {

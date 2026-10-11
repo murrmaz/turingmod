@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { IntegrationStatus } from '@turingmod/shared';
 import { google } from 'googleapis';
-import type { EventBus } from '../../../core/EventBus.js';
-import type { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
-import type { Logger } from '../../../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { EventBus } from '../../../core/EventBus.js';
+import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
+import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
 import { buildOAuthEnvConfig, validateOAuthConfig } from '../../oauthConfigHelpers.js';
@@ -55,6 +56,8 @@ const YOUTUBE_REDIRECT_URI = `http://127.0.0.1:8080${YOUTUBE_CALLBACK_PATH}`;
  * - Automatic token refresh (YouTubeOAuth2Client refreshes on demand and emits 'tokens')
  * - Providing an authenticated YouTubeOAuth2Client to the YouTube API + Chat integrations
  */
+@injectable()
+@singleton()
 export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthIntegration {
   readonly name = 'youtube-auth';
   readonly version = '1.0.0';

@@ -6,8 +6,9 @@ import type {
   IWebSocketMessage,
 } from '@turingmod/shared';
 import { createErrorMessage, MessageType } from '@turingmod/shared';
-import type { IntegrationManager } from '../../integrations/IntegrationManager.js';
-import type { Logger } from '../../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { IntegrationManager } from '../../integrations/IntegrationManager.js';
+import { Logger } from '../../utils/Logger.js';
 import {
   isIntegrationConfigurePayload,
   isIntegrationStartPayload,
@@ -18,6 +19,8 @@ import {
  * Integration message handler
  * Handles integration control and status requests
  */
+@injectable()
+@singleton()
 export class IntegrationHandler {
   private logger: Logger;
 

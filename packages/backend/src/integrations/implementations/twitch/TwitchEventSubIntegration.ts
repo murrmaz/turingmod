@@ -3,11 +3,12 @@ import type { ApiClient, HelixEventSubSubscriptionStatus, HelixUser } from '@twu
 import type { RefreshingAuthProvider } from '@twurple/auth';
 import type { EventSubChannelChatMessageEvent } from '@twurple/eventsub-base';
 import { EventSubWsListener } from '@twurple/eventsub-ws';
-import type { EventBus } from '../../../core/EventBus.js';
-import type { Logger } from '../../../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { EventBus } from '../../../core/EventBus.js';
+import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
-import type { TwitchApiIntegration } from './TwitchApiIntegration.js';
-import type { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
+import { TwitchApiIntegration } from './TwitchApiIntegration.js';
+import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
 /**
  * Twitch EventSub Configuration
@@ -39,6 +40,8 @@ export interface TwitchEventSubConfig {
  *
  * Depends on: TwitchAuthIntegration, TwitchApiIntegration
  */
+@injectable()
+@singleton()
 export class TwitchEventSubIntegration extends BaseIntegration {
   readonly name = 'twitch-eventsub';
   readonly version = '1.0.0';

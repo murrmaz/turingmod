@@ -1,5 +1,6 @@
 import { Platform, PlatformCapability } from '@turingmod/shared';
-import type { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
+import { injectable, singleton } from 'tsyringe';
+import { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
 import { unavailableReason } from './availability.js';
 import type { IStreamPlatform, StreamInfo } from './interfaces/IStreamPlatform.js';
 
@@ -8,6 +9,8 @@ import type { IStreamPlatform, StreamInfo } from './interfaces/IStreamPlatform.j
  * model, so it advertises only SEND_CHAT, SET_TITLE, and UPTIME — commands requiring the other
  * capabilities auto-hide on YouTube.
  */
+@injectable()
+@singleton()
 export class YouTubePlatform implements IStreamPlatform {
   readonly platform = Platform.YOUTUBE;
 

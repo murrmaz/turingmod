@@ -1,20 +1,19 @@
-import type { Application } from './core/Application.js';
-import { Container } from './core/Container.js';
-import { initializeComponents, initializeDatabase, setupDependencies } from './setup.js';
-import type { Logger } from './utils/Logger.js';
+import 'reflect-metadata';
+import { container } from 'tsyringe';
+import { Application } from './core/Application.js';
+import { initializeComponents, initializeDatabase, registerRootFactories } from './setup.js';
+import { Logger } from './utils/Logger.js';
 
 /**
  * Main entry point for TuringMod backend
  */
 async function main(): Promise<void> {
-  // Create dependency injection container
-  const container = new Container();
-
-  // Set up all dependencies
-  setupDependencies(container);
+  // Register the handful of classes tsyringe can't auto-construct (see setup.ts for why).
+  // Everything else wires itself up via @injectable()/@singleton() on the class definitions.
+  registerRootFactories();
 
   // Get logger
-  const logger = container.resolve<Logger>('Logger');
+  const logger = container.resolve(Logger);
 
   logger.info('========================================');
   logger.info('  TuringMod - Twitch Streamer Tool  ');
@@ -22,13 +21,13 @@ async function main(): Promise<void> {
 
   // Open the database and run migrations first — the Encryption singleton reads its salt from
   // the settings table, and it gets resolved transitively as soon as components are registered.
-  await initializeDatabase(container);
+  await initializeDatabase();
 
   // Initialize components (register commands, integrations, handlers)
-  await initializeComponents(container);
+  await initializeComponents();
 
   // Get application instance
-  const app = container.resolve<Application>('Application');
+  const app = container.resolve(Application);
 
   // Initialize application (load integrations from database)
   await app.initialize();

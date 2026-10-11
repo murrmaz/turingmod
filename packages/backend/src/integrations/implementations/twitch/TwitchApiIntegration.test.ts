@@ -36,7 +36,7 @@ async function startWithFailingCall(
 
 describe('TwitchApiIntegration', () => {
   it('marks itself NEEDS_REAUTH and reports authorization-revoked on a 401', async () => {
-    const eventBus = new EventBus(new Logger({ level: 'silent' }), { component: 'EventBus' });
+    const eventBus = new EventBus(new Logger({ level: 'silent' }));
     const revoked = vi.fn();
     eventBus.on('twitch.authorization-revoked', revoked);
 
@@ -59,7 +59,7 @@ describe('TwitchApiIntegration', () => {
   });
 
   it('marks itself NEEDS_REAUTH when Twurple already knows the token refresh failed', async () => {
-    const eventBus = new EventBus(new Logger({ level: 'silent' }), { component: 'EventBus' });
+    const eventBus = new EventBus(new Logger({ level: 'silent' }));
     const revoked = vi.fn();
     eventBus.on('twitch.authorization-revoked', revoked);
 
@@ -75,7 +75,7 @@ describe('TwitchApiIntegration', () => {
   });
 
   it('does not report authorization-revoked for unrelated API errors', async () => {
-    const eventBus = new EventBus(new Logger({ level: 'silent' }), { component: 'EventBus' });
+    const eventBus = new EventBus(new Logger({ level: 'silent' }));
     const revoked = vi.fn();
     eventBus.on('twitch.authorization-revoked', revoked);
 

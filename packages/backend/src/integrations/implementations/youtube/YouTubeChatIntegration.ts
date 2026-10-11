@@ -1,11 +1,12 @@
 import type { YouTubeChatState } from '@turingmod/shared';
 import { IntegrationStatus, PermissionLevel, Platform } from '@turingmod/shared';
 import type { youtube_v3 } from 'googleapis';
-import type { EventBus } from '../../../core/EventBus.js';
-import type { Logger } from '../../../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { EventBus } from '../../../core/EventBus.js';
+import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
-import type { YouTubeApiIntegration } from './YouTubeApiIntegration.js';
-import type { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
+import { YouTubeApiIntegration } from './YouTubeApiIntegration.js';
+import { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
 import {
   type LiveChatMessageListResponse,
   type LiveChatStreamCall,
@@ -122,6 +123,8 @@ function isTransportError(error: unknown): boolean {
  *
  * Depends on: YouTubeAuthIntegration, YouTubeApiIntegration
  */
+@injectable()
+@singleton()
 export class YouTubeChatIntegration extends BaseIntegration {
   readonly name = 'youtube-chat';
   readonly version = '2.0.0';

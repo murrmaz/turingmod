@@ -1,23 +1,22 @@
 import type { CommandContext } from '@turingmod/shared';
 import { PermissionLevel, Platform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Container } from '../../core/Container.js';
-import type { MirrorResult } from '../../platforms/StreamControlService.js';
+import type { MirrorResult, StreamControlService } from '../../platforms/StreamControlService.js';
+import type { Logger } from '../../utils/Logger.js';
 import { TitleCommand } from './TitleCommand.js';
 
 const setTitle = vi.fn<(title: string) => Promise<MirrorResult>>();
 
-/** Container stub serving just the two tokens TitleCommand resolves. */
-const container = {
-  resolve: (token: string) => {
-    if (token === 'StreamControlService') {
-      return { setTitle };
-    }
-    const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn(), child: vi.fn() };
-    logger.child.mockReturnValue(logger);
-    return logger;
-  },
-} as unknown as Container;
+const streamControl = { setTitle } as unknown as StreamControlService;
+
+const logger = {
+  error: vi.fn(),
+  warn: vi.fn(),
+  info: vi.fn(),
+  debug: vi.fn(),
+  child: vi.fn(),
+} as unknown as Logger;
+(logger.child as ReturnType<typeof vi.fn>).mockReturnValue(logger);
 
 /** `args[0]` is the command name, matching how CommandExecutor parses chat input. */
 const contextFor = (...args: string[]): CommandContext => ({
@@ -39,7 +38,7 @@ describe('TitleCommand', () => {
 
   beforeEach(() => {
     setTitle.mockReset();
-    command = new TitleCommand(container);
+    command = new TitleCommand(streamControl, logger);
   });
 
   it('is moderator-only, so the executor gates it with no inner permission check', () => {

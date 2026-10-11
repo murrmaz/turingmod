@@ -1,15 +1,16 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
-import type { Container } from '../../core/Container.js';
-import type { StreamControlService } from '../../platforms/StreamControlService.js';
+import { injectable } from 'tsyringe';
+import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { formatDuration } from '../../utils/FormatHelpers.js';
-import type { Logger } from '../../utils/Logger.js';
+import { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 
 /**
  * !uptime command
  * Shows how long the stream has been live on the origin platform.
  */
+@injectable()
 export class UptimeCommand implements ICommand {
   readonly name = 'uptime';
   readonly description = 'Show how long the stream has been live';
@@ -19,12 +20,13 @@ export class UptimeCommand implements ICommand {
   readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.UPTIME];
 
-  private streamControl: StreamControlService;
   private logger: Logger;
 
-  constructor(container: Container) {
-    this.streamControl = container.resolve<StreamControlService>('StreamControlService');
-    this.logger = container.resolve<Logger>('Logger').child({ command: 'uptime' });
+  constructor(
+    private streamControl: StreamControlService,
+    logger: Logger
+  ) {
+    this.logger = logger.child({ command: 'uptime' });
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {

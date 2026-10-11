@@ -1,13 +1,14 @@
 import type { Platform } from '@turingmod/shared';
 import { PlatformCapability } from '@turingmod/shared';
-import type { Logger } from '../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { Logger } from '../utils/Logger.js';
 import type {
   AdBreakInfo,
   IStreamPlatform,
   ScheduleSegment,
   StreamInfo,
 } from './interfaces/IStreamPlatform.js';
-import type { PlatformRegistry } from './PlatformRegistry.js';
+import { PlatformRegistry } from './PlatformRegistry.js';
 import { platformDisplayName } from './platformNames.js';
 
 /** The IStreamPlatform methods that are optional because a capability guards them. */
@@ -31,6 +32,8 @@ export interface MirrorResult {
  * relevant capability, and delegates reads to a specific platform. This is the seam the
  * provider-backed commands depend on instead of touching Twitch directly.
  */
+@injectable()
+@singleton()
 export class StreamControlService {
   private logger: Logger;
 

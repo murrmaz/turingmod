@@ -3,10 +3,11 @@ import {
   type ActivityLogEntry,
   createEventNotificationMessage,
 } from '@turingmod/shared';
-import type { EventBus } from '../core/EventBus.js';
-import type { ActivityLogRepository } from '../database/repositories/ActivityLogRepository.js';
-import type { WebSocketServer } from '../server/WebSocketServer.js';
-import type { Logger } from '../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { EventBus } from '../core/EventBus.js';
+import { ActivityLogRepository } from '../database/repositories/ActivityLogRepository.js';
+import { WebSocketServer } from '../server/WebSocketServer.js';
+import { Logger } from '../utils/Logger.js';
 
 /** EventBus event name -> activity category. Add new events here as a one-line change. */
 const EVENT_CATEGORIES: Record<string, ActivityCategory> = {
@@ -32,6 +33,8 @@ const EVENT_CATEGORIES: Record<string, ActivityCategory> = {
  * Forwards EventBus activity to the live tail (broadcast) and, for non-chat categories, to the
  * persisted activity_log.
  */
+@injectable()
+@singleton()
 export class ActivityForwarder {
   private logger: Logger;
 

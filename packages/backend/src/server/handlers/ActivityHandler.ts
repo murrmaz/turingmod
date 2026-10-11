@@ -4,14 +4,17 @@ import type {
   IWebSocketMessage,
 } from '@turingmod/shared';
 import { createActivityListMessage, createErrorMessage } from '@turingmod/shared';
-import type { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
-import type { Logger } from '../../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
+import { Logger } from '../../utils/Logger.js';
 import { isActivityQueryPayload } from '../validation.js';
 
 /**
  * Activity message handler
  * Handles activity log query requests (History page + live-tail backfill)
  */
+@injectable()
+@singleton()
 export class ActivityHandler {
   private logger: Logger;
 

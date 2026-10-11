@@ -1,8 +1,8 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
-import type { Container } from '../../core/Container.js';
-import type { StreamControlService } from '../../platforms/StreamControlService.js';
-import type { Logger } from '../../utils/Logger.js';
+import { injectable } from 'tsyringe';
+import { StreamControlService } from '../../platforms/StreamControlService.js';
+import { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
 import { checkPermission } from '../utils/permissionChecks.js';
@@ -12,6 +12,7 @@ import { checkPermission } from '../utils/permissionChecks.js';
  * Shows or sets content classification labels (content warnings) on the platform the command
  * came from.
  */
+@injectable()
 export class ContentWarningCommand implements ICommand {
   readonly name = 'cw';
   readonly description = 'Show or set content classification labels';
@@ -21,12 +22,13 @@ export class ContentWarningCommand implements ICommand {
   readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.CONTENT_LABELS];
 
-  private streamControl: StreamControlService;
   private logger: Logger;
 
-  constructor(container: Container) {
-    this.streamControl = container.resolve<StreamControlService>('StreamControlService');
-    this.logger = container.resolve<Logger>('Logger').child({ command: 'cw' });
+  constructor(
+    private streamControl: StreamControlService,
+    logger: Logger
+  ) {
+    this.logger = logger.child({ command: 'cw' });
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {

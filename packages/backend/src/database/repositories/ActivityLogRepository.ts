@@ -1,5 +1,6 @@
 import type { ActivityCategory, ActivityLogEntry } from '@turingmod/shared';
-import type { DatabaseManager, SqlValue } from '../DatabaseManager.js';
+import { injectable, singleton } from 'tsyringe';
+import { DatabaseManager, type SqlValue } from '../DatabaseManager.js';
 
 const ACTIVITY_LOG_CAP = 5000;
 const PRUNE_EVERY = 100; // run the cap-enforcing delete once per N inserts (avoids per-insert scan)
@@ -21,6 +22,8 @@ interface ActivityLogRow {
  * Activity log repository
  * Manages the denormalized activity feed (commands/events/status/errors; chat excluded)
  */
+@injectable()
+@singleton()
 export class ActivityLogRepository {
   private insertsSincePrune = 0;
 

@@ -2,11 +2,14 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_HOST, DEFAULT_WS_PORT } from '@turingmod/shared';
 import type { LevelWithSilentOrString } from 'pino';
+import { injectable, singleton } from 'tsyringe';
 
 /**
  * Application configuration
  * Loads from environment variables with sensible defaults
  */
+@injectable()
+@singleton()
 export class TuringModConfig {
   /** WebSocket server port */
   readonly wsPort: number;

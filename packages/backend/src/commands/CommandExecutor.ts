@@ -1,10 +1,11 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { hasPermission, PermissionLevel } from '@turingmod/shared';
-import type { EventBus } from '../core/EventBus.js';
-import type { CommandHistoryRepository } from '../database/repositories/CommandHistoryRepository.js';
-import type { PlatformRegistry } from '../platforms/PlatformRegistry.js';
-import type { Logger } from '../utils/Logger.js';
-import type { CommandRegistry } from './CommandRegistry.js';
+import { injectable, singleton } from 'tsyringe';
+import { EventBus } from '../core/EventBus.js';
+import { CommandHistoryRepository } from '../database/repositories/CommandHistoryRepository.js';
+import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
+import { Logger } from '../utils/Logger.js';
+import { CommandRegistry } from './CommandRegistry.js';
 import type { ICommand } from './interfaces/ICommand.js';
 
 /**
@@ -20,6 +21,8 @@ interface CooldownEntry {
  * Command executor
  * Handles command execution with permission checks and cooldowns
  */
+@injectable()
+@singleton()
 export class CommandExecutor {
   private cooldowns = new Map<string, CooldownEntry>();
   private logger: Logger;

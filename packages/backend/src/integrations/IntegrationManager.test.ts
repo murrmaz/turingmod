@@ -63,7 +63,7 @@ describe('IntegrationManager', () => {
   it('stops transitive dependents when a dependency needs re-authorization', async () => {
     const manager = new IntegrationManager(
       makeStateRepo(),
-      new EventBus(new Logger({ level: 'silent' }), { component: 'EventBus' }),
+      new EventBus(new Logger({ level: 'silent' })),
       new Logger({ level: 'silent' })
     );
 
@@ -98,7 +98,7 @@ describe('IntegrationManager', () => {
   it('does not cascade for status transitions other than NEEDS_REAUTH', async () => {
     const manager = new IntegrationManager(
       makeStateRepo(),
-      new EventBus(new Logger({ level: 'silent' }), { component: 'EventBus' }),
+      new EventBus(new Logger({ level: 'silent' })),
       new Logger({ level: 'silent' })
     );
 

@@ -1,10 +1,11 @@
 import type { PlaybackState } from '@spotify/web-api-ts-sdk';
 import { SpotifyApi } from '@spotify/web-api-ts-sdk';
 import { IntegrationStatus } from '@turingmod/shared';
-import type { EventBus } from '../../../core/EventBus.js';
-import type { Logger } from '../../../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { EventBus } from '../../../core/EventBus.js';
+import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
-import type { SpotifyAuthIntegration, SpotifyTokenData } from './SpotifyAuthIntegration.js';
+import { SpotifyAuthIntegration, type SpotifyTokenData } from './SpotifyAuthIntegration.js';
 
 /**
  * Spotify API Configuration
@@ -22,6 +23,8 @@ export type SpotifyApiConfig = Record<string, unknown>;
  *
  * Depends on: SpotifyAuthIntegration
  */
+@injectable()
+@singleton()
 export class SpotifyApiIntegration extends BaseIntegration {
   readonly name = 'spotify-api';
   readonly version = '1.0.0';

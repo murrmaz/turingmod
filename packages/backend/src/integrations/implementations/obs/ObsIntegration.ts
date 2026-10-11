@@ -1,7 +1,8 @@
 import { IntegrationStatus } from '@turingmod/shared';
 import OBSWebSocket from 'obs-websocket-js';
-import type { EventBus } from '../../../core/EventBus.js';
-import type { Logger } from '../../../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { EventBus } from '../../../core/EventBus.js';
+import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 
 interface ObsConfig {
@@ -50,6 +51,8 @@ export interface ObsStreamStatus {
 
 const DEFAULT_OBS_URL = 'ws://127.0.0.1:4455';
 
+@injectable()
+@singleton()
 export class ObsIntegration extends BaseIntegration {
   readonly name = 'obs';
   readonly version = '1.0.0';

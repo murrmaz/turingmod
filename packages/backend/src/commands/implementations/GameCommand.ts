@@ -1,9 +1,9 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
-import type { Container } from '../../core/Container.js';
+import { injectable } from 'tsyringe';
 import { formatPlatformList } from '../../platforms/platformNames.js';
-import type { StreamControlService } from '../../platforms/StreamControlService.js';
-import type { Logger } from '../../utils/Logger.js';
+import { StreamControlService } from '../../platforms/StreamControlService.js';
+import { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 import { checkPermission } from '../utils/permissionChecks.js';
 
@@ -13,6 +13,7 @@ import { checkPermission } from '../utils/permissionChecks.js';
  * live platform that supports SET_GAME (Twitch only in practice). Category name → id resolution
  * lives inside TwitchPlatform.
  */
+@injectable()
 export class GameCommand implements ICommand {
   readonly name = 'game';
   readonly description = 'Show or set the stream game/category';
@@ -22,12 +23,13 @@ export class GameCommand implements ICommand {
   readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.SET_GAME];
 
-  private streamControl: StreamControlService;
   private logger: Logger;
 
-  constructor(container: Container) {
-    this.streamControl = container.resolve<StreamControlService>('StreamControlService');
-    this.logger = container.resolve<Logger>('Logger').child({ command: 'game' });
+  constructor(
+    private streamControl: StreamControlService,
+    logger: Logger
+  ) {
+    this.logger = logger.child({ command: 'game' });
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {

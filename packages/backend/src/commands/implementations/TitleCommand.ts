@@ -1,9 +1,9 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
-import type { Container } from '../../core/Container.js';
+import { injectable } from 'tsyringe';
 import { formatPlatformList } from '../../platforms/platformNames.js';
-import type { StreamControlService } from '../../platforms/StreamControlService.js';
-import type { Logger } from '../../utils/Logger.js';
+import { StreamControlService } from '../../platforms/StreamControlService.js';
+import { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
 
@@ -16,6 +16,7 @@ import { toCommandError } from '../utils/commandErrors.js';
  * YouTube refused) makes that answer actively misleading. Viewers can already see the title on
  * the stream page, so the read side was redundant for most of chat and incoherent for the rest.
  */
+@injectable()
 export class TitleCommand implements ICommand {
   readonly name = 'title';
   readonly description = 'Set the stream title';
@@ -25,12 +26,13 @@ export class TitleCommand implements ICommand {
   readonly cooldown = 0;
   readonly requiredCapabilities = [PlatformCapability.SET_TITLE];
 
-  private streamControl: StreamControlService;
   private logger: Logger;
 
-  constructor(container: Container) {
-    this.streamControl = container.resolve<StreamControlService>('StreamControlService');
-    this.logger = container.resolve<Logger>('Logger').child({ command: 'title' });
+  constructor(
+    private streamControl: StreamControlService,
+    logger: Logger
+  ) {
+    this.logger = logger.child({ command: 'title' });
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {

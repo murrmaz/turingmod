@@ -13,19 +13,13 @@ import {
   type OAuthGetAuthUrlPayload,
   type YouTubeChatControlPayload,
 } from '@turingmod/shared';
+import { container, instanceCachingFactory } from 'tsyringe';
 import { ActivityForwarder } from './activity/ActivityForwarder.js';
-import { CommandExecutor } from './commands/CommandExecutor.js';
 import { CommandRegistry } from './commands/CommandRegistry.js';
 import { loadCommands } from './commands/loadCommands.js';
-import { Application } from './core/Application.js';
-import type { Container } from './core/Container.js';
 import { EventBus } from './core/EventBus.js';
 import { DatabaseManager } from './database/DatabaseManager.js';
 import { MigrationRunner } from './database/migrations/MigrationRunner.js';
-import { ActivityLogRepository } from './database/repositories/ActivityLogRepository.js';
-import { CommandHistoryRepository } from './database/repositories/CommandHistoryRepository.js';
-import { IntegrationStateRepository } from './database/repositories/IntegrationStateRepository.js';
-import { UserRepository } from './database/repositories/UserRepository.js';
 import { IntegrationManager } from './integrations/IntegrationManager.js';
 import { ArduinoIntegration } from './integrations/implementations/arduino/ArduinoIntegration.js';
 import { DiscordIntegration } from './integrations/implementations/discord/DiscordIntegration.js';
@@ -41,7 +35,6 @@ import { YouTubeAuthIntegration } from './integrations/implementations/youtube/Y
 import { YouTubeChatIntegration } from './integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { ChatRouter } from './platforms/ChatRouter.js';
 import { PlatformRegistry } from './platforms/PlatformRegistry.js';
-import { StreamControlService } from './platforms/StreamControlService.js';
 import { TwitchPlatform } from './platforms/TwitchPlatform.js';
 import { YouTubePlatform } from './platforms/YouTubePlatform.js';
 import { HttpServer } from './server/HttpServer.js';
@@ -57,446 +50,137 @@ import { Encryption } from './utils/Encryption.js';
 import { Logger } from './utils/Logger.js';
 
 /**
- * Set up dependency injection container
- * Registers all services and their dependencies
+ * Register the handful of classes tsyringe can't auto-construct from decorated constructor
+ * parameters alone, because their constructors take primitives/derived values (a log level, a
+ * db path, a master password + salt, an allowed-origins list) rather than other injectable
+ * classes. Everything else is wired implicitly via @injectable()/@singleton() on the class
+ * itself — this is deliberately the only "wiring" code left; it replaces what used to be a
+ * 554-line registerSingleton call per service.
+ *
+ * instanceCachingFactory makes each factory lazy-once, matching the old Container's singleton
+ * semantics — in particular, Encryption's factory must not run until after the database has been
+ * initialized and migrated (see initializeDatabase below), since it reads a DB-stored salt.
  */
-export function setupDependencies(container: Container): void {
-  // Core utilities (singletons)
-  container.registerSingleton('Config', () => new TuringModConfig());
-
-  container.registerSingleton(
-    'Logger',
-    () =>
-      new Logger({
-        level: container.resolve<TuringModConfig>('Config').logLevel,
-        pretty: true,
-      })
-  );
-
-  container.registerSingleton(
-    'EventBus',
-    () => new EventBus(container.resolve<Logger>('Logger'), { component: 'EventBus' })
-  );
-
-  // Database (singletons)
-  container.registerSingleton(
-    'DatabaseManager',
-    () =>
-      new DatabaseManager(
-        container.resolve<TuringModConfig>('Config').dbPath,
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  container.registerSingleton(
-    'MigrationRunner',
-    () =>
-      new MigrationRunner(
-        container.resolve<DatabaseManager>('DatabaseManager'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  // Reads its per-install salt from the settings table, so callers must not resolve this until
-  // after initializeDatabase() (below) has run — see index.ts for the required call order.
-  container.registerSingleton('Encryption', () => {
-    const masterPassword = container.resolve<TuringModConfig>('Config').masterPassword;
-    const salt = Encryption.getOrCreateSalt(container.resolve<DatabaseManager>('DatabaseManager'));
-    return new Encryption(masterPassword, salt);
+export function registerRootFactories(): void {
+  container.register(Logger, {
+    useFactory: instanceCachingFactory((c) => {
+      const config = c.resolve(TuringModConfig);
+      return new Logger({ level: config.logLevel, pretty: true });
+    }),
   });
 
-  // Repositories (singletons)
-  container.registerSingleton(
-    'UserRepository',
-    () => new UserRepository(container.resolve<DatabaseManager>('DatabaseManager'))
-  );
-
-  container.registerSingleton(
-    'CommandHistoryRepository',
-    () => new CommandHistoryRepository(container.resolve<DatabaseManager>('DatabaseManager'))
-  );
-
-  container.registerSingleton(
-    'ActivityLogRepository',
-    () => new ActivityLogRepository(container.resolve<DatabaseManager>('DatabaseManager'))
-  );
-
-  container.registerSingleton(
-    'IntegrationStateRepository',
-    () =>
-      new IntegrationStateRepository(
-        container.resolve<DatabaseManager>('DatabaseManager'),
-        container.resolve<Encryption>('Encryption')
-      )
-  );
-
-  // Platform provider layer (singletons)
-  container.registerSingleton('PlatformRegistry', () => new PlatformRegistry());
-
-  container.registerSingleton(
-    'TwitchPlatform',
-    () =>
-      new TwitchPlatform(
-        container.resolve<TwitchAuthIntegration>('TwitchAuthIntegration'),
-        container.resolve<TwitchApiIntegration>('TwitchApiIntegration')
-      )
-  );
-
-  container.registerSingleton(
-    'YouTubePlatform',
-    () => new YouTubePlatform(container.resolve<YouTubeApiIntegration>('YouTubeApiIntegration'))
-  );
-
-  container.registerSingleton(
-    'StreamControlService',
-    () =>
-      new StreamControlService(
-        container.resolve<PlatformRegistry>('PlatformRegistry'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  // Command system (singletons)
-  container.registerSingleton(
-    'CommandRegistry',
-    () => new CommandRegistry(container.resolve<Logger>('Logger'))
-  );
-
-  container.registerSingleton(
-    'CommandExecutor',
-    () =>
-      new CommandExecutor(
-        container.resolve<CommandRegistry>('CommandRegistry'),
-        container.resolve<CommandHistoryRepository>('CommandHistoryRepository'),
-        container.resolve<PlatformRegistry>('PlatformRegistry'),
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  container.registerSingleton(
-    'ChatRouter',
-    () =>
-      new ChatRouter(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<CommandExecutor>('CommandExecutor'),
-        container.resolve<PlatformRegistry>('PlatformRegistry'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  // Integration system (singletons)
-  container.registerSingleton(
-    'IntegrationManager',
-    () =>
-      new IntegrationManager(
-        container.resolve<IntegrationStateRepository>('IntegrationStateRepository'),
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  // Register Twitch integrations (with dependency chain)
-  container.registerSingleton(
-    'TwitchAuthIntegration',
-    () =>
-      new TwitchAuthIntegration(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger'),
-        container.resolve<IntegrationStateRepository>('IntegrationStateRepository')
-      )
-  );
-
-  container.registerSingleton(
-    'TwitchApiIntegration',
-    () =>
-      new TwitchApiIntegration(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger'),
-        container.resolve<TwitchAuthIntegration>('TwitchAuthIntegration')
-      )
-  );
-
-  container.registerSingleton(
-    'TwitchEventSubIntegration',
-    () =>
-      new TwitchEventSubIntegration(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger'),
-        container.resolve<TwitchAuthIntegration>('TwitchAuthIntegration'),
-        container.resolve<TwitchApiIntegration>('TwitchApiIntegration')
-      )
-  );
-
-  // Register Spotify integrations (with dependency chain: Auth → API)
-  container.registerSingleton(
-    'SpotifyAuthIntegration',
-    () =>
-      new SpotifyAuthIntegration(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger'),
-        container.resolve<IntegrationStateRepository>('IntegrationStateRepository')
-      )
-  );
-
-  container.registerSingleton(
-    'SpotifyApiIntegration',
-    () =>
-      new SpotifyApiIntegration(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger'),
-        container.resolve<SpotifyAuthIntegration>('SpotifyAuthIntegration')
-      )
-  );
-
-  // Register YouTube integrations (with dependency chain: Auth → API → Chat)
-  container.registerSingleton(
-    'YouTubeAuthIntegration',
-    () =>
-      new YouTubeAuthIntegration(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger'),
-        container.resolve<IntegrationStateRepository>('IntegrationStateRepository')
-      )
-  );
-
-  container.registerSingleton(
-    'YouTubeApiIntegration',
-    () =>
-      new YouTubeApiIntegration(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger'),
-        container.resolve<YouTubeAuthIntegration>('YouTubeAuthIntegration')
-      )
-  );
-
-  container.registerSingleton(
-    'YouTubeChatIntegration',
-    () =>
-      new YouTubeChatIntegration(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger'),
-        container.resolve<YouTubeAuthIntegration>('YouTubeAuthIntegration'),
-        container.resolve<YouTubeApiIntegration>('YouTubeApiIntegration')
-      )
-  );
-
-  // Register other integrations
-  container.registerSingleton(
-    'DiscordIntegration',
-    () =>
-      new DiscordIntegration(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  container.registerSingleton(
-    'ArduinoIntegration',
-    () =>
-      new ArduinoIntegration(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  container.registerSingleton(
-    'ObsIntegration',
-    () =>
-      new ObsIntegration(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  container.registerSingleton(
-    'SoundIntegration',
-    () =>
-      new SoundIntegration(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  // Servers (singletons)
-  container.registerSingleton('HttpServer', () => {
-    const config = container.resolve<TuringModConfig>('Config');
-    return new HttpServer(
-      config.wsPort,
-      config.host,
-      config.frontendDistPath,
-      container.resolve<EventBus>('EventBus'),
-      container.resolve<IntegrationManager>('IntegrationManager'),
-      container.resolve<Logger>('Logger')
-    );
+  container.register(DatabaseManager, {
+    useFactory: instanceCachingFactory((c) => {
+      const config = c.resolve(TuringModConfig);
+      return new DatabaseManager(config.dbPath, c.resolve(Logger));
+    }),
   });
 
-  container.registerSingleton(
-    'MessageRouter',
-    () => new MessageRouter(container.resolve<Logger>('Logger'))
-  );
-
-  container.registerSingleton('WebSocketServer', () => {
-    const config = container.resolve<TuringModConfig>('Config');
-    // Same-origin production origin plus the Vite dev server origin (always
-    // bound to 127.0.0.1 per vite.config.ts, regardless of backend HOST) —
-    // the only two pages ever allowed to open a WS connection to us.
-    const allowedOrigins = [
-      `http://${config.host}:${config.wsPort}`,
-      `http://127.0.0.1:${DEFAULT_FRONTEND_DEV_PORT}`,
-    ];
-    return new WebSocketServer(
-      container.resolve<MessageRouter>('MessageRouter'),
-      allowedOrigins,
-      container.resolve<Logger>('Logger')
-    );
+  container.register(Encryption, {
+    useFactory: instanceCachingFactory((c) => {
+      const config = c.resolve(TuringModConfig);
+      const salt = Encryption.getOrCreateSalt(c.resolve(DatabaseManager));
+      return new Encryption(config.masterPassword, salt);
+    }),
   });
 
-  container.registerSingleton(
-    'ActivityForwarder',
-    () =>
-      new ActivityForwarder(
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<WebSocketServer>('WebSocketServer'),
-        container.resolve<ActivityLogRepository>('ActivityLogRepository'),
-        container.resolve<Logger>('Logger')
-      )
-  );
+  container.register(HttpServer, {
+    useFactory: instanceCachingFactory((c) => {
+      const config = c.resolve(TuringModConfig);
+      return new HttpServer(
+        config.wsPort,
+        config.host,
+        config.frontendDistPath,
+        c.resolve(EventBus),
+        c.resolve(IntegrationManager),
+        c.resolve(Logger)
+      );
+    }),
+  });
 
-  // Message handlers (singletons)
-  container.registerSingleton(
-    'CommandHandler',
-    () =>
-      new CommandHandler(
-        container.resolve<CommandExecutor>('CommandExecutor'),
-        container.resolve<CommandRegistry>('CommandRegistry'),
-        container.resolve<PlatformRegistry>('PlatformRegistry'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  container.registerSingleton(
-    'IntegrationHandler',
-    () =>
-      new IntegrationHandler(
-        container.resolve<IntegrationManager>('IntegrationManager'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  container.registerSingleton(
-    'OAuthHandler',
-    () =>
-      new OAuthHandler(
-        container.resolve<IntegrationManager>('IntegrationManager'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  container.registerSingleton(
-    'YouTubeHandler',
-    () =>
-      new YouTubeHandler(
-        container.resolve<YouTubeChatIntegration>('YouTubeChatIntegration'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  container.registerSingleton(
-    'ActivityHandler',
-    () =>
-      new ActivityHandler(
-        container.resolve<ActivityLogRepository>('ActivityLogRepository'),
-        container.resolve<Logger>('Logger')
-      )
-  );
-
-  // Application (singleton)
-  container.registerSingleton(
-    'Application',
-    () =>
-      new Application(
-        container.resolve<DatabaseManager>('DatabaseManager'),
-        container.resolve<HttpServer>('HttpServer'),
-        container.resolve<WebSocketServer>('WebSocketServer'),
-        container.resolve<IntegrationManager>('IntegrationManager'),
-        container.resolve<EventBus>('EventBus'),
-        container.resolve<Logger>('Logger')
-      )
-  );
+  container.register(WebSocketServer, {
+    useFactory: instanceCachingFactory((c) => {
+      const config = c.resolve(TuringModConfig);
+      // Same-origin production origin plus the Vite dev server origin (always
+      // bound to 127.0.0.1 per vite.config.ts, regardless of backend HOST) —
+      // the only two pages ever allowed to open a WS connection to us.
+      const allowedOrigins = [
+        `http://${config.host}:${config.wsPort}`,
+        `http://127.0.0.1:${DEFAULT_FRONTEND_DEV_PORT}`,
+      ];
+      return new WebSocketServer(c.resolve(MessageRouter), allowedOrigins, c.resolve(Logger));
+    }),
+  });
 }
 
 /**
- * Open the database and run migrations. Must run before initializeComponents(), since resolving
- * the Encryption singleton (pulled in transitively by the OAuth integrations' auth classes) reads
- * its salt from the settings table and requires the schema to already exist.
+ * Open the database and run migrations. Must run before anything resolves Encryption (pulled in
+ * transitively by the OAuth integrations' auth classes), since its factory reads its salt from
+ * the settings table and requires the schema to already exist.
  */
-export async function initializeDatabase(container: Container): Promise<void> {
-  const logger = container.resolve<Logger>('Logger');
+export async function initializeDatabase(): Promise<void> {
+  const logger = container.resolve(Logger);
 
   logger.info('Initializing database');
-  await container.resolve<DatabaseManager>('DatabaseManager').initialize();
+  await container.resolve(DatabaseManager).initialize();
 
   logger.info('Running database migrations');
   const { initialSchema } = await import('./database/migrations/001_initial_schema.js');
-  await container.resolve<MigrationRunner>('MigrationRunner').runMigrations([initialSchema]);
+  await container.resolve(MigrationRunner).runMigrations([initialSchema]);
 }
 
 /**
  * Initialize application components
  * Registers commands, integrations, and message handlers
  */
-export async function initializeComponents(container: Container): Promise<void> {
-  const logger = container.resolve<Logger>('Logger');
+export async function initializeComponents(): Promise<void> {
+  const logger = container.resolve(Logger);
   logger.info('Initializing components');
 
   // Auto-discover and register commands
-  const commandRegistry = container.resolve<CommandRegistry>('CommandRegistry');
-  await loadCommands(container, commandRegistry, logger);
+  await loadCommands(container.resolve(CommandRegistry), logger);
 
   // Register integrations
-  const integrationManager = container.resolve<IntegrationManager>('IntegrationManager');
+  const integrationManager = container.resolve(IntegrationManager);
 
   // Register Twitch integrations (order matters: Auth → API → EventSub)
-  integrationManager.register(container.resolve<TwitchAuthIntegration>('TwitchAuthIntegration'));
-  integrationManager.register(container.resolve<TwitchApiIntegration>('TwitchApiIntegration'));
-  integrationManager.register(
-    container.resolve<TwitchEventSubIntegration>('TwitchEventSubIntegration')
-  );
+  integrationManager.register(container.resolve(TwitchAuthIntegration));
+  integrationManager.register(container.resolve(TwitchApiIntegration));
+  integrationManager.register(container.resolve(TwitchEventSubIntegration));
 
   // Register Spotify integrations (order matters: Auth → API)
-  integrationManager.register(container.resolve<SpotifyAuthIntegration>('SpotifyAuthIntegration'));
-  integrationManager.register(container.resolve<SpotifyApiIntegration>('SpotifyApiIntegration'));
+  integrationManager.register(container.resolve(SpotifyAuthIntegration));
+  integrationManager.register(container.resolve(SpotifyApiIntegration));
 
   // Register YouTube integrations (order matters: Auth → API → Chat)
-  integrationManager.register(container.resolve<YouTubeAuthIntegration>('YouTubeAuthIntegration'));
-  integrationManager.register(container.resolve<YouTubeApiIntegration>('YouTubeApiIntegration'));
-  integrationManager.register(container.resolve<YouTubeChatIntegration>('YouTubeChatIntegration'));
+  integrationManager.register(container.resolve(YouTubeAuthIntegration));
+  integrationManager.register(container.resolve(YouTubeApiIntegration));
+  integrationManager.register(container.resolve(YouTubeChatIntegration));
 
   // Register other integrations
-  integrationManager.register(container.resolve<DiscordIntegration>('DiscordIntegration'));
-  integrationManager.register(container.resolve<ArduinoIntegration>('ArduinoIntegration'));
-  integrationManager.register(container.resolve<ObsIntegration>('ObsIntegration'));
-  integrationManager.register(container.resolve<SoundIntegration>('SoundIntegration'));
+  integrationManager.register(container.resolve(DiscordIntegration));
+  integrationManager.register(container.resolve(ArduinoIntegration));
+  integrationManager.register(container.resolve(ObsIntegration));
+  integrationManager.register(container.resolve(SoundIntegration));
 
   // Populate the platform provider registry (Platform → IStreamPlatform)
-  const platformRegistry = container.resolve<PlatformRegistry>('PlatformRegistry');
-  platformRegistry.register(container.resolve<TwitchPlatform>('TwitchPlatform'));
-  platformRegistry.register(container.resolve<YouTubePlatform>('YouTubePlatform'));
+  const platformRegistry = container.resolve(PlatformRegistry);
+  platformRegistry.register(container.resolve(TwitchPlatform));
+  platformRegistry.register(container.resolve(YouTubePlatform));
 
   // Construct the reply-routing seam and start the live chat→command→reply loop.
-  container.resolve<ChatRouter>('ChatRouter').start();
+  container.resolve(ChatRouter).start();
 
   // Start forwarding EventBus activity to the live tail (broadcast) and activity_log (persist).
-  container.resolve<ActivityForwarder>('ActivityForwarder').start();
+  container.resolve(ActivityForwarder).start();
 
   // Register message handlers
-  const messageRouter = container.resolve<MessageRouter>('MessageRouter');
-  const commandHandler = container.resolve<CommandHandler>('CommandHandler');
-  const integrationHandler = container.resolve<IntegrationHandler>('IntegrationHandler');
-  const oauthHandler = container.resolve<OAuthHandler>('OAuthHandler');
-  const activityHandler = container.resolve<ActivityHandler>('ActivityHandler');
-  const youtubeHandler = container.resolve<YouTubeHandler>('YouTubeHandler');
+  const messageRouter = container.resolve(MessageRouter);
+  const commandHandler = container.resolve(CommandHandler);
+  const integrationHandler = container.resolve(IntegrationHandler);
+  const oauthHandler = container.resolve(OAuthHandler);
+  const activityHandler = container.resolve(ActivityHandler);
+  const youtubeHandler = container.resolve(YouTubeHandler);
 
   messageRouter.registerHandler(MessageType.COMMAND_EXECUTE, (msg) =>
     commandHandler.handleExecute(msg as IWebSocketMessage<CommandExecutePayload>)

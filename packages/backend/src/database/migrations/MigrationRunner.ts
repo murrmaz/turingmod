@@ -1,5 +1,6 @@
-import type { Logger } from '../../utils/Logger.js';
-import type { DatabaseManager } from '../DatabaseManager.js';
+import { injectable, singleton } from 'tsyringe';
+import { Logger } from '../../utils/Logger.js';
+import { DatabaseManager } from '../DatabaseManager.js';
 
 /**
  * Migration interface
@@ -22,6 +23,8 @@ export interface Migration {
  * Migration runner
  * Manages database schema migrations
  */
+@injectable()
+@singleton()
 export class MigrationRunner {
   constructor(
     private db: DatabaseManager,

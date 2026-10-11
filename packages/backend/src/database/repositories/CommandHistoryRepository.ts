@@ -1,5 +1,6 @@
 import type { CommandHistoryEntry, Platform } from '@turingmod/shared';
-import type { DatabaseManager, SqlValue } from '../DatabaseManager.js';
+import { injectable, singleton } from 'tsyringe';
+import { DatabaseManager, type SqlValue } from '../DatabaseManager.js';
 
 /**
  * Database row structure for command_history table
@@ -19,6 +20,8 @@ interface CommandHistoryRow {
  * Command history repository
  * Manages command execution audit log
  */
+@injectable()
+@singleton()
 export class CommandHistoryRepository {
   constructor(private db: DatabaseManager) {}
 

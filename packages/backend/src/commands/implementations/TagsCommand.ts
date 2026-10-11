@@ -1,9 +1,9 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
-import type { Container } from '../../core/Container.js';
+import { injectable } from 'tsyringe';
 import { formatPlatformList } from '../../platforms/platformNames.js';
-import type { StreamControlService } from '../../platforms/StreamControlService.js';
-import type { Logger } from '../../utils/Logger.js';
+import { StreamControlService } from '../../platforms/StreamControlService.js';
+import { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 import { checkPermission } from '../utils/permissionChecks.js';
 
@@ -12,6 +12,7 @@ import { checkPermission } from '../utils/permissionChecks.js';
  * Shows the current stream tags, or sets them (moderator only). Setting mirrors to every live
  * platform that supports SET_TAGS (Twitch only in practice).
  */
+@injectable()
 export class TagsCommand implements ICommand {
   readonly name = 'tags';
   readonly description = 'Show or set the stream tags';
@@ -21,12 +22,13 @@ export class TagsCommand implements ICommand {
   readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.SET_TAGS];
 
-  private streamControl: StreamControlService;
   private logger: Logger;
 
-  constructor(container: Container) {
-    this.streamControl = container.resolve<StreamControlService>('StreamControlService');
-    this.logger = container.resolve<Logger>('Logger').child({ command: 'tags' });
+  constructor(
+    private streamControl: StreamControlService,
+    logger: Logger
+  ) {
+    this.logger = logger.child({ command: 'tags' });
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {

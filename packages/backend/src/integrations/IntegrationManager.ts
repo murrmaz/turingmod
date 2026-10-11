@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { IntegrationInfo } from '@turingmod/shared';
 import { IntegrationStatus } from '@turingmod/shared';
-import type { EventBus } from '../core/EventBus.js';
-import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
-import type { Logger } from '../utils/Logger.js';
+import { injectable, singleton } from 'tsyringe';
+import { EventBus } from '../core/EventBus.js';
+import { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
+import { Logger } from '../utils/Logger.js';
 import type { IIntegration } from './interfaces/IIntegration.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 
@@ -11,6 +12,8 @@ import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
  * Integration manager
  * Manages lifecycle and state of all integrations
  */
+@injectable()
+@singleton()
 export class IntegrationManager {
   private integrations = new Map<string, IIntegration>();
   private logger: Logger;

@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { EventEmitter } from 'node:events';
-import { PermissionLevel, Platform } from '@turingmod/shared';
+import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
@@ -293,7 +293,7 @@ describe('YouTubeChatIntegration', () => {
 
       expect(messages).toHaveLength(1);
       expect(messages[0]).toEqual({
-        platform: Platform.YOUTUBE,
+        platform: StreamingPlatform.YOUTUBE,
         platformUserId: 'UC_viewer',
         username: 'someviewer',
         message: 'hello there',
@@ -319,12 +319,12 @@ describe('YouTubeChatIntegration', () => {
         args: ['bonk', 'someone'],
         user: {
           id: 'UC_viewer',
-          platform: Platform.YOUTUBE,
+          platform: StreamingPlatform.YOUTUBE,
           platformUserId: 'UC_viewer',
           username: 'someviewer',
           permissionLevel: PermissionLevel.MODERATOR,
         },
-        platform: Platform.YOUTUBE,
+        platform: StreamingPlatform.YOUTUBE,
         metadata: {
           badges: ['moderator'],
           channelId: 'UC_broadcaster',

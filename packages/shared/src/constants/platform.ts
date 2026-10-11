@@ -1,5 +1,5 @@
 /** Streaming platforms TuringMod can operate on. */
-export enum Platform {
+export enum StreamingPlatform {
   TWITCH = 'twitch',
   YOUTUBE = 'youtube',
   // TIKTOK = 'tiktok', // future

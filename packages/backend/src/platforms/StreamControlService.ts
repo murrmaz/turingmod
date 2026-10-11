@@ -1,4 +1,4 @@
-import type { Platform } from '@turingmod/shared';
+import type { StreamingPlatform } from '@turingmod/shared';
 import { PlatformCapability } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
@@ -22,9 +22,9 @@ type OptionalPlatformMethod = {
  */
 export interface MirrorResult {
   /** Platforms the change was successfully applied to. */
-  updated: Platform[];
+  updated: StreamingPlatform[];
   /** Per-platform failures encountered while mirroring. */
-  failures: { platform: Platform; error: string }[];
+  failures: { platform: StreamingPlatform; error: string }[];
 }
 
 /**
@@ -60,7 +60,7 @@ export class StreamControlService {
   }
 
   /** Read current stream metadata from the platform the command originated on. */
-  getStreamInfo(platform: Platform): Promise<StreamInfo> {
+  getStreamInfo(platform: StreamingPlatform): Promise<StreamInfo> {
     const target = this.registry.get(platform);
     if (!target) {
       throw new Error(`Platform not available: ${platform}`);
@@ -69,7 +69,7 @@ export class StreamControlService {
   }
 
   /** Read current broadcast uptime (ms) from a specific platform, or null if offline. */
-  getUptime(platform: Platform): Promise<number | null> {
+  getUptime(platform: StreamingPlatform): Promise<number | null> {
     const target = this.registry.get(platform);
     if (!target) {
       throw new Error(`Platform not available: ${platform}`);
@@ -81,17 +81,17 @@ export class StreamControlService {
   // as a rejected promise rather than a synchronous throw, whichever way the caller waits.
 
   /** Ad-break state on a platform, or null if that platform is offline. */
-  async getNextAdBreak(platform: Platform): Promise<AdBreakInfo | null> {
+  async getNextAdBreak(platform: StreamingPlatform): Promise<AdBreakInfo | null> {
     return await this.capableMethod(platform, PlatformCapability.ADS, 'getNextAdBreak')();
   }
 
   /** Upcoming scheduled broadcasts on a platform, soonest first. */
-  async getSchedule(platform: Platform): Promise<ScheduleSegment[]> {
+  async getSchedule(platform: StreamingPlatform): Promise<ScheduleSegment[]> {
     return await this.capableMethod(platform, PlatformCapability.SCHEDULE, 'getSchedule')();
   }
 
   /** Content classification labels currently set on a platform's channel. */
-  async getContentLabels(platform: Platform): Promise<string[]> {
+  async getContentLabels(platform: StreamingPlatform): Promise<string[]> {
     return await this.capableMethod(
       platform,
       PlatformCapability.CONTENT_LABELS,
@@ -100,7 +100,7 @@ export class StreamControlService {
   }
 
   /** Replace a platform's content classification labels. */
-  async setContentLabels(platform: Platform, labels: string[]): Promise<void> {
+  async setContentLabels(platform: StreamingPlatform, labels: string[]): Promise<void> {
     return await this.capableMethod(
       platform,
       PlatformCapability.CONTENT_LABELS,
@@ -109,7 +109,7 @@ export class StreamControlService {
   }
 
   /** The broadcaster's channel bio on a platform, or null if unset. */
-  async getBroadcasterAbout(platform: Platform): Promise<string | null> {
+  async getBroadcasterAbout(platform: StreamingPlatform): Promise<string | null> {
     return await this.capableMethod(
       platform,
       PlatformCapability.BROADCASTER_ABOUT,
@@ -124,7 +124,7 @@ export class StreamControlService {
    * façade's capability set and its method set have drifted apart.
    */
   private capableMethod<K extends OptionalPlatformMethod>(
-    platform: Platform,
+    platform: StreamingPlatform,
     capability: PlatformCapability,
     method: K
   ): NonNullable<IStreamPlatform[K]> {

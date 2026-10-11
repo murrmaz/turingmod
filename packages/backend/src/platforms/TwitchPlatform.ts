@@ -1,4 +1,4 @@
-import { IntegrationStatus, Platform, PlatformCapability } from '@turingmod/shared';
+import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
@@ -19,7 +19,7 @@ import type {
 @injectable()
 @singleton()
 export class TwitchPlatform implements IStreamPlatform {
-  readonly platform = Platform.TWITCH;
+  readonly platform = StreamingPlatform.TWITCH;
 
   constructor(
     private auth: TwitchAuthIntegration,
@@ -189,7 +189,7 @@ export class TwitchPlatform implements IStreamPlatform {
     }
 
     throw new NotAuthenticatedError(
-      Platform.TWITCH,
+      StreamingPlatform.TWITCH,
       this.auth.getStatus() === IntegrationStatus.NEEDS_REAUTH,
       this.getUnavailableReason() ?? 'Not connected to Twitch'
     );

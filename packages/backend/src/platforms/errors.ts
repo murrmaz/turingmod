@@ -1,4 +1,4 @@
-import type { Platform } from '@turingmod/shared';
+import type { StreamingPlatform } from '@turingmod/shared';
 
 /**
  * Thrown by an IStreamPlatform when it cannot act because the platform's OAuth
@@ -12,7 +12,7 @@ import type { Platform } from '@turingmod/shared';
  */
 export class NotAuthenticatedError extends Error {
   constructor(
-    readonly platform: Platform,
+    readonly platform: StreamingPlatform,
     readonly needsReauth: boolean,
     message: string
   ) {

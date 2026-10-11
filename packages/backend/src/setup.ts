@@ -163,7 +163,7 @@ export async function initializeComponents(): Promise<void> {
   integrationManager.register(container.resolve(ObsIntegration));
   integrationManager.register(container.resolve(SoundIntegration));
 
-  // Populate the platform provider registry (Platform → IStreamPlatform)
+  // Populate the platform provider registry (StreamingPlatform → IStreamPlatform)
   const platformRegistry = container.resolve(PlatformRegistry);
   platformRegistry.register(container.resolve(TwitchPlatform));
   platformRegistry.register(container.resolve(YouTubePlatform));

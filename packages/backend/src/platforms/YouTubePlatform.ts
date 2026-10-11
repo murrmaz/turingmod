@@ -1,4 +1,4 @@
-import { Platform, PlatformCapability } from '@turingmod/shared';
+import { PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
 import { unavailableReason } from './availability.js';
@@ -12,7 +12,7 @@ import type { IStreamPlatform, StreamInfo } from './interfaces/IStreamPlatform.j
 @injectable()
 @singleton()
 export class YouTubePlatform implements IStreamPlatform {
-  readonly platform = Platform.YOUTUBE;
+  readonly platform = StreamingPlatform.YOUTUBE;
 
   constructor(private api: YouTubeApiIntegration) {}
 

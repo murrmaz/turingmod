@@ -1,4 +1,4 @@
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { google, type youtube_v3 } from 'googleapis';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
@@ -56,6 +56,10 @@ export class YouTubeApiIntegration extends BaseIntegration {
 
   getDependencies(): string[] {
     return ['youtube-auth'];
+  }
+
+  getGroup(): IntegrationGroup {
+    return IntegrationGroup.YOUTUBE;
   }
 
   initialize(_config: Record<string, unknown>): Promise<void> {

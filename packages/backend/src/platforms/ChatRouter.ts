@@ -1,4 +1,4 @@
-import type { CommandContext, Platform } from '@turingmod/shared';
+import type { CommandContext, StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { CommandExecutor } from '../commands/CommandExecutor.js';
 import { EventBus } from '../core/EventBus.js';
@@ -13,7 +13,7 @@ interface ChatCommandEvent {
   command: string;
   args: string[];
   user: CommandContext['user'];
-  platform: Platform;
+  platform: StreamingPlatform;
   metadata: Record<string, unknown>;
 }
 

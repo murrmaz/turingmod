@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import type { CommandContext, CommandResult, PlatformCapability } from '@turingmod/shared';
-import { PermissionLevel, Platform } from '@turingmod/shared';
+import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EventBus } from '../core/EventBus.js';
 import type { CommandHistoryRepository } from '../database/repositories/CommandHistoryRepository.js';
@@ -38,13 +38,13 @@ const makeLogger = () => {
 const contextFor = (permissionLevel: PermissionLevel): CommandContext => ({
   user: {
     id: `user-${permissionLevel}`,
-    platform: Platform.TWITCH,
+    platform: StreamingPlatform.TWITCH,
     platformUserId: '1',
     username: 'someone',
     permissionLevel,
   },
   args: ['game'],
-  platform: Platform.TWITCH,
+  platform: StreamingPlatform.TWITCH,
   metadata: {},
   isSimulation: false,
 });

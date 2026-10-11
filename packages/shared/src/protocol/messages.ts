@@ -1,4 +1,4 @@
-import type { Platform } from '../constants/platform.js';
+import type { StreamingPlatform } from '../constants/platform.js';
 import type { ActivityCategory, ActivityLogEntry } from '../types/activity.js';
 import type { CommandContext, CommandInfo, CommandResult } from '../types/command.js';
 import type { IntegrationInfo, IntegrationStatus } from '../types/integration.js';
@@ -105,7 +105,7 @@ export interface CommandSimulatePayload {
   simulatedUser: SimulatedUser;
 
   /** Platform to simulate */
-  platform: Platform;
+  platform: StreamingPlatform;
 }
 
 /**
@@ -186,7 +186,7 @@ export interface YouTubeChatStatePayload {
  */
 export interface CommandListRequestPayload {
   /** Platform to filter commands by. Omitted = all registered commands. */
-  platform?: Platform;
+  platform?: StreamingPlatform;
 }
 
 /**

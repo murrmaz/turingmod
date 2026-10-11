@@ -1,4 +1,4 @@
-import { IntegrationStatus, type Platform } from '@turingmod/shared';
+import { IntegrationStatus, type StreamingPlatform } from '@turingmod/shared';
 import { platformDisplayName } from './platformNames.js';
 
 /** The slice of BaseIntegration a platform façade needs to explain its own availability. */
@@ -14,7 +14,10 @@ interface StatusReporting {
  * Prefers the integration's own error message, which carries the specific cause (a rejected
  * refresh token, a revoked grant) over this generic wording.
  */
-export function unavailableReason(integration: StatusReporting, platform: Platform): string | null {
+export function unavailableReason(
+  integration: StatusReporting,
+  platform: StreamingPlatform
+): string | null {
   const platformLabel = platformDisplayName(platform);
 
   switch (integration.getStatus()) {

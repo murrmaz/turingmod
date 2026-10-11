@@ -10,6 +10,13 @@ export enum IntegrationStatus {
   NEEDS_REAUTH = 'needs_reauth',
 }
 
+/** Logical grouping of related integrations for UI display (e.g. Twitch's auth/api/eventsub trio). */
+export enum IntegrationGroup {
+  TWITCH = 'twitch',
+  YOUTUBE = 'youtube',
+  SPOTIFY = 'spotify',
+}
+
 /**
  * Integration information
  */
@@ -38,6 +45,9 @@ export interface IntegrationInfo {
     /** HTTP callback path this integration's OAuth flow completes on */
     callbackPath: string;
   };
+
+  /** Logical group this integration belongs to, for grouping related integrations in the UI. Absent for standalone integrations (Discord, OBS, Arduino, Sound). */
+  group?: IntegrationGroup;
 }
 
 /**

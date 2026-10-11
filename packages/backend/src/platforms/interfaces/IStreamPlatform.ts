@@ -1,4 +1,4 @@
-import type { Platform, PlatformCapability } from '@turingmod/shared';
+import type { PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 
 /**
  * Platform-agnostic stream metadata. Fields the platform has no concept of are omitted.
@@ -34,7 +34,7 @@ export interface ScheduleSegment {
  * StreamControlService, which does).
  */
 export interface IStreamPlatform {
-  readonly platform: Platform;
+  readonly platform: StreamingPlatform;
 
   /** Which PlatformCapabilities this platform currently supports. */
   getCapabilities(): Set<PlatformCapability>;

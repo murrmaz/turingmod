@@ -1,5 +1,5 @@
 import type { PermissionLevel } from '../constants/permissions.js';
-import type { Platform } from '../constants/platform.js';
+import type { StreamingPlatform } from '../constants/platform.js';
 
 /**
  * Represents a user in the system
@@ -9,7 +9,7 @@ export interface User {
   id: string;
 
   /** Platform the user belongs to */
-  platform: Platform;
+  platform: StreamingPlatform;
 
   /** Platform-specific user ID */
   platformUserId: string;

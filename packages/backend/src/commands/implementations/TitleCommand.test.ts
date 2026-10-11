@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import type { CommandContext } from '@turingmod/shared';
-import { PermissionLevel, Platform } from '@turingmod/shared';
+import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MirrorResult, StreamControlService } from '../../platforms/StreamControlService.js';
 import type { Logger } from '../../utils/Logger.js';
@@ -23,13 +23,13 @@ const logger = {
 const contextFor = (...args: string[]): CommandContext => ({
   user: {
     id: 'u1',
-    platform: Platform.TWITCH,
+    platform: StreamingPlatform.TWITCH,
     platformUserId: '1',
     username: 'mod',
     permissionLevel: PermissionLevel.MODERATOR,
   },
   args: ['title', ...args],
-  platform: Platform.TWITCH,
+  platform: StreamingPlatform.TWITCH,
   metadata: {},
   isSimulation: false,
 });
@@ -63,7 +63,10 @@ describe('TitleCommand', () => {
   });
 
   it('mirrors a multi-word title and names the platforms it reached', async () => {
-    setTitle.mockResolvedValue({ updated: [Platform.TWITCH, Platform.YOUTUBE], failures: [] });
+    setTitle.mockResolvedValue({
+      updated: [StreamingPlatform.TWITCH, StreamingPlatform.YOUTUBE],
+      failures: [],
+    });
 
     const result = await command.execute(contextFor('Playing', 'some', 'game'));
 
@@ -74,8 +77,8 @@ describe('TitleCommand', () => {
 
   it('reports a divergent mirror as a success naming only the platforms that took it', async () => {
     setTitle.mockResolvedValue({
-      updated: [Platform.TWITCH],
-      failures: [{ platform: Platform.YOUTUBE, error: 'No active YouTube broadcast' }],
+      updated: [StreamingPlatform.TWITCH],
+      failures: [{ platform: StreamingPlatform.YOUTUBE, error: 'No active YouTube broadcast' }],
     });
 
     const result = await command.execute(contextFor('New', 'title'));
@@ -87,7 +90,7 @@ describe('TitleCommand', () => {
   it('fails when no platform took the change', async () => {
     setTitle.mockResolvedValue({
       updated: [],
-      failures: [{ platform: Platform.TWITCH, error: 'Helix rejected the update' }],
+      failures: [{ platform: StreamingPlatform.TWITCH, error: 'Helix rejected the update' }],
     });
 
     const result = await command.execute(contextFor('New', 'title'));

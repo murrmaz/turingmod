@@ -1,5 +1,5 @@
 import type { CommandResultPayload, PermissionLevel } from '@turingmod/shared';
-import { MessageType, Platform } from '@turingmod/shared';
+import { MessageType, StreamingPlatform } from '@turingmod/shared';
 import { useCallback } from 'react';
 import { useAppState } from '../context/AppStateContext';
 import { useWebSocketContext } from '../context/WebSocketContext';
@@ -27,7 +27,7 @@ export function useCommands() {
     async (
       commandText: string,
       simulatedUser: SimulatedUser,
-      platform: Platform = Platform.TWITCH
+      platform: StreamingPlatform = StreamingPlatform.TWITCH
     ): Promise<CommandResultPayload> => {
       try {
         const response = await sendAndWaitForResponse<CommandResultPayload>({

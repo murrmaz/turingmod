@@ -1,4 +1,4 @@
-import type { CommandHistoryEntry, Platform } from '@turingmod/shared';
+import type { CommandHistoryEntry, StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { DatabaseManager, type SqlValue } from '../DatabaseManager.js';
 
@@ -33,7 +33,7 @@ export class CommandHistoryRepository {
       id: row.id,
       commandName: row.command_name,
       userId: row.user_id,
-      platform: row.platform as Platform,
+      platform: row.platform as StreamingPlatform,
       args: JSON.parse(row.args),
       result: JSON.parse(row.result),
       isSimulation: row.is_simulation === 1,

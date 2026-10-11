@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
@@ -125,6 +125,10 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
 
     this.logger.info('Spotify Auth integration stopped');
     return Promise.resolve();
+  }
+
+  getGroup(): IntegrationGroup {
+    return IntegrationGroup.SPOTIFY;
   }
 
   /**

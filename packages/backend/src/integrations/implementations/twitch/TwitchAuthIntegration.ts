@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import type { AccessToken, RefreshingAuthProvider } from '@twurple/auth';
 import {
@@ -212,6 +212,10 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
 
     this.logger.info('Twitch Auth integration stopped');
     return Promise.resolve();
+  }
+
+  getGroup(): IntegrationGroup {
+    return IntegrationGroup.TWITCH;
   }
 
   /**

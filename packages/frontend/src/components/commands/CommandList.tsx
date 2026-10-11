@@ -5,7 +5,7 @@ import Header from '@cloudscape-design/components/header';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import Table from '@cloudscape-design/components/table';
 import type { CommandInfo } from '@turingmod/shared';
-import { PermissionLevel, Platform } from '@turingmod/shared';
+import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { useState } from 'react';
 import { isCommandAvailableOnPlatform } from '../../constants/platformCapabilities';
 import { useAppState } from '../../context/AppStateContext';
@@ -17,7 +17,7 @@ import { CommandSimulator } from './CommandSimulator';
  */
 export function CommandList() {
   const { commands } = useAppState();
-  const [platform, setPlatform] = useState<Platform>(Platform.TWITCH);
+  const [platform, setPlatform] = useState<StreamingPlatform>(StreamingPlatform.TWITCH);
 
   // Only show commands available on the selected platform (Twitch-only commands hide on YouTube).
   const visibleCommands = commands.filter((command) =>

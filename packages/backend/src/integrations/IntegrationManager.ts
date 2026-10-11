@@ -498,6 +498,7 @@ export class IntegrationManager {
   private toIntegrationInfo(integration: IIntegration): IntegrationInfo {
     const dependencies = integration.getDependencies?.() || [];
     const errorMessage = integration.getErrorMessage?.();
+    const group = integration.getGroup?.();
 
     return {
       name: integration.name,
@@ -509,6 +510,7 @@ export class IntegrationManager {
       ...(integration.oauth
         ? { oauth: { callbackPath: integration.oauth.getCallbackPath() } }
         : {}),
+      ...(group ? { group } : {}),
     };
   }
 

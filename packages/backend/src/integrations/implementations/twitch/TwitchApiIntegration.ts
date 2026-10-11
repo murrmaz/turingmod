@@ -1,4 +1,4 @@
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import type {
   HelixChannelUpdate,
   HelixCreateCustomRewardData,
@@ -63,6 +63,10 @@ export class TwitchApiIntegration extends BaseIntegration {
    */
   getDependencies(): string[] {
     return ['twitch-auth'];
+  }
+
+  getGroup(): IntegrationGroup {
+    return IntegrationGroup.TWITCH;
   }
 
   initialize(_config: Record<string, unknown>): Promise<void> {

@@ -10,7 +10,7 @@ import type {
   OAuthGetAuthUrlPayload,
   YouTubeChatControlPayload,
 } from '@turingmod/shared';
-import { ActivityCategory, PermissionLevel, Platform } from '@turingmod/shared';
+import { ActivityCategory, PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 
 /**
  * Runtime shape checks for inbound WebSocket payloads. The wire format is untyped JSON, so
@@ -35,8 +35,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isPlatform(value: unknown): value is Platform {
-  return value === Platform.TWITCH || value === Platform.YOUTUBE;
+function isPlatform(value: unknown): value is StreamingPlatform {
+  return value === StreamingPlatform.TWITCH || value === StreamingPlatform.YOUTUBE;
 }
 
 function isPermissionLevel(value: unknown): value is PermissionLevel {

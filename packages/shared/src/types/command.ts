@@ -1,5 +1,5 @@
 import type { PermissionLevel } from '../constants/permissions.js';
-import type { Platform, PlatformCapability } from '../constants/platform.js';
+import type { PlatformCapability, StreamingPlatform } from '../constants/platform.js';
 
 /**
  * Command metadata exposed to clients
@@ -32,7 +32,7 @@ export interface CommandContext {
   /** User executing the command */
   user: {
     id: string;
-    platform: Platform;
+    platform: StreamingPlatform;
     platformUserId: string;
     username: string;
     permissionLevel: PermissionLevel;
@@ -42,7 +42,7 @@ export interface CommandContext {
   args: string[];
 
   /** Platform where command was executed */
-  platform: Platform;
+  platform: StreamingPlatform;
 
   /** Additional platform-specific metadata */
   metadata: Record<string, unknown>;
@@ -86,7 +86,7 @@ export interface CommandHistoryEntry {
   userId: string;
 
   /** Platform where command was executed */
-  platform: Platform;
+  platform: StreamingPlatform;
 
   /** Command arguments */
   args: string[];

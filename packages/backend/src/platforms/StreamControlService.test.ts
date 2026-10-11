@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { IntegrationStatus, Platform, PlatformCapability } from '@turingmod/shared';
+import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Logger } from '../utils/Logger.js';
 import type { IStreamPlatform, StreamInfo } from './interfaces/IStreamPlatform.js';
@@ -11,7 +11,7 @@ class FakePlatform implements IStreamPlatform {
   setStreamInfo = vi.fn<(info: Partial<StreamInfo>) => Promise<void>>(() => Promise.resolve());
 
   constructor(
-    readonly platform: Platform,
+    readonly platform: StreamingPlatform,
     private unavailable: string | null,
     private live: boolean
   ) {}
@@ -58,7 +58,7 @@ describe('StreamControlService mirroring', () => {
   });
 
   it('logs a warning and skips a platform whose auth is broken, without reporting a failure', async () => {
-    const twitch = new FakePlatform(Platform.TWITCH, 'Token refresh failed', true);
+    const twitch = new FakePlatform(StreamingPlatform.TWITCH, 'Token refresh failed', true);
     registry.register(twitch);
     const service = new StreamControlService(registry, logger);
 
@@ -71,7 +71,7 @@ describe('StreamControlService mirroring', () => {
   });
 
   it('logs an offline skip at debug, not as a warning', async () => {
-    registry.register(new FakePlatform(Platform.TWITCH, null, false));
+    registry.register(new FakePlatform(StreamingPlatform.TWITCH, null, false));
     const service = new StreamControlService(registry, logger);
 
     await service.setTitle('New title');
@@ -81,24 +81,24 @@ describe('StreamControlService mirroring', () => {
   });
 
   it('still mirrors to the healthy platforms when one is unavailable', async () => {
-    const twitch = new FakePlatform(Platform.TWITCH, 'Authorization revoked', true);
-    const youtube = new FakePlatform(Platform.YOUTUBE, null, true);
+    const twitch = new FakePlatform(StreamingPlatform.TWITCH, 'Authorization revoked', true);
+    const youtube = new FakePlatform(StreamingPlatform.YOUTUBE, null, true);
     registry.register(twitch);
     registry.register(youtube);
     const service = new StreamControlService(registry, logger);
 
     const result = await service.setTitle('New title');
 
-    expect(result.updated).toEqual([Platform.YOUTUBE]);
+    expect(result.updated).toEqual([StreamingPlatform.YOUTUBE]);
     expect(youtube.setStreamInfo).toHaveBeenCalledWith({ title: 'New title' });
     expect(twitch.setStreamInfo).not.toHaveBeenCalled();
   });
 
   it('refuses a capability the platform does not advertise', async () => {
-    registry.register(new FakePlatform(Platform.TWITCH, null, true));
+    registry.register(new FakePlatform(StreamingPlatform.TWITCH, null, true));
     const service = new StreamControlService(registry, logger);
 
-    await expect(service.getSchedule(Platform.TWITCH)).rejects.toThrow(
+    await expect(service.getSchedule(StreamingPlatform.TWITCH)).rejects.toThrow(
       'twitch does not support schedule'
     );
   });
@@ -114,7 +114,7 @@ describe('unavailableReason wiring', () => {
           getStatus: () => IntegrationStatus.NEEDS_REAUTH,
           getErrorMessage: () => 'Refresh token is invalid or revoked',
         },
-        Platform.TWITCH
+        StreamingPlatform.TWITCH
       )
     ).toBe('Refresh token is invalid or revoked');
   });
@@ -125,7 +125,7 @@ describe('unavailableReason wiring', () => {
     expect(
       unavailableReason(
         { getStatus: () => IntegrationStatus.CONNECTED, getErrorMessage: () => undefined },
-        Platform.YOUTUBE
+        StreamingPlatform.YOUTUBE
       )
     ).toBeNull();
   });
@@ -136,7 +136,7 @@ describe('unavailableReason wiring', () => {
     expect(
       unavailableReason(
         { getStatus: () => IntegrationStatus.DISCONNECTED, getErrorMessage: () => undefined },
-        Platform.YOUTUBE
+        StreamingPlatform.YOUTUBE
       )
     ).toBe('Not connected to YouTube — complete the YouTube OAuth flow first');
   });

@@ -1,5 +1,10 @@
 import type { YouTubeChatState } from '@turingmod/shared';
-import { IntegrationStatus, PermissionLevel, Platform } from '@turingmod/shared';
+import {
+  IntegrationGroup,
+  IntegrationStatus,
+  PermissionLevel,
+  StreamingPlatform,
+} from '@turingmod/shared';
 import type { youtube_v3 } from 'googleapis';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
@@ -181,6 +186,10 @@ export class YouTubeChatIntegration extends BaseIntegration {
     // OBS is deliberately absent: the OBS trigger is an EventBus subscription, so YouTube chat must
     // still start cleanly when OBS isn't running or isn't configured.
     return ['youtube-auth', 'youtube-api'];
+  }
+
+  getGroup(): IntegrationGroup {
+    return IntegrationGroup.YOUTUBE;
   }
 
   initialize(_config: Record<string, unknown>): Promise<void> {
@@ -582,7 +591,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
     this.logger.debug('YouTube chat message received', { user: username, message: messageText });
 
     this.eventBus.emit('chat.message', {
-      platform: Platform.YOUTUBE,
+      platform: StreamingPlatform.YOUTUBE,
       platformUserId,
       username,
       message: messageText,
@@ -602,12 +611,12 @@ export class YouTubeChatIntegration extends BaseIntegration {
         args,
         user: {
           id: platformUserId,
-          platform: Platform.YOUTUBE,
+          platform: StreamingPlatform.YOUTUBE,
           platformUserId,
           username,
           permissionLevel,
         },
-        platform: Platform.YOUTUBE,
+        platform: StreamingPlatform.YOUTUBE,
         metadata: {
           badges,
           channelId: this.broadcasterChannelId,

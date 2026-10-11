@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { PermissionLevel, Platform } from '@turingmod/shared';
+import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Logger } from '../../utils/Logger.js';
 import { DatabaseManager } from '../DatabaseManager.js';
@@ -29,7 +29,7 @@ describe('UserRepository', () => {
 
   it('creates a user and returns it with generated id/timestamps', async () => {
     const user = await repo.create({
-      platform: Platform.TWITCH,
+      platform: StreamingPlatform.TWITCH,
       platformUserId: '123',
       username: 'alice',
       permissionLevel: PermissionLevel.VIEWER,
@@ -42,7 +42,7 @@ describe('UserRepository', () => {
 
   it('finds a user by id', async () => {
     const created = await repo.create({
-      platform: Platform.TWITCH,
+      platform: StreamingPlatform.TWITCH,
       platformUserId: '123',
       username: 'alice',
       permissionLevel: PermissionLevel.VIEWER,
@@ -58,26 +58,26 @@ describe('UserRepository', () => {
 
   it('finds a user by platform and platform user id', async () => {
     const created = await repo.create({
-      platform: Platform.YOUTUBE,
+      platform: StreamingPlatform.YOUTUBE,
       platformUserId: 'yt-1',
       username: 'bob',
       permissionLevel: PermissionLevel.MODERATOR,
     });
 
-    const found = await repo.findByPlatformUserId(Platform.YOUTUBE, 'yt-1');
+    const found = await repo.findByPlatformUserId(StreamingPlatform.YOUTUBE, 'yt-1');
     expect(found).toEqual(created);
-    expect(await repo.findByPlatformUserId(Platform.TWITCH, 'yt-1')).toBeNull();
+    expect(await repo.findByPlatformUserId(StreamingPlatform.TWITCH, 'yt-1')).toBeNull();
   });
 
   it('finds all users with no filter', async () => {
     await repo.create({
-      platform: Platform.TWITCH,
+      platform: StreamingPlatform.TWITCH,
       platformUserId: '1',
       username: 'a',
       permissionLevel: PermissionLevel.VIEWER,
     });
     await repo.create({
-      platform: Platform.YOUTUBE,
+      platform: StreamingPlatform.YOUTUBE,
       platformUserId: '2',
       username: 'b',
       permissionLevel: PermissionLevel.MODERATOR,
@@ -89,32 +89,32 @@ describe('UserRepository', () => {
 
   it('filters users by platform and permission level', async () => {
     await repo.create({
-      platform: Platform.TWITCH,
+      platform: StreamingPlatform.TWITCH,
       platformUserId: '1',
       username: 'a',
       permissionLevel: PermissionLevel.VIEWER,
     });
     await repo.create({
-      platform: Platform.TWITCH,
+      platform: StreamingPlatform.TWITCH,
       platformUserId: '2',
       username: 'b',
       permissionLevel: PermissionLevel.MODERATOR,
     });
     await repo.create({
-      platform: Platform.YOUTUBE,
+      platform: StreamingPlatform.YOUTUBE,
       platformUserId: '3',
       username: 'c',
       permissionLevel: PermissionLevel.MODERATOR,
     });
 
-    const twitchUsers = await repo.findAll({ platform: Platform.TWITCH });
+    const twitchUsers = await repo.findAll({ platform: StreamingPlatform.TWITCH });
     expect(twitchUsers.map((u) => u.username).sort()).toEqual(['a', 'b']);
 
     const moderators = await repo.findAll({ permissionLevel: PermissionLevel.MODERATOR });
     expect(moderators.map((u) => u.username).sort()).toEqual(['b', 'c']);
 
     const twitchMods = await repo.findAll({
-      platform: Platform.TWITCH,
+      platform: StreamingPlatform.TWITCH,
       permissionLevel: PermissionLevel.MODERATOR,
     });
     expect(twitchMods.map((u) => u.username)).toEqual(['b']);
@@ -122,7 +122,7 @@ describe('UserRepository', () => {
 
   it('updates username and permission level, bumping updatedAt', async () => {
     const created = await repo.create({
-      platform: Platform.TWITCH,
+      platform: StreamingPlatform.TWITCH,
       platformUserId: '1',
       username: 'a',
       permissionLevel: PermissionLevel.VIEWER,
@@ -140,7 +140,7 @@ describe('UserRepository', () => {
 
   it('update with no fields leaves the row unchanged', async () => {
     const created = await repo.create({
-      platform: Platform.TWITCH,
+      platform: StreamingPlatform.TWITCH,
       platformUserId: '1',
       username: 'a',
       permissionLevel: PermissionLevel.VIEWER,
@@ -156,7 +156,7 @@ describe('UserRepository', () => {
 
   it('deletes a user and reports whether a row was removed', async () => {
     const created = await repo.create({
-      platform: Platform.TWITCH,
+      platform: StreamingPlatform.TWITCH,
       platformUserId: '1',
       username: 'a',
       permissionLevel: PermissionLevel.VIEWER,

@@ -1,12 +1,12 @@
-import { Platform, PlatformCapability } from '@turingmod/shared';
+import { PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 
 /**
  * Which capabilities each platform supports, mirroring the backend platform façades
  * (TwitchPlatform.getCapabilities / YouTubePlatform.getCapabilities). Kept in sync manually — the
  * backend is the source of truth. Used to hide commands a platform can't run in the simulator.
  */
-export const PLATFORM_CAPABILITIES: Record<Platform, ReadonlySet<PlatformCapability>> = {
-  [Platform.TWITCH]: new Set([
+export const PLATFORM_CAPABILITIES: Record<StreamingPlatform, ReadonlySet<PlatformCapability>> = {
+  [StreamingPlatform.TWITCH]: new Set([
     PlatformCapability.SEND_CHAT,
     PlatformCapability.SET_TITLE,
     PlatformCapability.SET_GAME,
@@ -18,7 +18,7 @@ export const PLATFORM_CAPABILITIES: Record<Platform, ReadonlySet<PlatformCapabil
     PlatformCapability.FOLLOW_INFO,
     PlatformCapability.BROADCASTER_ABOUT,
   ]),
-  [Platform.YOUTUBE]: new Set([
+  [StreamingPlatform.YOUTUBE]: new Set([
     PlatformCapability.SEND_CHAT,
     PlatformCapability.SET_TITLE,
     PlatformCapability.UPTIME,
@@ -31,7 +31,7 @@ export const PLATFORM_CAPABILITIES: Record<Platform, ReadonlySet<PlatformCapabil
  */
 export function isCommandAvailableOnPlatform(
   requiredCapabilities: PlatformCapability[],
-  platform: Platform
+  platform: StreamingPlatform
 ): boolean {
   const capabilities = PLATFORM_CAPABILITIES[platform];
   return requiredCapabilities.every((capability) => capabilities.has(capability));

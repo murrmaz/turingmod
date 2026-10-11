@@ -1,4 +1,4 @@
-import type { PermissionLevel, Platform, User } from '@turingmod/shared';
+import type { PermissionLevel, StreamingPlatform, User } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { DatabaseManager, type SqlValue } from '../DatabaseManager.js';
 
@@ -30,7 +30,7 @@ export class UserRepository {
   private rowToEntity(row: UserRow): User {
     return {
       id: row.id,
-      platform: row.platform as Platform,
+      platform: row.platform as StreamingPlatform,
       platformUserId: row.platform_user_id,
       username: row.username,
       permissionLevel: row.permission_level,

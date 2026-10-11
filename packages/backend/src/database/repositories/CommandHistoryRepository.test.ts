@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Platform } from '@turingmod/shared';
+import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Logger } from '../../utils/Logger.js';
 import { DatabaseManager } from '../DatabaseManager.js';
@@ -42,7 +42,7 @@ describe('CommandHistoryRepository', () => {
     return {
       commandName: '!title',
       userId,
-      platform: Platform.TWITCH,
+      platform: StreamingPlatform.TWITCH,
       args: ['new title'],
       result: { success: true, message: 'ok' },
       isSimulation: false,

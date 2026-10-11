@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { google } from 'googleapis';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
@@ -134,6 +134,10 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
 
     this.logger.info('YouTube Auth integration stopped');
     return Promise.resolve();
+  }
+
+  getGroup(): IntegrationGroup {
+    return IntegrationGroup.YOUTUBE;
   }
 
   /**

@@ -8,7 +8,7 @@ import Input from '@cloudscape-design/components/input';
 import type { SelectProps } from '@cloudscape-design/components/select';
 import Select from '@cloudscape-design/components/select';
 import SpaceBetween from '@cloudscape-design/components/space-between';
-import { PermissionLevel, Platform } from '@turingmod/shared';
+import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { useState } from 'react';
 import { useCommands } from '../../hooks/useCommands';
 
@@ -19,14 +19,14 @@ export interface CommandSimulatorProps {
   defaultCommand?: string;
   defaultPermissionLevel?: PermissionLevel;
   /** Controlled platform value. When provided, the parent owns the selection. */
-  platform?: Platform;
+  platform?: StreamingPlatform;
   /** Notified when the user changes the platform, so the parent can filter its command list. */
-  onPlatformChange?: (platform: Platform) => void;
+  onPlatformChange?: (platform: StreamingPlatform) => void;
 }
 
 const PLATFORM_OPTIONS: SelectProps.Option[] = [
-  { label: 'Twitch', value: Platform.TWITCH },
-  { label: 'YouTube', value: Platform.YOUTUBE },
+  { label: 'Twitch', value: StreamingPlatform.TWITCH },
+  { label: 'YouTube', value: StreamingPlatform.YOUTUBE },
 ];
 
 /**
@@ -46,7 +46,9 @@ export function CommandSimulator({
     label: defaultPermissionLevel,
     value: defaultPermissionLevel,
   });
-  const [internalPlatform, setInternalPlatform] = useState<Platform>(platform ?? Platform.TWITCH);
+  const [internalPlatform, setInternalPlatform] = useState<StreamingPlatform>(
+    platform ?? StreamingPlatform.TWITCH
+  );
   const selectedPlatform = platform ?? internalPlatform;
   const [isExecuting, setIsExecuting] = useState(false);
   const [result, setResult] = useState<{
@@ -65,7 +67,7 @@ export function CommandSimulator({
   const selectedPlatformOption =
     PLATFORM_OPTIONS.find((option) => option.value === selectedPlatform) ?? null;
 
-  const handlePlatformChange = (next: Platform) => {
+  const handlePlatformChange = (next: StreamingPlatform) => {
     setInternalPlatform(next);
     onPlatformChange?.(next);
   };
@@ -115,11 +117,11 @@ export function CommandSimulator({
       }
     >
       <SpaceBetween size="l">
-        <FormField label="Platform" description="The platform to simulate the command on">
+        <FormField label="StreamingPlatform" description="The platform to simulate the command on">
           <Select
             selectedOption={selectedPlatformOption}
             onChange={(event) =>
-              handlePlatformChange(event.detail.selectedOption.value as Platform)
+              handlePlatformChange(event.detail.selectedOption.value as StreamingPlatform)
             }
             options={PLATFORM_OPTIONS}
           />

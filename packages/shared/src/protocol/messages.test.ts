@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PermissionLevel } from '../constants/permissions.js';
-import { Platform } from '../constants/platform.js';
+import { StreamingPlatform } from '../constants/platform.js';
 import type { CommandContext } from '../types/command.js';
 import {
   createCommandExecuteMessage,
@@ -13,12 +13,12 @@ import {
 const context: Omit<CommandContext, 'args'> = {
   user: {
     id: 'u1',
-    platform: Platform.TWITCH,
+    platform: StreamingPlatform.TWITCH,
     platformUserId: '123',
     username: 'someone',
     permissionLevel: PermissionLevel.VIEWER,
   },
-  platform: Platform.TWITCH,
+  platform: StreamingPlatform.TWITCH,
   metadata: {},
   isSimulation: false,
 };

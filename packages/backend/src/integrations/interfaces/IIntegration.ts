@@ -1,4 +1,4 @@
-import type { IntegrationStatus } from '@turingmod/shared';
+import type { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import type { IOAuthIntegration } from './IOAuthIntegration.js';
 
 /**
@@ -55,6 +55,13 @@ export interface IIntegration {
    * @returns Array of integration names, or undefined if no dependencies
    */
   getDependencies?(): string[];
+
+  /**
+   * Get the logical group this integration belongs to, for grouping related
+   * integrations in the frontend (optional)
+   * @returns IntegrationGroup, or undefined if this integration doesn't belong to a group
+   */
+  getGroup?(): IntegrationGroup;
 
   /**
    * Get error message if status is ERROR (optional)

@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { EventEmitter } from 'node:events';
 import { PermissionLevel, Platform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

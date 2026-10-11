@@ -8,5 +8,10 @@ export default defineConfig({
     // Suppress console output from passing tests; still shown for failures,
     // so a broken test's logs remain visible for debugging.
     silent: 'passed-only',
+    coverage: {
+      provider: 'v8', // or 'istanbul'
+      reporter: ['json', 'html'],
+      include: ['src/**/*.{ts,tsx}'],
+    }
   },
 });

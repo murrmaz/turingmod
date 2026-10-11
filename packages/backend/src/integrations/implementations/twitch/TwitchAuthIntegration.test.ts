@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { IntegrationStatus } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../core/EventBus.js';

@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import type { CommandContext } from '@turingmod/shared';
 import { PermissionLevel, Platform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

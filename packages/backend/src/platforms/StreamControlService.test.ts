@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { IntegrationStatus, Platform, PlatformCapability } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Logger } from '../utils/Logger.js';

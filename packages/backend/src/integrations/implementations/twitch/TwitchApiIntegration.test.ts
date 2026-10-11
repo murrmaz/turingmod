@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { IntegrationStatus } from '@turingmod/shared';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import { CachedRefreshFailureError, type RefreshingAuthProvider } from '@twurple/auth';

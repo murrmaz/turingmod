@@ -83,7 +83,11 @@ export class EventBus {
       try {
         const result = handler(data);
         if (result instanceof Promise) {
-          promises.push(result);
+          promises.push(
+            result.catch((error) => {
+              this.logger.error(`Error in asynchronous event handler for ${event}:`, error);
+            })
+          );
         }
       } catch (error) {
         this.logger.error(`Error in asynchronous event handler for ${event}:`, error);
@@ -91,7 +95,7 @@ export class EventBus {
     }
 
     // Wait for all async handlers to complete
-    await Promise.allSettled(promises);
+    await Promise.all(promises);
   }
 
   /**

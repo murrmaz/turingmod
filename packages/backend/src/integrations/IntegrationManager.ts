@@ -5,7 +5,8 @@ import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import { Logger } from '../utils/Logger.js';
-import type { IIntegration } from './interfaces/IIntegration.js';
+import { DependencyGraph } from './DependencyGraph.js';
+import { DependencyFailurePolicy, type IIntegration } from './interfaces/IIntegration.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 
 /**
@@ -16,6 +17,24 @@ import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 @singleton()
 export class IntegrationManager {
   private integrations = new Map<string, IIntegration>();
+
+  /**
+   * Dependency-graph queries. Built over the live `integrations` map, so it
+   * sees everything registered after construction.
+   */
+  private readonly graph = new DependencyGraph(this.integrations);
+
+  /**
+   * Integrations this manager stopped because a dependency became unusable,
+   * and which it should therefore bring back once that dependency recovers.
+   * Only these are auto-restarted: an integration that failed on its own
+   * stays down, so a persistently failing start() can't become a restart loop.
+   */
+  private readonly cascadeStopped = new Set<string>();
+
+  /** Tail of the serialized chain of reactive dependency work. */
+  private dependencyQueue: Promise<void> = Promise.resolve();
+
   private logger: Logger;
 
   /**
@@ -29,6 +48,14 @@ export class IntegrationManager {
     { integrationName: string; clientId: string; expiresAt: number }
   >();
   private static readonly OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+
+  /**
+   * Cap on a single integration's start(). Without one, an integration whose
+   * start() never settles (a socket that neither connects nor errors) blocks
+   * every integration in a later dependency level, and with it application
+   * startup, forever.
+   */
+  private static readonly START_TIMEOUT_MS = 30 * 1000;
 
   constructor(
     private stateRepository: IntegrationStateRepository,
@@ -69,16 +96,29 @@ export class IntegrationManager {
         status,
       });
 
-      // A dependency that needs re-authorization can no longer refresh
-      // credentials. Dependents captured a live reference to it (e.g. an
-      // auth provider or API client) at their own start() time and won't
-      // notice on their own, so stop them rather than let them keep running
-      // against dead credentials.
-      if (status === IntegrationStatus.NEEDS_REAUTH) {
-        this.stopDependents(integration.name).catch((error) => {
-          this.logger.error(`Failed to stop dependents of ${integration.name}`, error);
-        });
-      }
+      // The integration owns its status; this is the one place it gets
+      // persisted. Writing it from startIntegration()/stopIntegration()
+      // instead let the stored row disagree with getStatus() — notably by
+      // recording CONNECTED for an integration that had set something else
+      // during start().
+      void this.persistStatus(integration);
+
+      void this.onDependencyStatusChange(integration.name, status);
+    });
+
+    // A token rotation isn't a status change, so it gets its own forward.
+    // Logged as well as published: that gives it at least one consumer today
+    // (answering "did my token refresh overnight?" from the log) rather than
+    // leaving another emit with nobody listening.
+    integration.on('token-refreshed', (...args: unknown[]) => {
+      const { expiresAt } = (args[0] ?? {}) as { expiresAt?: number };
+      this.logger.info(`OAuth token refreshed: ${integration.name}`, {
+        ...(expiresAt === undefined ? {} : { expiresAt: new Date(expiresAt).toISOString() }),
+      });
+      this.eventBus.emitSync('integration:token-refreshed', {
+        name: integration.name,
+        ...(expiresAt === undefined ? {} : { expiresAt }),
+      });
     });
 
     integration.on('error', (...args: unknown[]) => {
@@ -130,64 +170,36 @@ export class IntegrationManager {
     const configs = await this.stateRepository.findAllEnabled();
     this.logger.info(`Found ${configs.length} enabled integrations`);
 
-    // Build dependency graph and sort
-    const sorted = this.topologicalSort(configs.map((c) => c.name));
+    const enabled = configs.map((c) => c.name).filter((name) => this.integrations.has(name));
+    const levels = this.graph.levels(enabled);
 
-    this.logger.info('Integration startup order:', sorted);
+    this.logger.info(
+      'Integration startup order:',
+      levels.map((level) => level.join(', '))
+    );
 
-    // Start in dependency order
-    for (const name of sorted) {
-      const config = configs.find((c) => c.name === name);
-      if (config) {
-        try {
-          await this.startIntegration(name);
-        } catch (error) {
-          this.logger.error(`Failed to start integration ${name}, continuing with others`, error);
-          // Continue with other integrations even if one fails
-        }
-      }
+    // Each level depends only on earlier ones, so its members start
+    // concurrently; a slow OBS connect no longer delays Twitch.
+    for (const level of levels) {
+      await Promise.allSettled(
+        level.map((name) =>
+          this.startIntegration(name).catch((error) => {
+            this.logger.error(`Failed to start integration ${name}, continuing with others`, error);
+          })
+        )
+      );
     }
   }
 
   /**
-   * Topological sort of integrations based on dependencies
-   * Returns array of integration names in startup order (dependencies first)
+   * Check the whole dependency graph: no unregistered dependencies, no
+   * cycles. Called once after every integration is registered (setup.ts), so
+   * a wiring mistake fails at boot rather than whenever someone happens to
+   * enable the integrations involved.
    */
-  private topologicalSort(names: string[]): string[] {
-    const sorted: string[] = [];
-    const visited = new Set<string>();
-    const visiting = new Set<string>();
-
-    const visit = (name: string): void => {
-      if (visited.has(name)) return;
-      if (visiting.has(name)) {
-        throw new Error(`Circular dependency detected involving ${name}`);
-      }
-
-      visiting.add(name);
-
-      // Visit dependencies first
-      const integration = this.integrations.get(name);
-      if (integration?.getDependencies) {
-        const deps = integration.getDependencies();
-        for (const dep of deps) {
-          if (names.includes(dep)) {
-            visit(dep);
-          }
-        }
-      }
-
-      visiting.delete(name);
-      visited.add(name);
-      sorted.push(name);
-    };
-
-    // Visit all nodes
-    for (const name of names) {
-      visit(name);
-    }
-
-    return sorted;
+  validateDependencies(): void {
+    this.graph.validate();
+    this.logger.info('Integration dependency graph validated');
   }
 
   /**
@@ -199,11 +211,13 @@ export class IntegrationManager {
       throw new Error(`Integration not found: ${name}`);
     }
 
-    const dependencyError = this.getUnmetDependencyError(integration);
-    if (dependencyError) {
-      integration.reportError(dependencyError);
-      await this.stateRepository.updateStatus(name, IntegrationStatus.ERROR, dependencyError);
-      throw new Error(dependencyError);
+    const blockedReason = this.getBlockedReason(integration);
+    if (blockedReason) {
+      // Not an error: nothing about this integration is broken, a
+      // prerequisite simply isn't connected. reportBlocked() persists via the
+      // status listener, so no error row is written for a healthy integration.
+      integration.reportBlocked(blockedReason);
+      throw new Error(blockedReason);
     }
 
     this.logger.info(`Starting integration: ${name}`);
@@ -216,34 +230,61 @@ export class IntegrationManager {
         await integration.initialize(savedConfig);
       }
 
-      await integration.start();
-      await this.stateRepository.updateStatus(name, IntegrationStatus.CONNECTED);
+      await this.withStartTimeout(name, integration.start());
+
+      // No status is written here: the integration set its own during
+      // start(), and the status listener persisted it.
+      this.cascadeStopped.delete(name);
       this.logger.info(`Integration started: ${name}`);
     } catch (error) {
       this.logger.error(`Failed to start integration: ${name}`, error);
-      await this.stateRepository.updateStatus(
-        name,
-        IntegrationStatus.ERROR,
-        error instanceof Error ? error.message : 'Unknown error'
-      );
+      // reportError() persists through the status listener. Integrations
+      // normally set ERROR themselves; this covers a start() that threw
+      // before doing so, and keeps the stored status consistent either way.
+      integration.reportError(error instanceof Error ? error.message : 'Unknown error');
       throw error;
     }
   }
 
   /**
-   * Check whether an integration's declared dependencies are all connected.
-   * Returns a human-readable error message describing the first unmet
-   * dependency, or null if all dependencies are satisfied.
+   * Reject if an integration's start() hasn't settled within the timeout. The
+   * integration isn't cancelled — nothing in the IIntegration contract can be
+   * — but startup stops waiting on it and later dependency levels proceed.
    */
-  private getUnmetDependencyError(integration: IIntegration): string | null {
-    const deps = integration.getDependencies?.() ?? [];
-    for (const dep of deps) {
-      const depIntegration = this.integrations.get(dep);
-      if (!depIntegration) {
-        return `Dependency not found: ${dep} (required by ${integration.name})`;
-      }
-      if (depIntegration.getStatus() !== IntegrationStatus.CONNECTED) {
-        return `Cannot start ${integration.name}: dependency ${dep} is not connected (status: ${depIntegration.getStatus()})`;
+  private async withStartTimeout(name: string, started: Promise<void>): Promise<void> {
+    let timer: NodeJS.Timeout | undefined;
+
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(
+            new Error(`Timed out after ${IntegrationManager.START_TIMEOUT_MS}ms starting ${name}`)
+          ),
+        IntegrationManager.START_TIMEOUT_MS
+      );
+    });
+
+    try {
+      await Promise.race([started, timeout]);
+    } finally {
+      clearTimeout(timer);
+      // The losing start() may still reject later; it's already been logged
+      // and reported, so swallow it rather than take down the process.
+      started.catch(() => {});
+    }
+  }
+
+  /**
+   * Describe the first dependency that isn't connected, or null if the
+   * integration is clear to start. Dependencies are node references, so there
+   * is no name lookup to fail — validateDependencies() has already confirmed
+   * every one of them is registered.
+   */
+  private getBlockedReason(integration: IIntegration): string | null {
+    for (const dep of integration.getDependencies?.() ?? []) {
+      const status = dep.getStatus();
+      if (status !== IntegrationStatus.CONNECTED) {
+        return `Cannot start ${integration.name}: dependency ${dep.name} is not connected (status: ${status})`;
       }
     }
     return null;
@@ -262,7 +303,7 @@ export class IntegrationManager {
 
     try {
       await integration.stop();
-      await this.stateRepository.updateStatus(name, IntegrationStatus.DISCONNECTED);
+      // The integration sets DISCONNECTED itself; the status listener persists it.
       this.logger.info(`Integration stopped: ${name}`);
     } catch (error) {
       this.logger.error(`Failed to stop integration: ${name}`, error);
@@ -271,26 +312,91 @@ export class IntegrationManager {
   }
 
   /**
-   * Stop every integration that (transitively) depends on `name`, most
-   * downstream first, so none of them are left holding a stale reference
-   * (auth provider, API client) obtained from a dependency that can no
-   * longer be trusted.
+   * Statuses that make a dependency unusable to anything that depends on it.
+   * Previously only NEEDS_REAUTH cascaded, which left dependents running
+   * against a dead auth provider when the dependency errored or was stopped
+   * by hand from the console.
    */
-  private async stopDependents(name: string): Promise<void> {
-    const dependents = this.getTransitiveDependents(name);
+  private static readonly UNUSABLE_STATUSES: ReadonlySet<IntegrationStatus> = new Set([
+    IntegrationStatus.ERROR,
+    IntegrationStatus.NEEDS_REAUTH,
+    IntegrationStatus.BLOCKED,
+    IntegrationStatus.DISCONNECTED,
+  ]);
+
+  /**
+   * React to one integration's status change on behalf of its dependents:
+   * stop them when it becomes unusable, bring the ones we stopped back when
+   * it recovers. Together these are the whole dependency policy — the start
+   * gate alone only ever checked dependencies at the instant of starting.
+   */
+  private onDependencyStatusChange(name: string, status: IntegrationStatus): Promise<void> {
+    if (IntegrationManager.UNUSABLE_STATUSES.has(status)) {
+      return this.enqueue(`cascade from ${name}`, () => this.cascadeFailure(name, status));
+    }
+    if (status === IntegrationStatus.CONNECTED) {
+      return this.enqueue(`reconcile after ${name}`, () => this.reconcile());
+    }
+    return Promise.resolve();
+  }
+
+  /**
+   * Run the manager's reactive dependency work one item at a time.
+   *
+   * Both directions have to share the queue, not just the reconcile passes:
+   * a cascade running concurrently with a reconcile pass could call
+   * stopIntegration() on an integration whose start() was still in flight,
+   * because the dependency checks either side of an await can't hold across
+   * it. (A start the console asks for directly still races the queue; that
+   * wants a per-integration lifecycle lock rather than this.)
+   */
+  private enqueue(label: string, work: () => Promise<void>): Promise<void> {
+    this.dependencyQueue = this.dependencyQueue.then(() =>
+      work().catch((error) => {
+        this.logger.error(`Dependency work failed (${label})`, error);
+      })
+    );
+    return this.dependencyQueue;
+  }
+
+  /**
+   * Handle a dependency becoming unusable, for each integration that
+   * (transitively) depends on it, most downstream first.
+   *
+   * What happens to a dependent is its own choice, via
+   * `dependencyFailurePolicy`: STOP tears it down and records it for restart,
+   * BLOCK leaves it running and merely reports that it can't act. Neither is
+   * right for both kinds — a long-lived listener has to reconnect, while
+   * tearing down an API layer discards unrelated state for nothing.
+   */
+  private async cascadeFailure(name: string, cause: IntegrationStatus): Promise<void> {
+    const dependents = this.graph.transitiveDependentsOf(name);
     if (dependents.length === 0) return;
 
-    // topologicalSort orders dependencies before dependents; reverse it so
-    // the most downstream integration (e.g. eventsub before api) stops first.
-    const stopOrder = this.topologicalSort(dependents).reverse();
-
-    for (const dependentName of stopOrder) {
+    for (const dependentName of this.graph.stopOrder(dependents)) {
       const dependent = this.integrations.get(dependentName);
-      if (!dependent || dependent.getStatus() === IntegrationStatus.DISCONNECTED) {
+      if (!dependent) continue;
+
+      const status = dependent.getStatus();
+      // Nothing to do for one that isn't running or has already been told.
+      if (status === IntegrationStatus.DISCONNECTED || status === IntegrationStatus.BLOCKED) {
         continue;
       }
 
-      this.logger.warn(`Stopping ${dependentName}: dependency ${name} needs re-authorization`);
+      const reason = `${dependentName} cannot act: dependency ${name} is ${cause}`;
+
+      if (dependent.dependencyFailurePolicy === DependencyFailurePolicy.BLOCK) {
+        this.logger.warn(`Blocking ${dependentName}: dependency ${name} is ${cause}`);
+        // Left running: reconcile() picks it back up off its BLOCKED status,
+        // so it doesn't need recording the way a stopped dependent does.
+        dependent.reportBlocked(reason);
+        continue;
+      }
+
+      this.logger.warn(`Stopping ${dependentName}: dependency ${name} is ${cause}`);
+      // Recorded before the stop so the DISCONNECTED this triggers can't race
+      // a reconcile pass that would otherwise consider it unmanaged.
+      this.cascadeStopped.add(dependentName);
       try {
         await this.stopIntegration(dependentName);
       } catch (error) {
@@ -300,18 +406,84 @@ export class IntegrationManager {
   }
 
   /**
-   * All integrations that depend on `name`, directly or transitively.
+   * Bring back the integrations a dependency failure took out, now that it
+   * may be up again. This is what closes the loop after a re-authorization:
+   * completing OAuth starts the auth integration, and its CONNECTED recovers
+   * the dependents on its own instead of leaving them for the user to
+   * restart by hand.
+   *
+   * Two sources, matching the two policies: the integrations we stopped, and
+   * the ones we only blocked. A BLOCKED integration is started rather than
+   * just flipped back to CONNECTED, which covers "was running" and "never
+   * started" with one path — for a BLOCK-policy integration start() is just
+   * resolve-and-report, so it is cheap and idempotent.
+   *
+   * One attempt each: a failure drops it from the candidates rather than
+   * retrying, so this cannot turn a persistently failing start() into a
+   * restart loop.
    */
-  private getTransitiveDependents(name: string): string[] {
-    const dependents: string[] = [];
-    for (const integration of this.integrations.values()) {
-      const deps = integration.getDependencies?.() ?? [];
-      if (deps.includes(name)) {
-        dependents.push(integration.name);
-        dependents.push(...this.getTransitiveDependents(integration.name));
+  private async reconcile(): Promise<void> {
+    const blocked = [...this.integrations.values()]
+      .filter((integration) => integration.getStatus() === IntegrationStatus.BLOCKED)
+      .map((integration) => integration.name);
+
+    const candidates = new Set([...this.cascadeStopped, ...blocked]);
+    if (candidates.size === 0) return;
+
+    for (const name of this.graph.sort([...candidates])) {
+      const integration = this.integrations.get(name);
+
+      if (!integration || integration.getStatus() === IntegrationStatus.CONNECTED) {
+        this.cascadeStopped.delete(name);
+        continue;
+      }
+
+      // Dependencies still aren't back; leave it queued for a later pass.
+      if (this.getBlockedReason(integration)) {
+        continue;
+      }
+
+      if (!(await this.isEnabled(name))) {
+        this.cascadeStopped.delete(name);
+        continue;
+      }
+
+      this.logger.info(`Recovering ${name}: its dependencies are connected again`);
+      try {
+        await this.startIntegration(name);
+      } catch (error) {
+        this.logger.error(`Failed to recover ${name}; leaving it down`, error);
+        // startIntegration() reported ERROR, so it is no longer a BLOCKED
+        // candidate either — one attempt, then it waits for a real event.
+        this.cascadeStopped.delete(name);
       }
     }
-    return dependents;
+  }
+
+  private async isEnabled(name: string): Promise<boolean> {
+    try {
+      const config = await this.stateRepository.findByName(name);
+      return config?.enabled === true;
+    } catch (error) {
+      this.logger.error(`Could not read enabled state for ${name}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Persist an integration's current status. Single writer, driven by the
+   * integration's own 'status' event.
+   */
+  private async persistStatus(integration: IIntegration): Promise<void> {
+    try {
+      await this.stateRepository.updateStatus(
+        integration.name,
+        integration.getStatus(),
+        integration.getErrorMessage?.()
+      );
+    } catch (error) {
+      this.logger.error(`Failed to persist status for ${integration.name}`, error);
+    }
   }
 
   /**
@@ -320,16 +492,22 @@ export class IntegrationManager {
   async stopAll(): Promise<void> {
     this.logger.info('Stopping all integrations');
 
-    const promises: Promise<void>[] = [];
-    for (const integration of this.integrations.values()) {
-      promises.push(
-        this.stopIntegration(integration.name).catch((error) => {
-          this.logger.error(`Error stopping ${integration.name}`, error);
-        })
+    // Reverse dependency order, a level at a time: a dependency is never torn
+    // down while something still depending on it is running. stopAll() used to
+    // stop everything at once, which contradicted the care cascadeFailure()
+    // takes with the same graph.
+    const levels = this.graph.levels(this.integrations.keys()).reverse();
+
+    for (const level of levels) {
+      await Promise.allSettled(
+        level.map((name) =>
+          this.stopIntegration(name).catch((error) => {
+            this.logger.error(`Error stopping ${name}`, error);
+          })
+        )
       );
     }
 
-    await Promise.allSettled(promises);
     this.logger.info('All integrations stopped');
   }
 
@@ -496,7 +674,7 @@ export class IntegrationManager {
    * Build the wire-format snapshot of an integration's current state
    */
   private toIntegrationInfo(integration: IIntegration): IntegrationInfo {
-    const dependencies = integration.getDependencies?.() || [];
+    const dependencies = (integration.getDependencies?.() ?? []).map((dep) => dep.name);
     const errorMessage = integration.getErrorMessage?.();
     const group = integration.getGroup?.();
 

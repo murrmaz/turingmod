@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { IntegrationStatus } from '@turingmod/shared';
 import type { Logger } from '../utils/Logger.js';
-import type { IIntegration } from './interfaces/IIntegration.js';
+import { DependencyFailurePolicy, type IIntegration } from './interfaces/IIntegration.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 
 /**
@@ -12,6 +12,13 @@ import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 export abstract class BaseIntegration implements IIntegration {
   abstract readonly name: string;
   abstract readonly version: string;
+
+  /** Statuses whose `errorMessage` carries an explanation worth keeping. */
+  private static readonly STATUSES_WITH_MESSAGE: ReadonlySet<IntegrationStatus> = new Set([
+    IntegrationStatus.ERROR,
+    IntegrationStatus.NEEDS_REAUTH,
+    IntegrationStatus.BLOCKED,
+  ]);
 
   protected status: IntegrationStatus = IntegrationStatus.DISCONNECTED;
   protected errorMessage: string | undefined;
@@ -34,6 +41,14 @@ export abstract class BaseIntegration implements IIntegration {
     return null;
   }
 
+  /**
+   * Default to tearing down on a dependency failure. Safe when nothing is
+   * known about what the integration holds: see DependencyFailurePolicy.
+   */
+  get dependencyFailurePolicy(): DependencyFailurePolicy {
+    return DependencyFailurePolicy.STOP;
+  }
+
   getStatus(): IntegrationStatus {
     return this.status;
   }
@@ -44,6 +59,10 @@ export abstract class BaseIntegration implements IIntegration {
 
   reportError(message: string): void {
     this.setStatus(IntegrationStatus.ERROR, message);
+  }
+
+  reportBlocked(reason: string): void {
+    this.setStatus(IntegrationStatus.BLOCKED, reason);
   }
 
   on(event: string, handler: (...args: unknown[]) => void): void {
@@ -59,11 +78,24 @@ export abstract class BaseIntegration implements IIntegration {
    */
   protected setStatus(status: IntegrationStatus, errorMessage?: string): void {
     this.status = status;
-    this.errorMessage =
-      status === IntegrationStatus.ERROR || status === IntegrationStatus.NEEDS_REAUTH
-        ? errorMessage
-        : undefined;
+    this.errorMessage = BaseIntegration.STATUSES_WITH_MESSAGE.has(status)
+      ? errorMessage
+      : undefined;
     this.events.emit('status', status);
+  }
+
+  /**
+   * Announce that this integration's OAuth credentials were just rotated.
+   *
+   * A refresh is deliberately *not* a status change — the integration stays
+   * CONNECTED throughout — so `integration:status` can't express it. This is
+   * a courtesy notification for anything that might want to react; nothing is
+   * required to. It carries no credentials: the expiry is the only fact a
+   * consumer could act on, and anything needing the token itself should ask
+   * the integration for it on access.
+   */
+  protected reportTokenRefreshed(expiresAt?: number): void {
+    this.events.emit('token-refreshed', expiresAt === undefined ? {} : { expiresAt });
   }
 
   /**

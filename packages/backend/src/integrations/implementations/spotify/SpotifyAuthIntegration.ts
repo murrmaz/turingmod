@@ -110,11 +110,6 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
     this.setStatus(IntegrationStatus.CONNECTED);
     this.logger.info('Spotify Auth integration started successfully');
 
-    // Emit event that auth is ready
-    this.eventBus.emit('spotify.auth.ready', {
-      tokenData: this.getTokenData(),
-    });
-
     return Promise.resolve();
   }
 
@@ -301,10 +296,7 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
 
     this.logger.info('Access token refreshed');
 
-    // Emit event for other integrations (e.g., SpotifyApiIntegration)
-    this.eventBus.emit('spotify.auth.token-refreshed', {
-      tokenData: this.getTokenData(),
-    });
+    this.reportTokenRefreshed(Date.now() + data.expires_in * 1000);
   }
 
   /**

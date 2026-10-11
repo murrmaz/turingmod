@@ -163,6 +163,11 @@ export async function initializeComponents(): Promise<void> {
   integrationManager.register(container.resolve(ObsIntegration));
   integrationManager.register(container.resolve(SoundIntegration));
 
+  // Everything is registered, so the whole dependency graph can be checked
+  // now: a missing or circular dependency fails at boot rather than whenever
+  // someone enables the integrations involved.
+  integrationManager.validateDependencies();
+
   // Populate the platform provider registry (StreamingPlatform → IStreamPlatform)
   const platformRegistry = container.resolve(PlatformRegistry);
   platformRegistry.register(container.resolve(TwitchPlatform));

@@ -10,6 +10,7 @@ import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
+import type { IIntegration } from '../../interfaces/IIntegration.js';
 import { YouTubeApiIntegration } from './YouTubeApiIntegration.js';
 import { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
 import {
@@ -182,10 +183,10 @@ export class YouTubeChatIntegration extends BaseIntegration {
     super(logger, { component: 'YouTubeChat' });
   }
 
-  getDependencies(): string[] {
+  getDependencies(): IIntegration[] {
     // OBS is deliberately absent: the OBS trigger is an EventBus subscription, so YouTube chat must
     // still start cleanly when OBS isn't running or isn't configured.
-    return ['youtube-auth', 'youtube-api'];
+    return [this.authIntegration, this.apiIntegration];
   }
 
   getGroup(): IntegrationGroup {

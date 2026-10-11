@@ -105,7 +105,8 @@ export function useIntegrationActions() {
       isStartable:
         item.status === IntegrationStatus.DISCONNECTED ||
         item.status === IntegrationStatus.ERROR ||
-        item.status === IntegrationStatus.NEEDS_REAUTH,
+        item.status === IntegrationStatus.NEEDS_REAUTH ||
+        item.status === IntegrationStatus.BLOCKED,
       isOAuthIntegration: Boolean(item.oauth),
       needsReauth: item.status === IntegrationStatus.NEEDS_REAUTH,
       hasUnmetDependencies: !areDependenciesMet(item.name),
@@ -123,6 +124,10 @@ export function useIntegrationActions() {
       case IntegrationStatus.ERROR:
       case IntegrationStatus.NEEDS_REAUTH:
         return 'red';
+      // Not a failure of this integration — a prerequisite is off — so it
+      // reads as inactive rather than broken.
+      case IntegrationStatus.BLOCKED:
+        return 'grey';
       default:
         return 'grey';
     }

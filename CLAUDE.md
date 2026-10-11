@@ -36,6 +36,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **OAuth Modal**: `packages/frontend/src/components/integrations/OAuthModal.tsx` — generic, parameterized by `OAuthProviderConfig`
 - **OAuth Provider Configs**: `packages/frontend/src/components/integrations/oauthProviders.tsx` (per-provider content) + `oauthIntegrationRegistry.tsx` (name → modal/config lookup)
 - **Backend Manager**: `packages/backend/src/integrations/IntegrationManager.ts`
+- **Dependency graph**: `packages/backend/src/integrations/DependencyGraph.ts` — pure sort/levels/dependents/validate queries over the registered integrations
 - **Base Class**: `packages/backend/src/integrations/BaseIntegration.ts` — shared status/error/event-emitter plumbing; all integrations extend this
 - **Interfaces**: `packages/backend/src/integrations/interfaces/IIntegration.ts`, `IOAuthIntegration.ts` (extends `IIntegration` for OAuth-capable integrations)
 - **Implementations**: `packages/backend/src/integrations/implementations/*.ts` (Twitch, YouTube, Spotify, Discord, OBS, Arduino, Sound)
@@ -106,7 +107,67 @@ Commands remain auto-discovered by directory scan (`loadCommands.ts`): each file
 
 All integrations extend `BaseIntegration` (`integrations/BaseIntegration.ts`), which implements the `IIntegration` interface (`integrations/interfaces/IIntegration.ts`) and provides shared status/error/event-emitter plumbing. Concrete integrations implement `initialize(config)` → `start()` → `stop()` and call `setStatus()` to report lifecycle transitions; `getStatus()` returns `IntegrationStatus` enum values.
 
-`IntegrationManager` resolves dependencies via topological sort before startup. Integrations declare dependencies through `getDependencies()`.
+`IntegrationManager` resolves dependencies through `DependencyGraph`, a pure module over the live
+registry (`sort`, `levels`, `stopOrder`, `transitiveDependentsOf`, `validate`). Integrations declare
+dependencies through `getDependencies()`, which returns **the depended-on integration instances, not
+names** — implementations return the very objects they already take in their constructor, so the
+declared graph cannot drift from the injected one and a wrong dependency is a compile error. Names
+are derived for the wire format. `validateDependencies()` runs once in `setup.ts` after every
+registration and rejects unregistered or circular dependencies across the whole graph, not just the
+enabled subset.
+
+**Dependency state is maintained, not just checked at start.** `startIntegration()` gates on
+dependencies being CONNECTED, and beyond that the manager reacts to status changes:
+
+- A dependency entering ERROR, NEEDS_REAUTH, BLOCKED or DISCONNECTED cascades to its transitive
+  dependents, most downstream first. What each dependent *does* is its own choice, declared as
+  `dependencyFailurePolicy` (`DependencyFailurePolicy` in `interfaces/IIntegration.ts`):
+  - `STOP` (the default) tears it down and records it for restart. Correct for anything holding a
+    long-lived connection — `TwitchEventSubIntegration`, `YouTubeChatIntegration` — because a
+    dependency failure is evidence about the environment, not just about a token, so a socket
+    established under the old conditions can't be assumed valid. Those reconnect and resubscribe
+    from scratch.
+  - `BLOCK` leaves it running and reports `BLOCKED`. Used by the three API layers, which hold
+    nothing bound to the grant. Stopping them is destructive rather than redundant: `stop()` also
+    discards unrelated state (`TwitchApiIntegration`'s shoutout cooldowns), so a brief auth blip
+    would forget Twitch's global shoutout cooldown.
+  - A `BLOCK`-policy integration **must refuse to act while its dependency isn't CONNECTED**, which
+    its `resolve*()` gates on. Resolving a client on access protects against holding the *wrong*
+    object; it does nothing about holding the right object with dead credentials —
+    `markAuthRequired()` sets NEEDS_REAUTH *without* discarding the provider/client.
+- A dependency returning to CONNECTED triggers a `reconcile()` pass that recovers both the stopped
+  and the blocked dependents — so completing OAuth brings the whole group back on its own. A
+  `BLOCKED` integration is started rather than flipped to CONNECTED, which covers "was running" and
+  "never started" with one path (for a `BLOCK`-policy integration `start()` is just
+  resolve-and-report, so it's cheap and idempotent). One attempt each; a failure drops it from the
+  candidates rather than retrying, so a persistently failing `start()` cannot become a restart loop.
+  There is deliberately no backoff: a genuinely flapping dependency cascades and recovers once per
+  flap. The cost of that is concentrated in the `STOP` dependents, whose resubscribe cycle is the
+  expensive part, and a rate-limited restart is currently terminal rather than retried.
+- Both directions of that reactive work share one serialization queue (`enqueue()`). A cascade
+  running concurrently with a reconcile pass could otherwise call `stopIntegration()` on an
+  integration whose `start()` was still in flight, since the dependency checks either side of an
+  `await` don't hold across it. A start requested directly from the console still races the queue;
+  that wants a per-integration lifecycle lock.
+- An unmet dependency is reported as `IntegrationStatus.BLOCKED`, not ERROR — nothing is broken, a
+  prerequisite is off — via `reportBlocked()`.
+
+**Status is persisted in one place**: the `'status'` listener in `register()`. Integrations own their
+own status; `startIntegration`/`stopIntegration` no longer write it, which is what let the stored row
+disagree with `getStatus()`.
+
+Startup and shutdown both work in dependency *levels* (`DependencyGraph.levels()`), concurrent within
+a level and reversed for shutdown, with a per-integration start timeout
+(`IntegrationManager.START_TIMEOUT_MS`) so one integration that never settles can't hang boot.
+
+**API-layer integrations resolve their dependency's client on access, not at `start()`.**
+`TwitchApiIntegration`, `YouTubeApiIntegration` and `SpotifyApiIntegration` compare the auth
+integration's current provider/client/credentials against the one their cached client was built on
+and rebuild when it changed, so a stale reference can't exist in the first place. This makes the
+auth accessors (`getAuthProvider()`, `getAuthClient()`) contractually obliged to return a *stable*
+instance rather than a new object per call. The cascade above still matters for the long-lived
+listeners — `TwitchEventSubIntegration`'s EventSub WebSocket and `YouTubeChatIntegration`'s stream
+own their provider for their lifetime and cannot be re-pointed.
 
 **Twitch** is split into three integrations following SRP: `TwitchAuthIntegration` (OAuth) → `TwitchApiIntegration` (Helix API) → `TwitchEventSubIntegration` (real-time events). **YouTube** follows the same three-part shape: `YouTubeAuthIntegration` → `YouTubeApiIntegration` → `YouTubeChatIntegration`. Spotify has an auth/api split only: `SpotifyAuthIntegration` → `SpotifyApiIntegration`. Discord, OBS, Arduino, and Sound are single-file integrations with no auth/api split.
 
@@ -119,6 +180,22 @@ All integrations extend `BaseIntegration` (`integrations/BaseIntegration.ts`), w
 OAuth-capable integrations (currently `TwitchAuthIntegration`, `SpotifyAuthIntegration`) additionally implement `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and expose it via a `get oauth()` getter (`null` on `BaseIntegration` by default). This is the single source of truth for OAuth capability — `IntegrationManager`/`HttpServer` derive callback routing and the frontend's OAuth affordance from it instead of checking integration names.
 
 Cross-integration communication uses `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
+
+**Status changes are the integration→UI channel, not per-provider events.** `setStatus()` → the
+`'status'` listener in `IntegrationManager.register()` → `integration:status` on the bus →
+`Application.setupEventHandlers()` broadcasts `INTEGRATION_STATUS` → `AppStateContext`. A new status
+(like `BLOCKED`) reaches the console through that path with no extra wiring, carrying its reason in
+`errorMessage`. Don't add a per-provider `*.ready` event for this: eight such emits
+(`twitch.auth.ready`, `twitch.api.ready`, the Spotify/YouTube equivalents, and two
+`*.auth.token-refreshed`) were removed as redundant with it — and the `*.ready` ones published live
+auth providers and API clients onto the bus, which is exactly the stale-reference trap the
+resolve-on-access change above eliminates.
+
+A token refresh is the one thing status *can't* express (the integration stays CONNECTED through
+it), so it has its own forward: `BaseIntegration.reportTokenRefreshed(expiresAt?)` →
+`'token-refreshed'` → logged and republished as `integration:token-refreshed` with
+`{ name, expiresAt? }`. It carries no credentials by design — anything needing the token asks the
+integration on access.
 
 ### WebSocket Protocol
 
@@ -178,6 +255,14 @@ Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend b
 - **Localhost only** — all servers bind to 127.0.0.1, never 0.0.0.0.
 - **No REST API** — all frontend-backend communication is WebSocket. HTTP server is only for static files and OAuth callbacks.
 - **IntegrationStatus enum** — never use string literals for integration status.
+- **`getDependencies()` returns integration instances**, not names — return the constructor-injected
+  objects so the graph can't drift. Unmet dependencies are `BLOCKED`, not `ERROR`.
+- **A new integration with a dependency should consider `dependencyFailurePolicy`.** It defaults to
+  `STOP`, which is the safe answer; only override to `BLOCK` if the integration holds nothing bound
+  to the dependency and gates its work on the dependency's status.
+- **Accessors a dependent caches against must return a stable instance** (`getAuthProvider()`,
+  `getAuthClient()`) — the API layers compare the reference to decide whether to rebuild, so
+  returning a fresh object per call makes them rebuild on every access.
 - **Integration lifecycle** — always call `initialize(config)` before `start()`.
 - **New commands** go in `packages/backend/src/commands/implementations/` and implement `ICommand`. They're auto-discovered by `loadCommands()`.
 - **Commands reach platforms through `StreamControlService`**, never through an integration directly, and never check auth themselves (see Platform Provider Layer).

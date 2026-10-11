@@ -11,6 +11,7 @@ import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
+import { DependencyFailurePolicy, type IIntegration } from '../../interfaces/IIntegration.js';
 import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
 /**
@@ -61,8 +62,18 @@ export class TwitchApiIntegration extends BaseIntegration {
   /**
    * Get integration dependencies
    */
-  getDependencies(): string[] {
-    return ['twitch-auth'];
+  getDependencies(): IIntegration[] {
+    return [this.authIntegration];
+  }
+
+  /**
+   * Holds nothing bound to the auth grant — the client is resolved on access —
+   * so a Twitch auth failure blocks this integration rather than stopping it.
+   * Stopping would also clear the shoutout cooldowns, which have nothing to do
+   * with auth.
+   */
+  override get dependencyFailurePolicy(): DependencyFailurePolicy {
+    return DependencyFailurePolicy.BLOCK;
   }
 
   getGroup(): IntegrationGroup {
@@ -79,25 +90,14 @@ export class TwitchApiIntegration extends BaseIntegration {
     this.setStatus(IntegrationStatus.CONNECTING);
 
     try {
-      // Get auth provider from auth integration
-      this.authProvider = this.authIntegration.getAuthProvider();
+      const apiClient = this.resolveApiClient();
 
-      if (!this.authProvider) {
+      if (!apiClient) {
         throw new Error('TwitchAuthIntegration must be started before TwitchApiIntegration');
       }
 
-      // Create API client
-      this.apiClient = new ApiClient({
-        authProvider: this.authProvider,
-      });
-
       this.setStatus(IntegrationStatus.CONNECTED);
       this.logger.info('Twitch API integration started successfully (auth provider configured)');
-
-      // Emit event that API is ready
-      this.eventBus.emit('twitch.api.ready', {
-        apiClient: this.apiClient,
-      });
 
       return Promise.resolve();
     } catch (error) {
@@ -127,6 +127,48 @@ export class TwitchApiIntegration extends BaseIntegration {
    * Get the API client for use by commands and other integrations
    */
   getApiClient(): ApiClient | null {
+    return this.resolveApiClient();
+  }
+
+  /**
+   * Return a client built on the auth integration's *current* auth provider,
+   * rebuilding it if the provider has been replaced since.
+   *
+   * TwitchAuthIntegration creates a fresh RefreshingAuthProvider every time it
+   * starts, so a client captured once at start() would keep calling Twitch
+   * through a provider that can no longer refresh — silently, until the access
+   * token aged out. Resolving on access instead means the stale-reference case
+   * cannot arise, rather than being swept up afterwards by the manager's
+   * cascade. (The cascade still matters for the EventSub listener, which owns
+   * its provider for the life of its WebSocket and cannot be re-pointed.)
+   */
+  private resolveApiClient(): ApiClient | null {
+    // Refuse to act at all while auth isn't connected. markAuthRequired()
+    // sets NEEDS_REAUTH without discarding the provider, so the provider
+    // below can be perfectly non-null and still unable to refresh — which is
+    // what would make a BLOCK-policy integration keep calling Twitch with
+    // credentials it has already been told are dead.
+    const authProvider =
+      this.authIntegration.getStatus() === IntegrationStatus.CONNECTED
+        ? this.authIntegration.getAuthProvider()
+        : null;
+
+    if (!authProvider) {
+      this.apiClient = null;
+      this.authProvider = null;
+      return null;
+    }
+
+    if (this.apiClient && this.authProvider === authProvider) {
+      return this.apiClient;
+    }
+
+    if (this.authProvider) {
+      this.logger.info('Twitch auth provider was replaced; rebuilding API client');
+    }
+
+    this.authProvider = authProvider;
+    this.apiClient = new ApiClient({ authProvider });
     return this.apiClient;
   }
 
@@ -138,12 +180,13 @@ export class TwitchApiIntegration extends BaseIntegration {
    * TwitchAuthIntegration directly.
    */
   private async call<T>(fn: (apiClient: ApiClient) => Promise<T>): Promise<T> {
-    if (!this.apiClient) {
+    const apiClient = this.resolveApiClient();
+    if (!apiClient) {
       throw new Error('API client not initialized');
     }
 
     try {
-      return await fn(this.apiClient);
+      return await fn(apiClient);
     } catch (error) {
       if (isAuthorizationRevokedError(error)) {
         this.setStatus(

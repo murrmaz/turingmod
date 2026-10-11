@@ -2,9 +2,9 @@ import type { PlaybackState } from '@spotify/web-api-ts-sdk';
 import { SpotifyApi } from '@spotify/web-api-ts-sdk';
 import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
-import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
+import { DependencyFailurePolicy, type IIntegration } from '../../interfaces/IIntegration.js';
 import { SpotifyAuthIntegration, type SpotifyTokenData } from './SpotifyAuthIntegration.js';
 
 /**
@@ -30,10 +30,10 @@ export class SpotifyApiIntegration extends BaseIntegration {
   readonly version = '1.0.0';
 
   private sdk: SpotifyApi | null = null;
-  private tokenRefreshUnsubscribe: (() => void) | null = null;
+  /** The credentials `sdk` was built on, to detect them being replaced. */
+  private sdkCredentials: { clientId: string; accessToken: string } | null = null;
 
   constructor(
-    private eventBus: EventBus,
     logger: Logger,
     private authIntegration: SpotifyAuthIntegration
   ) {
@@ -43,8 +43,17 @@ export class SpotifyApiIntegration extends BaseIntegration {
   /**
    * Get integration dependencies
    */
-  getDependencies(): string[] {
-    return ['spotify-auth'];
+  getDependencies(): IIntegration[] {
+    return [this.authIntegration];
+  }
+
+  /**
+   * Resolves its SDK from the auth integration's current credentials on
+   * access, so a Spotify auth failure blocks this integration rather than
+   * stopping it.
+   */
+  override get dependencyFailurePolicy(): DependencyFailurePolicy {
+    return DependencyFailurePolicy.BLOCK;
   }
 
   getGroup(): IntegrationGroup {
@@ -61,34 +70,14 @@ export class SpotifyApiIntegration extends BaseIntegration {
     this.setStatus(IntegrationStatus.CONNECTING);
 
     try {
-      const tokenData = this.authIntegration.getTokenData();
-      const clientId = this.authIntegration.getClientId();
+      const sdk = this.resolveSdk();
 
-      if (!(tokenData && clientId)) {
+      if (!sdk) {
         throw new Error('SpotifyAuthIntegration must be started before SpotifyApiIntegration');
       }
 
-      // Create SDK instance
-      this.sdk = this.createSdk(clientId, tokenData);
-
-      // Listen for token refreshes to recreate SDK
-      this.tokenRefreshUnsubscribe = this.eventBus.on(
-        'spotify.auth.token-refreshed',
-        (data: { tokenData: SpotifyTokenData }) => {
-          this.logger.info('Recreating Spotify SDK with refreshed tokens');
-          if (clientId) {
-            this.sdk = this.createSdk(clientId, data.tokenData);
-          }
-        }
-      );
-
       this.setStatus(IntegrationStatus.CONNECTED);
       this.logger.info('Spotify API integration started successfully');
-
-      // Emit event that API is ready
-      this.eventBus.emit('spotify.api.ready', {
-        sdk: this.sdk,
-      });
 
       return Promise.resolve();
     } catch (error) {
@@ -104,13 +93,8 @@ export class SpotifyApiIntegration extends BaseIntegration {
   stop(): Promise<void> {
     this.logger.info('Stopping Spotify API integration');
 
-    // Unsubscribe from token refresh events
-    if (this.tokenRefreshUnsubscribe) {
-      this.tokenRefreshUnsubscribe();
-      this.tokenRefreshUnsubscribe = null;
-    }
-
     this.sdk = null;
+    this.sdkCredentials = null;
     this.setStatus(IntegrationStatus.DISCONNECTED);
 
     this.logger.info('Spotify API integration stopped');
@@ -121,6 +105,48 @@ export class SpotifyApiIntegration extends BaseIntegration {
    * Get the SDK instance for direct use by commands
    */
   getSdk(): SpotifyApi | null {
+    return this.resolveSdk();
+  }
+
+  /**
+   * Return an SDK bound to the auth integration's *current* credentials,
+   * rebuilding it when they've changed.
+   *
+   * This replaces a `spotify.auth.token-refreshed` subscription that rebuilt
+   * the SDK on refresh: that covered a refresh but not the auth integration
+   * restarting with different credentials, and it rebuilt against a clientId
+   * captured in a closure at start() time. Resolving on access covers both
+   * and needs no subscription to keep in sync.
+   */
+  private resolveSdk(): SpotifyApi | null {
+    // Credentials that are present but no longer refreshable look identical
+    // from here, so gate on the dependency's status as well as the values.
+    const connected = this.authIntegration.getStatus() === IntegrationStatus.CONNECTED;
+    const tokenData = connected ? this.authIntegration.getTokenData() : null;
+    const clientId = connected ? this.authIntegration.getClientId() : null;
+
+    if (!(tokenData && clientId)) {
+      this.sdk = null;
+      this.sdkCredentials = null;
+      return null;
+    }
+
+    // getTokenData() builds a fresh object per call, so compare the access
+    // token itself rather than object identity.
+    if (
+      this.sdk &&
+      this.sdkCredentials?.clientId === clientId &&
+      this.sdkCredentials.accessToken === tokenData.accessToken
+    ) {
+      return this.sdk;
+    }
+
+    if (this.sdkCredentials) {
+      this.logger.info('Spotify credentials changed; rebuilding SDK');
+    }
+
+    this.sdkCredentials = { clientId, accessToken: tokenData.accessToken };
+    this.sdk = this.createSdk(clientId, tokenData);
     return this.sdk;
   }
 
@@ -129,10 +155,11 @@ export class SpotifyApiIntegration extends BaseIntegration {
    */
   async getCurrentlyPlaying(): Promise<PlaybackState | null> {
     return await this.withTokenRefresh(() => {
-      if (!this.sdk) {
+      const sdk = this.resolveSdk();
+      if (!sdk) {
         throw new Error('Spotify SDK not initialized');
       }
-      return this.sdk.player.getCurrentlyPlayingTrack();
+      return sdk.player.getCurrentlyPlayingTrack();
     });
   }
 
@@ -151,15 +178,11 @@ export class SpotifyApiIntegration extends BaseIntegration {
       this.logger.info('Access token expired, refreshing and retrying...');
       await this.authIntegration.refreshAccessToken();
 
-      // Recreate SDK with the new tokens
-      const tokenData = this.authIntegration.getTokenData();
-      const clientId = this.authIntegration.getClientId();
-      if (!(tokenData && clientId)) {
+      // The retry resolves the SDK again, which picks up the new tokens.
+      if (!this.resolveSdk()) {
         throw new Error('Failed to obtain refreshed tokens');
       }
-      this.sdk = this.createSdk(clientId, tokenData);
 
-      // Retry the call once
       return await apiCall();
     }
   }

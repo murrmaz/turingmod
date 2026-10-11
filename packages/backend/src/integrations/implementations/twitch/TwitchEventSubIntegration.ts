@@ -12,6 +12,7 @@ import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
+import type { IIntegration } from '../../interfaces/IIntegration.js';
 import { TwitchApiIntegration } from './TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
@@ -69,8 +70,8 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   /**
    * Get integration dependencies
    */
-  getDependencies(): string[] {
-    return ['twitch-auth', 'twitch-api'];
+  getDependencies(): IIntegration[] {
+    return [this.authIntegration, this.apiIntegration];
   }
 
   getGroup(): IntegrationGroup {

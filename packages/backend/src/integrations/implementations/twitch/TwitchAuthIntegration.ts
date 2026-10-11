@@ -150,10 +150,11 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
         // Save new tokens to database
         await this.saveTokens(newToken);
 
-        // Emit event for other integrations
-        this.eventBus.emit('twitch.auth.token-refreshed', {
-          token: newToken,
-        });
+        this.reportTokenRefreshed(
+          newToken.expiresIn === null
+            ? undefined
+            : newToken.obtainmentTimestamp + newToken.expiresIn * 1000
+        );
       });
 
       // Listen for token refresh failures
@@ -176,11 +177,6 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
 
       this.setStatus(IntegrationStatus.CONNECTED);
       this.logger.info('Twitch Auth integration started successfully');
-
-      // Emit event that auth is ready
-      this.eventBus.emit('twitch.auth.ready', {
-        authProvider: this.authProvider,
-      });
     } catch (error) {
       this.logger.error('Failed to start Twitch Auth integration', error);
       if (isReauthRequiredError(error)) {
@@ -219,7 +215,12 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
   }
 
   /**
-   * Get the auth provider for use by other integrations
+   * Get the auth provider for use by other integrations.
+   *
+   * Returns the stored instance, not a new one per call: dependents compare
+   * this reference against the one their cached client was built on to detect
+   * that the grant was replaced, so a fresh object each call would make them
+   * rebuild on every access.
    */
   getAuthProvider(): RefreshingAuthProvider | null {
     return this.authProvider;

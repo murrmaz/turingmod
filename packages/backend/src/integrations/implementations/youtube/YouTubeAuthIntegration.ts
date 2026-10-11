@@ -114,14 +114,11 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
     // Persist tokens whenever the client refreshes them.
     this.oauth2Client.on('tokens', (tokens) => {
       void this.saveTokens(tokens);
+      this.reportTokenRefreshed(tokens.expiry_date ?? undefined);
     });
 
     this.setStatus(IntegrationStatus.CONNECTED);
     this.logger.info('YouTube Auth integration started successfully');
-
-    this.eventBus.emit('youtube.auth.ready', {
-      authClient: this.oauth2Client,
-    });
 
     return Promise.resolve();
   }
@@ -143,6 +140,13 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
   /**
    * Get the authenticated OAuth2 client for use by the API + Chat integrations.
    * The client refreshes its own access token on demand.
+   */
+  /**
+   * The current OAuth2 client, or null.
+   *
+   * Returns the stored instance, not a new one per call: YouTubeApiIntegration
+   * compares this reference against the one its cached API client was built
+   * on to detect that credentials were replaced.
    */
   getAuthClient(): YouTubeOAuth2Client | null {
     return this.oauth2Client;

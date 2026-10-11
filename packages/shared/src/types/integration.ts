@@ -8,6 +8,11 @@ export enum IntegrationStatus {
   ERROR = 'error',
   /** Was connected, but token refresh failed — needs the user to redo the OAuth flow. */
   NEEDS_REAUTH = 'needs_reauth',
+  /**
+   * Can't run because a declared dependency isn't connected. Distinct from
+   * ERROR: nothing is broken, a prerequisite is just off or still starting.
+   */
+  BLOCKED = 'blocked',
 }
 
 /** Logical grouping of related integrations for UI display (e.g. Twitch's auth/api/eventsub trio). */
@@ -30,7 +35,7 @@ export interface IntegrationInfo {
   /** Timestamp of last successful connection */
   lastConnected?: number;
 
-  /** Error message if status is ERROR or NEEDS_REAUTH */
+  /** Explanation if status is ERROR, NEEDS_REAUTH or BLOCKED */
   errorMessage?: string;
 
   /** Additional integration-specific metadata */

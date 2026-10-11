@@ -38,12 +38,18 @@ export interface TwitchAuthConfig {
  * Required OAuth scopes for the Twitch integration.
  * Single source of truth — the frontend and OAuthHandler should not specify scopes.
  */
-const TWITCH_REQUIRED_SCOPES = [
+export const TWITCH_REQUIRED_SCOPES = [
   'chat:read',
   'chat:edit',
   'user:read:chat',
   'user:write:chat',
   'channel:read:subscriptions',
+  // Ad schedule reads (Get Ad Schedule, `!ad`) and the channel.ad_break.begin EventSub topic
+  'channel:read:ads',
+  // Snoozing the next ad break
+  'channel:manage:ads',
+  // Enabling/disabling channel point rewards (e.g. pausing redemptions during an ad break)
+  'channel:manage:redemptions',
   'moderator:read:followers',
   'moderator:manage:banned_users',
   'moderator:manage:chat_messages',
@@ -106,6 +112,27 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
       if (!this.config.accessToken) {
         this.logger.warn('No tokens available. User must complete OAuth flow.');
         this.setStatus(IntegrationStatus.DISCONNECTED);
+        emitAuthRequired(
+          this.eventBus,
+          this.name,
+          this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>, randomUUID())
+        );
+        return;
+      }
+
+      // A token granted before a scope was added to TWITCH_REQUIRED_SCOPES
+      // still works for everything it was granted, so nothing would fail until
+      // the first call that needs the new scope — far from the cause. Refuse to
+      // start on a short grant instead, so the gap shows up as NEEDS_REAUTH here.
+      const missingScopes = TWITCH_REQUIRED_SCOPES.filter(
+        (scope) => !(this.config?.scopes ?? []).includes(scope)
+      );
+      if (missingScopes.length > 0) {
+        this.logger.warn('Stored Twitch grant is missing required scopes', { missingScopes });
+        this.setStatus(
+          IntegrationStatus.NEEDS_REAUTH,
+          `Re-authorization required for new permissions: ${missingScopes.join(', ')}`
+        );
         emitAuthRequired(
           this.eventBus,
           this.name,
@@ -269,12 +296,15 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
    * Generate OAuth authorization URL
    */
   getAuthorizationUrl(config: Record<string, unknown>, state: string): string {
-    const { clientId, redirectUri, scopes } = config as unknown as TwitchAuthConfig;
+    // Always request the current required set rather than config.scopes:
+    // after the first grant, config.scopes records what Twitch *granted*, so
+    // reusing it would re-request the old set and never pick up added scopes.
+    const { clientId, redirectUri } = config as unknown as TwitchAuthConfig;
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
       response_type: 'code',
-      scope: scopes.join(' '),
+      scope: TWITCH_REQUIRED_SCOPES.join(' '),
       state,
     });
 

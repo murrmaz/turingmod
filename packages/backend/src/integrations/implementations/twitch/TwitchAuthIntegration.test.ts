@@ -4,13 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../core/EventBus.js';
 import type { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
 import { Logger } from '../../../utils/Logger.js';
-import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
+import { TWITCH_REQUIRED_SCOPES, TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
 const CONFIG = {
   clientId: 'client-id',
   clientSecret: 'client-secret',
   redirectUri: 'http://localhost:8080/callback/twitch',
-  scopes: ['chat:read'],
+  scopes: [...TWITCH_REQUIRED_SCOPES],
   accessToken: 'stale-access-token',
   refreshToken: 'refresh-token',
   expiresIn: 3600,
@@ -47,7 +47,7 @@ function successfulTokenExchange() {
         access_token: 'refreshed-access-token',
         refresh_token: 'refreshed-refresh-token',
         expires_in: 14400,
-        scope: ['chat:read'],
+        scope: [...TWITCH_REQUIRED_SCOPES],
       });
     }
     if (url.includes('/oauth2/validate')) {
@@ -55,7 +55,7 @@ function successfulTokenExchange() {
         client_id: CONFIG.clientId,
         login: 'streamer',
         user_id: 'user-123',
-        scopes: ['chat:read'],
+        scopes: [...TWITCH_REQUIRED_SCOPES],
         expires_in: 14400,
       });
     }
@@ -163,5 +163,30 @@ describe('TwitchAuthIntegration', () => {
     await expect(integration.start()).rejects.toThrow();
 
     expect(eventBus.listenerCount('twitch.authorization-revoked')).toBe(1);
+  });
+
+  it('requires re-authorization, without contacting Twitch, when the stored grant predates a required scope', async () => {
+    const eventBus = new EventBus(new Logger({ level: 'silent' }));
+    const authRequired = vi.fn();
+    eventBus.on('integration.auth-required', authRequired);
+    const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
+
+    await integration.initialize({ ...CONFIG, scopes: ['chat:read'] });
+    await integration.start();
+
+    expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
+    expect(integration.getErrorMessage()).toMatch(/channel:read:ads/);
+    expect(authRequired).toHaveBeenCalledOnce();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('requests the current required scopes, not the previously granted ones, in the authorization URL', () => {
+    const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) });
+
+    const url = new URL(
+      integration.getAuthorizationUrl({ ...CONFIG, scopes: ['chat:read'] }, 'state-123')
+    );
+
+    expect(url.searchParams.get('scope')?.split(' ')).toEqual(TWITCH_REQUIRED_SCOPES);
   });
 });

@@ -47,7 +47,9 @@ export class HttpServer {
 
     await new Promise<void>((resolve, reject) => {
       this.server?.listen(this.port, this.host, () => {
+        this.logger.info('*********************************************************');
         this.logger.info(`HTTP server listening on http://${this.host}:${this.port}`);
+        this.logger.info('*********************************************************');
         resolve();
       });
 

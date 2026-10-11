@@ -15,6 +15,8 @@ import {
 } from '@turingmod/shared';
 import { container, instanceCachingFactory } from 'tsyringe';
 import { ActivityForwarder } from './activity/ActivityForwarder.js';
+import { AdWarningScheduler } from './breaks/AdWarningScheduler.js';
+import { BreakService } from './breaks/BreakService.js';
 import { CommandRegistry } from './commands/CommandRegistry.js';
 import { loadCommands } from './commands/loadCommands.js';
 import { EventBus } from './core/EventBus.js';
@@ -178,6 +180,12 @@ export async function initializeComponents(): Promise<void> {
 
   // Start forwarding EventBus activity to the live tail (broadcast) and activity_log (persist).
   container.resolve(ActivityForwarder).start();
+
+  // Stream breaks: Twitch ad breaks (and !break) take the streamer off camera and mic, and chat
+  // on every platform is warned ahead of scheduled ads. Stopped in Application.stop(), before
+  // integrations, so a break in progress is restored while OBS is still connected.
+  await container.resolve(BreakService).start();
+  container.resolve(AdWarningScheduler).start();
 
   // Register message handlers
   const messageRouter = container.resolve(MessageRouter);

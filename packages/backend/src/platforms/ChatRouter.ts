@@ -64,6 +64,12 @@ export class ChatRouter {
 
     const result = await this.commandExecutor.execute(context);
 
+    // A command can deliberately reply with nothing, e.g. when it announces its outcome to
+    // every platform itself.
+    if (result.message.trim() === '') {
+      return;
+    }
+
     const platform = this.platformRegistry.get(event.platform);
     if (!platform) {
       this.logger.warn(`No platform registered for reply routing: ${event.platform}`);

@@ -59,6 +59,13 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Chat routing**: `packages/backend/src/platforms/ChatRouter.ts`
 - **Display names**: `packages/backend/src/platforms/platformNames.ts`
 
+### Stream Breaks
+- **Lifecycle**: `packages/backend/src/breaks/BreakService.ts` — starts/extends/ends breaks; listens for `twitch.ad.break`; emits `stream.break.started`/`.ended`
+- **OBS overlay**: `packages/backend/src/breaks/ObsBreakOverlay.ts` — snapshot/apply/restore across all canvases and scenes
+- **Ad pre-warnings**: `packages/backend/src/breaks/AdWarningScheduler.ts`
+- **Settings**: `packages/backend/src/breaks/breakSettings.ts` (types, defaults, parsing), stored under the `breaks` key via `database/repositories/SettingsRepository.ts`
+- **Manual trigger**: `packages/backend/src/commands/implementations/BreakCommand.ts` (`!break`)
+
 ### WebSocket Protocol
 - **Server**: `packages/backend/src/server/WebSocketServer.ts`
 - **Router**: `packages/backend/src/server/MessageRouter.ts`
@@ -203,7 +210,7 @@ All messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/me
 
 ### Database
 
-`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `UserRepository`, `CommandHistoryRepository`, `IntegrationStateRepository`. Integration configs are encrypted with AES-256-GCM before storage.
+`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `UserRepository`, `CommandHistoryRepository`, `IntegrationStateRepository`, `SettingsRepository`. Integration configs are encrypted with AES-256-GCM before storage; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there.
 
 ### Platform Provider Layer
 
@@ -228,6 +235,20 @@ can recover it automatically — an expired access token is refreshed transparen
 (`commands/utils/commandErrors.ts`) maps to a `NOT_AUTHENTICATED` result; mirrored *writes* instead
 call `getUnavailableReason()` and log a warning, because a mirror replies in public chat where the
 broadcaster's token state doesn't belong.
+
+### Stream Breaks
+
+A break takes the streamer off camera and mic in OBS. That's one output, so every platform sees it;
+only the chat wording differs per platform (`PerPlatformMessage`). Twitch ad breaks
+(`channel.ad_break.begin` → `twitch.ad.break`) start one automatically, and `!break` starts one by
+hand. A trigger during a running break extends it rather than starting another, so the OBS snapshot
+is always of the pre-break state. `ObsBreakOverlay` sets absolute states from that snapshot (never
+`ToggleInputMute`-style toggles) and covers every scene on every canvas, which keeps the Aitum
+Vertical canvas in step and makes a mid-break scene switch harmless. `AdWarningScheduler` warns chat
+ahead of Twitch's scheduled ads, re-reading the schedule before each warning because snoozes and
+manual ads move it. `Application.stop()` ends a running break before stopping integrations, so OBS
+is still connected to restore it. Chat fan-out goes through `StreamControlService.announce()`, which
+shares the live-platform/auth-skip loop with the mirrored writes.
 
 ### Frontend State
 

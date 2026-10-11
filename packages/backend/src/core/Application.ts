@@ -6,6 +6,8 @@ import {
   type YouTubeChatState,
 } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
+import { AdWarningScheduler } from '../breaks/AdWarningScheduler.js';
+import { BreakService } from '../breaks/BreakService.js';
 import { DatabaseManager } from '../database/DatabaseManager.js';
 import { IntegrationManager } from '../integrations/IntegrationManager.js';
 import { HttpServer } from '../server/HttpServer.js';
@@ -28,6 +30,8 @@ export class Application {
     private webSocketServer: WebSocketServer,
     private integrationManager: IntegrationManager,
     private eventBus: EventBus,
+    private breakService: BreakService,
+    private adWarningScheduler: AdWarningScheduler,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'Application' });
@@ -128,16 +132,21 @@ export class Application {
   async stop(): Promise<void> {
     this.logger.info('Stopping TuringMod...');
 
-    // 1. Stop integrations
+    // 1. End any break in progress while OBS is still connected, so shutting down mid-break
+    //    doesn't leave the streamer hidden and muted.
+    this.adWarningScheduler.stop();
+    await this.breakService.stop();
+
+    // 2. Stop integrations
     await this.integrationManager.stopAll();
 
-    // 2. Stop WebSocket server
+    // 3. Stop WebSocket server
     await this.webSocketServer.stop();
 
-    // 3. Stop HTTP server
+    // 4. Stop HTTP server
     await this.httpServer.stop();
 
-    // 4. Close database
+    // 5. Close database
     await this.databaseManager.close();
 
     this.logger.info('TuringMod stopped successfully');

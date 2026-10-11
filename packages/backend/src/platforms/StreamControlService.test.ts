@@ -9,6 +9,7 @@ import { StreamControlService } from './StreamControlService.js';
 /** A façade whose availability and live state the test drives directly. */
 class FakePlatform implements IStreamPlatform {
   setStreamInfo = vi.fn<(info: Partial<StreamInfo>) => Promise<void>>(() => Promise.resolve());
+  sendChatMessage = vi.fn<(message: string) => Promise<void>>(() => Promise.resolve());
 
   constructor(
     readonly platform: StreamingPlatform,
@@ -17,16 +18,13 @@ class FakePlatform implements IStreamPlatform {
   ) {}
 
   getCapabilities(): Set<PlatformCapability> {
-    return new Set([PlatformCapability.SET_TITLE]);
+    return new Set([PlatformCapability.SEND_CHAT, PlatformCapability.SET_TITLE]);
   }
   getUnavailableReason(): string | null {
     return this.unavailable;
   }
   isLive(): Promise<boolean> {
     return Promise.resolve(this.live);
-  }
-  sendChatMessage(): Promise<void> {
-    return Promise.resolve();
   }
   getStreamInfo(): Promise<StreamInfo> {
     return Promise.resolve({ title: 'x' });
@@ -101,6 +99,57 @@ describe('StreamControlService mirroring', () => {
     await expect(service.getSchedule(StreamingPlatform.TWITCH)).rejects.toThrow(
       'twitch does not support schedule'
     );
+  });
+});
+
+describe('StreamControlService.announce', () => {
+  let logger: ReturnType<typeof makeLogger>;
+  let registry: PlatformRegistry;
+
+  beforeEach(() => {
+    logger = makeLogger();
+    registry = new PlatformRegistry();
+  });
+
+  it('posts per-platform wording to every live platform and skips the rest', async () => {
+    const twitch = new FakePlatform(StreamingPlatform.TWITCH, null, true);
+    const youtube = new FakePlatform(StreamingPlatform.YOUTUBE, null, false);
+    registry.register(twitch);
+    registry.register(youtube);
+    const service = new StreamControlService(registry, logger);
+
+    const result = await service.announce((platform) => `hello ${platform}`);
+
+    expect(twitch.sendChatMessage).toHaveBeenCalledWith('hello twitch');
+    expect(youtube.sendChatMessage).not.toHaveBeenCalled();
+    expect(result).toEqual({ updated: [StreamingPlatform.TWITCH], failures: [] });
+  });
+
+  it('skips a platform whose message is null without counting it', async () => {
+    const twitch = new FakePlatform(StreamingPlatform.TWITCH, null, true);
+    registry.register(twitch);
+    const service = new StreamControlService(registry, logger);
+
+    const result = await service.announce(() => null);
+
+    expect(twitch.sendChatMessage).not.toHaveBeenCalled();
+    expect(result).toEqual({ updated: [], failures: [] });
+  });
+
+  it('reports a send failure without stopping the other platforms', async () => {
+    const twitch = new FakePlatform(StreamingPlatform.TWITCH, null, true);
+    const youtube = new FakePlatform(StreamingPlatform.YOUTUBE, null, true);
+    twitch.sendChatMessage.mockRejectedValueOnce(new Error('rate limited'));
+    registry.register(twitch);
+    registry.register(youtube);
+    const service = new StreamControlService(registry, logger);
+
+    const result = await service.announce(() => 'hi');
+
+    expect(result.updated).toEqual([StreamingPlatform.YOUTUBE]);
+    expect(result.failures).toEqual([
+      { platform: StreamingPlatform.TWITCH, error: 'rate limited' },
+    ]);
   });
 });
 

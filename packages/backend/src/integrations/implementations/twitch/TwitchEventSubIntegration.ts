@@ -301,8 +301,8 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info('Subscribed to stream.offline');
     }
 
-    // Ad Break Begin
-    if (subscriptions.adBreakBegin) {
+    // Ad Break Begin — on unless explicitly disabled, since stream breaks are driven by it
+    if (subscriptions.adBreakBegin !== false) {
       await this.eventSubListener.onChannelAdBreakBegin(broadcasterId, (event) => {
         this.eventBus.emit('twitch.ad.break', {
           durationSeconds: event.durationSeconds,

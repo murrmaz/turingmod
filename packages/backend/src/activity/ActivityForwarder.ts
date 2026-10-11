@@ -20,6 +20,8 @@ const EVENT_CATEGORIES: Record<string, ActivityCategory> = {
   'twitch.stream.online': ActivityCategory.EVENT,
   'twitch.stream.offline': ActivityCategory.EVENT,
   'twitch.ad.break': ActivityCategory.EVENT,
+  'stream.break.started': ActivityCategory.EVENT,
+  'stream.break.ended': ActivityCategory.EVENT,
   'twitch.channelpoint.redemption': ActivityCategory.EVENT,
   'obs.scene.changed': ActivityCategory.EVENT,
   'obs.stream.stateChanged': ActivityCategory.EVENT,

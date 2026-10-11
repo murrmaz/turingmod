@@ -59,6 +59,22 @@ export class StreamControlService {
     return this.mirror(PlatformCapability.SET_TAGS, { tags });
   }
 
+  /**
+   * Post a chat message to every live platform. `messageFor` picks the wording per platform and
+   * returns null to skip one. Platforms whose auth is broken are skipped and logged, never
+   * reported to chat, for the same reason as mirrored writes (see mirror()).
+   */
+  announce(messageFor: (platform: StreamingPlatform) => string | null): Promise<MirrorResult> {
+    return this.forEachLivePlatform(PlatformCapability.SEND_CHAT, async (platform) => {
+      const message = messageFor(platform.platform);
+      if (message === null) {
+        return false;
+      }
+      await platform.sendChatMessage(message);
+      return true;
+    });
+  }
+
   /** Read current stream metadata from the platform the command originated on. */
   getStreamInfo(platform: StreamingPlatform): Promise<StreamInfo> {
     const target = this.registry.get(platform);
@@ -144,13 +160,22 @@ export class StreamControlService {
     return fn.bind(target) as NonNullable<IStreamPlatform[K]>;
   }
 
+  /** Fan a metadata write out to every live platform that supports `capability`. */
+  private mirror(capability: PlatformCapability, info: Partial<StreamInfo>): Promise<MirrorResult> {
+    return this.forEachLivePlatform(capability, async (platform) => {
+      await platform.setStreamInfo(info);
+      return true;
+    });
+  }
+
   /**
-   * Fan a write out to every live platform whose capability set includes `capability`,
-   * collecting per-platform successes and failures.
+   * Run `action` on every live platform whose capability set includes `capability`, collecting
+   * per-platform successes and failures. `action` returns false to skip a platform without it
+   * counting as either.
    */
-  private async mirror(
+  private async forEachLivePlatform(
     capability: PlatformCapability,
-    info: Partial<StreamInfo>
+    action: (platform: IStreamPlatform) => Promise<boolean>
   ): Promise<MirrorResult> {
     const result: MirrorResult = { updated: [], failures: [] };
 
@@ -187,10 +212,11 @@ export class StreamControlService {
       }
 
       try {
-        await platform.setStreamInfo(info);
-        result.updated.push(platform.platform);
+        if (await action(platform)) {
+          result.updated.push(platform.platform);
+        }
       } catch (error) {
-        this.logger.error(`Failed to mirror ${capability} to ${platform.platform}`, error);
+        this.logger.error(`Failed to apply ${capability} on ${platform.platform}`, error);
         result.failures.push({ platform: platform.platform, error: this.messageOf(error) });
       }
     }

@@ -49,7 +49,29 @@ export interface ObsStreamStatus {
   outputTotalFrames: number;
 }
 
+/** A canvas (OBS 31+/obs-websocket 5.7+), e.g. the main canvas or an Aitum Vertical canvas. */
+export interface ObsCanvas {
+  canvasUuid: string;
+  canvasName: string;
+}
+
+/** A scene, identified by UUID so it is unambiguous across canvases. */
+export interface ObsScene {
+  sceneName: string;
+  sceneUuid: string;
+}
+
+/** A source placed in a scene, with its current visibility. */
+export interface ObsSceneItem {
+  sceneItemId: number;
+  sourceName: string;
+  sceneItemEnabled: boolean;
+}
+
 const DEFAULT_OBS_URL = 'ws://127.0.0.1:4455';
+
+/** obs-websocket RequestStatus.UnknownRequestType: the connected OBS predates the request. */
+const OBS_UNKNOWN_REQUEST_TYPE = 204;
 
 @injectable()
 @singleton()
@@ -202,6 +224,96 @@ export class ObsIntegration extends BaseIntegration {
       sceneItemId,
       sceneItemEnabled: enabled,
     });
+  }
+
+  // ── Canvases, Scenes and Items by UUID ───────────────────────────────
+  //
+  // Scene names are only unique within a canvas, so anything that walks more than one canvas
+  // addresses scenes by UUID. These don't default to the program scene: a non-main canvas has
+  // no program scene of its own as far as obs-websocket is concerned.
+
+  /**
+   * List the canvases OBS knows about. Empty when the connected OBS predates canvas support,
+   * in which case the scene methods below operate on the main canvas.
+   */
+  async getCanvases(): Promise<ObsCanvas[]> {
+    this.ensureConnected();
+    try {
+      const { canvases } = await this.obs.call('GetCanvasList');
+      return canvases.flatMap((canvas) =>
+        typeof canvas.canvasUuid === 'string'
+          ? [{ canvasUuid: canvas.canvasUuid, canvasName: String(canvas.canvasName ?? '') }]
+          : []
+      );
+    } catch (error: unknown) {
+      if (this.isObsError(error) && error.code === OBS_UNKNOWN_REQUEST_TYPE) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * List the scenes on a canvas.
+   * @param canvasUuid Canvas to list. Defaults to the main canvas.
+   */
+  async getScenes(canvasUuid?: string): Promise<ObsScene[]> {
+    this.ensureConnected();
+    const { scenes } = await this.obs.call(
+      'GetSceneList',
+      canvasUuid === undefined ? {} : { canvasUuid }
+    );
+    return scenes.flatMap((scene) =>
+      typeof scene.sceneUuid === 'string' && typeof scene.sceneName === 'string'
+        ? [{ sceneName: scene.sceneName, sceneUuid: scene.sceneUuid }]
+        : []
+    );
+  }
+
+  /** List the items placed directly in a scene (not inside nested groups). */
+  async getSceneItems(sceneUuid: string): Promise<ObsSceneItem[]> {
+    this.ensureConnected();
+    const { sceneItems } = await this.obs.call('GetSceneItemList', { sceneUuid });
+    return sceneItems.flatMap((item) =>
+      typeof item.sceneItemId === 'number' && typeof item.sourceName === 'string'
+        ? [
+            {
+              sceneItemId: item.sceneItemId,
+              sourceName: item.sourceName,
+              sceneItemEnabled: item.sceneItemEnabled === true,
+            },
+          ]
+        : []
+    );
+  }
+
+  /** Show or hide a scene item in a scene identified by UUID. */
+  async setSceneItemEnabledInScene(
+    sceneUuid: string,
+    sceneItemId: number,
+    enabled: boolean
+  ): Promise<void> {
+    this.ensureConnected();
+    await this.obs.call('SetSceneItemEnabled', {
+      sceneUuid,
+      sceneItemId,
+      sceneItemEnabled: enabled,
+    });
+  }
+
+  // ── Audio Inputs ──────────────────────────────────────────────────────
+
+  /** Whether an audio input is muted. */
+  async getInputMuted(inputName: string): Promise<boolean> {
+    this.ensureConnected();
+    const { inputMuted } = await this.obs.call('GetInputMute', { inputName });
+    return inputMuted;
+  }
+
+  /** Mute or unmute an audio input. Absolute, unlike OBS's ToggleInputMute. */
+  async setInputMuted(inputName: string, muted: boolean): Promise<void> {
+    this.ensureConnected();
+    await this.obs.call('SetInputMute', { inputName, inputMuted: muted });
   }
 
   // ── Scene Switching ───────────────────────────────────────────────────

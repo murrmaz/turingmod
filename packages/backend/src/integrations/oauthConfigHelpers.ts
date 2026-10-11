@@ -1,3 +1,5 @@
+import type { EventBus } from '../core/EventBus.js';
+import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import { OAuthNotConfiguredError } from './errors.js';
 
 /**
@@ -58,4 +60,37 @@ export function buildOAuthEnvConfig<T extends OAuthConfigBase>(params: {
   }
 
   return config;
+}
+
+/**
+ * Emit the shared event an OAuth-capable integration's `start()` raises when
+ * it has no stored access token yet and the user must complete the
+ * authorization flow.
+ */
+export function emitAuthRequired(
+  eventBus: EventBus,
+  integrationName: string,
+  authUrl: string
+): void {
+  eventBus.emit('integration.auth-required', { integration: integrationName, authUrl });
+}
+
+/**
+ * Merge a token patch into an OAuth integration's in-memory config and
+ * persist the result (encrypted) to `IntegrationStateRepository`. Returns the
+ * merged config so the caller can update its own `this.config` reference.
+ */
+export async function persistOAuthTokens<T extends OAuthConfigBase>(
+  stateRepo: IntegrationStateRepository,
+  integrationName: string,
+  currentConfig: T,
+  patch: Partial<T>
+): Promise<T> {
+  const updatedConfig: T = { ...currentConfig, ...patch };
+  await stateRepo.upsert(
+    integrationName,
+    updatedConfig as unknown as Record<string, unknown>,
+    true
+  );
+  return updatedConfig;
 }

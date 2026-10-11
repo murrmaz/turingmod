@@ -7,7 +7,12 @@ import { IntegrationStateRepository } from '../../../database/repositories/Integ
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
-import { buildOAuthEnvConfig, validateOAuthConfig } from '../../oauthConfigHelpers.js';
+import {
+  buildOAuthEnvConfig,
+  emitAuthRequired,
+  persistOAuthTokens,
+  validateOAuthConfig,
+} from '../../oauthConfigHelpers.js';
 
 /**
  * YouTube Auth Configuration
@@ -95,13 +100,11 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
     if (!this.config.refreshToken) {
       this.logger.warn('No tokens available. User must complete OAuth flow.');
       this.setStatus(IntegrationStatus.DISCONNECTED);
-      this.eventBus.emit('integration.auth-required', {
-        integration: this.name,
-        authUrl: this.getAuthorizationUrl(
-          this.config as unknown as Record<string, unknown>,
-          randomUUID()
-        ),
-      });
+      emitAuthRequired(
+        this.eventBus,
+        this.name,
+        this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>, randomUUID())
+      );
       return Promise.resolve();
     }
 
@@ -254,28 +257,21 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
       throw new Error('Integration not initialized');
     }
 
-    const updatedConfig: YouTubeAuthConfig = { ...this.config };
-
+    const patch: Partial<YouTubeAuthConfig> = {};
     if (tokens.access_token) {
-      updatedConfig.accessToken = tokens.access_token;
+      patch.accessToken = tokens.access_token;
     }
     if (tokens.refresh_token) {
-      updatedConfig.refreshToken = tokens.refresh_token;
+      patch.refreshToken = tokens.refresh_token;
     }
     if (tokens.expiry_date !== undefined && tokens.expiry_date !== null) {
-      updatedConfig.expiryDate = tokens.expiry_date;
+      patch.expiryDate = tokens.expiry_date;
     }
 
-    this.config = updatedConfig;
+    this.config = await persistOAuthTokens(this.stateRepo, this.name, this.config, patch);
 
     if (this.oauth2Client) {
-      this.applyCredentials(this.oauth2Client, updatedConfig);
+      this.applyCredentials(this.oauth2Client, this.config);
     }
-
-    await this.stateRepo.upsert(
-      this.name,
-      updatedConfig as unknown as Record<string, unknown>,
-      true
-    );
   }
 }

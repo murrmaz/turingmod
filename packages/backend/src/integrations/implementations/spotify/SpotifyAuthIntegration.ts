@@ -6,7 +6,12 @@ import { IntegrationStateRepository } from '../../../database/repositories/Integ
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
-import { buildOAuthEnvConfig, validateOAuthConfig } from '../../oauthConfigHelpers.js';
+import {
+  buildOAuthEnvConfig,
+  emitAuthRequired,
+  persistOAuthTokens,
+  validateOAuthConfig,
+} from '../../oauthConfigHelpers.js';
 
 /**
  * Spotify Auth Configuration
@@ -94,13 +99,11 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
     if (!this.config.accessToken) {
       this.logger.warn('No tokens available. User must complete OAuth flow.');
       this.setStatus(IntegrationStatus.DISCONNECTED);
-      this.eventBus.emit('integration.auth-required', {
-        integration: this.name,
-        authUrl: this.getAuthorizationUrl(
-          this.config as unknown as Record<string, unknown>,
-          randomUUID()
-        ),
-      });
+      emitAuthRequired(
+        this.eventBus,
+        this.name,
+        this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>, randomUUID())
+      );
       return Promise.resolve();
     }
 
@@ -313,22 +316,6 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
       throw new Error('Integration not initialized');
     }
 
-    const updatedConfig: SpotifyAuthConfig = {
-      ...this.config,
-      accessToken: token.accessToken,
-      refreshToken: token.refreshToken,
-      expiresIn: token.expiresIn,
-      obtainmentTimestamp: token.obtainmentTimestamp,
-    };
-
-    // Update local config
-    this.config = updatedConfig;
-
-    // Save to database
-    await this.stateRepo.upsert(
-      this.name,
-      updatedConfig as unknown as Record<string, unknown>,
-      true
-    );
+    this.config = await persistOAuthTokens(this.stateRepo, this.name, this.config, token);
   }
 }

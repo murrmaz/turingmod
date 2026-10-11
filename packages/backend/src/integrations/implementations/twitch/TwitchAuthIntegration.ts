@@ -13,7 +13,12 @@ import { IntegrationStateRepository } from '../../../database/repositories/Integ
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
-import { buildOAuthEnvConfig, validateOAuthConfig } from '../../oauthConfigHelpers.js';
+import {
+  buildOAuthEnvConfig,
+  emitAuthRequired,
+  persistOAuthTokens,
+  validateOAuthConfig,
+} from '../../oauthConfigHelpers.js';
 
 /**
  * Twitch Auth Configuration
@@ -101,13 +106,11 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
       if (!this.config.accessToken) {
         this.logger.warn('No tokens available. User must complete OAuth flow.');
         this.setStatus(IntegrationStatus.DISCONNECTED);
-        this.eventBus.emit('integration.auth-required', {
-          integration: this.name,
-          authUrl: this.getAuthorizationUrl(
-            this.config as unknown as Record<string, unknown>,
-            randomUUID()
-          ),
-        });
+        emitAuthRequired(
+          this.eventBus,
+          this.name,
+          this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>, randomUUID())
+        );
         return;
       }
 
@@ -333,32 +336,22 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
       throw new Error('Integration not initialized');
     }
 
-    const updatedConfig: TwitchAuthConfig = {
-      ...this.config,
+    // Conditionally include optional properties (exactOptionalPropertyTypes)
+    const patch: Partial<TwitchAuthConfig> = {
       accessToken: token.accessToken,
       obtainmentTimestamp: token.obtainmentTimestamp,
     };
-
-    // Conditionally add optional properties
     if (token.refreshToken) {
-      updatedConfig.refreshToken = token.refreshToken;
+      patch.refreshToken = token.refreshToken;
     }
     if (token.expiresIn) {
-      updatedConfig.expiresIn = token.expiresIn;
+      patch.expiresIn = token.expiresIn;
     }
     if (token.scope) {
-      updatedConfig.scopes = token.scope;
+      patch.scopes = token.scope;
     }
 
-    // Update local config
-    this.config = updatedConfig;
-
-    // Save to database
-    await this.stateRepo.upsert(
-      this.name,
-      updatedConfig as unknown as Record<string, unknown>,
-      true
-    );
+    this.config = await persistOAuthTokens(this.stateRepo, this.name, this.config, patch);
   }
 }
 

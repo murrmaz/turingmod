@@ -301,6 +301,40 @@ export class ObsIntegration extends BaseIntegration {
     });
   }
 
+  /** Get the full transform of a scene item in a scene identified by UUID. */
+  async getSceneItemTransformInScene(
+    sceneUuid: string,
+    sceneItemId: number
+  ): Promise<SceneItemTransform> {
+    this.ensureConnected();
+    const { sceneItemTransform } = await this.obs.call('GetSceneItemTransform', {
+      sceneUuid,
+      sceneItemId,
+    });
+    return sceneItemTransform as unknown as SceneItemTransform;
+  }
+
+  /** Set (merge) transform properties on a scene item in a scene identified by UUID. */
+  async setSceneItemTransformInScene(
+    sceneUuid: string,
+    sceneItemId: number,
+    transform: Partial<SceneItemTransform>
+  ): Promise<void> {
+    this.ensureConnected();
+    await this.obs.call('SetSceneItemTransform', {
+      sceneUuid,
+      sceneItemId,
+      sceneItemTransform: transform as Record<string, number | string>,
+    });
+  }
+
+  /** The main canvas's base (canvas) resolution. */
+  async getCanvasSize(): Promise<{ width: number; height: number }> {
+    this.ensureConnected();
+    const { baseWidth, baseHeight } = await this.obs.call('GetVideoSettings');
+    return { width: baseWidth, height: baseHeight };
+  }
+
   // ── Audio Inputs ──────────────────────────────────────────────────────
 
   /** Whether an audio input is muted. */
@@ -325,6 +359,13 @@ export class ObsIntegration extends BaseIntegration {
     this.ensureConnected();
     const { sceneName } = await this.obs.call('GetCurrentProgramScene');
     return sceneName;
+  }
+
+  /** The UUID of the current program (live) scene, which is on the main canvas. */
+  async getCurrentSceneUuid(): Promise<string> {
+    this.ensureConnected();
+    const { sceneUuid } = await this.obs.call('GetCurrentProgramScene');
+    return sceneUuid;
   }
 
   /**

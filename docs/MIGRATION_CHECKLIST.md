@@ -71,28 +71,37 @@ handler's definition, through a new `CHANNEL_POINTS` platform capability.
 - [x] Pause rewards marked `pauseDuringBreaks` while a stream break runs (ad or `!break`), and unpause
       after. The original disabled (hid) them instead; pausing keeps them visible but unredeemable.
       A reward left paused by a crash is unpaused by the next sync
-- [ ] Original reward definitions to carry into the handlers (sections 3, 4, 6): Australia, Barrel
-      Roll, Wide Pope, Long Pope, Bonk (500 each); Screen Saver Camera (1000, "Turn my face cam into
-      a DVD screen saver"); Jumpscare (5000, "Just be funny when you hit this please"); Ban A Word
+- [x] Facecam reward definitions carried into their handlers (section 3): Australia, Barrel Roll,
+      Wide Pope, Long Pope, Bonk (500 each); Screen Saver Camera (1000, "Turn my face cam into a DVD
+      screen saver"), all paused during breaks
+- [ ] Remaining original reward definitions (sections 4, 6): Jumpscare (5000, "Just be funny when you hit this please"); Ban A Word
       (100000, "Bans a SINGLE word for a single month", input required). American Jumpscare has a
-      handler in the original but no definition; get its cost from his dashboard. The facecam
-      six were the ones disabled during ads
+      handler in the original but no definition; get its cost from his dashboard
 
 ## 3. OBS effects engine (P0)
 
-`ObsIntegration` covers scenes, scene items, filters, mutes, canvases and stream status. It has no
-transform primitives, which every facecam effect needs.
+Done: `effects/` holds a `FacecamEffectRunner` and the effects, and `rewards/implementations/` has
+handlers for the six facecam rewards, with the original costs and prompts.
 
-- [ ] Primitives: get/set scene item transform (position, scale, rotation, crop), with the current
-      transform captured so effects can restore it
-- [ ] Effect runner: serialize effects so two redemptions can't fight over the same source, and
-      always restore the original transform (including on error or OBS disconnect)
-- [ ] Resolve the target source by configured name rather than hard-coded; cover the Aitum Vertical
-      canvas the same way `ObsBreakOverlay` does
-- [ ] Port effects: DVD Screen Saver, Barrel Roll, Australia (flip), Wide/Long Pope (warp), Bonk (squish)
-- [ ] Ad-warning on-screen text/animation (the original's `ads_warning`): check what
-      `ObsBreakOverlay` already covers before porting
-- [ ] Stream timestamp helper (original `getStreamTimestamp`), useful for markers and VOD notes
+- [x] Primitives: get/set a scene item's transform by scene UUID (the existing ones only reached the
+      main canvas's program scene), the program scene's UUID, and the canvas size
+- [x] Effect runner: plays effects one at a time; each starts from a fresh read of the facecam and
+      restores it afterwards (on success, error, or shutdown via `Application.stop()`), removing any
+      filter it added. A failure rejects, so the reward is refunded
+- [x] Source name comes from the `effects` setting (`facecamSource`, default `Facecam`). Targets: the
+      program scene on the main canvas, plus the first scene containing the facecam on every other
+      canvas (obs-websocket can't report another canvas's live scene; the original guessed too)
+- [x] Effects: Barrel Roll (2s turn), Australia (upside down 10s), Wide/Long Pope (×4 stretch 10s),
+      Bonk (sound, then alternating flat/thin squash 10s), Screen Saver Camera (30s bounce, main
+      canvas only, re-tint on each bounce)
+- [x] Ad-warning overlay: already covered by `ObsBreakOverlay` (hides Facecam, shows Ads Text, mutes
+      Mic/Aux in every scene), so nothing to port
+- [x] Stream timestamp: `ObsIntegration.getStreamStatus().outputTimecode` already provides it
+- [ ] Tune in the dress rehearsal (section 8). The effects reproduce the gags, not the original's
+      exact numbers, which were tuned to his canvas: Wide/Long Pope stretch ×4 about the center
+      instead of the original's crop-and-×8; speeds and durations are constants in
+      `effects/facecam/facecamEffects.ts`. Effects assume the facecam is unrotated and has no
+      bounding box (true of the original's setup, which reset bounds before every transform)
 
 ## 4. Sound (P1)
 

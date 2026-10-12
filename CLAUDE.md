@@ -67,6 +67,12 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Raid shoutout**: `packages/backend/src/raids/RaidShoutout.ts`
 - **Shared directory loader**: `packages/backend/src/utils/importImplementations.ts` (used by both commands and rewards)
 
+### Facecam Effects
+- **Runner**: `packages/backend/src/effects/FacecamEffectRunner.ts` — finds the facecam, serializes effects, restores afterwards
+- **Effect contract**: `packages/backend/src/effects/FacecamEffect.ts`; anchor/position math in `transformMath.ts`
+- **Effects**: `packages/backend/src/effects/facecam/facecamEffects.ts` (+ `animate.ts`)
+- **Settings**: `packages/backend/src/effects/effectSettings.ts`, stored under the `effects` key
+
 ### Stream Breaks
 - **Lifecycle**: `packages/backend/src/breaks/BreakService.ts` — starts/extends/ends breaks; listens for `twitch.ad.break`; emits `stream.break.started`/`.ended`
 - **OBS overlay**: `packages/backend/src/breaks/ObsBreakOverlay.ts` — snapshot/apply/restore across all canvases and scenes
@@ -280,6 +286,21 @@ goes through the `CHANNEL_POINTS` platform capability, like any other platform a
 `RaidShoutout` handles `twitch.raid`: a chat message linking the raider plus Twitch's native
 shoutout, through `StreamControlService` like any other platform action. The two are independent,
 so a rate-limited native shoutout still gets the chat message.
+
+### Facecam Effects
+
+Reward handlers play visual gags on the facecam through `FacecamEffectRunner`. An effect
+(`FacecamEffect`) only describes motion against an `EffectContext`; the runner does the rest. It
+plays effects one at a time — two effects on one source would each capture the other's
+mid-animation state as the "original" — finds the facecam afresh for each one, and restores it in a
+`finally`, so an effect that throws, or is cut short by `Application.stop()`, still leaves the
+facecam where it was. Filters an effect adds are removed the same way. A run rejects when it can't
+play (OBS down, no facecam), which makes `RewardRouter` refund the redemption.
+
+The facecam is found by source name (the `effects` setting) in the main canvas's program scene and,
+on every other canvas, in the first scene that contains it: obs-websocket has no "current scene" for
+a non-main canvas. Effects animate on elapsed time, not frame counts, so a slow OBS drops frames
+rather than slowing down, and they assume the facecam is unrotated and has no bounding box.
 
 ### Frontend State
 

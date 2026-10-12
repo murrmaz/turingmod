@@ -51,6 +51,14 @@ class FakeIntegration extends BaseIntegration {
     return Promise.resolve();
   }
 
+  reportConnecting(): void {
+    this.setStatus(IntegrationStatus.CONNECTING);
+  }
+
+  reportConnected(): void {
+    this.setStatus(IntegrationStatus.CONNECTED);
+  }
+
   /** Simulate an OAuth token rotation. */
   refreshToken(expiresAt?: number): void {
     this.reportTokenRefreshed(expiresAt);
@@ -130,6 +138,44 @@ describe('IntegrationManager', () => {
     await unrelated.start();
     await settle();
   }
+
+  it('waits for a start from the console to finish before a cascade stops it', async () => {
+    const manager = makeManager(makeStateRepo());
+    registerTwitchTrio(manager);
+    await auth.start();
+    await api.start();
+    await settle();
+
+    const calls: string[] = [];
+    let finishStart = (): void => {};
+    eventsub.start = () => {
+      calls.push('start');
+      eventsub.reportConnecting();
+      return new Promise<void>((resolve) => {
+        finishStart = () => {
+          calls.push('started');
+          eventsub.reportConnected();
+          resolve();
+        };
+      });
+    };
+    const stop = eventsub.stop.bind(eventsub);
+    eventsub.stop = () => {
+      calls.push('stop');
+      return stop();
+    };
+
+    const started = manager.startIntegration('twitch-eventsub');
+    await settle();
+    auth.errorOut();
+    await settle();
+    finishStart();
+    await started;
+    await settle();
+
+    expect(calls).toEqual(['start', 'started', 'stop']);
+    expect(eventsub.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
+  });
 
   it('stops transitive dependents when a dependency needs re-authorization', async () => {
     const manager = makeManager(makeStateRepo());

@@ -33,6 +33,14 @@ export class IntegrationManager {
   /** Tail of the serialized chain of reactive dependency work. */
   private dependencyQueue: Promise<void> = Promise.resolve();
 
+  /**
+   * Tail of each integration's chain of start/stop calls. Every start and
+   * stop goes through it, whoever asked — the console, an OAuth exchange,
+   * the dependency queue, shutdown — so a stop never runs against a start()
+   * still in flight, or the other way round.
+   */
+  private readonly lifecycleLocks = new Map<string, Promise<void>>();
+
   private logger: Logger;
 
   /**
@@ -191,12 +199,19 @@ export class IntegrationManager {
   /**
    * Start a specific integration
    */
-  async startIntegration(name: string): Promise<void> {
+  startIntegration(name: string): Promise<void> {
     const integration = this.integrations.get(name);
     if (!integration) {
-      throw new Error(`Integration not found: ${name}`);
+      return Promise.reject(new Error(`Integration not found: ${name}`));
     }
 
+    // Inside the lock, so the dependency check sees the state left by
+    // whatever start or stop ran before it.
+    return this.withLifecycleLock(name, () => this.doStart(integration));
+  }
+
+  private async doStart(integration: IIntegration): Promise<void> {
+    const { name } = integration;
     const blockedReason = this.getBlockedReason(integration);
     if (blockedReason) {
       // Not an error: nothing about this integration is broken, a
@@ -230,6 +245,23 @@ export class IntegrationManager {
       integration.reportError(error instanceof Error ? error.message : 'Unknown error');
       throw error;
     }
+  }
+
+  /**
+   * Run one start or stop of `name` after the ones already asked for have
+   * settled. Nothing that holds a lock waits on the dependency queue (status
+   * listeners only add to it), so queued work waiting here can't deadlock.
+   */
+  private withLifecycleLock(name: string, work: () => Promise<void>): Promise<void> {
+    const run = (this.lifecycleLocks.get(name) ?? Promise.resolve()).then(work);
+    const tail = run.catch(() => {});
+    this.lifecycleLocks.set(name, tail);
+    void tail.then(() => {
+      if (this.lifecycleLocks.get(name) === tail) {
+        this.lifecycleLocks.delete(name);
+      }
+    });
+    return run;
   }
 
   /**
@@ -279,12 +311,17 @@ export class IntegrationManager {
   /**
    * Stop a specific integration
    */
-  async stopIntegration(name: string): Promise<void> {
+  stopIntegration(name: string): Promise<void> {
     const integration = this.integrations.get(name);
     if (!integration) {
-      throw new Error(`Integration not found: ${name}`);
+      return Promise.reject(new Error(`Integration not found: ${name}`));
     }
 
+    return this.withLifecycleLock(name, () => this.doStop(integration));
+  }
+
+  private async doStop(integration: IIntegration): Promise<void> {
+    const { name } = integration;
     this.logger.debug(`Stopping integration: ${name}`);
 
     try {
@@ -333,8 +370,9 @@ export class IntegrationManager {
    * a cascade running concurrently with a reconcile pass could call
    * stopIntegration() on an integration whose start() was still in flight,
    * because the dependency checks either side of an await can't hold across
-   * it. (A start the console asks for directly still races the queue; that
-   * wants a per-integration lifecycle lock rather than this.)
+   * it. A start from outside the queue (the console, an OAuth exchange) is
+   * kept apart from queued work by the per-integration lifecycle lock in
+   * startIntegration()/stopIntegration() instead.
    */
   private enqueue(label: string, work: () => Promise<void>): Promise<void> {
     this.dependencyQueue = this.dependencyQueue.then(() =>

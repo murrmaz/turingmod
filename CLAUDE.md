@@ -194,8 +194,10 @@ dependencies being CONNECTED, and beyond that the manager reacts to status chang
 - Both directions of that reactive work share one serialization queue (`enqueue()`). A cascade
   running concurrently with a reconcile pass could otherwise call `stopIntegration()` on an
   integration whose `start()` was still in flight, since the dependency checks either side of an
-  `await` don't hold across it. A start requested directly from the console still races the queue;
-  that wants a per-integration lifecycle lock.
+  `await` don't hold across it. A start from outside the queue (the console, an OAuth exchange) is
+  kept apart from it by a per-integration lifecycle lock: every `startIntegration()` and
+  `stopIntegration()` of one integration runs after the previous one has settled. A start that hits
+  `START_TIMEOUT_MS` releases the lock even though its `start()` may still be running.
 - An unmet dependency is reported as `IntegrationStatus.BLOCKED`, not ERROR — nothing is broken, a
   prerequisite is off — via `reportBlocked()`.
 

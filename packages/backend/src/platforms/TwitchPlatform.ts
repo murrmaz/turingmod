@@ -4,6 +4,7 @@ import { injectable, singleton } from 'tsyringe';
 import { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import { unavailableReason } from './availability.js';
+import { toSafeChatText } from './chatMessage.js';
 import { NotAuthenticatedError } from './errors.js';
 import type {
   AdBreakInfo,
@@ -82,7 +83,7 @@ export class TwitchPlatform implements IStreamPlatform {
 
   async sendChatMessage(message: string): Promise<void> {
     const userId = this.requireUserId();
-    await this.api.sendChatMessage(userId, message);
+    await this.api.sendChatMessage(userId, toSafeChatText(message));
   }
 
   async getStreamInfo(): Promise<StreamInfo> {
@@ -316,7 +317,7 @@ export class TwitchPlatform implements IStreamPlatform {
 
   async sendAnnouncement(message: string): Promise<void> {
     const userId = this.requireUserId();
-    await this.api.sendAnnouncement(userId, message);
+    await this.api.sendAnnouncement(userId, toSafeChatText(message));
   }
 
   /**

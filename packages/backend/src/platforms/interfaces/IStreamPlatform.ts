@@ -133,7 +133,10 @@ export interface IStreamPlatform {
   /** True if the platform is connected AND currently broadcasting. */
   isLive(): Promise<boolean>;
 
-  /** Post a message to this platform's own chat. Reply routing (Phase 5) uses this. */
+  /**
+   * Post a message to this platform's own chat. ChatRouter posts command replies with this.
+   * Implementations must pass the message through `toSafeChatText()` (see chatMessage.ts).
+   */
   sendChatMessage(message: string): Promise<void>;
 
   /** Read current stream metadata. Throws if not connected. */
@@ -236,6 +239,9 @@ export interface IStreamPlatform {
    */
   deleteLatestVod?(): Promise<VodInfo | null>;
 
-  /** Post a highlighted announcement in chat. Requires PlatformCapability.ANNOUNCEMENTS. */
+  /**
+   * Post a highlighted announcement in chat, passed through `toSafeChatText()` like
+   * sendChatMessage. Requires PlatformCapability.ANNOUNCEMENTS.
+   */
   sendAnnouncement?(message: string): Promise<void>;
 }

@@ -25,6 +25,7 @@ function setup() {
     getVideosByUser: vi.fn(),
     deleteVideos: vi.fn(() => Promise.resolve()),
     sendAnnouncement: vi.fn(() => Promise.resolve()),
+    sendChatMessage: vi.fn(() => Promise.resolve()),
   };
   const platform = new TwitchPlatform(
     auth as unknown as TwitchAuthIntegration,
@@ -141,6 +142,14 @@ describe('TwitchPlatform', () => {
     await platform.sendAnnouncement('Follow me');
 
     expect(api.sendAnnouncement).toHaveBeenCalledWith(BROADCASTER, 'Follow me');
+  });
+
+  it('never posts a chat message or announcement that starts with a command', async () => {
+    await platform.sendChatMessage('!delvod');
+    await platform.sendAnnouncement('/ban someone');
+
+    expect(api.sendChatMessage).toHaveBeenCalledWith(BROADCASTER, 'delvod');
+    expect(api.sendAnnouncement).toHaveBeenCalledWith(BROADCASTER, 'ban someone');
   });
 
   it('refuses to act without a usable grant', async () => {

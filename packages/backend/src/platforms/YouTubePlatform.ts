@@ -2,6 +2,7 @@ import { PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
 import { unavailableReason } from './availability.js';
+import { toSafeChatText } from './chatMessage.js';
 import type { IStreamPlatform, StreamInfo } from './interfaces/IStreamPlatform.js';
 
 /**
@@ -34,11 +35,12 @@ export class YouTubePlatform implements IStreamPlatform {
   }
 
   async sendChatMessage(message: string): Promise<void> {
+    const text = toSafeChatText(message);
     const broadcast = await this.api.getActiveBroadcast();
     if (!broadcast?.liveChatId) {
       throw new Error('No active YouTube live chat to post to');
     }
-    await this.api.sendLiveChatMessage(broadcast.liveChatId, message);
+    await this.api.sendLiveChatMessage(broadcast.liveChatId, text);
   }
 
   async getStreamInfo(): Promise<StreamInfo> {

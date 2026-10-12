@@ -37,6 +37,41 @@ export interface ShoutoutResult {
   retryAfterMs?: number;
 }
 
+/** The fields of a channel point reward that TuringMod sets. */
+export interface ChannelRewardSettings {
+  title: string;
+  cost: number;
+  /** Shown to the viewer when redeeming; empty for none. */
+  prompt: string;
+  userInputRequired: boolean;
+  /** Seconds between redemptions by anyone; null for no cooldown. */
+  globalCooldownSeconds: number | null;
+  /** Null for no limit. */
+  maxPerStream: number | null;
+  /** Null for no limit. */
+  maxPerUserPerStream: number | null;
+  /** Skip the request queue. A redemption that skipped it can't be refunded afterwards. */
+  autoFulfill: boolean;
+}
+
+/** A channel point reward as it currently exists on the channel. */
+export interface ChannelReward extends ChannelRewardSettings {
+  id: string;
+  isEnabled: boolean;
+  isPaused: boolean;
+  /**
+   * Whether this application may edit the reward and its redemptions. Only the application
+   * that created a reward can; one made in the dashboard or by another bot is read-only.
+   */
+  manageable: boolean;
+}
+
+/** Changes to apply to an existing reward. */
+export type ChannelRewardChanges = Partial<ChannelRewardSettings> & { isPaused?: boolean };
+
+/** How a queued redemption ends: completed, or canceled with the viewer's points refunded. */
+export type RedemptionOutcome = 'fulfilled' | 'canceled';
+
 /**
  * Platform-agnostic façade over one streaming platform. Implemented by TwitchPlatform and
  * YouTubePlatform, each delegating to that platform's integration trio. Capability-guarded
@@ -109,4 +144,23 @@ export interface IStreamPlatform {
    * Requires PlatformCapability.SHOUTOUT.
    */
   shoutout?(channelName: string): Promise<ShoutoutResult>;
+
+  /** Every channel point reward on the channel. Requires PlatformCapability.CHANNEL_POINTS. */
+  getChannelRewards?(): Promise<ChannelReward[]>;
+
+  /** Create an enabled reward. Requires PlatformCapability.CHANNEL_POINTS. */
+  createChannelReward?(settings: ChannelRewardSettings): Promise<ChannelReward>;
+
+  /** Update a reward this application created. Requires PlatformCapability.CHANNEL_POINTS. */
+  updateChannelReward?(rewardId: string, changes: ChannelRewardChanges): Promise<void>;
+
+  /**
+   * Complete or cancel a redemption waiting in the request queue, for a reward this application
+   * created. Requires PlatformCapability.CHANNEL_POINTS.
+   */
+  resolveRedemption?(
+    rewardId: string,
+    redemptionId: string,
+    outcome: RedemptionOutcome
+  ): Promise<void>;
 }

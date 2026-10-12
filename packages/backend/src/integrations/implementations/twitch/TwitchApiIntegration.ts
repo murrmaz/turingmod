@@ -446,6 +446,26 @@ export class TwitchApiIntegration extends BaseIntegration {
   }
 
   /**
+   * Mark redemptions of a reward this application created as fulfilled, or cancel them (which
+   * refunds the viewer). Only redemptions still in the request queue can change status.
+   */
+  async updateRedemptionStatus(
+    broadcasterId: string,
+    rewardId: string,
+    redemptionIds: string[],
+    status: 'FULFILLED' | 'CANCELED'
+  ) {
+    return await this.call((apiClient) =>
+      apiClient.channelPoints.updateRedemptionStatusByIds(
+        broadcasterId,
+        rewardId,
+        redemptionIds,
+        status
+      )
+    );
+  }
+
+  /**
    * Delete a custom channel point reward.
    */
   async deleteCustomReward(broadcasterId: string, rewardId: string): Promise<void> {

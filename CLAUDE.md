@@ -62,7 +62,8 @@ Use this to quickly locate files without searching. Organized by system/feature.
 ### Channel Point Rewards & Raids
 - **Handler interface**: `packages/backend/src/rewards/interfaces/IRewardHandler.ts`
 - **Handlers**: `packages/backend/src/rewards/implementations/*.ts` — auto-discovered by `rewards/loadRewardHandlers.ts`
-- **Routing**: `packages/backend/src/rewards/RewardRouter.ts` (redemption → handler by title) + `RewardRegistry.ts`
+- **Routing**: `packages/backend/src/rewards/RewardRouter.ts` (redemption → handler by title, then fulfil/refund) + `RewardRegistry.ts`
+- **Reward sync**: `packages/backend/src/rewards/RewardSync.ts` — creates/corrects each handler's reward on Twitch and pauses it during breaks
 - **Raid shoutout**: `packages/backend/src/raids/RaidShoutout.ts`
 - **Shared directory loader**: `packages/backend/src/utils/importImplementations.ts` (used by both commands and rewards)
 
@@ -266,6 +267,15 @@ are unique per channel and rarely renamed, so there are no stored reward ids. Ha
 auto-discovered like commands: one class per reward in `rewards/implementations/`, default-exported
 and `@injectable()`. A redemption with no handler is normal (a reward for the streamer to act on)
 and is ignored; a handler that throws is logged and never stops the next redemption.
+
+Each handler also declares its reward's settings (`reward: RewardDefinition`). `RewardSync` makes
+Twitch match them whenever the Twitch API connects and whenever a stream break starts or ends:
+creating missing rewards, correcting drifted settings, and pausing `pauseDuringBreaks` rewards for
+the break. Twitch only lets the application that created a reward edit it, so a same-titled reward
+made elsewhere is reported once and left alone (its handler still runs). For rewards TuringMod
+does own, `RewardRouter` resolves queued redemptions afterwards — fulfilled on success, canceled
+(refunding the viewer) if the handler threw — which is why `autoFulfill` defaults off. All of this
+goes through the `CHANNEL_POINTS` platform capability, like any other platform action.
 
 `RaidShoutout` handles `twitch.raid`: a chat message linking the raider plus Twitch's native
 shoutout, through `StreamControlService` like any other platform action. The two are independent,

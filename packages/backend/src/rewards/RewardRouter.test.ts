@@ -1,10 +1,13 @@
 import 'reflect-metadata';
+import { StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
+import type { StreamControlService } from '../platforms/StreamControlService.js';
 import type { Logger } from '../utils/Logger.js';
 import type { IRewardHandler, RewardRedemption } from './interfaces/IRewardHandler.js';
 import { RewardRegistry } from './RewardRegistry.js';
 import { RewardRouter } from './RewardRouter.js';
+import type { RewardSync } from './RewardSync.js';
 
 const makeLogger = () => {
   const logger = {
@@ -18,7 +21,10 @@ const makeLogger = () => {
   return logger as unknown as Logger & typeof logger;
 };
 
-const redemption = (rewardTitle: string): RewardRedemption => ({
+const redemption = (
+  rewardTitle: string,
+  status: RewardRedemption['status'] = 'fulfilled'
+): RewardRedemption => ({
   id: 'redemption-1',
   rewardId: 'reward-1',
   rewardTitle,
@@ -27,24 +33,37 @@ const redemption = (rewardTitle: string): RewardRedemption => ({
   userName: 'viewer',
   userDisplayName: 'Viewer',
   input: '',
-  status: 'fulfilled',
+  status,
   redeemedAt: new Date(0),
 });
 
 const handlerFor = (rewardTitle: string, handle = vi.fn(() => Promise.resolve())) =>
-  ({ rewardTitle, handle }) satisfies IRewardHandler;
+  ({ rewardTitle, reward: { cost: 100 }, handle }) satisfies IRewardHandler;
 
 describe('RewardRouter', () => {
   let logger: ReturnType<typeof makeLogger>;
   let eventBus: EventBus;
   let registry: RewardRegistry;
   let router: RewardRouter;
+  let managed: boolean;
+  let streamControl: {
+    resolveRedemption: ReturnType<typeof vi.fn<StreamControlService['resolveRedemption']>>;
+  };
 
   beforeEach(() => {
     logger = makeLogger();
     eventBus = new EventBus(logger);
     registry = new RewardRegistry(logger);
-    router = new RewardRouter(eventBus, registry, logger);
+    managed = true;
+    streamControl = { resolveRedemption: vi.fn(() => Promise.resolve()) };
+    const sync = { isManaged: () => managed } as unknown as RewardSync;
+    router = new RewardRouter(
+      eventBus,
+      registry,
+      sync,
+      streamControl as unknown as StreamControlService,
+      logger
+    );
     router.start();
   });
 
@@ -94,6 +113,67 @@ describe('RewardRouter', () => {
       expect.any(Error)
     );
     expect(bonk.handle).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks a queued redemption fulfilled once its handler succeeds', async () => {
+    registry.register(handlerFor('Bonk'));
+
+    await eventBus.emit('twitch.channelpoint.redemption', redemption('Bonk', 'unfulfilled'));
+
+    expect(streamControl.resolveRedemption).toHaveBeenCalledWith(
+      StreamingPlatform.TWITCH,
+      'reward-1',
+      'redemption-1',
+      'fulfilled'
+    );
+  });
+
+  it('cancels, refunding the viewer, a queued redemption whose handler fails', async () => {
+    registry.register(
+      handlerFor(
+        'Bonk',
+        vi.fn(() => Promise.reject(new Error('OBS down')))
+      )
+    );
+
+    await eventBus.emit('twitch.channelpoint.redemption', redemption('Bonk', 'unfulfilled'));
+
+    expect(streamControl.resolveRedemption).toHaveBeenCalledWith(
+      StreamingPlatform.TWITCH,
+      'reward-1',
+      'redemption-1',
+      'canceled'
+    );
+    expect(logger.info).toHaveBeenCalledWith('Refunded Viewer\'s "Bonk" redemption');
+  });
+
+  it('leaves redemptions that skipped the queue alone', async () => {
+    registry.register(handlerFor('Bonk'));
+
+    await eventBus.emit('twitch.channelpoint.redemption', redemption('Bonk', 'fulfilled'));
+
+    expect(streamControl.resolveRedemption).not.toHaveBeenCalled();
+  });
+
+  it('leaves redemptions of rewards another application created for the streamer', async () => {
+    managed = false;
+    registry.register(handlerFor('Bonk'));
+
+    await eventBus.emit('twitch.channelpoint.redemption', redemption('Bonk', 'unfulfilled'));
+
+    expect(streamControl.resolveRedemption).not.toHaveBeenCalled();
+  });
+
+  it('logs a failure to resolve the redemption without throwing', async () => {
+    streamControl.resolveRedemption.mockRejectedValue(new Error('403'));
+    registry.register(handlerFor('Bonk'));
+
+    await eventBus.emit('twitch.channelpoint.redemption', redemption('Bonk', 'unfulfilled'));
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to mark Viewer\'s "Bonk" redemption fulfilled',
+      expect.any(Error)
+    );
   });
 
   it('subscribes once however many times it is started', async () => {

@@ -1,4 +1,5 @@
 import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
+import type { HelixCustomReward, HelixUpdateCustomRewardData } from '@twurple/api';
 import { injectable, singleton } from 'tsyringe';
 import { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
@@ -6,7 +7,11 @@ import { unavailableReason } from './availability.js';
 import { NotAuthenticatedError } from './errors.js';
 import type {
   AdBreakInfo,
+  ChannelReward,
+  ChannelRewardChanges,
+  ChannelRewardSettings,
   IStreamPlatform,
+  RedemptionOutcome,
   ScheduleSegment,
   ShoutoutResult,
   StreamInfo,
@@ -40,6 +45,7 @@ export class TwitchPlatform implements IStreamPlatform {
       PlatformCapability.FOLLOW_INFO,
       PlatformCapability.BROADCASTER_ABOUT,
       PlatformCapability.SHOUTOUT,
+      PlatformCapability.CHANNEL_POINTS,
     ]);
   }
 
@@ -176,6 +182,53 @@ export class TwitchPlatform implements IStreamPlatform {
     return await this.api.shoutoutUser(userId, target.id);
   }
 
+  async getChannelRewards(): Promise<ChannelReward[]> {
+    const userId = this.requireUserId();
+    // Twitch answers "which rewards may this client edit" only as a filter on the list, so ask
+    // for both and compare.
+    const [all, manageable] = await Promise.all([
+      this.api.getCustomRewards(userId, false),
+      this.api.getCustomRewards(userId, true),
+    ]);
+    const manageableIds = new Set(manageable.map((reward) => reward.id));
+    return all.map((reward) => toChannelReward(reward, manageableIds.has(reward.id)));
+  }
+
+  async createChannelReward(settings: ChannelRewardSettings): Promise<ChannelReward> {
+    const userId = this.requireUserId();
+    const created = await this.api.createCustomReward(userId, {
+      title: settings.title,
+      cost: settings.cost,
+      prompt: settings.prompt,
+      isEnabled: true,
+      userInputRequired: settings.userInputRequired,
+      globalCooldown: settings.globalCooldownSeconds,
+      maxRedemptionsPerStream: settings.maxPerStream,
+      maxRedemptionsPerUserPerStream: settings.maxPerUserPerStream,
+      autoFulfill: settings.autoFulfill,
+    });
+    return toChannelReward(created, true);
+  }
+
+  async updateChannelReward(rewardId: string, changes: ChannelRewardChanges): Promise<void> {
+    const userId = this.requireUserId();
+    await this.api.updateCustomReward(userId, rewardId, toHelixRewardUpdate(changes));
+  }
+
+  async resolveRedemption(
+    rewardId: string,
+    redemptionId: string,
+    outcome: RedemptionOutcome
+  ): Promise<void> {
+    const userId = this.requireUserId();
+    await this.api.updateRedemptionStatus(
+      userId,
+      rewardId,
+      [redemptionId],
+      outcome === 'fulfilled' ? 'FULFILLED' : 'CANCELED'
+    );
+  }
+
   /**
    * The broadcaster id, but only while auth is actually usable. Keyed on the integration's
    * status rather than the id alone: the id outlives a stop(), so a non-null id on its own
@@ -205,4 +258,40 @@ export class TwitchPlatform implements IStreamPlatform {
       this.getUnavailableReason() ?? 'Not connected to Twitch'
     );
   }
+}
+
+function toChannelReward(reward: HelixCustomReward, manageable: boolean): ChannelReward {
+  return {
+    id: reward.id,
+    title: reward.title,
+    cost: reward.cost,
+    prompt: reward.prompt,
+    userInputRequired: reward.userInputRequired,
+    globalCooldownSeconds: reward.globalCooldown,
+    maxPerStream: reward.maxRedemptionsPerStream,
+    maxPerUserPerStream: reward.maxRedemptionsPerUserPerStream,
+    autoFulfill: reward.autoFulfill,
+    isEnabled: reward.isEnabled,
+    isPaused: reward.isPaused,
+    manageable,
+  };
+}
+
+/** Only the fields being changed: an absent field leaves Twitch's value alone. */
+function toHelixRewardUpdate(changes: ChannelRewardChanges): HelixUpdateCustomRewardData {
+  const data: HelixUpdateCustomRewardData = {};
+  if (changes.title !== undefined) data.title = changes.title;
+  if (changes.cost !== undefined) data.cost = changes.cost;
+  if (changes.prompt !== undefined) data.prompt = changes.prompt;
+  if (changes.userInputRequired !== undefined) data.userInputRequired = changes.userInputRequired;
+  if (changes.globalCooldownSeconds !== undefined) {
+    data.globalCooldown = changes.globalCooldownSeconds;
+  }
+  if (changes.maxPerStream !== undefined) data.maxRedemptionsPerStream = changes.maxPerStream;
+  if (changes.maxPerUserPerStream !== undefined) {
+    data.maxRedemptionsPerUserPerStream = changes.maxPerUserPerStream;
+  }
+  if (changes.autoFulfill !== undefined) data.autoFulfill = changes.autoFulfill;
+  if (changes.isPaused !== undefined) data.isPaused = changes.isPaused;
+  return data;
 }

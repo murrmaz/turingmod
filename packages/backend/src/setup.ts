@@ -43,6 +43,7 @@ import { RaidShoutout } from './raids/RaidShoutout.js';
 import { loadRewardHandlers } from './rewards/loadRewardHandlers.js';
 import { RewardRegistry } from './rewards/RewardRegistry.js';
 import { RewardRouter } from './rewards/RewardRouter.js';
+import { RewardSync } from './rewards/RewardSync.js';
 import { HttpServer } from './server/HttpServer.js';
 import { ActivityHandler } from './server/handlers/ActivityHandler.js';
 import { CommandHandler } from './server/handlers/CommandHandler.js';
@@ -186,7 +187,8 @@ export async function initializeComponents(): Promise<void> {
   container.resolve(ChatRouter).start();
 
   // Twitch EventSub reactions: channel point redemptions go to their reward handler, and a raid
-  // gets a shoutout.
+  // gets a shoutout. RewardSync keeps each handler's reward on Twitch matching its definition.
+  container.resolve(RewardSync).start();
   container.resolve(RewardRouter).start();
   container.resolve(RaidShoutout).start();
 

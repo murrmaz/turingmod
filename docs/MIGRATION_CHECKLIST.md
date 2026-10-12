@@ -46,29 +46,37 @@ for consuming one. Both subscriptions are now on unless disabled in the EventSub
       reward ids are needed
 - [x] Redemption `status` needs no filtering: the `.add` event fires once per new redemption, and
       handlers act immediately whether or not the reward uses the request queue, as the original did
-- [ ] Mark redemptions fulfilled, or cancel them to refund the viewer, when a handler fails. Needs the
-      reward to have been created by this app's client ID, so it belongs with section 2; the
-      redemption `id` is already on the event for it
+- [x] Mark queued redemptions fulfilled when the handler succeeds, or cancel them (refunding the
+      viewer) when it fails. Only for rewards TuringMod created (see section 2)
 - [x] Raid handler (`raids/RaidShoutout.ts`): posts the original's shoutout message and sends
       Twitch's native shoutout (cooldown handling included)
 - [x] Expose shoutout through the platform façade as an optional capability so a future `!so` can use it
 
 ## 2. Channel point reward lifecycle (P0)
 
-The original recreated its rewards on every boot. The new Twitch API wrapper has
-create/update/delete/get reward calls, but nothing uses them.
+The original recreated its rewards on every boot. `RewardSync` now does the same from each
+handler's definition, through a new `CHANNEL_POINTS` platform capability.
 
-- [ ] Each reward handler (section 1) declares its reward definition (title, cost, prompt, cooldown),
-      so the definition and the logic live in the same file
-- [ ] Reward sync on Twitch connect: look up each handler's reward by title; create it if missing,
-      update it if the definition differs, never duplicate (original rewards: Screen Saver Camera, Barrel Roll,
+- [x] Each reward handler (section 1) declares its reward definition (`reward`: cost, prompt, input,
+      cooldown/limits, queue behaviour, pause-during-breaks), so definition and logic share a file
+- [x] Reward sync when the Twitch API connects (startup and after re-auth): look up each handler's
+      reward by title; create it if missing, correct drifted settings, never duplicate. Never
+      re-enables a reward the streamer switched off in the dashboard (original rewards: Screen Saver Camera, Barrel Roll,
       Australia, Wide Pope, Long Pope, Bonk, Ban A Word, Jumpscare, American Jumpscare)
-- [ ] Twitch only lets the client that created a reward edit it, so rewards created by the original
-      bot's client ID can't be managed by this app. At cutover the sync will create new rewards
+- [x] Twitch only lets the client that created a reward edit it, so rewards created by the original
+      bot's client ID can't be managed by this app. Sync warns about each such reward (once) and
+      leaves it alone; its handler still runs, but redemptions aren't resolved or paused. At cutover the sync will create new rewards
       under the same titles; he must delete or rename the old ones first (title uniqueness would
       otherwise block creation). Add this to the cutover steps in section 8
-- [ ] Pause/unpause the facecam rewards around ad breaks (the original disabled them while an ad
-      warning ran and re-enabled them after); hook into the existing break/ad flow
+- [x] Pause rewards marked `pauseDuringBreaks` while a stream break runs (ad or `!break`), and unpause
+      after. The original disabled (hid) them instead; pausing keeps them visible but unredeemable.
+      A reward left paused by a crash is unpaused by the next sync
+- [ ] Original reward definitions to carry into the handlers (sections 3, 4, 6): Australia, Barrel
+      Roll, Wide Pope, Long Pope, Bonk (500 each); Screen Saver Camera (1000, "Turn my face cam into
+      a DVD screen saver"); Jumpscare (5000, "Just be funny when you hit this please"); Ban A Word
+      (100000, "Bans a SINGLE word for a single month", input required). American Jumpscare has a
+      handler in the original but no definition; get its cost from his dashboard. The facecam
+      six were the ones disabled during ads
 
 ## 3. OBS effects engine (P0)
 

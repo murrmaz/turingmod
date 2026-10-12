@@ -4,7 +4,11 @@ import { injectable, singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
 import type {
   AdBreakInfo,
+  ChannelReward,
+  ChannelRewardChanges,
+  ChannelRewardSettings,
   IStreamPlatform,
+  RedemptionOutcome,
   ScheduleSegment,
   ShoutoutResult,
   StreamInfo,
@@ -146,6 +150,54 @@ export class StreamControlService {
   /** Send a platform's native shoutout for another channel, by its login name. */
   async shoutout(platform: StreamingPlatform, channelName: string): Promise<ShoutoutResult> {
     return await this.capableMethod(platform, PlatformCapability.SHOUTOUT, 'shoutout')(channelName);
+  }
+
+  /** Every channel point reward on a platform's channel. */
+  async getChannelRewards(platform: StreamingPlatform): Promise<ChannelReward[]> {
+    return await this.capableMethod(
+      platform,
+      PlatformCapability.CHANNEL_POINTS,
+      'getChannelRewards'
+    )();
+  }
+
+  /** Create an enabled channel point reward. */
+  async createChannelReward(
+    platform: StreamingPlatform,
+    settings: ChannelRewardSettings
+  ): Promise<ChannelReward> {
+    return await this.capableMethod(
+      platform,
+      PlatformCapability.CHANNEL_POINTS,
+      'createChannelReward'
+    )(settings);
+  }
+
+  /** Update a channel point reward this application created. */
+  async updateChannelReward(
+    platform: StreamingPlatform,
+    rewardId: string,
+    changes: ChannelRewardChanges
+  ): Promise<void> {
+    return await this.capableMethod(
+      platform,
+      PlatformCapability.CHANNEL_POINTS,
+      'updateChannelReward'
+    )(rewardId, changes);
+  }
+
+  /** Complete or cancel (refunding the viewer) a queued redemption. */
+  async resolveRedemption(
+    platform: StreamingPlatform,
+    rewardId: string,
+    redemptionId: string,
+    outcome: RedemptionOutcome
+  ): Promise<void> {
+    return await this.capableMethod(
+      platform,
+      PlatformCapability.CHANNEL_POINTS,
+      'resolveRedemption'
+    )(rewardId, redemptionId, outcome);
   }
 
   /**

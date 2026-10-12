@@ -95,7 +95,8 @@ Use this to quickly locate files without searching. Organized by system/feature.
 ### Database
 - **Manager**: `packages/backend/src/database/DatabaseManager.ts`
 - **Repositories**: `packages/backend/src/database/repositories/*.ts`
-- **Migrations**: `packages/backend/src/database/migrations/*.ts` (run automatically on startup via `Application.initialize()`)
+- **Migrations**: `packages/backend/src/database/migrations/*.ts`, listed in `migrations/index.ts` (`ALL_MIGRATIONS`), run automatically on startup
+- **Import from the original bot**: `packages/backend/src/tools/importOriginal.ts` (`npm run import:original -w @turingmod/backend`) + `originalData.ts`
 
 ### Core Infrastructure
 - **DI**: [tsyringe](https://github.com/microsoft/tsyringe) — `@injectable()`/`@singleton()` on class definitions; `registerRootFactories()` in `setup.ts` for the handful of classes tsyringe can't auto-construct
@@ -229,7 +230,7 @@ All messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/me
 
 ### Database
 
-`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `UserRepository`, `CommandHistoryRepository`, `IntegrationStateRepository`, `SettingsRepository`. Integration configs are encrypted with AES-256-GCM before storage; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there.
+`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `UserRepository`, `CommandHistoryRepository`, `IntegrationStateRepository`, `SettingsRepository`, plus repositories for data owned by single features — `BannedWordRepository`, `CounterRepository`, `IntervalMessageRepository`. A new migration goes in `migrations/` and must be added to `ALL_MIGRATIONS`. Tests get a migrated temp database from `repositories/testDatabase.ts`. Integration configs are encrypted with AES-256-GCM before storage; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there.
 
 ### Platform Provider Layer
 

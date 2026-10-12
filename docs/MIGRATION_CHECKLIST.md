@@ -128,17 +128,33 @@ Done: `sounds/SoundLibrary.ts` plays clips by name, and the two jumpscare reward
 
 ## 5. Persistence (P0)
 
-Only one migration exists (users, command history, integration state, settings, encryption keys,
-activity log). Per the design rule, each feature adds only the tables it needs for its own data.
+Done: migration `002_feature_data` adds the feature tables, and `npm run import:original -w
+@turingmod/backend` copies the original's data in.
 
-- [ ] Inspect the original's SQLite schema and data files (`data/`) to confirm what exists
-      (custom commands, interval commands, death/voice counters, banned words, suggestions)
-- [ ] Banned words: table owned by the Ban A Word reward handler; the chat filter (section 6) reads it
-- [ ] Counters (deaths, voice cracks): a table keyed by counter name, used by those commands
-- [ ] Interval messages: table of announcements read by the interval announcer (section 6)
-- [ ] One-off import script from the original's database/files into the new tables (idempotent,
-      dry-run option) so existing counts, banned words and interval messages carry over
-- [ ] Decide on persistence of the lurk list (original is in-memory) and bonk counts (in-memory in `BonkCommand`)
+- [x] Original schema, inferred from its `sqlite_db.js` (the database itself, `G:/sqlite3/test.db`,
+      isn't in the repo): `stdcommands` and `intervalcommands` (name, user, msg), single-row
+      `death_count(deaths)` and `voicecracks(num)`, plus `twitch_auth` and `api_keys`, which aren't
+      migrated. Banned words were `data/banned_words.json` (word → date); suggestions were
+      `data/suggestions.txt`
+- [x] Banned words: `banned_words` table (`BannedWordRepository`), stored lowercased with who banned
+      each and when. The chat filter (section 6) reads it
+- [x] Counters (deaths, voice cracks): `counters` table keyed by name (`CounterRepository`, names in
+      `COUNTERS`), with an atomic increment
+- [x] Interval messages: `interval_messages` table (`IntervalMessageRepository`), rotated in the order
+      added
+- [x] Import tool (`tools/importOriginal.ts`): reads the original database and `banned_words.json`
+      into the app's database (`DB_PATH`, or `turingmod.db` where it runs). Idempotent: nothing
+      existing is overwritten, so a counter kept since an earlier import stays put. `--dry-run`
+      reports without writing. Lists the original's chat-defined commands for porting to code
+- [ ] Run it against his real database in the dress rehearsal. The schema is inferred, so check the
+      report against what he expects (e.g. his death count)
+- [x] Lurk list and bonk counts stay in memory: both were per-session in the original too
+- [ ] Ban expiry: "Ban A Word" promises "a single month", but the original never unbanned anything.
+      `banned_at` is stored (imported from the JSON dates), so the filter in section 6 can expire
+      words after a month, or not. Decide before building the filter; with expiry, words he banned
+      long ago stop being enforced
+- [ ] Suggestions (`data/suggestions.txt`): not imported yet; belongs with `!sg` / `!suggestionlist`
+      (section 9), which will need a table of its own
 
 ## 6. Chat services (P1)
 

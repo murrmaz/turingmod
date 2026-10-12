@@ -9,6 +9,7 @@
     "dev": "tsc --build && concurrently -n tsc,run -c blue,green \"tsc --build --watch --preserveWatchOutput\" \"node --watch dist/index.js\"",
     "build": "tsc --build",
     "start": "node dist/index.js",
+    "import:original": "node dist/tools/importOriginal.js",
     "clean": "rm -rf dist *.tsbuildinfo",
     "type-check": "tsc --noEmit",
     "test": "vitest run",

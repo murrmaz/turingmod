@@ -8,6 +8,14 @@ import { injectable, singleton } from 'tsyringe';
  * Application configuration
  * Loads from environment variables with sensible defaults
  */
+/**
+ * Where the database lives: DB_PATH, or `turingmod.db` in the working directory. Standalone so
+ * tools can find the app's database without the rest of the configuration.
+ */
+export function resolveDbPath(): string {
+  return process.env.DB_PATH ?? join(process.cwd(), 'turingmod.db');
+}
+
 @injectable()
 @singleton()
 export class TuringModConfig {
@@ -35,7 +43,7 @@ export class TuringModConfig {
   constructor() {
     this.wsPort = this.parseNumber(process.env.WS_PORT, DEFAULT_WS_PORT);
     this.host = process.env.HOST ?? DEFAULT_HOST;
-    this.dbPath = process.env.DB_PATH ?? join(process.cwd(), 'turingmod.db');
+    this.dbPath = resolveDbPath();
     this.logLevel = this.parseLogLevel(process.env.LOG_LEVEL);
     this.masterPassword = process.env.MASTER_PASSWORD ?? this.generateDefaultPassword();
     this.nodeEnv = process.env.NODE_ENV ?? 'development';

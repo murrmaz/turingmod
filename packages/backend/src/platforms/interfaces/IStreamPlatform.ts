@@ -82,6 +82,29 @@ export interface ClipInfo {
   createdAt: Date;
 }
 
+/** Outcome of asking to push the next ad back. */
+export interface AdSnoozeResult {
+  /** False when no snoozes were left, in which case nothing changed. */
+  snoozed: boolean;
+  snoozesLeft: number;
+  nextAdDate: Date | null;
+}
+
+/** A marker placed in the current broadcast. */
+export interface StreamMarker {
+  /** Seconds into the broadcast. */
+  positionSeconds: number;
+  description: string;
+}
+
+/** A recorded broadcast. */
+export interface VodInfo {
+  id: string;
+  title: string;
+  url: string;
+  createdAt: Date;
+}
+
 /** How a queued redemption ends: completed, or canceled with the viewer's points refunded. */
 export type RedemptionOutcome = 'fulfilled' | 'canceled';
 
@@ -185,4 +208,34 @@ export interface IStreamPlatform {
 
   /** Look up a clip by id; null if there's no such clip. Requires PlatformCapability.CLIPS. */
   getClip?(clipId: string): Promise<ClipInfo | null>;
+
+  /** Push the next ad back, if a snooze is left. Requires PlatformCapability.ADS. */
+  snoozeNextAd?(): Promise<AdSnoozeResult>;
+
+  /**
+   * When a user started following the channel, or null if they don't.
+   * Requires PlatformCapability.FOLLOW_INFO.
+   */
+  getFollowDate?(userId: string): Promise<Date | null>;
+
+  /**
+   * When a user's account was created, or null if there's no such user.
+   * Requires PlatformCapability.ACCOUNT_AGE.
+   */
+  getAccountCreatedAt?(userId: string): Promise<Date | null>;
+
+  /**
+   * Mark the current point of the live broadcast. Throws while offline.
+   * Requires PlatformCapability.MARKERS.
+   */
+  createStreamMarker?(description?: string): Promise<StreamMarker>;
+
+  /**
+   * Delete the most recent past broadcast (the current one while live) and return what was
+   * deleted, or null if there was none. Requires PlatformCapability.VODS.
+   */
+  deleteLatestVod?(): Promise<VodInfo | null>;
+
+  /** Post a highlighted announcement in chat. Requires PlatformCapability.ANNOUNCEMENTS. */
+  sendAnnouncement?(message: string): Promise<void>;
 }

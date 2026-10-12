@@ -2,6 +2,7 @@ import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import type {
   HelixChannelUpdate,
   HelixCreateCustomRewardData,
+  HelixPaginatedVideoFilter,
   HelixUpdateCustomRewardData,
 } from '@twurple/api';
 import { ApiClient } from '@twurple/api';
@@ -509,10 +510,10 @@ export class TwitchApiIntegration extends BaseIntegration {
   // ── Videos ────────────────────────────────────────────────────────────
 
   /**
-   * Get videos for a user (most recent first by default).
+   * Get videos for a user, most recent first, optionally only of one type (e.g. past broadcasts).
    */
-  async getVideosByUser(userId: string) {
-    return await this.call((apiClient) => apiClient.videos.getVideosByUser(userId));
+  async getVideosByUser(userId: string, filter: HelixPaginatedVideoFilter = {}) {
+    return await this.call((apiClient) => apiClient.videos.getVideosByUser(userId, filter));
   }
 
   /**

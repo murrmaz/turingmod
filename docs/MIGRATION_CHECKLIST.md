@@ -185,14 +185,23 @@ banned word can't ride in on a command.
 
 ## 7. Platform façade additions (P1, enables the mechanical command work)
 
-These are Helix calls that exist on `TwitchApiIntegration` but are not exposed through
-`IStreamPlatform`, so commands cannot use them yet.
+Done. Each is an optional `IStreamPlatform` method behind a capability, implemented on Twitch and
+reached through `StreamControlService`.
 
-- [ ] Snooze next ad
-- [ ] Follow age / account age lookups
-- [ ] Create stream marker
-- [ ] Delete last VOD
-- [ ] Send announcement (already used by `announce()` internally; confirm it is exposed)
+- [x] Snooze next ad (`snoozeNextAd`, ADS): checks the snooze count first, so "none left" is an
+      answer rather than a Twitch error
+- [x] Follow age (`getFollowDate`, FOLLOW_INFO) and account age (`getAccountCreatedAt`, new
+      ACCOUNT_AGE): dates only; commands format them
+- [x] Stream marker (`createStreamMarker`, new MARKERS): refuses clearly while offline
+- [x] Delete last VOD (`deleteLatestVod`, new VODS): deletes the most recent past broadcast (the
+      current one while live) and says which. The original's `!delvod` looked up *uploads* for a
+      mistyped user id (`7163229`, not `71631229`), so it likely never deleted a broadcast
+- [x] Announcements (`sendAnnouncement`, new ANNOUNCEMENTS): `announce()` takes `{ highlight: true }`
+      to use them where available; the interval messages now do, as the original's were
+- [x] Fixed a pre-existing gap: TuringMod never requested `channel:manage:broadcast`, which Twitch
+      requires to change the title, category, tags or content labels, so `!title`/`!game`/`!tags`
+      writes and `!cw` changes would have been refused. Requested now, along with
+      `channel:manage:videos` (VODs) and `moderator:manage:announcements`
 
 ## 8. Configuration and cutover (P0)
 
@@ -204,8 +213,8 @@ These are Helix calls that exist on `TwitchApiIntegration` but are not exposed t
       `effects.facecamSource` and `sounds.directory`
 - [ ] Confirm chat send identity: the original spoke as a separate bot account via `tmi.js`.
       Decide whether the new bot should send as that account or the broadcaster
-- [ ] Re-run Twitch OAuth in the new console (also required on existing dev setups: the
-      `moderator:manage:shoutouts` scope was added for shoutouts, and the auth integration asks
+- [ ] Re-run Twitch OAuth in the new console (also required on existing dev setups: scopes were
+      added for shoutouts, channel changes, VODs and announcements, and the auth integration asks
       for re-authorization when a stored grant is missing a scope) (old tokens are in the original's database and are not reused)
 - [ ] Never run both bots against the same channel at once; the original would answer every command twice
 - [ ] Delete or rename the original bot's rewards in the Twitch dashboard before the first run, so the

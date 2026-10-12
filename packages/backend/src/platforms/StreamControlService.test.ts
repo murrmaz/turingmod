@@ -190,3 +190,39 @@ describe('unavailableReason wiring', () => {
     ).toBe('Not connected to YouTube — complete the YouTube OAuth flow first');
   });
 });
+
+describe('StreamControlService announcements', () => {
+  class AnnouncingPlatform extends FakePlatform {
+    sendAnnouncement = vi.fn<(message: string) => Promise<void>>(() => Promise.resolve());
+
+    override getCapabilities(): Set<PlatformCapability> {
+      return new Set([PlatformCapability.SEND_CHAT, PlatformCapability.ANNOUNCEMENTS]);
+    }
+  }
+
+  it('highlights the message where the platform can, and posts it plainly elsewhere', async () => {
+    const registry = new PlatformRegistry();
+    const twitch = new AnnouncingPlatform(StreamingPlatform.TWITCH, null, true);
+    const youtube = new FakePlatform(StreamingPlatform.YOUTUBE, null, true);
+    registry.register(twitch);
+    registry.register(youtube);
+    const service = new StreamControlService(registry, makeLogger());
+
+    await service.announce(() => 'Follow me', { highlight: true });
+
+    expect(twitch.sendAnnouncement).toHaveBeenCalledWith('Follow me');
+    expect(twitch.sendChatMessage).not.toHaveBeenCalled();
+    expect(youtube.sendChatMessage).toHaveBeenCalledWith('Follow me');
+  });
+
+  it('posts plainly unless asked to highlight', async () => {
+    const registry = new PlatformRegistry();
+    const twitch = new AnnouncingPlatform(StreamingPlatform.TWITCH, null, true);
+    registry.register(twitch);
+
+    await new StreamControlService(registry, makeLogger()).announce(() => 'Hello');
+
+    expect(twitch.sendChatMessage).toHaveBeenCalledWith('Hello');
+    expect(twitch.sendAnnouncement).not.toHaveBeenCalled();
+  });
+});

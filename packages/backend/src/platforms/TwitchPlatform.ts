@@ -7,6 +7,7 @@ import { unavailableReason } from './availability.js';
 import { NotAuthenticatedError } from './errors.js';
 import type {
   AdBreakInfo,
+  AdSnoozeResult,
   ChannelReward,
   ChannelRewardChanges,
   ChannelRewardSettings,
@@ -16,6 +17,8 @@ import type {
   ScheduleSegment,
   ShoutoutResult,
   StreamInfo,
+  StreamMarker,
+  VodInfo,
 } from './interfaces/IStreamPlatform.js';
 
 /**
@@ -44,11 +47,15 @@ export class TwitchPlatform implements IStreamPlatform {
       PlatformCapability.SCHEDULE,
       PlatformCapability.CONTENT_LABELS,
       PlatformCapability.FOLLOW_INFO,
+      PlatformCapability.ACCOUNT_AGE,
       PlatformCapability.BROADCASTER_ABOUT,
       PlatformCapability.SHOUTOUT,
       PlatformCapability.CHANNEL_POINTS,
       PlatformCapability.MODERATION,
       PlatformCapability.CLIPS,
+      PlatformCapability.MARKERS,
+      PlatformCapability.VODS,
+      PlatformCapability.ANNOUNCEMENTS,
     ]);
   }
 
@@ -257,6 +264,59 @@ export class TwitchPlatform implements IStreamPlatform {
       views: clip.views,
       createdAt: clip.creationDate,
     };
+  }
+
+  async snoozeNextAd(): Promise<AdSnoozeResult> {
+    const userId = this.requireUserId();
+    // Twitch rejects a snooze with none left; check first so that's an answer, not an error.
+    const schedule = await this.api.getAdSchedule(userId);
+    if (!schedule || schedule.snoozeCount <= 0) {
+      return {
+        snoozed: false,
+        snoozesLeft: schedule?.snoozeCount ?? 0,
+        nextAdDate: schedule?.nextAdDate ?? null,
+      };
+    }
+    const result = await this.api.snoozeNextAd(userId);
+    return { snoozed: true, snoozesLeft: result.snoozeCount, nextAdDate: result.nextAdDate };
+  }
+
+  async getFollowDate(userId: string): Promise<Date | null> {
+    const broadcasterId = this.requireUserId();
+    const { data } = await this.api.getChannelFollowers(broadcasterId, userId);
+    return data[0]?.followDate ?? null;
+  }
+
+  async getAccountCreatedAt(userId: string): Promise<Date | null> {
+    this.requireUserId();
+    const user = await this.api.getUserById(userId);
+    return user?.creationDate ?? null;
+  }
+
+  async createStreamMarker(description?: string): Promise<StreamMarker> {
+    const userId = this.requireUserId();
+    // Twitch only places markers in a live broadcast; say so rather than surface its error.
+    if (!(await this.api.getStream(userId))) {
+      throw new Error('Stream markers can only be created while live');
+    }
+    const marker = await this.api.createStreamMarker(userId, description);
+    return { positionSeconds: marker.positionInSeconds, description: marker.description };
+  }
+
+  async deleteLatestVod(): Promise<VodInfo | null> {
+    const userId = this.requireUserId();
+    const { data } = await this.api.getVideosByUser(userId, { type: 'archive', limit: 1 });
+    const video = data[0];
+    if (!video) {
+      return null;
+    }
+    await this.api.deleteVideos(userId, [video.id]);
+    return { id: video.id, title: video.title, url: video.url, createdAt: video.creationDate };
+  }
+
+  async sendAnnouncement(message: string): Promise<void> {
+    const userId = this.requireUserId();
+    await this.api.sendAnnouncement(userId, message);
   }
 
   /**

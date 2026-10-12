@@ -8,7 +8,8 @@ export const ANNOUNCEMENT_INTERVAL_MS = 30 * 60 * 1000;
 
 /**
  * Posts the interval messages to chat one at a time, every half hour, cycling through them in
- * the order they were added. Messages go to every platform that's live; while none is, nothing
+ * the order they were added — as highlighted announcements where the platform has them (Twitch),
+ * as the original bot did. Messages go to every platform that's live; while none is, nothing
  * is posted and the rotation doesn't advance, so the next stream picks up where it left off.
  */
 @injectable()
@@ -45,7 +46,7 @@ export class IntervalAnnouncer {
       if (!entry) return false;
 
       const { name, message } = entry;
-      const result = await this.streamControl.announce(() => message);
+      const result = await this.streamControl.announce(() => message, { highlight: true });
       for (const failure of result.failures) {
         this.logger.warn(
           `Interval message "${name}" failed on ${failure.platform}: ${failure.error}`

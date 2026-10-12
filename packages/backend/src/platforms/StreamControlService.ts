@@ -4,6 +4,7 @@ import { injectable, singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
 import type {
   AdBreakInfo,
+  AdSnoozeResult,
   ChannelReward,
   ChannelRewardChanges,
   ChannelRewardSettings,
@@ -13,6 +14,8 @@ import type {
   ScheduleSegment,
   ShoutoutResult,
   StreamInfo,
+  StreamMarker,
+  VodInfo,
 } from './interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from './PlatformRegistry.js';
 import { platformDisplayName } from './platformNames.js';
@@ -69,14 +72,28 @@ export class StreamControlService {
    * Post a chat message to every live platform. `messageFor` picks the wording per platform and
    * returns null to skip one. Platforms whose auth is broken are skipped and logged, never
    * reported to chat, for the same reason as mirrored writes (see mirror()).
+   *
+   * With `highlight`, platforms that have highlighted announcements (ANNOUNCEMENTS) post one;
+   * the rest post a plain message.
    */
-  announce(messageFor: (platform: StreamingPlatform) => string | null): Promise<MirrorResult> {
+  announce(
+    messageFor: (platform: StreamingPlatform) => string | null,
+    { highlight = false }: { highlight?: boolean } = {}
+  ): Promise<MirrorResult> {
     return this.forEachLivePlatform(PlatformCapability.SEND_CHAT, async (platform) => {
       const message = messageFor(platform.platform);
       if (message === null) {
         return false;
       }
-      await platform.sendChatMessage(message);
+      if (
+        highlight &&
+        platform.sendAnnouncement &&
+        platform.getCapabilities().has(PlatformCapability.ANNOUNCEMENTS)
+      ) {
+        await platform.sendAnnouncement(message);
+      } else {
+        await platform.sendChatMessage(message);
+      }
       return true;
     });
   }
@@ -232,6 +249,46 @@ export class StreamControlService {
   /** Look up a clip on a platform; null if there's no such clip. */
   async getClip(platform: StreamingPlatform, clipId: string): Promise<ClipInfo | null> {
     return await this.capableMethod(platform, PlatformCapability.CLIPS, 'getClip')(clipId);
+  }
+
+  /** Push a platform's next ad back, if it has a snooze left. */
+  async snoozeNextAd(platform: StreamingPlatform): Promise<AdSnoozeResult> {
+    return await this.capableMethod(platform, PlatformCapability.ADS, 'snoozeNextAd')();
+  }
+
+  /** When a user started following on a platform, or null if they don't. */
+  async getFollowDate(platform: StreamingPlatform, userId: string): Promise<Date | null> {
+    return await this.capableMethod(
+      platform,
+      PlatformCapability.FOLLOW_INFO,
+      'getFollowDate'
+    )(userId);
+  }
+
+  /** When a user's account on a platform was created, or null if there's no such user. */
+  async getAccountCreatedAt(platform: StreamingPlatform, userId: string): Promise<Date | null> {
+    return await this.capableMethod(
+      platform,
+      PlatformCapability.ACCOUNT_AGE,
+      'getAccountCreatedAt'
+    )(userId);
+  }
+
+  /** Mark the current point of a platform's live broadcast. */
+  async createStreamMarker(
+    platform: StreamingPlatform,
+    description?: string
+  ): Promise<StreamMarker> {
+    return await this.capableMethod(
+      platform,
+      PlatformCapability.MARKERS,
+      'createStreamMarker'
+    )(description);
+  }
+
+  /** Delete a platform's most recent past broadcast; null if there was none. */
+  async deleteLatestVod(platform: StreamingPlatform): Promise<VodInfo | null> {
+    return await this.capableMethod(platform, PlatformCapability.VODS, 'deleteLatestVod')();
   }
 
   /**

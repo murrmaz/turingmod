@@ -41,8 +41,9 @@ for consuming one. Today the only subscriber to those two events is `ActivityFor
 - [ ] Reward handler interface (e.g. `IRewardHandler`: reward title/key, `handle(event)`) with one
       class per reward in `rewards/implementations/`, auto-discovered by a loader modelled on
       `loadCommands.ts`, so adding a reward is dropping in one file
-- [ ] Decide how a handler matches a redemption: by reward title (what the original did) or by
-      stored reward id (survives renames; needs the id recorded when the reward is created in section 2)
+- [x] Decided: handlers match on the reward title, declared statically in the handler class like a
+      command's `name`. Titles are unique per channel and rewards are rarely renamed, so no stored
+      reward ids are needed
 - [ ] Handle redemption `status` (only act on unfulfilled/new redemptions) and consider marking
       redemptions fulfilled or cancelled through Helix when a handler fails
 - [ ] Raid handler: a small subscriber on `twitch.raid` that posts the shoutout message and calls
@@ -56,9 +57,13 @@ create/update/delete/get reward calls, but nothing uses them.
 
 - [ ] Each reward handler (section 1) declares its reward definition (title, cost, prompt, cooldown),
       so the definition and the logic live in the same file
-- [ ] Reward sync on Twitch connect: ensure each handler's reward exists and matches its definition
-      without duplicating ones already present (original rewards: Screen Saver Camera, Barrel Roll,
+- [ ] Reward sync on Twitch connect: look up each handler's reward by title; create it if missing,
+      update it if the definition differs, never duplicate (original rewards: Screen Saver Camera, Barrel Roll,
       Australia, Wide Pope, Long Pope, Bonk, Ban A Word, Jumpscare, American Jumpscare)
+- [ ] Twitch only lets the client that created a reward edit it, so rewards created by the original
+      bot's client ID can't be managed by this app. At cutover the sync will create new rewards
+      under the same titles; he must delete or rename the old ones first (title uniqueness would
+      otherwise block creation). Add this to the cutover steps in section 8
 - [ ] Pause/unpause the facecam rewards around ad breaks (the original disabled them while an ad
       warning ran and re-enabled them after); hook into the existing break/ad flow
 
@@ -133,6 +138,8 @@ These are Helix calls that exist on `TwitchApiIntegration` but are not exposed t
       Decide whether the new bot should send as that account or the broadcaster
 - [ ] Re-run Twitch OAuth in the new console (old tokens are in the original's database and are not reused)
 - [ ] Never run both bots against the same channel at once; the original would answer every command twice
+- [ ] Delete or rename the original bot's rewards in the Twitch dashboard before the first run, so the
+      new bot can create its own with the same titles (section 2)
 - [ ] Dress rehearsal on an offline stream: every reward, a raid (use Twitch's test events), an
       ad break, a break (`!break`), and a restart mid-effect
 - [ ] Rollback plan: keep the original runnable and its database untouched until a few streams in

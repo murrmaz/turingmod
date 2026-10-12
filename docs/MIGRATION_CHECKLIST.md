@@ -34,21 +34,24 @@ abstraction (`IStreamPlatform` / `PlatformCapability`) where a YouTube equivalen
 
 The EventBus is the dispatcher. `TwitchEventSubIntegration` already turns EventSub messages into
 bus events (`twitch.raid`, `twitch.channelpoint.redemption`, ...), and `ChatRouter` shows the pattern
-for consuming one. Today the only subscriber to those two events is `ActivityForwarder` (logging).
+for consuming one. Both subscriptions are now on unless disabled in the EventSub config.
 
-- [ ] Redemption router: subscribe to `twitch.channelpoint.redemption` (as `ChatRouter` does for
+- [x] Redemption router (`rewards/RewardRouter.ts`): subscribe to `twitch.channelpoint.redemption` (as `ChatRouter` does for
       `chat.command`), find the handler for the reward, run it, and log failures without breaking the loop
-- [ ] Reward handler interface (e.g. `IRewardHandler`: reward title/key, `handle(event)`) with one
+- [x] Reward handler interface (`IRewardHandler`: `rewardTitle`, `handle(redemption)`) with one
       class per reward in `rewards/implementations/`, auto-discovered by a loader modelled on
       `loadCommands.ts`, so adding a reward is dropping in one file
 - [x] Decided: handlers match on the reward title, declared statically in the handler class like a
       command's `name`. Titles are unique per channel and rewards are rarely renamed, so no stored
       reward ids are needed
-- [ ] Handle redemption `status` (only act on unfulfilled/new redemptions) and consider marking
-      redemptions fulfilled or cancelled through Helix when a handler fails
-- [ ] Raid handler: a small subscriber on `twitch.raid` that posts the shoutout message and calls
-      `shoutoutUser()` (exists on `TwitchApiIntegration`, cooldown handling included)
-- [ ] Expose shoutout through the platform façade as an optional capability so a future `!so` can use it
+- [x] Redemption `status` needs no filtering: the `.add` event fires once per new redemption, and
+      handlers act immediately whether or not the reward uses the request queue, as the original did
+- [ ] Mark redemptions fulfilled, or cancel them to refund the viewer, when a handler fails. Needs the
+      reward to have been created by this app's client ID, so it belongs with section 2; the
+      redemption `id` is already on the event for it
+- [x] Raid handler (`raids/RaidShoutout.ts`): posts the original's shoutout message and sends
+      Twitch's native shoutout (cooldown handling included)
+- [x] Expose shoutout through the platform façade as an optional capability so a future `!so` can use it
 
 ## 2. Channel point reward lifecycle (P0)
 
@@ -136,7 +139,9 @@ These are Helix calls that exist on `TwitchApiIntegration` but are not exposed t
       host/port/password (it used port 4444), audio paths, Windows-only launch of Firefox/VLC
 - [ ] Confirm chat send identity: the original spoke as a separate bot account via `tmi.js`.
       Decide whether the new bot should send as that account or the broadcaster
-- [ ] Re-run Twitch OAuth in the new console (old tokens are in the original's database and are not reused)
+- [ ] Re-run Twitch OAuth in the new console (also required on existing dev setups: the
+      `moderator:manage:shoutouts` scope was added for shoutouts, and the auth integration asks
+      for re-authorization when a stored grant is missing a scope) (old tokens are in the original's database and are not reused)
 - [ ] Never run both bots against the same channel at once; the original would answer every command twice
 - [ ] Delete or rename the original bot's rewards in the Twitch dashboard before the first run, so the
       new bot can create its own with the same titles (section 2)

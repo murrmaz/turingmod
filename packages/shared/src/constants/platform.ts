@@ -20,4 +20,5 @@ export enum PlatformCapability {
   CONTENT_LABELS = 'content_labels', // Twitch only
   FOLLOW_INFO = 'follow_info', // Twitch only (follow age lookups)
   BROADCASTER_ABOUT = 'broadcaster_about', // Twitch only (channel bio/description lookups)
+  SHOUTOUT = 'shoutout', // Twitch only (native /shoutout)
 }

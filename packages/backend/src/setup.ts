@@ -39,6 +39,10 @@ import { ChatRouter } from './platforms/ChatRouter.js';
 import { PlatformRegistry } from './platforms/PlatformRegistry.js';
 import { TwitchPlatform } from './platforms/TwitchPlatform.js';
 import { YouTubePlatform } from './platforms/YouTubePlatform.js';
+import { RaidShoutout } from './raids/RaidShoutout.js';
+import { loadRewardHandlers } from './rewards/loadRewardHandlers.js';
+import { RewardRegistry } from './rewards/RewardRegistry.js';
+import { RewardRouter } from './rewards/RewardRouter.js';
 import { HttpServer } from './server/HttpServer.js';
 import { ActivityHandler } from './server/handlers/ActivityHandler.js';
 import { CommandHandler } from './server/handlers/CommandHandler.js';
@@ -142,6 +146,9 @@ export async function initializeComponents(): Promise<void> {
   // Auto-discover and register commands
   await loadCommands(container.resolve(CommandRegistry), logger);
 
+  // Auto-discover and register channel point reward handlers
+  await loadRewardHandlers(container.resolve(RewardRegistry), logger);
+
   // Register integrations
   const integrationManager = container.resolve(IntegrationManager);
 
@@ -177,6 +184,11 @@ export async function initializeComponents(): Promise<void> {
 
   // Construct the reply-routing seam and start the live chat→command→reply loop.
   container.resolve(ChatRouter).start();
+
+  // Twitch EventSub reactions: channel point redemptions go to their reward handler, and a raid
+  // gets a shoutout.
+  container.resolve(RewardRouter).start();
+  container.resolve(RaidShoutout).start();
 
   // Start forwarding EventBus activity to the live tail (broadcast) and activity_log (persist).
   container.resolve(ActivityForwarder).start();

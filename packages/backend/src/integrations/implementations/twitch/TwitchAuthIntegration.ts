@@ -54,6 +54,8 @@ export const TWITCH_REQUIRED_SCOPES = [
   'moderator:manage:banned_users',
   'moderator:manage:chat_messages',
   'moderator:manage:warnings',
+  // Native shoutouts (raid shoutouts, `!so`)
+  'moderator:manage:shoutouts',
   'user:read:email',
 ];
 

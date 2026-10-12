@@ -59,6 +59,13 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Chat routing**: `packages/backend/src/platforms/ChatRouter.ts`
 - **Display names**: `packages/backend/src/platforms/platformNames.ts`
 
+### Channel Point Rewards & Raids
+- **Handler interface**: `packages/backend/src/rewards/interfaces/IRewardHandler.ts`
+- **Handlers**: `packages/backend/src/rewards/implementations/*.ts` — auto-discovered by `rewards/loadRewardHandlers.ts`
+- **Routing**: `packages/backend/src/rewards/RewardRouter.ts` (redemption → handler by title) + `RewardRegistry.ts`
+- **Raid shoutout**: `packages/backend/src/raids/RaidShoutout.ts`
+- **Shared directory loader**: `packages/backend/src/utils/importImplementations.ts` (used by both commands and rewards)
+
 ### Stream Breaks
 - **Lifecycle**: `packages/backend/src/breaks/BreakService.ts` — starts/extends/ends breaks; listens for `twitch.ad.break`; emits `stream.break.started`/`.ended`
 - **OBS overlay**: `packages/backend/src/breaks/ObsBreakOverlay.ts` — snapshot/apply/restore across all canvases and scenes
@@ -250,6 +257,20 @@ manual ads move it. `Application.stop()` ends a running break before stopping in
 is still connected to restore it. Chat fan-out goes through `StreamControlService.announce()`, which
 shares the live-platform/auth-skip loop with the mirrored writes.
 
+### Channel Point Rewards & Raids
+
+`TwitchEventSubIntegration` publishes redemptions and raids on the EventBus; nothing else in the
+integration layer knows about them. `RewardRouter` subscribes to `twitch.channelpoint.redemption`
+and runs the `IRewardHandler` whose `rewardTitle` matches the redemption's title exactly — titles
+are unique per channel and rarely renamed, so there are no stored reward ids. Handlers are
+auto-discovered like commands: one class per reward in `rewards/implementations/`, default-exported
+and `@injectable()`. A redemption with no handler is normal (a reward for the streamer to act on)
+and is ignored; a handler that throws is logged and never stops the next redemption.
+
+`RaidShoutout` handles `twitch.raid`: a chat message linking the raider plus Twitch's native
+shoutout, through `StreamControlService` like any other platform action. The two are independent,
+so a rate-limited native shoutout still gets the chat message.
+
 ### Frontend State
 
 React Context for state management: `WebSocketContext` (connection + send/subscribe) and `AppStateContext` (commands, integrations, health). Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`.
@@ -286,6 +307,8 @@ Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend b
   returning a fresh object per call makes them rebuild on every access.
 - **Integration lifecycle** — always call `initialize(config)` before `start()`.
 - **New commands** go in `packages/backend/src/commands/implementations/` and implement `ICommand`. They're auto-discovered by `loadCommands()`.
+- **New channel point reward handlers** go in `packages/backend/src/rewards/implementations/` and implement `IRewardHandler`, matched by exact `rewardTitle`. They're auto-discovered by `loadRewardHandlers()`.
+- **Behaviour lives in code, not the database.** Commands and reward handlers are TypeScript classes; a table may hold a feature's own data (a banned-word list, a counter), never its logic.
 - **Commands reach platforms through `StreamControlService`**, never through an integration directly, and never check auth themselves (see Platform Provider Layer).
 - **API-backed read commands need a cooldown.** `ICommand.cooldown` is per-viewer seconds; `CommandExecutor` exempts moderators and above, so a shared read/write command (`!game`, `!tags`, `!cw`) can be throttled for viewers without blocking a moderator's write.
 - **New integrations** extend `BaseIntegration`, get decorated `@injectable()`/`@singleton()`, get registered with `IntegrationManager` in `setup.ts`'s `initializeComponents()`, and need a `MessageRouter` handler if they accept WebSocket messages. OAuth-capable integrations also implement `IOAuthIntegration`, override `get oauth()` to return `this`, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.

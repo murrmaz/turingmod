@@ -6,6 +6,7 @@ import type {
   AdBreakInfo,
   IStreamPlatform,
   ScheduleSegment,
+  ShoutoutResult,
   StreamInfo,
 } from './interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from './PlatformRegistry.js';
@@ -75,6 +76,15 @@ export class StreamControlService {
     });
   }
 
+  /** Post a message to one platform's chat, whether or not it is live. */
+  sendChatMessage(platform: StreamingPlatform, message: string): Promise<void> {
+    const target = this.registry.get(platform);
+    if (!target) {
+      throw new Error(`Platform not available: ${platform}`);
+    }
+    return target.sendChatMessage(message);
+  }
+
   /** Read current stream metadata from the platform the command originated on. */
   getStreamInfo(platform: StreamingPlatform): Promise<StreamInfo> {
     const target = this.registry.get(platform);
@@ -131,6 +141,11 @@ export class StreamControlService {
       PlatformCapability.BROADCASTER_ABOUT,
       'getBroadcasterAbout'
     )();
+  }
+
+  /** Send a platform's native shoutout for another channel, by its login name. */
+  async shoutout(platform: StreamingPlatform, channelName: string): Promise<ShoutoutResult> {
+    return await this.capableMethod(platform, PlatformCapability.SHOUTOUT, 'shoutout')(channelName);
   }
 
   /**

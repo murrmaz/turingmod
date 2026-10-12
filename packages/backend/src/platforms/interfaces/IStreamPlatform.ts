@@ -28,6 +28,16 @@ export interface ScheduleSegment {
 }
 
 /**
+ * Outcome of a shoutout. The platform may decline to send one because of its own rate limits;
+ * `retryAfterMs` says when it would next accept.
+ */
+export interface ShoutoutResult {
+  sent: boolean;
+  reason?: 'global_cooldown' | 'target_cooldown';
+  retryAfterMs?: number;
+}
+
+/**
  * Platform-agnostic façade over one streaming platform. Implemented by TwitchPlatform and
  * YouTubePlatform, each delegating to that platform's integration trio. Capability-guarded
  * methods are optional; callers must check getCapabilities() (or go through
@@ -93,4 +103,10 @@ export interface IStreamPlatform {
    * Requires PlatformCapability.BROADCASTER_ABOUT.
    */
   getBroadcasterAbout?(): Promise<string | null>;
+
+  /**
+   * Send the platform's native shoutout for another channel, by its login name.
+   * Requires PlatformCapability.SHOUTOUT.
+   */
+  shoutout?(channelName: string): Promise<ShoutoutResult>;
 }

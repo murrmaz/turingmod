@@ -8,6 +8,7 @@ import type {
   AdBreakInfo,
   IStreamPlatform,
   ScheduleSegment,
+  ShoutoutResult,
   StreamInfo,
 } from './interfaces/IStreamPlatform.js';
 
@@ -38,6 +39,7 @@ export class TwitchPlatform implements IStreamPlatform {
       PlatformCapability.CONTENT_LABELS,
       PlatformCapability.FOLLOW_INFO,
       PlatformCapability.BROADCASTER_ABOUT,
+      PlatformCapability.SHOUTOUT,
     ]);
   }
 
@@ -163,6 +165,15 @@ export class TwitchPlatform implements IStreamPlatform {
     const user = await this.api.getUserById(userId);
     const description = user?.description?.trim();
     return description ? description : null;
+  }
+
+  async shoutout(channelName: string): Promise<ShoutoutResult> {
+    const userId = this.requireUserId();
+    const target = await this.api.getUserByName(channelName);
+    if (!target) {
+      throw new Error(`Twitch user not found: ${channelName}`);
+    }
+    return await this.api.shoutoutUser(userId, target.id);
   }
 
   /**

@@ -249,8 +249,8 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info('Subscribed to channel.subscribe');
     }
 
-    // Channel Raid
-    if (subscriptions.channelRaid) {
+    // Channel Raid — on unless explicitly disabled, since raid shoutouts are driven by it
+    if (subscriptions.channelRaid !== false) {
       await this.eventSubListener.onChannelRaidTo(broadcasterId, (event) => {
         this.eventBus.emit('twitch.raid', {
           fromBroadcasterId: event.raidingBroadcasterId,
@@ -316,10 +316,12 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info('Subscribed to channel.ad_break.begin');
     }
 
-    // Channel Point Redemption
-    if (subscriptions.channelPointRedemption) {
+    // Channel Point Redemption — on unless explicitly disabled, since reward handlers are driven
+    // by it
+    if (subscriptions.channelPointRedemption !== false) {
       await this.eventSubListener.onChannelRedemptionAdd(broadcasterId, (event) => {
         this.eventBus.emit('twitch.channelpoint.redemption', {
+          id: event.id,
           userId: event.userId,
           userName: event.userName,
           userDisplayName: event.userDisplayName,

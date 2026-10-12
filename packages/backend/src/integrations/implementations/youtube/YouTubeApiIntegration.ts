@@ -143,12 +143,12 @@ export class YouTubeApiIntegration extends BaseIntegration {
   }
 
   /**
-   * Insert a text message into a live chat.
+   * Insert a text message into a live chat, returning the posted message's id.
    */
-  async sendLiveChatMessage(liveChatId: string, message: string): Promise<void> {
+  async sendLiveChatMessage(liveChatId: string, message: string): Promise<string | null> {
     const youtube = this.requireClient();
 
-    await this.withAuthErrorDetection(() =>
+    const response = await this.withAuthErrorDetection(() =>
       youtube.liveChatMessages.insert({
         part: ['snippet'],
         requestBody: {
@@ -162,6 +162,7 @@ export class YouTubeApiIntegration extends BaseIntegration {
         },
       })
     );
+    return response.data.id ?? null;
   }
 
   /**

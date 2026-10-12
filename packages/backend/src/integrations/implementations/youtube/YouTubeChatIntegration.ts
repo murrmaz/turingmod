@@ -120,7 +120,7 @@ function isTransportError(error: unknown): boolean {
  * YouTube Chat Integration
  *
  * Streams the active broadcast's live chat over the `youtube.v3.liveChat.messages.stream`
- * server-streaming RPC and normalizes each message into the same `chat.message` EventBus event
+ * server-streaming RPC and normalizes each message into the same `chat.received` EventBus event
  * Twitch emits, so ChatRouter stays platform-agnostic.
  *
  * There are no periodic timers. The integration idles until something says the broadcaster went
@@ -573,7 +573,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
   }
 
   /**
-   * Normalize one live chat message into `chat.message`.
+   * Normalize one live chat message into `chat.received`.
    * Payloads mirror TwitchEventSubIntegration.handleChatMessage() exactly.
    */
   private handleMessage(item: youtube_v3.Schema$LiveChatMessage): void {
@@ -592,8 +592,9 @@ export class YouTubeChatIntegration extends BaseIntegration {
 
     this.logger.debug('YouTube chat message received', { user: username, message: messageText });
 
+    // OwnChatMessages republishes this as `chat.message`, minus TuringMod's own messages.
     // Commands are parsed out by ChatRouter, after moderation.
-    this.eventBus.emit<ChatMessageEvent>('chat.message', {
+    this.eventBus.emit<ChatMessageEvent>('chat.received', {
       platform: StreamingPlatform.YOUTUBE,
       platformUserId,
       username,

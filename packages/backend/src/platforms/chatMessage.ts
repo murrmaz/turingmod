@@ -1,9 +1,10 @@
 import type { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 
 /**
- * Payload of the `chat.message` EventBus event, emitted identically by every platform's chat
- * integration for every message. Commands are parsed out of it in one place (ChatRouter), after
- * moderation has had its say, rather than by each integration.
+ * One chat message, emitted identically by every platform's chat integration as `chat.received`.
+ * OwnChatMessages republishes it as `chat.message` unless TuringMod posted it, and everything else
+ * listens to that. Commands are parsed out of it in one place (ChatRouter), after moderation has
+ * had its say, rather than by each integration.
  */
 export interface ChatMessageEvent {
   platform: StreamingPlatform;

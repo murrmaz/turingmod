@@ -21,6 +21,7 @@ import type {
   StreamMarker,
   VodInfo,
 } from './interfaces/IStreamPlatform.js';
+import { OwnChatMessages } from './OwnChatMessages.js';
 
 /**
  * IStreamPlatform façade over the Twitch integration trio. Resolves the broadcaster id from
@@ -34,7 +35,8 @@ export class TwitchPlatform implements IStreamPlatform {
 
   constructor(
     private auth: TwitchAuthIntegration,
-    private api: TwitchApiIntegration
+    private api: TwitchApiIntegration,
+    private ownMessages: OwnChatMessages
   ) {}
 
   getCapabilities(): Set<PlatformCapability> {
@@ -83,7 +85,11 @@ export class TwitchPlatform implements IStreamPlatform {
 
   async sendChatMessage(message: string): Promise<void> {
     const userId = this.requireUserId();
-    await this.api.sendChatMessage(userId, toSafeChatText(message));
+    const text = toSafeChatText(message);
+    await this.ownMessages.record(this.platform, async () => {
+      const sent = await this.api.sendChatMessage(userId, text);
+      return sent.isSent ? sent.id : null;
+    });
   }
 
   async getStreamInfo(): Promise<StreamInfo> {

@@ -39,6 +39,7 @@ import { YouTubeAuthIntegration } from './integrations/implementations/youtube/Y
 import { YouTubeChatIntegration } from './integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { LurkTracker } from './lurk/LurkTracker.js';
 import { ChatRouter } from './platforms/ChatRouter.js';
+import { OwnChatMessages } from './platforms/OwnChatMessages.js';
 import { PlatformRegistry } from './platforms/PlatformRegistry.js';
 import { TwitchPlatform } from './platforms/TwitchPlatform.js';
 import { YouTubePlatform } from './platforms/YouTubePlatform.js';
@@ -186,7 +187,9 @@ export async function initializeComponents(): Promise<void> {
   platformRegistry.register(container.resolve(TwitchPlatform));
   platformRegistry.register(container.resolve(YouTubePlatform));
 
-  // Construct the reply-routing seam and start the live chat→command→reply loop.
+  // Gate raw chat (dropping TuringMod's own messages), then start the live
+  // chat→command→reply loop on what passes.
+  container.resolve(OwnChatMessages).start();
   container.resolve(ChatRouter).start();
 
   // Twitch EventSub reactions: channel point redemptions go to their reward handler, and a raid

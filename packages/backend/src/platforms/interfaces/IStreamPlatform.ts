@@ -135,7 +135,8 @@ export interface IStreamPlatform {
 
   /**
    * Post a message to this platform's own chat. ChatRouter posts command replies with this.
-   * Implementations must pass the message through `toSafeChatText()` (see chatMessage.ts).
+   * Implementations must pass the message through `toSafeChatText()` (see chatMessage.ts) and
+   * send it through `OwnChatMessages.record()`, so TuringMod ignores it when it comes back.
    */
   sendChatMessage(message: string): Promise<void>;
 

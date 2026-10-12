@@ -352,8 +352,9 @@ export class TwitchEventSubIntegration extends BaseIntegration {
     const badgeNames = Object.keys(event.badges);
     const permissionLevel = this.getPermissionFromBadges(badgeNames, isBroadcaster);
 
+    // OwnChatMessages republishes this as `chat.message`, minus TuringMod's own messages.
     // Commands are parsed out by ChatRouter, after moderation.
-    this.eventBus.emit<ChatMessageEvent>('chat.message', {
+    this.eventBus.emit<ChatMessageEvent>('chat.received', {
       platform: StreamingPlatform.TWITCH,
       platformUserId: event.chatterId,
       username: event.chatterDisplayName,

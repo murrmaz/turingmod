@@ -57,6 +57,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Mirroring/reads**: `packages/backend/src/platforms/StreamControlService.ts` — the seam commands depend on
 - **Auth reporting**: `packages/backend/src/platforms/availability.ts` (`unavailableReason`) + `errors.ts` (`NotAuthenticatedError`)
 - **Chat routing**: `packages/backend/src/platforms/ChatRouter.ts` (moderate → parse → execute → reply); message shape + `parseCommand` in `chatMessage.ts`
+- **Own-message gate**: `packages/backend/src/platforms/OwnChatMessages.ts` — records sent message ids; republishes `chat.received` as `chat.message` minus TuringMod's own
 - **Display names**: `packages/backend/src/platforms/platformNames.ts`
 
 ### Channel Point Rewards & Raids
@@ -326,25 +327,37 @@ is incidental (`!bonk`, the Bonk reward, break sounds). Neither waits for the cl
 
 ### Chat Pipeline
 
-Each chat integration emits one `chat.message` (`ChatMessageEvent`) per message and nothing else;
-commands are not parsed at the source. `ChatRouter` takes it from there: `ChatModerator.review()`
+Each chat integration emits one `chat.received` (`ChatMessageEvent`) per message and nothing else;
+commands are not parsed at the source. `OwnChatMessages` drops TuringMod's own messages and
+republishes the rest as `chat.message`, which is what every consumer listens to. `ChatRouter` takes
+it from there: `ChatModerator.review()`
 first, and only a message it allows is parsed with `parseCommand()` and executed. That order is the
 point — a command can't carry a banned word past the filter. Moderation acts only on platforms
 with the `MODERATION` capability and always exempts the broadcaster. Banned words are data
 (`banned_words`, written by the Ban A Word reward) and lapse 30 days after being banned. Other
-listeners on `chat.message` (activity log, `ClipCollector`) see every message, moderated or not.
+listeners on `chat.message` (activity log, `ClipCollector`) see every message but TuringMod's own,
+moderated or not.
 
 Failures `CommandExecutor` produces itself (`EXECUTOR_ERROR_CODES`: unknown command, permissions,
 cooldown, not allowed, crashed) get **no reply in chat** — an unknown `!word` is often meant for
 another bot — and are recorded in the activity log instead (unknown commands are also logged at
 debug). Failures a command reports itself (usage, "game not found") are still replied to.
 
-**Outgoing chat can never start with a command.** The bot's own messages come back through
-ingest under the sending account's identity (broadcaster or a moderator bot account), so an echoed
-`!delvod` would otherwise run with that account's permission — a confused deputy — and other bots
-in the channel would obey it too. Every `IStreamPlatform` passes outgoing chat and announcements
-through `toSafeChatText()` (`platforms/chatMessage.ts`), which strips leading whitespace, invisible
-format characters and `!`/`/` prefixes, so `parseCommand()` never matches anything TuringMod sent.
+**TuringMod never acts on its own chat messages.** It posts with the broadcaster's login — one
+identity per platform, deliberately, rather than a separate bot account that would split actions
+between two sets of credentials — so its messages come back through ingest as the broadcaster's.
+Unchecked, an echoed `!delvod` would run with broadcaster permission (a confused deputy), and a
+reaction to its own message could feed a message storm. Sender identity can't tell them apart, so
+the message id does: every façade sends through `OwnChatMessages.record()`, which remembers the id
+the platform returns, and the gate drops those messages before anything sees them. Ingest can
+deliver a message before the send call returns, so a broadcaster message arriving mid-send waits
+for in-flight sends to settle before it is judged; other people's messages pass straight through.
+
+**Outgoing chat can never start with a command**, a second layer that also protects other bots in
+the channel. Every `IStreamPlatform` passes outgoing chat and announcements through
+`toSafeChatText()` (`platforms/chatMessage.ts`), which strips leading whitespace, invisible format
+characters and `!`/`/` prefixes. There is deliberately no `!echo`-style command that repeats
+viewer input.
 
 The command simulator deliberately runs commands for real, side effects included: it lets the
 streamer act as a viewer to integration-test a command without asking someone to type it. It is
@@ -389,6 +402,6 @@ Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend b
 - **New channel point reward handlers** go in `packages/backend/src/rewards/implementations/` and implement `IRewardHandler`, matched by exact `rewardTitle`. They're auto-discovered by `loadRewardHandlers()`.
 - **Behaviour lives in code, not the database.** Commands and reward handlers are TypeScript classes; a table may hold a feature's own data (a banned-word list, a counter), never its logic.
 - **Commands reach platforms through `StreamControlService`**, never through an integration directly, and never check auth themselves (see Platform Provider Layer).
-- **Every outgoing chat message goes through `toSafeChatText()`** inside the platform façade — a new `IStreamPlatform` (or a new send method) must apply it, so the bot can never post a command (see Chat Pipeline).
+- **Every outgoing chat message goes through `toSafeChatText()` and `OwnChatMessages.record()`** inside the platform façade — a new `IStreamPlatform` (or a new send method) must apply both, so the bot can never post a command or act on what it posted (see Chat Pipeline).
 - **API-backed read commands need a cooldown.** `ICommand.cooldown` is per-viewer seconds; `CommandExecutor` exempts moderators and above, so a shared read/write command (`!game`, `!tags`, `!cw`) can be throttled for viewers without blocking a moderator's write.
 - **New integrations** extend `BaseIntegration`, get decorated `@injectable()`/`@singleton()`, get registered with `IntegrationManager` in `setup.ts`'s `initializeComponents()`, and need a `MessageRouter` handler if they accept WebSocket messages. OAuth-capable integrations also implement `IOAuthIntegration`, override `get oauth()` to return `this`, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.

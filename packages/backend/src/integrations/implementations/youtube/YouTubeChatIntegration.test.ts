@@ -269,7 +269,7 @@ describe('YouTubeChatIntegration', () => {
   describe('messages', () => {
     it('skips the backlog response of a fresh resolve', async () => {
       const messages: unknown[] = [];
-      eventBus.on('chat.message', (data) => {
+      eventBus.on('chat.received', (data) => {
         messages.push(data);
       });
 
@@ -281,9 +281,9 @@ describe('YouTubeChatIntegration', () => {
       expect(messages).toEqual([]);
     });
 
-    it('emits chat.message with the payload shape ChatRouter already expects', async () => {
+    it('emits chat.received with the payload shape ChatRouter already expects', async () => {
       const messages: Record<string, unknown>[] = [];
-      eventBus.on<Record<string, unknown>>('chat.message', (data) => {
+      eventBus.on<Record<string, unknown>>('chat.received', (data) => {
         messages.push(data);
       });
 
@@ -305,13 +305,13 @@ describe('YouTubeChatIntegration', () => {
       });
     });
 
-    it('emits commands as ordinary chat.message events, leaving parsing to ChatRouter', async () => {
+    it('emits commands as ordinary chat.received events, leaving parsing to ChatRouter', async () => {
       const commands: unknown[] = [];
       eventBus.on('chat.command', (data) => {
         commands.push(data);
       });
       const messages: Record<string, unknown>[] = [];
-      eventBus.on<Record<string, unknown>>('chat.message', (data) => {
+      eventBus.on<Record<string, unknown>>('chat.received', (data) => {
         messages.push(data);
       });
 
@@ -341,7 +341,7 @@ describe('YouTubeChatIntegration', () => {
 
     it('delivers messages from the first response after a reconnect', async () => {
       const messages: unknown[] = [];
-      eventBus.on('chat.message', (data) => {
+      eventBus.on('chat.received', (data) => {
         messages.push(data);
       });
 
@@ -607,7 +607,7 @@ describe('YouTubeChatIntegration', () => {
 
     it('ignores late events from a call it has already abandoned', async () => {
       const messages: unknown[] = [];
-      eventBus.on('chat.message', (data) => {
+      eventBus.on('chat.received', (data) => {
         messages.push(data);
       });
 

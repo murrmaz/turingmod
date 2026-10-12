@@ -4,6 +4,7 @@ import { YouTubeApiIntegration } from '../integrations/implementations/youtube/Y
 import { unavailableReason } from './availability.js';
 import { toSafeChatText } from './chatMessage.js';
 import type { IStreamPlatform, StreamInfo } from './interfaces/IStreamPlatform.js';
+import { OwnChatMessages } from './OwnChatMessages.js';
 
 /**
  * IStreamPlatform façade over the YouTube integration trio. YouTube has no game/category or tags
@@ -15,7 +16,10 @@ import type { IStreamPlatform, StreamInfo } from './interfaces/IStreamPlatform.j
 export class YouTubePlatform implements IStreamPlatform {
   readonly platform = StreamingPlatform.YOUTUBE;
 
-  constructor(private api: YouTubeApiIntegration) {}
+  constructor(
+    private api: YouTubeApiIntegration,
+    private ownMessages: OwnChatMessages
+  ) {}
 
   getCapabilities(): Set<PlatformCapability> {
     return new Set([
@@ -40,7 +44,10 @@ export class YouTubePlatform implements IStreamPlatform {
     if (!broadcast?.liveChatId) {
       throw new Error('No active YouTube live chat to post to');
     }
-    await this.api.sendLiveChatMessage(broadcast.liveChatId, text);
+    const { liveChatId } = broadcast;
+    await this.ownMessages.record(this.platform, () =>
+      this.api.sendLiveChatMessage(liveChatId, text)
+    );
   }
 
   async getStreamInfo(): Promise<StreamInfo> {

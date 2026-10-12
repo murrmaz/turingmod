@@ -1,9 +1,10 @@
 import 'reflect-metadata';
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import { NotAuthenticatedError } from './errors.js';
+import type { OwnChatMessages } from './OwnChatMessages.js';
 import { TwitchPlatform } from './TwitchPlatform.js';
 
 const BROADCASTER = 'broadcaster-id';
@@ -25,14 +26,21 @@ function setup() {
     getVideosByUser: vi.fn(),
     deleteVideos: vi.fn(() => Promise.resolve()),
     sendAnnouncement: vi.fn(() => Promise.resolve()),
-    sendChatMessage: vi.fn(() => Promise.resolve()),
+    sendChatMessage: vi.fn(() => Promise.resolve({ id: 'sent-id', isSent: true })),
+  };
+  const ownMessages = {
+    record: vi.fn((_platform: unknown, send: () => Promise<string | null>) =>
+      send().then(() => undefined)
+    ),
   };
   const platform = new TwitchPlatform(
     auth as unknown as TwitchAuthIntegration,
-    api as unknown as TwitchApiIntegration
+    api as unknown as TwitchApiIntegration,
+    ownMessages as unknown as OwnChatMessages
   );
   return {
     api,
+    ownMessages,
     platform,
     disconnect: () => {
       status = IntegrationStatus.DISCONNECTED;
@@ -150,6 +158,21 @@ describe('TwitchPlatform', () => {
 
     expect(api.sendChatMessage).toHaveBeenCalledWith(BROADCASTER, 'delvod');
     expect(api.sendAnnouncement).toHaveBeenCalledWith(BROADCASTER, 'ban someone');
+  });
+
+  it("records the sent message's id, or nothing when Twitch dropped it", async () => {
+    const { platform, api, ownMessages } = setup();
+    const recorded: (string | null)[] = [];
+    ownMessages.record.mockImplementation(async (_platform, send) => {
+      recorded.push(await send());
+    });
+
+    await platform.sendChatMessage('hello');
+    api.sendChatMessage.mockResolvedValueOnce({ id: 'held-id', isSent: false });
+    await platform.sendChatMessage('held by AutoMod');
+
+    expect(ownMessages.record).toHaveBeenCalledWith(StreamingPlatform.TWITCH, expect.any(Function));
+    expect(recorded).toEqual(['sent-id', null]);
   });
 
   it('refuses to act without a usable grant', async () => {

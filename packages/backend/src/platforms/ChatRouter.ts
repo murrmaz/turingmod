@@ -32,7 +32,7 @@ export class ChatRouter {
 
   /** Subscribe to `chat.message` and route replies. */
   start(): void {
-    this.eventBus.on<ChatMessageEvent>('chat.message', (event) => {
+    this.eventBus.on('chat.message', (event) => {
       void this.handleChatMessage(event);
     });
     this.logger.info('ChatRouter live loop enabled');

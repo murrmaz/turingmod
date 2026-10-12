@@ -88,7 +88,7 @@ export abstract class BaseIntegration implements IIntegration {
    * Announce that this integration's OAuth credentials were just rotated.
    *
    * A refresh is deliberately *not* a status change — the integration stays
-   * CONNECTED throughout — so `integration:status` can't express it. This is
+   * CONNECTED throughout — so `integration.status` can't express it. This is
    * a courtesy notification for anything that might want to react; nothing is
    * required to. It carries no credentials: the expiry is the only fact a
    * consumer could act on, and anything needing the token itself should ask

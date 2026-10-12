@@ -123,13 +123,13 @@ describe('TwitchAuthIntegration', () => {
     // Simulates TwitchEventSubIntegration detecting a revoked subscription
     // and publishing the fact, independent of this integration's own
     // refresh-failure detection.
-    await eventBus.emit('twitch.authorization-revoked', { reason: 'authorization_revoked' });
+    await eventBus.emit('twitch.authorizationRevoked', { reason: 'authorization_revoked' });
 
     expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
     expect(integration.getErrorMessage()).toMatch(/re-authorization required/i);
   });
 
-  it('stops reacting to authorization-revoked events after being stopped', async () => {
+  it('stops reacting to authorizationRevoked events after being stopped', async () => {
     const eventBus = new EventBus(new Logger({ level: 'silent' }));
     const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
     successfulTokenExchange();
@@ -138,9 +138,9 @@ describe('TwitchAuthIntegration', () => {
     await integration.start();
     await integration.stop();
 
-    expect(eventBus.listenerCount('twitch.authorization-revoked')).toBe(0);
+    expect(eventBus.listenerCount('twitch.authorizationRevoked')).toBe(0);
 
-    await eventBus.emit('twitch.authorization-revoked', { reason: 'authorization_revoked' });
+    await eventBus.emit('twitch.authorizationRevoked', { reason: 'authorization_revoked' });
 
     expect(integration.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
   });
@@ -162,13 +162,11 @@ describe('TwitchAuthIntegration', () => {
     await expect(integration.start()).rejects.toThrow();
     await expect(integration.start()).rejects.toThrow();
 
-    expect(eventBus.listenerCount('twitch.authorization-revoked')).toBe(1);
+    expect(eventBus.listenerCount('twitch.authorizationRevoked')).toBe(1);
   });
 
   it('requires re-authorization, without contacting Twitch, when the stored grant predates a required scope', async () => {
     const eventBus = new EventBus(new Logger({ level: 'silent' }));
-    const authRequired = vi.fn();
-    eventBus.on('integration.auth-required', authRequired);
     const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
 
     await integration.initialize({ ...CONFIG, scopes: ['chat:read'] });
@@ -176,7 +174,6 @@ describe('TwitchAuthIntegration', () => {
 
     expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
     expect(integration.getErrorMessage()).toMatch(/channel:read:ads/);
-    expect(authRequired).toHaveBeenCalledOnce();
     expect(fetch).not.toHaveBeenCalled();
   });
 

@@ -153,7 +153,7 @@ describe('AdWarningScheduler', () => {
     await vi.advanceTimersByTimeAsync(0);
     streamControl.getNextAdBreak.mockClear();
 
-    eventBus.emitSync('integration:status', {
+    eventBus.emitSync('integration.status', {
       name: 'twitch-api',
       status: IntegrationStatus.CONNECTED,
     });

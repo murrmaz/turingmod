@@ -38,9 +38,7 @@ export class RewardRouter {
   start(): void {
     if (this.subscribed) return;
     this.subscribed = true;
-    this.eventBus.on<RewardRedemption>('twitch.channelpoint.redemption', (redemption) =>
-      this.route(redemption)
-    );
+    this.eventBus.on('twitch.channelPoint.redemption', (redemption) => this.route(redemption));
   }
 
   /** Run the handler for one redemption. Never rejects: a handler failure is logged here. */

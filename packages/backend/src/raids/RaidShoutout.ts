@@ -1,16 +1,9 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
+import type { TwitchRaidEvent } from '../core/events.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
 import { Logger } from '../utils/Logger.js';
-
-/** Shape of the `twitch.raid` EventBus event (see TwitchEventSubIntegration). */
-interface TwitchRaidEvent {
-  /** The raiding channel's login name. */
-  fromBroadcasterName: string;
-  fromBroadcasterDisplayName: string;
-  viewers: number;
-}
 
 /** The chat message posted when a channel raids, carried over from the original bot. */
 export function raidShoutoutMessage(channelName: string): string {
@@ -42,7 +35,7 @@ export class RaidShoutout {
   start(): void {
     if (this.subscribed) return;
     this.subscribed = true;
-    this.eventBus.on<TwitchRaidEvent>('twitch.raid', (event) => this.onRaid(event));
+    this.eventBus.on('twitch.raid', (event) => this.onRaid(event));
   }
 
   /** Never rejects: each failure is logged and the other half still runs. */

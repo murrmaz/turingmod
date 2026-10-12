@@ -194,7 +194,7 @@ export class TwitchApiIntegration extends BaseIntegration {
           IntegrationStatus.NEEDS_REAUTH,
           'Twitch rejected an API call as unauthorized — re-authorization required'
         );
-        this.eventBus.emit('twitch.authorization-revoked', { reason: 'api-call-unauthorized' });
+        this.eventBus.emit('twitch.authorizationRevoked', { reason: 'api-call-unauthorized' });
       }
       throw error;
     }

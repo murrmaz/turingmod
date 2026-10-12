@@ -8,7 +8,6 @@ import {
 import type { youtube_v3 } from 'googleapis';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
-import type { ChatMessageEvent } from '../../../platforms/chatMessage.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IIntegration } from '../../interfaces/IIntegration.js';
@@ -270,16 +269,13 @@ export class YouTubeChatIntegration extends BaseIntegration {
 
   /** Wire the OBS go-live signal. The console's button arrives via the message handler instead. */
   private subscribeToGoLiveSignals(): void {
-    this.unsubscribeObs = this.eventBus.on<{ outputState?: string }>(
-      'obs.stream.stateChanged',
-      (data) => {
-        if (data?.outputState === OBS_OUTPUT_STARTED) {
-          this.requestResolve('OBS');
-        } else if (data?.outputState === OBS_OUTPUT_STOPPED) {
-          this.requestStop('OBS');
-        }
+    this.unsubscribeObs = this.eventBus.on('obs.stream.stateChanged', (data) => {
+      if (data.outputState === OBS_OUTPUT_STARTED) {
+        this.requestResolve('OBS');
+      } else if (data.outputState === OBS_OUTPUT_STOPPED) {
+        this.requestStop('OBS');
       }
-    );
+    });
   }
 
   /**
@@ -594,7 +590,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
 
     // OwnChatMessages republishes this as `chat.message`, minus TuringMod's own messages.
     // Commands are parsed out by ChatRouter, after moderation.
-    this.eventBus.emit<ChatMessageEvent>('chat.received', {
+    this.eventBus.emit('chat.received', {
       platform: StreamingPlatform.YOUTUBE,
       platformUserId,
       username,

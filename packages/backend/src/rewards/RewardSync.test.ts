@@ -209,17 +209,17 @@ describe('RewardSync', () => {
   it('syncs when the Twitch API connects', async () => {
     registry.register(banAWord);
 
-    eventBus.emitSync('integration:status', {
+    eventBus.emitSync('integration.status', {
       name: 'twitch-auth',
       status: IntegrationStatus.CONNECTED,
     });
-    eventBus.emitSync('integration:status', {
+    eventBus.emitSync('integration.status', {
       name: 'twitch-api',
       status: IntegrationStatus.ERROR,
     });
     expect(streamControl.getChannelRewards).not.toHaveBeenCalled();
 
-    eventBus.emitSync('integration:status', {
+    eventBus.emitSync('integration.status', {
       name: 'twitch-api',
       status: IntegrationStatus.CONNECTED,
     });

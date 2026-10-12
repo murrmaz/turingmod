@@ -2,8 +2,6 @@ import {
   createIntegrationStatusMessage,
   createOAuthCodeReceivedMessage,
   createYouTubeChatStateMessage,
-  type IntegrationStatus,
-  type YouTubeChatState,
 } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { IntervalAnnouncer } from '../announcements/IntervalAnnouncer.js';
@@ -84,50 +82,44 @@ export class Application {
    */
   private setupEventHandlers(): void {
     // Integration status changes
-    this.eventBus.on<{ name: string; status: IntegrationStatus; lastConnected?: number }>(
-      'integration:status',
-      (data) => {
-        this.logger.debug('Integration status changed', data);
+    this.eventBus.on('integration.status', (data) => {
+      this.logger.debug('Integration status changed', data);
 
-        // Get full integration info with metadata from IntegrationManager
-        const integrationInfo = this.integrationManager.getStatus(data.name);
+      // Get full integration info with metadata from IntegrationManager
+      const integrationInfo = this.integrationManager.getStatus(data.name);
 
-        if (integrationInfo) {
-          // Broadcast complete status to all WebSocket clients (using protocol contract)
-          this.webSocketServer.broadcast(createIntegrationStatusMessage(integrationInfo));
-        }
+      if (integrationInfo) {
+        // Broadcast complete status to all WebSocket clients (using protocol contract)
+        this.webSocketServer.broadcast(createIntegrationStatusMessage(integrationInfo));
       }
-    );
+    });
 
     // YouTube chat lifecycle: idle → resolving → streaming. Broadcast so the console's go-live
     // control shows whether chat actually connected, not just that the request was accepted.
-    this.eventBus.on<{ state: YouTubeChatState }>('youtube.chat.state', (data) => {
+    this.eventBus.on('youtube.chat.state', (data) => {
       this.logger.info('YouTube chat state changed', data);
       this.webSocketServer.broadcast(createYouTubeChatStateMessage(data.state));
     });
 
     // Integration errors
-    this.eventBus.on<{ name: string; error: Error }>('integration:error', (data) => {
+    this.eventBus.on('integration.error', (data) => {
       this.logger.error('Integration error', data.error, { name: data.name });
     });
 
     // OAuth callback received: deliver the code only to the client that
     // started this flow (correlated via the `state` value), never broadcast
     // it — any other connected client could otherwise redeem it first.
-    this.eventBus.on(
-      'oauth:callback',
-      (data: { integrationName: string; code: string; clientId: string }) => {
-        this.logger.info('OAuth callback received, notifying originating client', {
-          integrationName: data.integrationName,
-          clientId: data.clientId,
-        });
+    this.eventBus.on('oauth.callback', (data) => {
+      this.logger.info('OAuth callback received, notifying originating client', {
+        integrationName: data.integrationName,
+        clientId: data.clientId,
+      });
 
-        this.webSocketServer.sendToClient(
-          data.clientId,
-          createOAuthCodeReceivedMessage(data.integrationName, data.code)
-        );
-      }
-    );
+      this.webSocketServer.sendToClient(
+        data.clientId,
+        createOAuthCodeReceivedMessage(data.integrationName, data.code)
+      );
+    });
   }
 
   /**

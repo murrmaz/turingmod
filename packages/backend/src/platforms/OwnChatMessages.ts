@@ -39,12 +39,12 @@ export class OwnChatMessages {
 
   /** Republish incoming chat as `chat.message`, minus TuringMod's own messages. */
   start(): void {
-    this.eventBus.on<ChatMessageEvent>('chat.received', async (event) => {
+    this.eventBus.on('chat.received', async (event) => {
       if (await this.isOwn(event)) {
         this.logger.debug('Ignoring own chat message', { platform: event.platform });
         return;
       }
-      await this.eventBus.emit<ChatMessageEvent>('chat.message', event);
+      await this.eventBus.emit('chat.message', event);
     });
   }
 

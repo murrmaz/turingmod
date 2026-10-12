@@ -284,7 +284,7 @@ describe('IntegrationManager', () => {
   it('forwards a token refresh without changing status or cascading', async () => {
     const bus = new EventBus(new Logger({ level: 'silent' }));
     const refreshed = vi.fn();
-    bus.on('integration:token-refreshed', refreshed);
+    bus.on('integration.tokenRefreshed', refreshed);
 
     const manager = new IntegrationManager(
       makeStateRepo(['twitch-auth', 'twitch-api', 'twitch-eventsub']),
@@ -312,7 +312,7 @@ describe('IntegrationManager', () => {
   it('omits expiry from a refresh notification when it is unknown', async () => {
     const bus = new EventBus(new Logger({ level: 'silent' }));
     const refreshed = vi.fn();
-    bus.on('integration:token-refreshed', refreshed);
+    bus.on('integration.tokenRefreshed', refreshed);
 
     const manager = new IntegrationManager(
       makeStateRepo(['twitch-auth']),

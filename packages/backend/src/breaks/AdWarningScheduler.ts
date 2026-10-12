@@ -52,19 +52,16 @@ export class AdWarningScheduler {
 
     this.unsubscribers.push(
       // The schedule only settles after the ad finishes; read it again then.
-      this.eventBus.on<{ durationSeconds: number }>('twitch.ad.break', (event) => {
+      this.eventBus.on('twitch.ad.break', (event) => {
         this.schedulePoll(event.durationSeconds * 1000 + POST_BREAK_REPOLL_MS);
       }),
       // Twitch going live, or its auth recovering, is the moment a schedule appears.
       this.eventBus.on('twitch.stream.online', () => this.schedulePoll(POST_BREAK_REPOLL_MS)),
-      this.eventBus.on<{ name: string; status: IntegrationStatus }>(
-        'integration:status',
-        (event) => {
-          if (event.name === 'twitch-api' && event.status === IntegrationStatus.CONNECTED) {
-            this.schedulePoll(0);
-          }
+      this.eventBus.on('integration.status', (event) => {
+        if (event.name === 'twitch-api' && event.status === IntegrationStatus.CONNECTED) {
+          this.schedulePoll(0);
         }
-      )
+      })
     );
 
     void this.poll();

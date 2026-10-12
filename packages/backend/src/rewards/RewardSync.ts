@@ -12,12 +12,6 @@ import { Logger } from '../utils/Logger.js';
 import type { IRewardHandler } from './interfaces/IRewardHandler.js';
 import { RewardRegistry } from './RewardRegistry.js';
 
-/** Payload of `integration:status` (see IntegrationManager.register). */
-interface IntegrationStatusEvent {
-  name: string;
-  status: IntegrationStatus;
-}
-
 /** Settings compared on every sync. The title is how a reward is found, so it never differs. */
 const SYNCED_FIELDS = [
   'cost',
@@ -83,7 +77,7 @@ export class RewardSync {
     if (this.started) return;
     this.started = true;
 
-    this.eventBus.on<IntegrationStatusEvent>('integration:status', (event) => {
+    this.eventBus.on('integration.status', (event) => {
       if (event.name === 'twitch-api' && event.status === IntegrationStatus.CONNECTED) {
         void this.requestSync();
       }

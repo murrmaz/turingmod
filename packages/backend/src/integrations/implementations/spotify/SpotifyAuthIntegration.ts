@@ -1,14 +1,11 @@
-import { randomUUID } from 'node:crypto';
 import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
-import { EventBus } from '../../../core/EventBus.js';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
 import {
   buildOAuthEnvConfig,
-  emitAuthRequired,
   persistOAuthTokens,
   validateOAuthConfig,
 } from '../../oauthConfigHelpers.js';
@@ -70,7 +67,6 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
   private config: SpotifyAuthConfig | null = null;
 
   constructor(
-    private eventBus: EventBus,
     logger: Logger,
     private stateRepo: IntegrationStateRepository
   ) {
@@ -99,11 +95,6 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
     if (!this.config.accessToken) {
       this.logger.warn('No tokens available. User must complete OAuth flow.');
       this.setStatus(IntegrationStatus.DISCONNECTED);
-      emitAuthRequired(
-        this.eventBus,
-        this.name,
-        this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>, randomUUID())
-      );
       return Promise.resolve();
     }
 

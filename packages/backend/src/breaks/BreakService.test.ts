@@ -2,11 +2,12 @@ import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
+import type { TwitchAdBreakEvent } from '../core/events.js';
 import type { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import type { StreamControlService } from '../platforms/StreamControlService.js';
 import type { SoundLibrary } from '../sounds/SoundLibrary.js';
 import { Logger } from '../utils/Logger.js';
-import { BreakService, type StreamBreakEvent } from './BreakService.js';
+import { BreakService } from './BreakService.js';
 import type { ObsBreakOverlay, ObsBreakSnapshot } from './ObsBreakOverlay.js';
 
 const emptySnapshot = (): ObsBreakSnapshot => ({ items: new Map(), inputs: new Map() });
@@ -40,6 +41,17 @@ function setup(stored: unknown = null) {
   return { eventBus, overlay, streamControl, posted, service, sounds };
 }
 
+function adBreak(durationSeconds: number): TwitchAdBreakEvent {
+  return {
+    durationSeconds,
+    startedAt: new Date(0),
+    isAutomatic: true,
+    broadcasterId: 'broadcaster-id',
+    broadcasterName: 'streamer',
+    broadcasterDisplayName: 'Streamer',
+  };
+}
+
 describe('BreakService', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -53,7 +65,7 @@ describe('BreakService', () => {
     const { eventBus, overlay, posted, service } = setup();
     await service.start();
 
-    await eventBus.emit('twitch.ad.break', { durationSeconds: 90 });
+    await eventBus.emit('twitch.ad.break', adBreak(90));
 
     expect(overlay.apply).toHaveBeenCalledOnce();
     expect(posted[0]).toEqual({
@@ -78,7 +90,7 @@ describe('BreakService', () => {
     });
     await service.start();
 
-    await eventBus.emit('twitch.ad.break', { durationSeconds: 30 });
+    await eventBus.emit('twitch.ad.break', adBreak(30));
     expect(sounds.tryPlay).toHaveBeenCalledWith('ad warn.wav');
 
     await service.endBreak();
@@ -89,7 +101,7 @@ describe('BreakService', () => {
     const { eventBus, sounds, service } = setup();
     await service.start();
 
-    await eventBus.emit('twitch.ad.break', { durationSeconds: 30 });
+    await eventBus.emit('twitch.ad.break', adBreak(30));
     await service.endBreak();
 
     expect(sounds.tryPlay).not.toHaveBeenCalled();
@@ -157,7 +169,7 @@ describe('BreakService', () => {
     const { eventBus, overlay, service } = setup({ enabled: false });
     await service.start();
 
-    await eventBus.emit('twitch.ad.break', { durationSeconds: 90 });
+    await eventBus.emit('twitch.ad.break', adBreak(90));
 
     expect(overlay.apply).not.toHaveBeenCalled();
   });
@@ -166,8 +178,8 @@ describe('BreakService', () => {
     const { eventBus, service } = setup();
     const started = vi.fn();
     const ended = vi.fn();
-    eventBus.on<StreamBreakEvent>('stream.break.started', started);
-    eventBus.on<StreamBreakEvent>('stream.break.ended', ended);
+    eventBus.on('stream.break.started', started);
+    eventBus.on('stream.break.ended', ended);
     await service.start();
 
     await service.startBreak('manual', 120);
@@ -186,7 +198,7 @@ describe('BreakService', () => {
 
     expect(overlay.restore).toHaveBeenCalledOnce();
     expect(posted).toHaveLength(1); // only the start
-    await eventBus.emit('twitch.ad.break', { durationSeconds: 90 });
+    await eventBus.emit('twitch.ad.break', adBreak(90));
     expect(overlay.apply).toHaveBeenCalledOnce(); // no longer listening
   });
 

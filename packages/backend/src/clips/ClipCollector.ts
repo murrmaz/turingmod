@@ -42,7 +42,7 @@ export class ClipCollector {
   start(): void {
     if (this.subscribed) return;
     this.subscribed = true;
-    this.eventBus.on<ChatMessageEvent>('chat.message', (event) => this.collectFrom(event));
+    this.eventBus.on('chat.message', (event) => this.collectFrom(event));
   }
 
   isCollecting(): boolean {

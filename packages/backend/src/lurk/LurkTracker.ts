@@ -46,7 +46,7 @@ export class LurkTracker {
   start(): void {
     if (this.subscribed) return;
     this.subscribed = true;
-    this.eventBus.on<ChatMessageEvent>('chat.message', (event) => this.welcomeBack(event));
+    this.eventBus.on('chat.message', (event) => this.welcomeBack(event));
   }
 
   /** Start lurking. Resolves false if they already are. */

@@ -33,7 +33,7 @@ function setup() {
   const own = new OwnChatMessages(bus, logger);
   own.start();
   const delivered: ChatMessageEvent[] = [];
-  bus.on<ChatMessageEvent>('chat.message', (event) => {
+  bus.on('chat.message', (event) => {
     delivered.push(event);
   });
   return { bus, own, delivered };

@@ -10,7 +10,6 @@ import type { EventSubChannelChatMessageEvent } from '@twurple/eventsub-base';
 import { EventSubWsListener } from '@twurple/eventsub-ws';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
-import type { ChatMessageEvent } from '../../../platforms/chatMessage.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IIntegration } from '../../interfaces/IIntegration.js';
@@ -153,7 +152,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
           // Let TwitchAuthIntegration know independently of its own refresh
           // cycle, since a revoked subscription doesn't necessarily mean the
           // next token refresh attempt will fail on its own.
-          this.eventBus.emit('twitch.authorization-revoked', { reason: status });
+          this.eventBus.emit('twitch.authorizationRevoked', { reason: status });
         }
       });
 
@@ -321,7 +320,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
     // by it
     if (subscriptions.channelPointRedemption !== false) {
       await this.eventSubListener.onChannelRedemptionAdd(broadcasterId, (event) => {
-        this.eventBus.emit('twitch.channelpoint.redemption', {
+        this.eventBus.emit('twitch.channelPoint.redemption', {
           id: event.id,
           userId: event.userId,
           userName: event.userName,
@@ -354,7 +353,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
 
     // OwnChatMessages republishes this as `chat.message`, minus TuringMod's own messages.
     // Commands are parsed out by ChatRouter, after moderation.
-    this.eventBus.emit<ChatMessageEvent>('chat.received', {
+    this.eventBus.emit('chat.received', {
       platform: StreamingPlatform.TWITCH,
       platformUserId: event.chatterId,
       username: event.chatterDisplayName,

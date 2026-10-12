@@ -175,7 +175,7 @@ export class HttpServer {
       this.logger.info('OAuth callback received with code', { integrationName });
 
       // Emit event with the code for the client that started this flow
-      this.eventBus.emit('oauth:callback', {
+      this.eventBus.emit('oauth.callback', {
         integrationName,
         code,
         clientId,

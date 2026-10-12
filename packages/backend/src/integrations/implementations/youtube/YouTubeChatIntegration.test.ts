@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../core/EventBus.js';
+import type { ChatMessageEvent } from '../../../platforms/chatMessage.js';
 import { Logger } from '../../../utils/Logger.js';
 import type { ActiveBroadcast, YouTubeApiIntegration } from './YouTubeApiIntegration.js';
 import type { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
@@ -180,6 +181,7 @@ describe('YouTubeChatIntegration', () => {
 
     it('resolves when OBS reports that streaming started', async () => {
       await eventBus.emit('obs.stream.stateChanged', {
+        outputActive: true,
         outputState: 'OBS_WEBSOCKET_OUTPUT_STARTED',
       });
       await flush();
@@ -189,6 +191,7 @@ describe('YouTubeChatIntegration', () => {
 
     it('ignores an unrelated OBS output state', async () => {
       await eventBus.emit('obs.stream.stateChanged', {
+        outputActive: true,
         outputState: 'OBS_WEBSOCKET_OUTPUT_PAUSED',
       });
       await flush();
@@ -209,7 +212,7 @@ describe('YouTubeChatIntegration', () => {
 
     it('broadcasts every lifecycle transition', async () => {
       const states: string[] = [];
-      eventBus.on<{ state: string }>('youtube.chat.state', (data) => {
+      eventBus.on('youtube.chat.state', (data) => {
         states.push(data.state);
       });
 
@@ -282,8 +285,8 @@ describe('YouTubeChatIntegration', () => {
     });
 
     it('emits chat.received with the payload shape ChatRouter already expects', async () => {
-      const messages: Record<string, unknown>[] = [];
-      eventBus.on<Record<string, unknown>>('chat.received', (data) => {
+      const messages: ChatMessageEvent[] = [];
+      eventBus.on('chat.received', (data) => {
         messages.push(data);
       });
 
@@ -306,12 +309,8 @@ describe('YouTubeChatIntegration', () => {
     });
 
     it('emits commands as ordinary chat.received events, leaving parsing to ChatRouter', async () => {
-      const commands: unknown[] = [];
-      eventBus.on('chat.command', (data) => {
-        commands.push(data);
-      });
-      const messages: Record<string, unknown>[] = [];
-      eventBus.on<Record<string, unknown>>('chat.received', (data) => {
+      const messages: ChatMessageEvent[] = [];
+      eventBus.on('chat.received', (data) => {
         messages.push(data);
       });
 
@@ -319,7 +318,6 @@ describe('YouTubeChatIntegration', () => {
       call.emitData({ items: [textMessage('!bonk someone', { isChatModerator: true })] });
       await flush();
 
-      expect(commands).toEqual([]);
       expect(messages[0]).toMatchObject({
         message: '!bonk someone',
         permissionLevel: PermissionLevel.MODERATOR,
@@ -581,6 +579,7 @@ describe('YouTubeChatIntegration', () => {
       await connect();
 
       await eventBus.emit('obs.stream.stateChanged', {
+        outputActive: false,
         outputState: 'OBS_WEBSOCKET_OUTPUT_STOPPED',
       });
       await flush();
@@ -649,6 +648,7 @@ describe('YouTubeChatIntegration', () => {
 
       streamMock.stream.mockClear();
       await eventBus.emit('obs.stream.stateChanged', {
+        outputActive: true,
         outputState: 'OBS_WEBSOCKET_OUTPUT_STARTED',
       });
       await flush();

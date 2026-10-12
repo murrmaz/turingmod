@@ -20,6 +20,7 @@ const makeLogger = () => {
 };
 
 const raid = {
+  fromBroadcasterId: 'raider-id',
   fromBroadcasterName: 'coolraider',
   fromBroadcasterDisplayName: 'CoolRaider',
   viewers: 12,

@@ -107,7 +107,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 
 ### Core Infrastructure
 - **DI**: [tsyringe](https://github.com/microsoft/tsyringe) — `@injectable()`/`@singleton()` on class definitions; `registerRootFactories()` in `setup.ts` for the handful of classes tsyringe can't auto-construct
-- **EventBus**: `packages/backend/src/core/EventBus.ts`
+- **EventBus**: `packages/backend/src/core/EventBus.ts`; every event name and payload type in `core/events.ts` (`EventMap`)
 - **Application**: `packages/backend/src/core/Application.ts`
 - **Setup/Bootstrap**: `packages/backend/src/setup.ts`
 - **Entry Point**: `packages/backend/src/index.ts`
@@ -214,9 +214,13 @@ own their provider for their lifetime and cannot be re-pointed.
 OAuth-capable integrations (currently `TwitchAuthIntegration`, `SpotifyAuthIntegration`) additionally implement `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and expose it via a `get oauth()` getter (`null` on `BaseIntegration` by default). This is the single source of truth for OAuth capability — `IntegrationManager`/`HttpServer` derive callback routing and the frontend's OAuth affordance from it instead of checking integration names.
 
 Cross-integration communication uses `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
+It is typed against `EventMap` (`core/events.ts`), which declares every event name and its payload
+type once, so an emitter and its subscribers can't drift apart. A new event is a new `EventMap` entry;
+don't declare a payload type beside its emitter or consumer. Names are dot-separated camelCase
+segments, most general first (`twitch.channelPoint.redemption`, `integration.tokenRefreshed`).
 
 **Status changes are the integration→UI channel, not per-provider events.** `setStatus()` → the
-`'status'` listener in `IntegrationManager.register()` → `integration:status` on the bus →
+`'status'` listener in `IntegrationManager.register()` → `integration.status` on the bus →
 `Application.setupEventHandlers()` broadcasts `INTEGRATION_STATUS` → `AppStateContext`. A new status
 (like `BLOCKED`) reaches the console through that path with no extra wiring, carrying its reason in
 `errorMessage`. Don't add a per-provider `*.ready` event for this: eight such emits
@@ -227,7 +231,7 @@ resolve-on-access change above eliminates.
 
 A token refresh is the one thing status *can't* express (the integration stays CONNECTED through
 it), so it has its own forward: `BaseIntegration.reportTokenRefreshed(expiresAt?)` →
-`'token-refreshed'` → logged and republished as `integration:token-refreshed` with
+`'token-refreshed'` → logged and republished as `integration.tokenRefreshed` with
 `{ name, expiresAt? }`. It carries no credentials by design — anything needing the token asks the
 integration on access.
 
@@ -280,7 +284,7 @@ shares the live-platform/auth-skip loop with the mirrored writes.
 ### Channel Point Rewards & Raids
 
 `TwitchEventSubIntegration` publishes redemptions and raids on the EventBus; nothing else in the
-integration layer knows about them. `RewardRouter` subscribes to `twitch.channelpoint.redemption`
+integration layer knows about them. `RewardRouter` subscribes to `twitch.channelPoint.redemption`
 and runs the `IRewardHandler` whose `rewardTitle` matches the redemption's title exactly — titles
 are unique per channel and rarely renamed, so there are no stored reward ids. Handlers are
 auto-discovered like commands: one class per reward in `rewards/implementations/`, default-exported

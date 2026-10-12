@@ -1,22 +1,6 @@
-/**
- * A channel point redemption, as published on the EventBus as `twitch.channelpoint.redemption`
- * by TwitchEventSubIntegration.
- */
-export interface RewardRedemption {
-  /** The redemption's own id — not the reward's. */
-  id: string;
-  rewardId: string;
-  rewardTitle: string;
-  rewardCost: number;
-  userId: string;
-  userName: string;
-  userDisplayName: string;
-  /** What the viewer typed, for rewards that prompt for text; empty otherwise. */
-  input: string;
-  /** `unfulfilled` while the reward waits in the request queue, `fulfilled` if it skips it. */
-  status: string;
-  redeemedAt: Date;
-}
+import type { RewardRedemption } from '../../core/events.js';
+
+export type { RewardRedemption };
 
 /**
  * How a handler's reward is set up on Twitch. RewardSync creates the reward from this when it's

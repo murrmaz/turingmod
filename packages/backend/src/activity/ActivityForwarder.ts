@@ -5,12 +5,13 @@ import {
 } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
+import type { EventName } from '../core/events.js';
 import { ActivityLogRepository } from '../database/repositories/ActivityLogRepository.js';
 import { WebSocketServer } from '../server/WebSocketServer.js';
 import { Logger } from '../utils/Logger.js';
 
 /** EventBus event name -> activity category. Add new events here as a one-line change. */
-const EVENT_CATEGORIES: Record<string, ActivityCategory> = {
+const EVENT_CATEGORIES: Partial<Record<EventName, ActivityCategory>> = {
   'chat.message': ActivityCategory.CHAT,
   'command.executed': ActivityCategory.COMMAND,
   'twitch.follow': ActivityCategory.EVENT,
@@ -22,13 +23,13 @@ const EVENT_CATEGORIES: Record<string, ActivityCategory> = {
   'twitch.ad.break': ActivityCategory.EVENT,
   'stream.break.started': ActivityCategory.EVENT,
   'stream.break.ended': ActivityCategory.EVENT,
-  'twitch.channelpoint.redemption': ActivityCategory.EVENT,
+  'twitch.channelPoint.redemption': ActivityCategory.EVENT,
   'obs.scene.changed': ActivityCategory.EVENT,
   'obs.stream.stateChanged': ActivityCategory.EVENT,
   'obs.record.stateChanged': ActivityCategory.EVENT,
   'obs.sceneItem.stateChanged': ActivityCategory.EVENT,
-  'integration:status': ActivityCategory.STATUS,
-  'integration:error': ActivityCategory.ERROR,
+  'integration.status': ActivityCategory.STATUS,
+  'integration.error': ActivityCategory.ERROR,
 };
 
 /**
@@ -50,13 +51,16 @@ export class ActivityForwarder {
   }
 
   start(): void {
-    for (const [event, category] of Object.entries(EVENT_CATEGORIES)) {
+    for (const [event, category] of Object.entries(EVENT_CATEGORIES) as [
+      EventName,
+      ActivityCategory,
+    ][]) {
       this.eventBus.on(event, (data: unknown) => this.handleEvent(event, category, data));
     }
   }
 
   private async handleEvent(
-    event: string,
+    event: EventName,
     category: ActivityCategory,
     data: unknown
   ): Promise<void> {
@@ -84,8 +88,8 @@ export class ActivityForwarder {
     }
   }
 
-  private normalize(event: string, data: unknown): Record<string, unknown> {
-    if (event === 'integration:error') {
+  private normalize(event: EventName, data: unknown): Record<string, unknown> {
+    if (event === 'integration.error') {
       const { name, error } = data as { name: string; error: unknown };
       const errorObj = error as { message?: string } | undefined;
       return {

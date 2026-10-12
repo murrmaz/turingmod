@@ -1,5 +1,6 @@
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
+import type { BreakReason } from '../core/events.js';
 import { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
 import { SoundLibrary } from '../sounds/SoundLibrary.js';
@@ -14,21 +15,6 @@ import {
   renderMessage,
 } from './breakSettings.js';
 import { ObsBreakOverlay, type ObsBreakSnapshot } from './ObsBreakOverlay.js';
-
-/** What started a break. Ad breaks come from Twitch; manual ones from `!break`. */
-export type BreakReason = 'ad' | 'manual';
-
-/** Payload of `stream.break.started` and `stream.break.ended`. */
-export interface StreamBreakEvent {
-  reason: BreakReason;
-  /** Planned length at start; actual length at end. */
-  durationSeconds: number;
-}
-
-/** Shape of the `twitch.ad.break` EventBus event (see TwitchEventSubIntegration). */
-interface TwitchAdBreakEvent {
-  durationSeconds: number;
-}
 
 interface ActiveBreak {
   reason: BreakReason;
@@ -76,7 +62,7 @@ export class BreakService {
     await this.reloadSettings();
 
     this.unsubscribers.push(
-      this.eventBus.on<TwitchAdBreakEvent>('twitch.ad.break', async (event) => {
+      this.eventBus.on('twitch.ad.break', async (event) => {
         if (!this.settings.enabled) {
           this.logger.info('Twitch ad break started; automatic breaks are disabled');
           return;
@@ -167,7 +153,7 @@ export class BreakService {
       snapshot,
       this.announce(startedMessage, { duration: formatCountdown(durationMs) }),
     ]);
-    await this.eventBus.emit<StreamBreakEvent>('stream.break.started', {
+    await this.eventBus.emit('stream.break.started', {
       reason,
       durationSeconds: durationMs / 1000,
     });
@@ -197,7 +183,7 @@ export class BreakService {
 
     const durationSeconds = Math.round((Date.now() - active.startedAt) / 1000);
     this.logger.info('Break ended', { reason: active.reason, durationSeconds });
-    await this.eventBus.emit<StreamBreakEvent>('stream.break.ended', {
+    await this.eventBus.emit('stream.break.ended', {
       reason: active.reason,
       durationSeconds,
     });

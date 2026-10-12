@@ -16,11 +16,11 @@ describe('EventBus', () => {
     const unhandled = vi.fn();
     process.on('unhandledRejection', unhandled);
     try {
-      bus.on('thing', () => Promise.reject(new Error('boom')));
+      bus.on('youtube.chat.state', () => Promise.reject(new Error('boom')));
       const after = vi.fn();
-      bus.on('thing', after);
+      bus.on('youtube.chat.state', after);
 
-      bus.emitSync('thing', {});
+      bus.emitSync('youtube.chat.state', { state: 'idle' });
 
       expect(after).toHaveBeenCalled();
       await vi.waitFor(() => expect(logger.error).toHaveBeenCalled());
@@ -36,10 +36,10 @@ describe('EventBus', () => {
     const logger = makeLogger();
     const bus = new EventBus(logger);
     const handler = vi.fn(() => Promise.reject(new Error('boom')));
-    bus.once('thing', handler);
+    bus.once('youtube.chat.state', handler);
 
-    await bus.emit('thing', {});
-    await bus.emit('thing', {});
+    await bus.emit('youtube.chat.state', { state: 'idle' });
+    await bus.emit('youtube.chat.state', { state: 'idle' });
 
     expect(handler).toHaveBeenCalledTimes(1);
     expect(logger.error).toHaveBeenCalledTimes(1);

@@ -1,19 +1,24 @@
 import { injectable, singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
+import type { EventMap, EventName } from './events.js';
 
-/**
- * Event handler function type
- */
-type EventHandler<T = unknown> = (data: T) => void | Promise<void>;
+/** A handler for event `K`, receiving that event's payload as declared in `EventMap`. */
+export type EventHandler<K extends EventName> = (data: EventMap[K]) => void | Promise<void>;
+
+/** The handler type as stored, once the event name is no longer known statically. */
+type StoredHandler = (data: unknown) => void | Promise<void>;
 
 /**
  * Internal event bus for decoupled communication between components
  * Enables loose coupling following the Dependency Inversion Principle
+ *
+ * Event names and payloads are declared once, in `EventMap` (`events.ts`), so an emitter and its
+ * subscribers are checked against the same declaration.
  */
 @injectable()
 @singleton()
 export class EventBus {
-  private handlers = new Map<string, Set<EventHandler>>();
+  private handlers = new Map<EventName, Set<StoredHandler>>();
   logger: Logger;
 
   constructor(logger: Logger) {
@@ -26,17 +31,17 @@ export class EventBus {
    * @param handler - Event handler function
    * @returns Unsubscribe function
    */
-  on<T = unknown>(event: string, handler: EventHandler<T>): () => void {
+  on<K extends EventName>(event: K, handler: EventHandler<K>): () => void {
     let handlers = this.handlers.get(event);
     if (!handlers) {
       handlers = new Set();
       this.handlers.set(event, handlers);
     }
-    handlers.add(handler as EventHandler);
+    handlers.add(handler as StoredHandler);
 
     // Return unsubscribe function
     return () => {
-      handlers.delete(handler as EventHandler);
+      handlers.delete(handler as StoredHandler);
       if (handlers.size === 0) {
         this.handlers.delete(event);
       }
@@ -47,8 +52,8 @@ export class EventBus {
    * Subscribe to an event for one-time execution
    * Handler will be automatically unsubscribed after first invocation
    */
-  once<T = unknown>(event: string, handler: EventHandler<T>): () => void {
-    const wrappedHandler = (data: T) => {
+  once<K extends EventName>(event: K, handler: EventHandler<K>): () => void {
+    const wrappedHandler = (data: EventMap[K]) => {
       unsubscribe();
       return handler(data);
     };
@@ -60,10 +65,10 @@ export class EventBus {
   /**
    * Unsubscribe from an event
    */
-  off(event: string, handler: EventHandler): void {
+  off<K extends EventName>(event: K, handler: EventHandler<K>): void {
     const handlers = this.handlers.get(event);
     if (handlers) {
-      handlers.delete(handler);
+      handlers.delete(handler as StoredHandler);
       if (handlers.size === 0) {
         this.handlers.delete(event);
       }
@@ -74,7 +79,7 @@ export class EventBus {
    * Emit an event to all subscribers
    * Handlers are called asynchronously but in order
    */
-  async emit<T = unknown>(event: string, data: T): Promise<void> {
+  async emit<K extends EventName>(event: K, data: EventMap[K]): Promise<void> {
     const handlers = this.handlers.get(event);
     if (!handlers || handlers.size === 0) {
       return;
@@ -108,7 +113,7 @@ export class EventBus {
    * An async handler's rejection is still caught and logged: left unhandled it would reach
    * index.ts's `unhandledRejection` handler, which exits the process.
    */
-  emitSync<T = unknown>(event: string, data: T): void {
+  emitSync<K extends EventName>(event: K, data: EventMap[K]): void {
     const handlers = this.handlers.get(event);
     if (!handlers || handlers.size === 0) {
       return;
@@ -131,7 +136,7 @@ export class EventBus {
   /**
    * Remove all handlers for a specific event
    */
-  removeAllListeners(event?: string): void {
+  removeAllListeners(event?: EventName): void {
     if (event) {
       this.handlers.delete(event);
     } else {
@@ -142,14 +147,14 @@ export class EventBus {
   /**
    * Get count of handlers for an event
    */
-  listenerCount(event: string): number {
+  listenerCount(event: EventName): number {
     return this.handlers.get(event)?.size ?? 0;
   }
 
   /**
    * Get all registered event names
    */
-  eventNames(): string[] {
+  eventNames(): EventName[] {
     return Array.from(this.handlers.keys());
   }
 }

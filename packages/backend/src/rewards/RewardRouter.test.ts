@@ -74,7 +74,7 @@ describe('RewardRouter', () => {
     registry.register(bonk);
 
     const event = redemption('Barrel Roll');
-    await eventBus.emit('twitch.channelpoint.redemption', event);
+    await eventBus.emit('twitch.channelPoint.redemption', event);
 
     expect(barrelRoll.handle).toHaveBeenCalledWith(event);
     expect(bonk.handle).not.toHaveBeenCalled();
@@ -84,13 +84,13 @@ describe('RewardRouter', () => {
     const bonk = handlerFor('Bonk');
     registry.register(bonk);
 
-    await eventBus.emit('twitch.channelpoint.redemption', redemption('bonk'));
+    await eventBus.emit('twitch.channelPoint.redemption', redemption('bonk'));
 
     expect(bonk.handle).not.toHaveBeenCalled();
   });
 
   it('ignores a reward with no handler, which is for the streamer to act on', async () => {
-    await eventBus.emit('twitch.channelpoint.redemption', redemption('Hydrate!'));
+    await eventBus.emit('twitch.channelPoint.redemption', redemption('Hydrate!'));
 
     expect(logger.debug).toHaveBeenCalledWith('No handler for reward "Hydrate!"');
     expect(logger.error).not.toHaveBeenCalled();
@@ -105,8 +105,8 @@ describe('RewardRouter', () => {
     registry.register(failing);
     registry.register(bonk);
 
-    await eventBus.emit('twitch.channelpoint.redemption', redemption('Jumpscare'));
-    await eventBus.emit('twitch.channelpoint.redemption', redemption('Bonk'));
+    await eventBus.emit('twitch.channelPoint.redemption', redemption('Jumpscare'));
+    await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk'));
 
     expect(logger.error).toHaveBeenCalledWith(
       'Reward handler "Jumpscare" failed',
@@ -118,7 +118,7 @@ describe('RewardRouter', () => {
   it('marks a queued redemption fulfilled once its handler succeeds', async () => {
     registry.register(handlerFor('Bonk'));
 
-    await eventBus.emit('twitch.channelpoint.redemption', redemption('Bonk', 'unfulfilled'));
+    await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'unfulfilled'));
 
     expect(streamControl.resolveRedemption).toHaveBeenCalledWith(
       StreamingPlatform.TWITCH,
@@ -136,7 +136,7 @@ describe('RewardRouter', () => {
       )
     );
 
-    await eventBus.emit('twitch.channelpoint.redemption', redemption('Bonk', 'unfulfilled'));
+    await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'unfulfilled'));
 
     expect(streamControl.resolveRedemption).toHaveBeenCalledWith(
       StreamingPlatform.TWITCH,
@@ -150,7 +150,7 @@ describe('RewardRouter', () => {
   it('leaves redemptions that skipped the queue alone', async () => {
     registry.register(handlerFor('Bonk'));
 
-    await eventBus.emit('twitch.channelpoint.redemption', redemption('Bonk', 'fulfilled'));
+    await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'fulfilled'));
 
     expect(streamControl.resolveRedemption).not.toHaveBeenCalled();
   });
@@ -159,7 +159,7 @@ describe('RewardRouter', () => {
     managed = false;
     registry.register(handlerFor('Bonk'));
 
-    await eventBus.emit('twitch.channelpoint.redemption', redemption('Bonk', 'unfulfilled'));
+    await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'unfulfilled'));
 
     expect(streamControl.resolveRedemption).not.toHaveBeenCalled();
   });
@@ -168,7 +168,7 @@ describe('RewardRouter', () => {
     streamControl.resolveRedemption.mockRejectedValue(new Error('403'));
     registry.register(handlerFor('Bonk'));
 
-    await eventBus.emit('twitch.channelpoint.redemption', redemption('Bonk', 'unfulfilled'));
+    await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'unfulfilled'));
 
     expect(logger.error).toHaveBeenCalledWith(
       'Failed to mark Viewer\'s "Bonk" redemption fulfilled',
@@ -181,7 +181,7 @@ describe('RewardRouter', () => {
     registry.register(bonk);
     router.start();
 
-    await eventBus.emit('twitch.channelpoint.redemption', redemption('Bonk'));
+    await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk'));
 
     expect(bonk.handle).toHaveBeenCalledTimes(1);
   });

@@ -1,4 +1,3 @@
-import type { EventBus } from '../core/EventBus.js';
 import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import { OAuthNotConfiguredError } from './errors.js';
 
@@ -60,19 +59,6 @@ export function buildOAuthEnvConfig<T extends OAuthConfigBase>(params: {
   }
 
   return config;
-}
-
-/**
- * Emit the shared event an OAuth-capable integration's `start()` raises when
- * it has no stored access token yet and the user must complete the
- * authorization flow.
- */
-export function emitAuthRequired(
-  eventBus: EventBus,
-  integrationName: string,
-  authUrl: string
-): void {
-  eventBus.emit('integration.auth-required', { integration: integrationName, authUrl });
 }
 
 /**

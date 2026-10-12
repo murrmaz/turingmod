@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import type { AccessToken, RefreshingAuthProvider } from '@twurple/auth';
@@ -15,7 +14,6 @@ import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
 import {
   buildOAuthEnvConfig,
-  emitAuthRequired,
   persistOAuthTokens,
   validateOAuthConfig,
 } from '../../oauthConfigHelpers.js';
@@ -120,11 +118,6 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
       if (!this.config.accessToken) {
         this.logger.warn('No tokens available. User must complete OAuth flow.');
         this.setStatus(IntegrationStatus.DISCONNECTED);
-        emitAuthRequired(
-          this.eventBus,
-          this.name,
-          this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>, randomUUID())
-        );
         return;
       }
 
@@ -141,11 +134,6 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
           IntegrationStatus.NEEDS_REAUTH,
           `Re-authorization required for new permissions: ${missingScopes.join(', ')}`
         );
-        emitAuthRequired(
-          this.eventBus,
-          this.name,
-          this.getAuthorizationUrl(this.config as unknown as Record<string, unknown>, randomUUID())
-        );
         return;
       }
 
@@ -157,16 +145,13 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
       // doesn't call stop() after a failed start(), so a retry would otherwise
       // register a duplicate on top of the still-live one.
       this.unsubscribeAuthorizationRevoked?.();
-      this.unsubscribeAuthorizationRevoked = this.eventBus.on(
-        'twitch.authorization-revoked',
-        () => {
-          this.logger.warn('Authorization revoked (reported by another integration)');
-          this.setStatus(
-            IntegrationStatus.NEEDS_REAUTH,
-            'Twitch revoked authorization — re-authorization required'
-          );
-        }
-      );
+      this.unsubscribeAuthorizationRevoked = this.eventBus.on('twitch.authorizationRevoked', () => {
+        this.logger.warn('Authorization revoked (reported by another integration)');
+        this.setStatus(
+          IntegrationStatus.NEEDS_REAUTH,
+          'Twitch revoked authorization — re-authorization required'
+        );
+      });
 
       // Create auth provider
       this.authProvider = new TwurpleRefreshingAuthProvider({

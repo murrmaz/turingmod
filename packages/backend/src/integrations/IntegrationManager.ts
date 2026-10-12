@@ -91,7 +91,7 @@ export class IntegrationManager {
     // Forward integration events to event bus
     integration.on('status', (...args: unknown[]) => {
       const status = args[0] as IntegrationStatus;
-      this.eventBus.emitSync('integration:status', {
+      this.eventBus.emitSync('integration.status', {
         name: integration.name,
         status,
       });
@@ -115,7 +115,7 @@ export class IntegrationManager {
       this.logger.info(`OAuth token refreshed: ${integration.name}`, {
         ...(expiresAt === undefined ? {} : { expiresAt: new Date(expiresAt).toISOString() }),
       });
-      this.eventBus.emitSync('integration:token-refreshed', {
+      this.eventBus.emitSync('integration.tokenRefreshed', {
         name: integration.name,
         ...(expiresAt === undefined ? {} : { expiresAt }),
       });
@@ -124,7 +124,7 @@ export class IntegrationManager {
     integration.on('error', (...args: unknown[]) => {
       const error = args[0] as Error;
       this.logger.error(`Integration error: ${integration.name}`, error);
-      this.eventBus.emitSync('integration:error', {
+      this.eventBus.emitSync('integration.error', {
         name: integration.name,
         error,
       });

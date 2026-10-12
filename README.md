@@ -7,7 +7,7 @@ The Swiss Army knife of stream automation — chat commands, music, Discord, OBS
 - 🎮 **Twitch Chat Commands**: Execute custom commands in Twitch chat with permission-based access control
 - 🔌 **Platform Integrations**: Connect with Twitch, Spotify, Discord, Arduino, and more
 - 🌐 **Web UI**: Monitor and control your integrations through a modern web interface
-- 🧪 **Command Simulator**: Test commands offline without going live
+- 🧪 **Command Simulator**: Run a command as if a viewer typed it in chat, to test it without asking anyone
 - 🔒 **Secure**: Localhost-only access with encrypted API token storage
 - 📊 **Command History**: Track all command executions with full audit trail
 
@@ -135,7 +135,9 @@ Commands are executed in Twitch chat with the `!` prefix:
 
 ## Command Simulator
 
-Test commands without going live:
+Run a command as if one of your viewers had typed it in chat, at any permission level. It runs for
+real, side effects included (a title change, a break, a shoutout), so it doubles as an integration
+test for new commands. Only the streamer's localhost console can reach it.
 
 1. Navigate to the **Commands** page
 2. Click **Test** on any command

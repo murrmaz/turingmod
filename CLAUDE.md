@@ -334,6 +334,22 @@ with the `MODERATION` capability and always exempts the broadcaster. Banned word
 (`banned_words`, written by the Ban A Word reward) and lapse 30 days after being banned. Other
 listeners on `chat.message` (activity log, `ClipCollector`) see every message, moderated or not.
 
+Failures `CommandExecutor` produces itself (`EXECUTOR_ERROR_CODES`: unknown command, permissions,
+cooldown, not allowed, crashed) get **no reply in chat** — an unknown `!word` is often meant for
+another bot — and are recorded in the activity log instead (unknown commands are also logged at
+debug). Failures a command reports itself (usage, "game not found") are still replied to.
+
+**Outgoing chat can never start with a command.** The bot's own messages come back through
+ingest under the sending account's identity (broadcaster or a moderator bot account), so an echoed
+`!delvod` would otherwise run with that account's permission — a confused deputy — and other bots
+in the channel would obey it too. Every `IStreamPlatform` passes outgoing chat and announcements
+through `toSafeChatText()` (`platforms/chatMessage.ts`), which strips leading whitespace, invisible
+format characters and `!`/`/` prefixes, so `parseCommand()` never matches anything TuringMod sent.
+
+The command simulator deliberately runs commands for real, side effects included: it lets the
+streamer act as a viewer to integration-test a command without asking someone to type it. It is
+only reachable from the localhost console.
+
 ### Frontend State
 
 React Context for state management: `WebSocketContext` (connection + send/subscribe) and `AppStateContext` (commands, integrations, health). Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`.
@@ -373,5 +389,6 @@ Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend b
 - **New channel point reward handlers** go in `packages/backend/src/rewards/implementations/` and implement `IRewardHandler`, matched by exact `rewardTitle`. They're auto-discovered by `loadRewardHandlers()`.
 - **Behaviour lives in code, not the database.** Commands and reward handlers are TypeScript classes; a table may hold a feature's own data (a banned-word list, a counter), never its logic.
 - **Commands reach platforms through `StreamControlService`**, never through an integration directly, and never check auth themselves (see Platform Provider Layer).
+- **Every outgoing chat message goes through `toSafeChatText()`** inside the platform façade — a new `IStreamPlatform` (or a new send method) must apply it, so the bot can never post a command (see Chat Pipeline).
 - **API-backed read commands need a cooldown.** `ICommand.cooldown` is per-viewer seconds; `CommandExecutor` exempts moderators and above, so a shared read/write command (`!game`, `!tags`, `!cw`) can be throttled for viewers without blocking a moderator's write.
 - **New integrations** extend `BaseIntegration`, get decorated `@injectable()`/`@singleton()`, get registered with `IntegrationManager` in `setup.ts`'s `initializeComponents()`, and need a `MessageRouter` handler if they accept WebSocket messages. OAuth-capable integrations also implement `IOAuthIntegration`, override `get oauth()` to return `this`, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.

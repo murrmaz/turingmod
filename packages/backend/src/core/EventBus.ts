@@ -50,7 +50,7 @@ export class EventBus {
   once<T = unknown>(event: string, handler: EventHandler<T>): () => void {
     const wrappedHandler = (data: T) => {
       unsubscribe();
-      handler(data);
+      return handler(data);
     };
 
     const unsubscribe = this.on(event, wrappedHandler);
@@ -104,6 +104,9 @@ export class EventBus {
   /**
    * Emit an event synchronously (does not wait for async handlers)
    * Use this for fire-and-forget scenarios
+   *
+   * An async handler's rejection is still caught and logged: left unhandled it would reach
+   * index.ts's `unhandledRejection` handler, which exits the process.
    */
   emitSync<T = unknown>(event: string, data: T): void {
     const handlers = this.handlers.get(event);
@@ -113,7 +116,12 @@ export class EventBus {
 
     for (const handler of handlers) {
       try {
-        handler(data);
+        const result = handler(data);
+        if (result instanceof Promise) {
+          result.catch((error) => {
+            this.logger.error(`Error in asynchronous event handler for ${event}:`, error);
+          });
+        }
       } catch (error) {
         this.logger.error(`Error in synchronous event handler for ${event}:`, error);
       }

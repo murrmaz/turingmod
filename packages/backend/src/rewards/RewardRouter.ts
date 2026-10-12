@@ -10,7 +10,7 @@ import { RewardSync } from './RewardSync.js';
 
 /**
  * Routes each channel point redemption to the handler registered for its reward title, the way
- * ChatRouter routes `chat.command` to commands.
+ * ChatRouter routes each chat command to its command class.
  *
  * A redemption with no handler is normal — rewards like "Hydrate!" are for the streamer to act
  * on, not the bot — so it's logged at debug and otherwise ignored.

@@ -3,7 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join } from 'node:path';
 import type { EventBus } from '../core/EventBus.js';
-import type { IntegrationManager } from '../integrations/IntegrationManager.js';
+import type { OAuthFlowService } from '../integrations/OAuthFlowService.js';
 import type { Logger } from '../utils/Logger.js';
 
 /**
@@ -15,7 +15,7 @@ export class HttpServer {
   private server: Server | null = null;
   private logger: Logger;
 
-  /** OAuth callback path -> integration name, from IntegrationManager.getOAuthCallbackRoutes() */
+  /** OAuth callback path -> integration name, from OAuthFlowService.getCallbackRoutes() */
   private oauthCallbackRoutes = new Map<string, string>();
 
   constructor(
@@ -23,7 +23,7 @@ export class HttpServer {
     private host: string,
     private frontendDistPath: string,
     private eventBus: EventBus,
-    private integrationManager: IntegrationManager,
+    private oauthFlow: OAuthFlowService,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'HttpServer' });
@@ -61,14 +61,14 @@ export class HttpServer {
   }
 
   /**
-   * Build the OAuth callback routing table. IntegrationManager owns the
-   * integration instances and derives the routing data itself — HttpServer
+   * Build the OAuth callback routing table. OAuthFlowService derives the
+   * routing data from the integrations itself — HttpServer
    * only ever sees the resulting path -> integration name pairs.
    */
   private buildOAuthCallbackRoutes(): void {
     this.oauthCallbackRoutes.clear();
 
-    for (const { path, integrationName } of this.integrationManager.getOAuthCallbackRoutes()) {
+    for (const { path, integrationName } of this.oauthFlow.getCallbackRoutes()) {
       this.oauthCallbackRoutes.set(path, integrationName);
     }
   }
@@ -149,7 +149,7 @@ export class HttpServer {
       // Resolve `state` back to the WebSocket client that started this flow.
       // Rejects missing/expired/reused/mismatched state so the code can
       // never be routed (or attributed) to the wrong client.
-      const clientId = this.integrationManager.consumeOAuthState(integrationName, state);
+      const clientId = this.oauthFlow.consumeState(integrationName, state);
       if (!clientId) {
         this.logger.warn('OAuth callback rejected: invalid or expired state', {
           integrationName,

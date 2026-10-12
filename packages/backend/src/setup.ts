@@ -39,6 +39,7 @@ import { TwitchEventSubIntegration } from './integrations/implementations/twitch
 import { YouTubeApiIntegration } from './integrations/implementations/youtube/YouTubeApiIntegration.js';
 import { YouTubeAuthIntegration } from './integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import { YouTubeChatIntegration } from './integrations/implementations/youtube/YouTubeChatIntegration.js';
+import { OAuthFlowService } from './integrations/OAuthFlowService.js';
 import { LurkTracker } from './lurk/LurkTracker.js';
 import { ChatRouter } from './platforms/ChatRouter.js';
 import { OwnChatMessages } from './platforms/OwnChatMessages.js';
@@ -106,7 +107,7 @@ export function registerRootFactories(): void {
         config.host,
         config.frontendDistPath,
         c.resolve(EventBus),
-        c.resolve(IntegrationManager),
+        c.resolve(OAuthFlowService),
         c.resolve(Logger)
       );
     }),

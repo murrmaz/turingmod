@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import type { IntegrationInfo } from '@turingmod/shared';
 import { IntegrationStatus } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
@@ -7,7 +6,6 @@ import { IntegrationStateRepository } from '../database/repositories/Integration
 import { Logger } from '../utils/Logger.js';
 import { DependencyGraph } from './DependencyGraph.js';
 import { DependencyFailurePolicy, type IIntegration } from './interfaces/IIntegration.js';
-import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 
 /**
  * Integration manager
@@ -36,18 +34,6 @@ export class IntegrationManager {
   private dependencyQueue: Promise<void> = Promise.resolve();
 
   private logger: Logger;
-
-  /**
-   * OAuth `state` -> the client/integration that started the flow. Lets the
-   * HTTP callback (which has no WebSocket identity of its own) find out
-   * which client to send the authorization code back to, instead of
-   * broadcasting it to every connected client. Single-use, TTL-bounded.
-   */
-  private pendingOAuthStates = new Map<
-    string,
-    { integrationName: string; clientId: string; expiresAt: number }
-  >();
-  private static readonly OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
   /**
    * Cap on a single integration's start(). Without one, an integration whose
@@ -518,135 +504,9 @@ export class IntegrationManager {
     return this.integrations.get(name) || null;
   }
 
-  /**
-   * Get the OAuth callback path for every OAuth-capable registered
-   * integration. register() already guarantees paths are unique, so callers
-   * (e.g. HttpServer) get plain routing data instead of live integration
-   * instances they have no business holding onto.
-   */
-  getOAuthCallbackRoutes(): Array<{ path: string; integrationName: string }> {
-    const routes: Array<{ path: string; integrationName: string }> = [];
-
-    for (const integration of this.integrations.values()) {
-      if (integration.oauth) {
-        routes.push({
-          path: integration.oauth.getCallbackPath(),
-          integrationName: integration.name,
-        });
-      }
-    }
-
-    return routes;
-  }
-
-  /**
-   * Look up an integration and confirm it supports the OAuth flow
-   */
-  private getOAuthIntegration(name: string): IOAuthIntegration {
-    const integration = this.integrations.get(name);
-    if (!integration) {
-      throw new Error(`Integration not found: ${name}`);
-    }
-
-    if (!integration.oauth) {
-      throw new Error(`Integration does not support OAuth: ${name}`);
-    }
-
-    return integration.oauth;
-  }
-
-  /**
-   * Build the OAuth authorization URL for an integration, resolving config
-   * from previously-saved (database) credentials and falling back to
-   * environment variables for first-time setup. Required scopes always come
-   * from the integration itself, never the caller.
-   */
-  async getOAuthAuthorizationUrl(name: string, clientId: string): Promise<string> {
-    const integration = this.getOAuthIntegration(name);
-    const config = await this.resolveOAuthConfig(integration, name);
-    const state = this.createOAuthState(name, clientId);
-    return integration.getAuthorizationUrl(config, state);
-  }
-
-  /**
-   * Record a pending OAuth flow and return the single-use `state` value to
-   * send to the provider.
-   */
-  private createOAuthState(integrationName: string, clientId: string): string {
-    this.pruneExpiredOAuthStates();
-
-    const state = randomUUID();
-    this.pendingOAuthStates.set(state, {
-      integrationName,
-      clientId,
-      expiresAt: Date.now() + IntegrationManager.OAUTH_STATE_TTL_MS,
-    });
-
-    return state;
-  }
-
-  /**
-   * Consume a `state` value from the OAuth callback: valid only once, only
-   * for the integration it was issued for, and only within its TTL. Returns
-   * the clientId to route the authorization code back to, or null if the
-   * state is missing, expired, reused, or for the wrong integration.
-   */
-  consumeOAuthState(integrationName: string, state: string | null): string | null {
-    if (!state) {
-      return null;
-    }
-
-    const entry = this.pendingOAuthStates.get(state);
-    this.pendingOAuthStates.delete(state);
-
-    if (!entry || entry.expiresAt <= Date.now() || entry.integrationName !== integrationName) {
-      return null;
-    }
-
-    return entry.clientId;
-  }
-
-  private pruneExpiredOAuthStates(): void {
-    const now = Date.now();
-    for (const [state, entry] of this.pendingOAuthStates) {
-      if (entry.expiresAt <= now) {
-        this.pendingOAuthStates.delete(state);
-      }
-    }
-  }
-
-  /**
-   * Exchange an OAuth authorization code for tokens, then enable and start
-   * the integration.
-   */
-  async completeOAuthExchange(name: string, code: string): Promise<void> {
-    const integration = this.getOAuthIntegration(name);
-    await integration.exchangeCode(code);
-    await this.stateRepository.updateEnabled(name, true);
-    await this.startIntegration(name);
-  }
-
-  /**
-   * Resolve the config needed to build an authorization URL: prefer
-   * previously-saved (database) credentials, falling back to environment
-   * variables for first-time setup.
-   */
-  private async resolveOAuthConfig(
-    integration: IOAuthIntegration,
-    name: string
-  ): Promise<Record<string, unknown>> {
-    try {
-      const decryptedConfig = await this.stateRepository.getDecryptedConfig(name);
-      if (decryptedConfig?.clientId && decryptedConfig.clientSecret) {
-        this.logger.info(`Loaded ${name} credentials from database`);
-        return { ...decryptedConfig, scopes: integration.getRequiredScopes() };
-      }
-    } catch (error) {
-      this.logger.warn(`Could not load ${name} config from database`, error);
-    }
-
-    this.logger.info(`Falling back to environment variables for ${name}`);
-    return integration.getEnvConfig();
+  /** Every registered integration, in registration order. */
+  getAllIntegrations(): IIntegration[] {
+    return [...this.integrations.values()];
   }
 
   /**

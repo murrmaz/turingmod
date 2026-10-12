@@ -13,13 +13,13 @@ import {
 } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { OAuthNotConfiguredError } from '../../integrations/errors.js';
-import { IntegrationManager } from '../../integrations/IntegrationManager.js';
+import { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
 import { Logger } from '../../utils/Logger.js';
 import { isOAuthExchangeCodePayload, isOAuthGetAuthUrlPayload } from '../validation.js';
 
 /**
  * OAuth message handler
- * Translates OAuth WebSocket messages into IntegrationManager calls. Adding
+ * Translates OAuth WebSocket messages into OAuthFlowService calls. Adding
  * a new OAuth-capable provider requires no changes here — only implementing
  * IOAuthIntegration.
  */
@@ -29,7 +29,7 @@ export class OAuthHandler {
   private logger: Logger;
 
   constructor(
-    private integrationManager: IntegrationManager,
+    private oauthFlow: OAuthFlowService,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'OAuthHandler' });
@@ -55,10 +55,7 @@ export class OAuthHandler {
     this.logger.info(`Getting auth URL for: ${integrationName}`);
 
     try {
-      const authUrl = await this.integrationManager.getOAuthAuthorizationUrl(
-        integrationName,
-        clientId
-      );
+      const authUrl = await this.oauthFlow.getAuthorizationUrl(integrationName, clientId);
 
       return createOAuthAuthUrlResponseMessage(integrationName, authUrl, message.id);
     } catch (error) {
@@ -99,7 +96,7 @@ export class OAuthHandler {
     this.logger.info(`Exchanging code for: ${integrationName}`);
 
     try {
-      await this.integrationManager.completeOAuthExchange(integrationName, code);
+      await this.oauthFlow.completeExchange(integrationName, code);
 
       this.logger.info(`Successfully exchanged code and started: ${integrationName}`);
 

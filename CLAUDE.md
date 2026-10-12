@@ -36,6 +36,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **OAuth Modal**: `packages/frontend/src/components/integrations/OAuthModal.tsx` — generic, parameterized by `OAuthProviderConfig`
 - **OAuth Provider Configs**: `packages/frontend/src/components/integrations/oauthProviders.tsx` (per-provider content) + `oauthIntegrationRegistry.tsx` (name → modal/config lookup)
 - **Backend Manager**: `packages/backend/src/integrations/IntegrationManager.ts`
+- **OAuth flow**: `packages/backend/src/integrations/OAuthFlowService.ts` — authorization URL, single-use `state`, callback routes, code exchange
 - **Dependency graph**: `packages/backend/src/integrations/DependencyGraph.ts` — pure sort/levels/dependents/validate queries over the registered integrations
 - **Base Class**: `packages/backend/src/integrations/BaseIntegration.ts` — shared status/error/event-emitter plumbing; all integrations extend this
 - **Interfaces**: `packages/backend/src/integrations/interfaces/IIntegration.ts`, `IOAuthIntegration.ts` (extends `IIntegration` for OAuth-capable integrations)
@@ -223,7 +224,7 @@ own their provider for their lifetime and cannot be re-pointed.
 
 `YouTubeChatIntegration` has no periodic timers. It idles until a go-live signal — OBS's `obs.stream.stateChanged` (`OBS_WEBSOCKET_OUTPUT_STARTED`), or a `youtube.goLive` message from the console — then resolves the broadcast's `liveChatId` with a bounded retry (a broadcast doesn't expose one until YouTube transitions it to `live`) and opens the stream. Its `idle → resolving → streaming` transitions are broadcast to the frontend as `YOUTUBE_CHAT_STATE`.
 
-OAuth-capable integrations (currently `TwitchAuthIntegration`, `SpotifyAuthIntegration`) additionally implement `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and expose it via a `get oauth()` getter (`null` on `BaseIntegration` by default). This is the single source of truth for OAuth capability — `IntegrationManager`/`HttpServer` derive callback routing and the frontend's OAuth affordance from it instead of checking integration names.
+OAuth-capable integrations (currently `TwitchAuthIntegration`, `SpotifyAuthIntegration`) additionally implement `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and expose it via a `get oauth()` getter (`null` on `BaseIntegration` by default). This is the single source of truth for OAuth capability — `OAuthFlowService` derives callback routing and the frontend's OAuth affordance from it instead of checking integration names.
 
 Cross-integration communication uses `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
 It is typed against `EventMap` (`core/events.ts`), which declares every event name and its payload
@@ -397,7 +398,7 @@ React Context for state management: `WebSocketContext` (connection + send/subscr
 
 ### HTTP Server
 
-Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend build in production. OAuth callback routes (currently `/callback/twitch` and `/callback/spotify`) are built from each `IOAuthIntegration.getCallbackPath()` via `IntegrationManager.getOAuthCallbackRoutes()`, not hardcoded. Health check at `/health`. Localhost-only binding enforced.
+Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend build in production. OAuth callback routes (currently `/callback/twitch` and `/callback/spotify`) are built from each `IOAuthIntegration.getCallbackPath()` via `OAuthFlowService.getCallbackRoutes()`, not hardcoded. Health check at `/health`. Localhost-only binding enforced.
 
 ## Code Style
 

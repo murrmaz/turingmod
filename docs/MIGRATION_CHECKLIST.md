@@ -25,10 +25,10 @@ abstraction (`IStreamPlatform` / `PlatformCapability`) where a YouTube equivalen
 
 ## 0. Attribution and licensing (P0, small)
 
-- [ ] Add a root `LICENSE` (MIT, matching `package.json`) that also credits the original author
+- [x] Add a root `LICENSE` (MIT, matching `package.json`) that also credits the original author
       (© 2021 meant-ion) alongside the new copyright holder
-- [ ] README: add an acknowledgement section crediting and linking the original TuringMod
-- [ ] Decide whether the `LICENSE` should carry the original MIT notice verbatim as a second block
+- [x] README: add an acknowledgement section crediting and linking the original TuringMod
+- [x] Decided: `LICENSE` carries both copyright lines above a single MIT text
 
 ## 1. Event reactions (P0)
 

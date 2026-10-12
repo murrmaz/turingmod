@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import type { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import type { StreamControlService } from '../platforms/StreamControlService.js';
+import type { SoundLibrary } from '../sounds/SoundLibrary.js';
 import { Logger } from '../utils/Logger.js';
 import { BreakService, type StreamBreakEvent } from './BreakService.js';
 import type { ObsBreakOverlay, ObsBreakSnapshot } from './ObsBreakOverlay.js';
@@ -27,14 +28,16 @@ function setup(stored: unknown = null) {
     }),
   };
   const settingsRepo = { getJson: vi.fn(() => Promise.resolve(stored)) };
+  const sounds = { tryPlay: vi.fn(() => Promise.resolve()) };
   const service = new BreakService(
     eventBus,
     settingsRepo as unknown as SettingsRepository,
     overlay as unknown as ObsBreakOverlay,
     streamControl as unknown as StreamControlService,
+    sounds as unknown as SoundLibrary,
     new Logger({ level: 'silent' })
   );
-  return { eventBus, overlay, streamControl, posted, service };
+  return { eventBus, overlay, streamControl, posted, service, sounds };
 }
 
 describe('BreakService', () => {
@@ -67,6 +70,29 @@ describe('BreakService', () => {
       youtube: "Break's over, welcome back!",
     });
     expect(service.getBreakEndsAt()).toBeNull();
+  });
+
+  it('plays the configured break sounds from the sound library', async () => {
+    const { eventBus, sounds, service } = setup({
+      sounds: { breakStarted: 'ad warn.wav', breakEnded: 'ad done.wav' },
+    });
+    await service.start();
+
+    await eventBus.emit('twitch.ad.break', { durationSeconds: 30 });
+    expect(sounds.tryPlay).toHaveBeenCalledWith('ad warn.wav');
+
+    await service.endBreak();
+    expect(sounds.tryPlay).toHaveBeenCalledWith('ad done.wav');
+  });
+
+  it('plays no break sounds by default', async () => {
+    const { eventBus, sounds, service } = setup();
+    await service.start();
+
+    await eventBus.emit('twitch.ad.break', { durationSeconds: 30 });
+    await service.endBreak();
+
+    expect(sounds.tryPlay).not.toHaveBeenCalled();
   });
 
   it('extends a running break instead of snapshotting the break state', async () => {

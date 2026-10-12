@@ -14,7 +14,7 @@ TypeScript **monorepo** using npm workspaces, organized into three packages:
   message protocol (`IWebSocketMessage<T>`, creator functions, enums). No
   runtime deps; built to `dist/` and consumed by both backend and frontend.
 - **`packages/backend`** (`@turingmod/backend`) — Node ESM server. Runs
-  integrations, chat commands, a WebSocket server, and an sql.js database.
+  integrations, chat commands, a WebSocket server, and a `node:sqlite` database.
   Runs in dev via `tsx watch`; built with `tsc`.
 - **`packages/frontend`** (`@turingmod/frontend`) — React 19 + Vite UI using
   `@cloudscape-design/components` (AWS Console Design System).
@@ -28,8 +28,9 @@ TypeScript **monorepo** using npm workspaces, organized into three packages:
   frontend build, expose `/health`, and handle OAuth callback routes
   (e.g. `/callback/twitch`, `/callback/spotify` — derived per-integration, not
   hardcoded).
-- **Database:** sql.js (WASM SQLite, no native compilation). `DatabaseManager`
-  auto-saves every 5s if dirty; access is via a repository pattern. Integration
+- **Database:** `node:sqlite` (`DatabaseSync`, file-backed, WAL mode). Every write
+  commits as it happens; there is no in-memory buffering. `DatabaseManager`
+  owns the connection; access is via a repository pattern. Integration
   configs are encrypted with AES-256-GCM before storage. Migrations run
   automatically on startup.
 - **DI + events:** a manual DI `Container`, a pub/sub `EventBus` (sync + async
@@ -38,7 +39,7 @@ TypeScript **monorepo** using npm workspaces, organized into three packages:
 
 ## Building and Running
 
-Node `>=18` (repo pins LTS via `.nvmrc`), npm `>=9`.
+Node `>=22.5` (repo pins LTS via `.nvmrc`), npm `>=9`.
 
 ```bash
 npm install          # install all workspaces (also wires up husky via prepare)

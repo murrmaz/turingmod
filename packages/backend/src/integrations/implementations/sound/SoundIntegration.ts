@@ -1,14 +1,8 @@
-import { spawn } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { IntegrationStatus } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
-import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
-
-interface SoundPlayEvent {
-  filePath: string;
-  volume?: number;
-}
 
 /** Linux players to probe for at startup, ordered by format coverage (MP3 + WAV first). */
 const LINUX_PLAYER_CANDIDATES = ['ffplay', 'gst-play-1.0', 'cvlc', 'mpg123', 'paplay', 'aplay'];
@@ -35,13 +29,13 @@ export class SoundIntegration extends BaseIntegration {
   readonly name = 'sound';
   readonly version = '1.0.0';
 
-  private unsubscribe: (() => void) | undefined;
   private linuxPlayerCommand: string | undefined;
+  /** Player processes still running. */
+  private playing = new Set<ChildProcess>();
+  /** Players killed on purpose, whose exit is a normal end rather than a failure. */
+  private cutShort = new WeakSet<ChildProcess>();
 
-  constructor(
-    private eventBus: EventBus,
-    logger: Logger
-  ) {
+  constructor(logger: Logger) {
     super(logger, { component: 'SoundIntegration' });
   }
 
@@ -62,30 +56,27 @@ export class SoundIntegration extends BaseIntegration {
       this.logger.debug('Resolved Linux audio player', { command: this.linuxPlayerCommand });
     }
 
-    this.unsubscribe = this.eventBus.on<SoundPlayEvent>('sound.play', (data) => {
-      this.playSound(data.filePath, data.volume);
-    });
-
     this.setStatus(IntegrationStatus.CONNECTED);
     this.logger.debug('Sound integration started');
   }
 
   stop(): Promise<void> {
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = undefined;
-    }
+    this.stopAll();
 
     this.setStatus(IntegrationStatus.DISCONNECTED);
     this.logger.debug('Sound integration stopped');
     return Promise.resolve();
   }
 
-  async playSound(filePath: string, volume = 0.5): Promise<void> {
+  /**
+   * Play a file and resolve when it ends. Never rejects; failures are logged.
+   * @param maxDurationMs Cut the sound off after this long.
+   */
+  async playSound(filePath: string, volume = 0.5, maxDurationMs?: number): Promise<void> {
     this.logger.info('Playing sound', { filePath, volume });
 
     try {
-      await this.runPlatformPlayer(filePath, volume);
+      await this.runPlatformPlayer(filePath, volume, maxDurationMs);
       this.logger.debug('Sound playback completed', { filePath });
     } catch (error) {
       this.logger.error('Sound playback failed', error, { filePath });
@@ -93,23 +84,39 @@ export class SoundIntegration extends BaseIntegration {
     }
   }
 
-  private async runPlatformPlayer(filePath: string, volume: number): Promise<void> {
+  /** Cut off every sound that is playing. */
+  stopAll(): void {
+    for (const child of this.playing) {
+      this.cutShort.add(child);
+      child.kill();
+    }
+  }
+
+  private async runPlatformPlayer(
+    filePath: string,
+    volume: number,
+    maxDurationMs: number | undefined
+  ): Promise<void> {
     switch (process.platform) {
       case 'darwin': {
         // afplay volume is 0-2 (default 1); scale our 0-1 range accordingly.
         const scaledVolume = Math.min(2, volume * 2);
-        await this.run('afplay', ['-v', String(scaledVolume), filePath]);
+        await this.run('afplay', ['-v', String(scaledVolume), filePath], maxDurationMs);
         return;
       }
       case 'win32': {
-        await this.run('powershell', [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          WINDOWS_PLAY_SCRIPT,
-          filePath,
-          String(volume),
-        ]);
+        await this.run(
+          'powershell',
+          [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            WINDOWS_PLAY_SCRIPT,
+            filePath,
+            String(volume),
+          ],
+          maxDurationMs
+        );
         return;
       }
       case 'linux': {
@@ -118,7 +125,8 @@ export class SoundIntegration extends BaseIntegration {
         }
         await this.run(
           this.linuxPlayerCommand,
-          this.buildLinuxPlayerArgs(this.linuxPlayerCommand, filePath, volume)
+          this.buildLinuxPlayerArgs(this.linuxPlayerCommand, filePath, volume),
+          maxDurationMs
         );
         return;
       }
@@ -169,12 +177,31 @@ export class SoundIntegration extends BaseIntegration {
     });
   }
 
-  private run(command: string, args: string[]): Promise<void> {
+  private run(command: string, args: string[], maxDurationMs?: number): Promise<void> {
     return new Promise((resolve, reject) => {
       const child = spawn(command, args);
-      child.on('error', reject);
+      this.playing.add(child);
+      const timer =
+        maxDurationMs === undefined
+          ? undefined
+          : setTimeout(() => {
+              this.cutShort.add(child);
+              child.kill();
+            }, maxDurationMs);
+      const finished = () => {
+        clearTimeout(timer);
+        this.playing.delete(child);
+      };
+
+      child.on('error', (error) => {
+        finished();
+        reject(error);
+      });
       child.on('exit', (code, signal) => {
-        if (signal) {
+        finished();
+        if (this.cutShort.has(child)) {
+          resolve();
+        } else if (signal) {
           reject(new Error(`${command} was killed by signal ${signal}`));
         } else if (code === 0) {
           resolve();

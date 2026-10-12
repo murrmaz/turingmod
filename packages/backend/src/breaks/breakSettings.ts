@@ -43,7 +43,10 @@ export interface BreakSettings {
     breakEnded: PerPlatformMessage;
   };
 
-  /** Sound files to play at the start and end of a break; null for none. */
+  /**
+   * Sound clips to play at the start and end of a break — a name in the sound library or an
+   * absolute path; null for none. The original bot played `ad warn.wav` and `ad done.wav`.
+   */
   sounds: {
     breakStarted: string | null;
     breakEnded: string | null;

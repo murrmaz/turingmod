@@ -28,6 +28,87 @@ export interface ScheduleSegment {
 }
 
 /**
+ * Outcome of a shoutout. The platform may decline to send one because of its own rate limits;
+ * `retryAfterMs` says when it would next accept.
+ */
+export interface ShoutoutResult {
+  sent: boolean;
+  reason?: 'global_cooldown' | 'target_cooldown';
+  retryAfterMs?: number;
+}
+
+/** The fields of a channel point reward that TuringMod sets. */
+export interface ChannelRewardSettings {
+  title: string;
+  cost: number;
+  /** Shown to the viewer when redeeming; empty for none. */
+  prompt: string;
+  userInputRequired: boolean;
+  /** Seconds between redemptions by anyone; null for no cooldown. */
+  globalCooldownSeconds: number | null;
+  /** Null for no limit. */
+  maxPerStream: number | null;
+  /** Null for no limit. */
+  maxPerUserPerStream: number | null;
+  /** Skip the request queue. A redemption that skipped it can't be refunded afterwards. */
+  autoFulfill: boolean;
+}
+
+/** A channel point reward as it currently exists on the channel. */
+export interface ChannelReward extends ChannelRewardSettings {
+  id: string;
+  isEnabled: boolean;
+  isPaused: boolean;
+  /**
+   * Whether this application may edit the reward and its redemptions. Only the application
+   * that created a reward can; one made in the dashboard or by another bot is read-only.
+   */
+  manageable: boolean;
+}
+
+/** Changes to apply to an existing reward. */
+export type ChannelRewardChanges = Partial<ChannelRewardSettings> & { isPaused?: boolean };
+
+/** A clip of a stream. */
+export interface ClipInfo {
+  id: string;
+  url: string;
+  title: string;
+  /** Who clipped it. */
+  creatorName: string;
+  /** Whose stream it's from. */
+  broadcasterName: string;
+  views: number;
+  createdAt: Date;
+}
+
+/** Outcome of asking to push the next ad back. */
+export interface AdSnoozeResult {
+  /** False when no snoozes were left, in which case nothing changed. */
+  snoozed: boolean;
+  snoozesLeft: number;
+  nextAdDate: Date | null;
+}
+
+/** A marker placed in the current broadcast. */
+export interface StreamMarker {
+  /** Seconds into the broadcast. */
+  positionSeconds: number;
+  description: string;
+}
+
+/** A recorded broadcast. */
+export interface VodInfo {
+  id: string;
+  title: string;
+  url: string;
+  createdAt: Date;
+}
+
+/** How a queued redemption ends: completed, or canceled with the viewer's points refunded. */
+export type RedemptionOutcome = 'fulfilled' | 'canceled';
+
+/**
  * Platform-agnostic façade over one streaming platform. Implemented by TwitchPlatform and
  * YouTubePlatform, each delegating to that platform's integration trio. Capability-guarded
  * methods are optional; callers must check getCapabilities() (or go through
@@ -93,4 +174,68 @@ export interface IStreamPlatform {
    * Requires PlatformCapability.BROADCASTER_ABOUT.
    */
   getBroadcasterAbout?(): Promise<string | null>;
+
+  /**
+   * Send the platform's native shoutout for another channel, by its login name.
+   * Requires PlatformCapability.SHOUTOUT.
+   */
+  shoutout?(channelName: string): Promise<ShoutoutResult>;
+
+  /** Every channel point reward on the channel. Requires PlatformCapability.CHANNEL_POINTS. */
+  getChannelRewards?(): Promise<ChannelReward[]>;
+
+  /** Create an enabled reward. Requires PlatformCapability.CHANNEL_POINTS. */
+  createChannelReward?(settings: ChannelRewardSettings): Promise<ChannelReward>;
+
+  /** Update a reward this application created. Requires PlatformCapability.CHANNEL_POINTS. */
+  updateChannelReward?(rewardId: string, changes: ChannelRewardChanges): Promise<void>;
+
+  /**
+   * Complete or cancel a redemption waiting in the request queue, for a reward this application
+   * created. Requires PlatformCapability.CHANNEL_POINTS.
+   */
+  resolveRedemption?(
+    rewardId: string,
+    redemptionId: string,
+    outcome: RedemptionOutcome
+  ): Promise<void>;
+
+  /** Time a user out of chat. Requires PlatformCapability.MODERATION. */
+  timeoutUser?(userId: string, seconds: number, reason: string): Promise<void>;
+
+  /** Delete one chat message. Requires PlatformCapability.MODERATION. */
+  deleteChatMessage?(messageId: string): Promise<void>;
+
+  /** Look up a clip by id; null if there's no such clip. Requires PlatformCapability.CLIPS. */
+  getClip?(clipId: string): Promise<ClipInfo | null>;
+
+  /** Push the next ad back, if a snooze is left. Requires PlatformCapability.ADS. */
+  snoozeNextAd?(): Promise<AdSnoozeResult>;
+
+  /**
+   * When a user started following the channel, or null if they don't.
+   * Requires PlatformCapability.FOLLOW_INFO.
+   */
+  getFollowDate?(userId: string): Promise<Date | null>;
+
+  /**
+   * When a user's account was created, or null if there's no such user.
+   * Requires PlatformCapability.ACCOUNT_AGE.
+   */
+  getAccountCreatedAt?(userId: string): Promise<Date | null>;
+
+  /**
+   * Mark the current point of the live broadcast. Throws while offline.
+   * Requires PlatformCapability.MARKERS.
+   */
+  createStreamMarker?(description?: string): Promise<StreamMarker>;
+
+  /**
+   * Delete the most recent past broadcast (the current one while live) and return what was
+   * deleted, or null if there was none. Requires PlatformCapability.VODS.
+   */
+  deleteLatestVod?(): Promise<VodInfo | null>;
+
+  /** Post a highlighted announcement in chat. Requires PlatformCapability.ANNOUNCEMENTS. */
+  sendAnnouncement?(message: string): Promise<void>;
 }

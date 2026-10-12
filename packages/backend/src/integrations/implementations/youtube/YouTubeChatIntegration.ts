@@ -8,6 +8,7 @@ import {
 import type { youtube_v3 } from 'googleapis';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
+import type { ChatMessageEvent } from '../../../platforms/chatMessage.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IIntegration } from '../../interfaces/IIntegration.js';
@@ -119,8 +120,8 @@ function isTransportError(error: unknown): boolean {
  * YouTube Chat Integration
  *
  * Streams the active broadcast's live chat over the `youtube.v3.liveChat.messages.stream`
- * server-streaming RPC and normalizes each message into the same `chat.message` / `chat.command`
- * EventBus events Twitch emits, so ChatRouter stays platform-agnostic.
+ * server-streaming RPC and normalizes each message into the same `chat.message` EventBus event
+ * Twitch emits, so ChatRouter stays platform-agnostic.
  *
  * There are no periodic timers. The integration idles until something says the broadcaster went
  * live — an OBS output-started event, or an explicit request from the console — then resolves the
@@ -572,7 +573,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
   }
 
   /**
-   * Normalize one live chat message into `chat.message` (+ `chat.command` for `!`-prefixed text).
+   * Normalize one live chat message into `chat.message`.
    * Payloads mirror TwitchEventSubIntegration.handleChatMessage() exactly.
    */
   private handleMessage(item: youtube_v3.Schema$LiveChatMessage): void {
@@ -591,7 +592,8 @@ export class YouTubeChatIntegration extends BaseIntegration {
 
     this.logger.debug('YouTube chat message received', { user: username, message: messageText });
 
-    this.eventBus.emit('chat.message', {
+    // Commands are parsed out by ChatRouter, after moderation.
+    this.eventBus.emit<ChatMessageEvent>('chat.message', {
       platform: StreamingPlatform.YOUTUBE,
       platformUserId,
       username,
@@ -599,31 +601,9 @@ export class YouTubeChatIntegration extends BaseIntegration {
       permissionLevel,
       badges,
       timestamp: Date.now(),
+      messageId: item.id ?? '',
+      channelId: this.broadcasterChannelId ?? '',
     });
-
-    // Check if message is a command (starts with !)
-    if (messageText.startsWith('!')) {
-      const parts = messageText.slice(1).split(' ');
-      const commandName = parts[0] || '';
-      const args = parts;
-
-      this.eventBus.emit('chat.command', {
-        command: commandName,
-        args,
-        user: {
-          id: platformUserId,
-          platform: StreamingPlatform.YOUTUBE,
-          platformUserId,
-          username,
-          permissionLevel,
-        },
-        platform: StreamingPlatform.YOUTUBE,
-        metadata: {
-          badges,
-          channelId: this.broadcasterChannelId,
-        },
-      });
-    }
   }
 
   /**

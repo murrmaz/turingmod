@@ -1,27 +1,19 @@
-import type { CommandContext, StreamingPlatform } from '@turingmod/shared';
+import type { CommandContext } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { CommandExecutor } from '../commands/CommandExecutor.js';
 import { EventBus } from '../core/EventBus.js';
+import { ChatModerator } from '../moderation/ChatModerator.js';
 import { Logger } from '../utils/Logger.js';
+import { type ChatMessageEvent, parseCommand } from './chatMessage.js';
 import { PlatformRegistry } from './PlatformRegistry.js';
 
 /**
- * Shape of a `chat.command` EventBus event. Emitted identically by every platform's chat
- * integration (Twitch EventSub, YouTube polling) so this router never branches on platform.
- */
-interface ChatCommandEvent {
-  command: string;
-  args: string[];
-  user: CommandContext['user'];
-  platform: StreamingPlatform;
-  metadata: Record<string, unknown>;
-}
-
-/**
- * Reply-routing seam for the live chat → command → reply loop.
+ * The live chat → moderation → command → reply loop.
  *
- * Executes an incoming `chat.command` and posts the result back to the platform the command
- * originated on.
+ * Every `chat.message` (emitted the same way by each platform's chat integration, so this never
+ * branches on platform) is first screened by ChatModerator. A message it blocks goes no further,
+ * so a command can't slip a banned word past it. Otherwise a `!command` is executed and its reply
+ * posted back to the platform it came from.
  */
 @injectable()
 @singleton()
@@ -34,31 +26,47 @@ export class ChatRouter {
     private eventBus: EventBus,
     private commandExecutor: CommandExecutor,
     private platformRegistry: PlatformRegistry,
+    private moderator: ChatModerator,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'ChatRouter' });
   }
 
-  /** Subscribe to `chat.command` and route replies, unless the live loop is disabled. */
+  /** Subscribe to `chat.message` and route replies, unless the live loop is disabled. */
   start(): void {
     if (!this.liveLoopEnabled) {
       this.logger.info('ChatRouter live loop disabled (Phase 5 deferred)');
       return;
     }
 
-    this.eventBus.on('chat.command', (event) => {
-      void this.handleChatCommand(event as ChatCommandEvent);
+    this.eventBus.on<ChatMessageEvent>('chat.message', (event) => {
+      void this.handleChatMessage(event);
     });
     this.logger.info('ChatRouter live loop enabled');
   }
 
-  /** Execute a chat command and post its reply back to the origin platform's chat. */
-  private async handleChatCommand(event: ChatCommandEvent): Promise<void> {
+  /** Screen a message, then execute it if it's a command and post the reply. */
+  async handleChatMessage(event: ChatMessageEvent): Promise<void> {
+    if ((await this.moderator.review(event)) === 'blocked') {
+      return;
+    }
+
+    const parsed = parseCommand(event.message);
+    if (!parsed) {
+      return;
+    }
+
     const context: CommandContext = {
-      user: event.user,
-      args: event.args,
+      user: {
+        id: event.platformUserId,
+        platform: event.platform,
+        platformUserId: event.platformUserId,
+        username: event.username,
+        permissionLevel: event.permissionLevel,
+      },
+      args: parsed.args,
       platform: event.platform,
-      metadata: event.metadata,
+      metadata: { badges: event.badges, channelId: event.channelId },
       isSimulation: false,
     };
 
@@ -81,7 +89,7 @@ export class ChatRouter {
     } catch (error) {
       this.logger.error('Failed to send command reply to chat', error, {
         platform: event.platform,
-        command: event.command,
+        command: parsed.command,
       });
     }
   }

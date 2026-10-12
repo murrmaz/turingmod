@@ -19,5 +19,13 @@ export enum PlatformCapability {
   SCHEDULE = 'schedule', // Twitch only
   CONTENT_LABELS = 'content_labels', // Twitch only
   FOLLOW_INFO = 'follow_info', // Twitch only (follow age lookups)
+  ACCOUNT_AGE = 'account_age', // Twitch only (when a viewer's account was created)
   BROADCASTER_ABOUT = 'broadcaster_about', // Twitch only (channel bio/description lookups)
+  SHOUTOUT = 'shoutout', // Twitch only (native /shoutout)
+  CHANNEL_POINTS = 'channel_points', // Twitch only (custom rewards and their redemptions)
+  MODERATION = 'moderation', // Twitch only for now (timeouts, deleting messages)
+  CLIPS = 'clips', // Twitch only (clip lookups)
+  MARKERS = 'markers', // Twitch only (stream markers)
+  VODS = 'vods', // Twitch only (deleting past broadcasts)
+  ANNOUNCEMENTS = 'announcements', // Twitch only (highlighted chat announcements)
 }

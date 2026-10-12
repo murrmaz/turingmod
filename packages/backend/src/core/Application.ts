@@ -6,9 +6,11 @@ import {
   type YouTubeChatState,
 } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
+import { IntervalAnnouncer } from '../announcements/IntervalAnnouncer.js';
 import { AdWarningScheduler } from '../breaks/AdWarningScheduler.js';
 import { BreakService } from '../breaks/BreakService.js';
 import { DatabaseManager } from '../database/DatabaseManager.js';
+import { FacecamEffectRunner } from '../effects/FacecamEffectRunner.js';
 import { IntegrationManager } from '../integrations/IntegrationManager.js';
 import { HttpServer } from '../server/HttpServer.js';
 import { WebSocketServer } from '../server/WebSocketServer.js';
@@ -32,6 +34,8 @@ export class Application {
     private eventBus: EventBus,
     private breakService: BreakService,
     private adWarningScheduler: AdWarningScheduler,
+    private facecamEffects: FacecamEffectRunner,
+    private intervalAnnouncer: IntervalAnnouncer,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'Application' });
@@ -132,8 +136,11 @@ export class Application {
   async stop(): Promise<void> {
     this.logger.info('Stopping TuringMod...');
 
-    // 1. End any break in progress while OBS is still connected, so shutting down mid-break
-    //    doesn't leave the streamer hidden and muted.
+    // 1. Cut short any facecam effect and end any break in progress while OBS is still
+    //    connected, so shutting down mid-effect or mid-break doesn't leave the facecam
+    //    spinning, or the streamer hidden and muted.
+    await this.facecamEffects.stop();
+    this.intervalAnnouncer.stop();
     this.adWarningScheduler.stop();
     await this.breakService.stop();
 

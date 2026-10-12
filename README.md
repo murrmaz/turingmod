@@ -15,12 +15,12 @@ The Swiss Army knife of stream automation — chat commands, music, Discord, OBS
 
 - **Backend**: Node.js + TypeScript + WebSocket
 - **Frontend**: React + Cloudscape UI + Vite
-- **Database**: SQLite3 (sql.js - pure JavaScript, no native compilation)
+- **Database**: SQLite via Node's built-in `node:sqlite` (no native compilation)
 - **Architecture**: SOLID principles with dependency injection
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 22.5+ (required for `node:sqlite`)
 - npm 9+
 
 ## Quick Start
@@ -164,9 +164,19 @@ Test commands without going live:
 
 This is a personal project, but suggestions and improvements are welcome.
 
+## Acknowledgements
+
+TuringMod is a ground-up rewrite of [TuringMod](https://github.com/meant-ion/TuringMod) by
+[meant-ion](https://github.com/meant-ion), a Twitch chat bot and stream-automation tool. The original
+supplied the idea and the feature set this project builds on: chat commands, channel point rewards
+with OBS effects, ad-break warnings, and hardware integrations. This codebase is written
+from scratch in TypeScript with a different architecture, but the original's behaviour is what it
+aims to match. Thank you to meant-ion for the project and for the groundwork.
+
 ## License
 
-MIT License - see LICENSE file for details
+MIT License - see [LICENSE](LICENSE) for details. The license retains the original TuringMod's
+copyright notice alongside this project's.
 
 ## Support
 

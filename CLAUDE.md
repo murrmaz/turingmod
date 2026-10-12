@@ -56,8 +56,33 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Registry**: `packages/backend/src/platforms/PlatformRegistry.ts` (Platform → façade)
 - **Mirroring/reads**: `packages/backend/src/platforms/StreamControlService.ts` — the seam commands depend on
 - **Auth reporting**: `packages/backend/src/platforms/availability.ts` (`unavailableReason`) + `errors.ts` (`NotAuthenticatedError`)
-- **Chat routing**: `packages/backend/src/platforms/ChatRouter.ts`
+- **Chat routing**: `packages/backend/src/platforms/ChatRouter.ts` (moderate → parse → execute → reply); message shape + `parseCommand` in `chatMessage.ts`
 - **Display names**: `packages/backend/src/platforms/platformNames.ts`
+
+### Channel Point Rewards & Raids
+- **Handler interface**: `packages/backend/src/rewards/interfaces/IRewardHandler.ts`
+- **Handlers**: `packages/backend/src/rewards/implementations/*.ts` — auto-discovered by `rewards/loadRewardHandlers.ts`
+- **Routing**: `packages/backend/src/rewards/RewardRouter.ts` (redemption → handler by title, then fulfil/refund) + `RewardRegistry.ts`
+- **Reward sync**: `packages/backend/src/rewards/RewardSync.ts` — creates/corrects each handler's reward on Twitch and pauses it during breaks
+- **Raid shoutout**: `packages/backend/src/raids/RaidShoutout.ts`
+- **Shared directory loader**: `packages/backend/src/utils/importImplementations.ts` (used by both commands and rewards)
+
+### Facecam Effects
+- **Runner**: `packages/backend/src/effects/FacecamEffectRunner.ts` — finds the facecam, serializes effects, restores afterwards
+- **Effect contract**: `packages/backend/src/effects/FacecamEffect.ts`; anchor/position math in `transformMath.ts`
+- **Effects**: `packages/backend/src/effects/facecam/facecamEffects.ts` (+ `animate.ts`)
+- **Settings**: `packages/backend/src/effects/effectSettings.ts`, stored under the `effects` key
+
+### Sound
+- **Library**: `packages/backend/src/sounds/SoundLibrary.ts` — plays clips by name from the library directory
+- **Clip names**: `packages/backend/src/sounds/clips.ts`; settings in `soundSettings.ts`, stored under the `sounds` key
+- **Playback**: `packages/backend/src/integrations/implementations/sound/SoundIntegration.ts` (per-OS player processes)
+
+### Chat Services
+- **Moderation**: `packages/backend/src/moderation/ChatModerator.ts` (banned words, quiet mode) + `bannedWords.ts` (matching, 30-day expiry)
+- **Interval messages**: `packages/backend/src/announcements/IntervalAnnouncer.ts`
+- **Clip collection**: `packages/backend/src/clips/ClipCollector.ts`
+- **Lurk list**: `packages/backend/src/lurk/LurkTracker.ts` (in memory; welcomes lurkers back when they chat)
 
 ### Stream Breaks
 - **Lifecycle**: `packages/backend/src/breaks/BreakService.ts` — starts/extends/ends breaks; listens for `twitch.ad.break`; emits `stream.break.started`/`.ended`
@@ -76,7 +101,8 @@ Use this to quickly locate files without searching. Organized by system/feature.
 ### Database
 - **Manager**: `packages/backend/src/database/DatabaseManager.ts`
 - **Repositories**: `packages/backend/src/database/repositories/*.ts`
-- **Migrations**: `packages/backend/src/database/migrations/*.ts` (run automatically on startup via `Application.initialize()`)
+- **Migrations**: `packages/backend/src/database/migrations/*.ts`, listed in `migrations/index.ts` (`ALL_MIGRATIONS`), run automatically on startup
+- **Import from the original bot**: `packages/backend/src/tools/importOriginal.ts` (`npm run import:original -w @turingmod/backend`) + `originalData.ts`
 
 ### Core Infrastructure
 - **DI**: [tsyringe](https://github.com/microsoft/tsyringe) — `@injectable()`/`@singleton()` on class definitions; `registerRootFactories()` in `setup.ts` for the handful of classes tsyringe can't auto-construct
@@ -210,7 +236,7 @@ All messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/me
 
 ### Database
 
-`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `UserRepository`, `CommandHistoryRepository`, `IntegrationStateRepository`, `SettingsRepository`. Integration configs are encrypted with AES-256-GCM before storage; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there.
+`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `UserRepository`, `CommandHistoryRepository`, `IntegrationStateRepository`, `SettingsRepository`, plus repositories for data owned by single features — `BannedWordRepository`, `CounterRepository`, `IntervalMessageRepository`, `SuggestionRepository`. A new migration goes in `migrations/` and must be added to `ALL_MIGRATIONS`. Tests get a migrated temp database from `repositories/testDatabase.ts`. Integration configs are encrypted with AES-256-GCM before storage; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there.
 
 ### Platform Provider Layer
 
@@ -250,6 +276,64 @@ manual ads move it. `Application.stop()` ends a running break before stopping in
 is still connected to restore it. Chat fan-out goes through `StreamControlService.announce()`, which
 shares the live-platform/auth-skip loop with the mirrored writes.
 
+### Channel Point Rewards & Raids
+
+`TwitchEventSubIntegration` publishes redemptions and raids on the EventBus; nothing else in the
+integration layer knows about them. `RewardRouter` subscribes to `twitch.channelpoint.redemption`
+and runs the `IRewardHandler` whose `rewardTitle` matches the redemption's title exactly — titles
+are unique per channel and rarely renamed, so there are no stored reward ids. Handlers are
+auto-discovered like commands: one class per reward in `rewards/implementations/`, default-exported
+and `@injectable()`. A redemption with no handler is normal (a reward for the streamer to act on)
+and is ignored; a handler that throws is logged and never stops the next redemption.
+
+Each handler also declares its reward's settings (`reward: RewardDefinition`). `RewardSync` makes
+Twitch match them whenever the Twitch API connects and whenever a stream break starts or ends:
+creating missing rewards, correcting drifted settings, and pausing `pauseDuringBreaks` rewards for
+the break. Twitch only lets the application that created a reward edit it, so a same-titled reward
+made elsewhere is reported once and left alone (its handler still runs). For rewards TuringMod
+does own, `RewardRouter` resolves queued redemptions afterwards — fulfilled on success, canceled
+(refunding the viewer) if the handler threw — which is why `autoFulfill` defaults off. All of this
+goes through the `CHANNEL_POINTS` platform capability, like any other platform action.
+
+`RaidShoutout` handles `twitch.raid`: a chat message linking the raider plus Twitch's native
+shoutout, through `StreamControlService` like any other platform action. The two are independent,
+so a rate-limited native shoutout still gets the chat message.
+
+### Facecam Effects
+
+Reward handlers play visual gags on the facecam through `FacecamEffectRunner`. An effect
+(`FacecamEffect`) only describes motion against an `EffectContext`; the runner does the rest. It
+plays effects one at a time — two effects on one source would each capture the other's
+mid-animation state as the "original" — finds the facecam afresh for each one, and restores it in a
+`finally`, so an effect that throws, or is cut short by `Application.stop()`, still leaves the
+facecam where it was. Filters an effect adds are removed the same way. A run rejects when it can't
+play (OBS down, no facecam), which makes `RewardRouter` refund the redemption.
+
+The facecam is found by source name (the `effects` setting) in the main canvas's program scene and,
+on every other canvas, in the first scene that contains it: obs-websocket has no "current scene" for
+a non-main canvas. Effects animate on elapsed time, not frame counts, so a slow OBS drops frames
+rather than slowing down, and they assume the facecam is unrotated and has no bounding box.
+
+### Sound
+
+Everything that makes a sound goes through `SoundLibrary`, which resolves a clip name against the
+library directory (the `sounds` setting, defaulting to `packages/backend/data`) and hands the path
+to `SoundIntegration`. `play()` checks first that sound is running and the clip exists and rejects
+otherwise, so a sound-only reward is refunded; `tryPlay()` logs instead, for callers where the sound
+is incidental (`!bonk`, the Bonk reward, break sounds). Neither waits for the clip to end.
+`SoundIntegration` tracks its player processes, so a clip can be cut off after `maxDurationMs` and
+`stopAll()` silences everything; an intentional kill counts as a normal end, not an error.
+
+### Chat Pipeline
+
+Each chat integration emits one `chat.message` (`ChatMessageEvent`) per message and nothing else;
+commands are not parsed at the source. `ChatRouter` takes it from there: `ChatModerator.review()`
+first, and only a message it allows is parsed with `parseCommand()` and executed. That order is the
+point — a command can't carry a banned word past the filter. Moderation acts only on platforms
+with the `MODERATION` capability and always exempts the broadcaster. Banned words are data
+(`banned_words`, written by the Ban A Word reward) and lapse 30 days after being banned. Other
+listeners on `chat.message` (activity log, `ClipCollector`) see every message, moderated or not.
+
 ### Frontend State
 
 React Context for state management: `WebSocketContext` (connection + send/subscribe) and `AppStateContext` (commands, integrations, health). Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`.
@@ -286,6 +370,8 @@ Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend b
   returning a fresh object per call makes them rebuild on every access.
 - **Integration lifecycle** — always call `initialize(config)` before `start()`.
 - **New commands** go in `packages/backend/src/commands/implementations/` and implement `ICommand`. They're auto-discovered by `loadCommands()`.
+- **New channel point reward handlers** go in `packages/backend/src/rewards/implementations/` and implement `IRewardHandler`, matched by exact `rewardTitle`. They're auto-discovered by `loadRewardHandlers()`.
+- **Behaviour lives in code, not the database.** Commands and reward handlers are TypeScript classes; a table may hold a feature's own data (a banned-word list, a counter), never its logic.
 - **Commands reach platforms through `StreamControlService`**, never through an integration directly, and never check auth themselves (see Platform Provider Layer).
 - **API-backed read commands need a cooldown.** `ICommand.cooldown` is per-viewer seconds; `CommandExecutor` exempts moderators and above, so a shared read/write command (`!game`, `!tags`, `!cw`) can be throttled for viewers without blocking a moderator's write.
 - **New integrations** extend `BaseIntegration`, get decorated `@injectable()`/`@singleton()`, get registered with `IntegrationManager` in `setup.ts`'s `initializeComponents()`, and need a `MessageRouter` handler if they accept WebSocket messages. OAuth-capable integrations also implement `IOAuthIntegration`, override `get oauth()` to return `this`, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.

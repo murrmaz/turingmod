@@ -15,8 +15,10 @@ import {
 } from '@turingmod/shared';
 import { container, instanceCachingFactory } from 'tsyringe';
 import { ActivityForwarder } from './activity/ActivityForwarder.js';
+import { IntervalAnnouncer } from './announcements/IntervalAnnouncer.js';
 import { AdWarningScheduler } from './breaks/AdWarningScheduler.js';
 import { BreakService } from './breaks/BreakService.js';
+import { ClipCollector } from './clips/ClipCollector.js';
 import { CommandRegistry } from './commands/CommandRegistry.js';
 import { loadCommands } from './commands/loadCommands.js';
 import { EventBus } from './core/EventBus.js';
@@ -35,10 +37,16 @@ import { TwitchEventSubIntegration } from './integrations/implementations/twitch
 import { YouTubeApiIntegration } from './integrations/implementations/youtube/YouTubeApiIntegration.js';
 import { YouTubeAuthIntegration } from './integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import { YouTubeChatIntegration } from './integrations/implementations/youtube/YouTubeChatIntegration.js';
+import { LurkTracker } from './lurk/LurkTracker.js';
 import { ChatRouter } from './platforms/ChatRouter.js';
 import { PlatformRegistry } from './platforms/PlatformRegistry.js';
 import { TwitchPlatform } from './platforms/TwitchPlatform.js';
 import { YouTubePlatform } from './platforms/YouTubePlatform.js';
+import { RaidShoutout } from './raids/RaidShoutout.js';
+import { loadRewardHandlers } from './rewards/loadRewardHandlers.js';
+import { RewardRegistry } from './rewards/RewardRegistry.js';
+import { RewardRouter } from './rewards/RewardRouter.js';
+import { RewardSync } from './rewards/RewardSync.js';
 import { HttpServer } from './server/HttpServer.js';
 import { ActivityHandler } from './server/handlers/ActivityHandler.js';
 import { CommandHandler } from './server/handlers/CommandHandler.js';
@@ -127,8 +135,8 @@ export async function initializeDatabase(): Promise<void> {
   await container.resolve(DatabaseManager).initialize();
 
   logger.info('Running database migrations');
-  const { initialSchema } = await import('./database/migrations/001_initial_schema.js');
-  await container.resolve(MigrationRunner).runMigrations([initialSchema]);
+  const { ALL_MIGRATIONS } = await import('./database/migrations/index.js');
+  await container.resolve(MigrationRunner).runMigrations([...ALL_MIGRATIONS]);
 }
 
 /**
@@ -141,6 +149,9 @@ export async function initializeComponents(): Promise<void> {
 
   // Auto-discover and register commands
   await loadCommands(container.resolve(CommandRegistry), logger);
+
+  // Auto-discover and register channel point reward handlers
+  await loadRewardHandlers(container.resolve(RewardRegistry), logger);
 
   // Register integrations
   const integrationManager = container.resolve(IntegrationManager);
@@ -177,6 +188,19 @@ export async function initializeComponents(): Promise<void> {
 
   // Construct the reply-routing seam and start the live chat→command→reply loop.
   container.resolve(ChatRouter).start();
+
+  // Twitch EventSub reactions: channel point redemptions go to their reward handler, and a raid
+  // gets a shoutout. RewardSync keeps each handler's reward on Twitch matching its definition.
+  container.resolve(RewardSync).start();
+  container.resolve(RewardRouter).start();
+  container.resolve(RaidShoutout).start();
+
+  // Chat services: the interval-message rotation (stopped in Application.stop()), clip
+  // collection (listens to chat, but only collects while switched on), and the lurk list, which
+  // welcomes lurkers back when they chat again.
+  container.resolve(IntervalAnnouncer).start();
+  container.resolve(ClipCollector).start();
+  container.resolve(LurkTracker).start();
 
   // Start forwarding EventBus activity to the live tail (broadcast) and activity_log (persist).
   container.resolve(ActivityForwarder).start();

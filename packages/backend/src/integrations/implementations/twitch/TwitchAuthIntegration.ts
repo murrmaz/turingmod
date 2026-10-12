@@ -44,6 +44,10 @@ export const TWITCH_REQUIRED_SCOPES = [
   'user:read:chat',
   'user:write:chat',
   'channel:read:subscriptions',
+  // Changing the title, category, tags and content labels, and creating stream markers
+  'channel:manage:broadcast',
+  // Deleting past broadcasts (`!delvod`)
+  'channel:manage:videos',
   // Ad schedule reads (Get Ad Schedule, `!ad`) and the channel.ad_break.begin EventSub topic
   'channel:read:ads',
   // Snoozing the next ad break
@@ -54,6 +58,10 @@ export const TWITCH_REQUIRED_SCOPES = [
   'moderator:manage:banned_users',
   'moderator:manage:chat_messages',
   'moderator:manage:warnings',
+  // Native shoutouts (raid shoutouts, `!so`)
+  'moderator:manage:shoutouts',
+  // Highlighted chat announcements (interval messages)
+  'moderator:manage:announcements',
   'user:read:email',
 ];
 

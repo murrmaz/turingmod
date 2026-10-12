@@ -69,3 +69,8 @@ coverage/
 .cache/
 temp/
 tmp/
+
+# Sound clips: keep personal clips (copied in from the original bot) out of the repo, except the
+# bundled bonk sound
+packages/backend/data/*
+!packages/backend/data/bonk.mp3

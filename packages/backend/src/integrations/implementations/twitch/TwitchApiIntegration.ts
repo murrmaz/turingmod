@@ -2,6 +2,7 @@ import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import type {
   HelixChannelUpdate,
   HelixCreateCustomRewardData,
+  HelixPaginatedVideoFilter,
   HelixUpdateCustomRewardData,
 } from '@twurple/api';
 import { ApiClient } from '@twurple/api';
@@ -222,6 +223,13 @@ export class TwitchApiIntegration extends BaseIntegration {
         channel: broadcasterId,
       })
     );
+  }
+
+  /**
+   * Look up a clip by id
+   */
+  async getClipById(clipId: string) {
+    return await this.call((apiClient) => apiClient.clips.getClipById(clipId));
   }
 
   /**
@@ -446,6 +454,26 @@ export class TwitchApiIntegration extends BaseIntegration {
   }
 
   /**
+   * Mark redemptions of a reward this application created as fulfilled, or cancel them (which
+   * refunds the viewer). Only redemptions still in the request queue can change status.
+   */
+  async updateRedemptionStatus(
+    broadcasterId: string,
+    rewardId: string,
+    redemptionIds: string[],
+    status: 'FULFILLED' | 'CANCELED'
+  ) {
+    return await this.call((apiClient) =>
+      apiClient.channelPoints.updateRedemptionStatusByIds(
+        broadcasterId,
+        rewardId,
+        redemptionIds,
+        status
+      )
+    );
+  }
+
+  /**
    * Delete a custom channel point reward.
    */
   async deleteCustomReward(broadcasterId: string, rewardId: string): Promise<void> {
@@ -482,10 +510,10 @@ export class TwitchApiIntegration extends BaseIntegration {
   // ── Videos ────────────────────────────────────────────────────────────
 
   /**
-   * Get videos for a user (most recent first by default).
+   * Get videos for a user, most recent first, optionally only of one type (e.g. past broadcasts).
    */
-  async getVideosByUser(userId: string) {
-    return await this.call((apiClient) => apiClient.videos.getVideosByUser(userId));
+  async getVideosByUser(userId: string, filter: HelixPaginatedVideoFilter = {}) {
+    return await this.call((apiClient) => apiClient.videos.getVideosByUser(userId, filter));
   }
 
   /**

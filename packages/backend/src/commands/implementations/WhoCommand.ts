@@ -31,7 +31,9 @@ export class WhoCommand implements ICommand {
 
   async execute(context: CommandContext): Promise<CommandResult> {
     try {
-      const description = await this.streamControl.getBroadcasterAbout(context.platform);
+      const description = await this.streamControl
+        .require(context.platform, 'broadcasterAbout')
+        .getBroadcasterAbout();
 
       if (!description) {
         return {

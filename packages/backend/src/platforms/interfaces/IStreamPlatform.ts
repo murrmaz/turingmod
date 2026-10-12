@@ -108,17 +108,149 @@ export interface VodInfo {
 /** How a queued redemption ends: completed, or canceled with the viewer's points refunded. */
 export type RedemptionOutcome = 'fulfilled' | 'canceled';
 
+// Capability objects. A façade that has one has that capability (see platforms/capabilities.ts),
+// so a façade can't advertise a capability without implementing it.
+
+/** PlatformCapability.ADS */
+export interface AdsApi {
+  /** Ad-break state for the current broadcast, or null if the stream is offline. */
+  getNextAdBreak(): Promise<AdBreakInfo | null>;
+  /** Push the next ad back, if a snooze is left. */
+  snoozeNextAd(): Promise<AdSnoozeResult>;
+}
+
+/** PlatformCapability.SCHEDULE */
+export interface ScheduleApi {
+  /** Upcoming scheduled broadcasts, soonest first; empty if none. */
+  getSchedule(): Promise<ScheduleSegment[]>;
+}
+
+/** PlatformCapability.CONTENT_LABELS */
+export interface ContentLabelsApi {
+  /** Content classification labels currently set on the channel. */
+  getContentLabels(): Promise<string[]>;
+  /** Replace the channel's content classification labels. */
+  setContentLabels(labels: string[]): Promise<void>;
+}
+
+/** PlatformCapability.BROADCASTER_ABOUT */
+export interface BroadcasterAboutApi {
+  /** The broadcaster's channel bio/description, or null if unset. */
+  getBroadcasterAbout(): Promise<string | null>;
+}
+
+/** PlatformCapability.SHOUTOUT */
+export interface ShoutoutApi {
+  /** Send the platform's native shoutout for another channel, by its login name. */
+  shoutout(channelName: string): Promise<ShoutoutResult>;
+}
+
+/** PlatformCapability.CHANNEL_POINTS */
+export interface ChannelPointsApi {
+  /** Every channel point reward on the channel. */
+  getChannelRewards(): Promise<ChannelReward[]>;
+  /** Create an enabled reward. */
+  createChannelReward(settings: ChannelRewardSettings): Promise<ChannelReward>;
+  /** Update a reward this application created. */
+  updateChannelReward(rewardId: string, changes: ChannelRewardChanges): Promise<void>;
+  /** Complete or cancel a queued redemption, for a reward this application created. */
+  resolveRedemption(
+    rewardId: string,
+    redemptionId: string,
+    outcome: RedemptionOutcome
+  ): Promise<void>;
+}
+
+/** PlatformCapability.MODERATION */
+export interface ModerationApi {
+  /** Time a user out of chat. */
+  timeoutUser(userId: string, seconds: number, reason: string): Promise<void>;
+  /** Delete one chat message. */
+  deleteChatMessage(messageId: string): Promise<void>;
+}
+
+/** PlatformCapability.CLIPS */
+export interface ClipsApi {
+  /** Look up a clip by id; null if there's no such clip. */
+  getClip(clipId: string): Promise<ClipInfo | null>;
+}
+
+/** PlatformCapability.FOLLOW_INFO */
+export interface FollowInfoApi {
+  /** When a user started following the channel, or null if they don't. */
+  getFollowDate(userId: string): Promise<Date | null>;
+}
+
+/** PlatformCapability.ACCOUNT_AGE */
+export interface AccountAgeApi {
+  /** When a user's account was created, or null if there's no such user. */
+  getAccountCreatedAt(userId: string): Promise<Date | null>;
+}
+
+/** PlatformCapability.MARKERS */
+export interface MarkersApi {
+  /** Mark the current point of the live broadcast. Throws while offline. */
+  createStreamMarker(description?: string): Promise<StreamMarker>;
+}
+
+/** PlatformCapability.VODS */
+export interface VodsApi {
+  /**
+   * Delete the most recent past broadcast (the current one while live) and return what was
+   * deleted, or null if there was none.
+   */
+  deleteLatestVod(): Promise<VodInfo | null>;
+}
+
+/** PlatformCapability.ANNOUNCEMENTS */
+export interface AnnouncementsApi {
+  /** Post a highlighted announcement in chat, passed through `toSafeChatText()`. */
+  sendAnnouncement(message: string): Promise<void>;
+}
+
+/** Every capability object a façade may have, by the property it has it under. */
+export interface CapabilityApis {
+  ads: AdsApi;
+  schedule: ScheduleApi;
+  contentLabels: ContentLabelsApi;
+  broadcasterAbout: BroadcasterAboutApi;
+  shoutout: ShoutoutApi;
+  channelPoints: ChannelPointsApi;
+  moderation: ModerationApi;
+  clips: ClipsApi;
+  followInfo: FollowInfoApi;
+  accountAge: AccountAgeApi;
+  markers: MarkersApi;
+  vods: VodsApi;
+  announcements: AnnouncementsApi;
+}
+
+export type CapabilityApiName = keyof CapabilityApis;
+
+/**
+ * The capabilities with no object of their own, which a façade declares outright: chat and
+ * uptime are on every platform, and the three metadata writes are fields of `setStreamInfo()`.
+ */
+export type DeclaredCapability =
+  | PlatformCapability.SEND_CHAT
+  | PlatformCapability.SET_TITLE
+  | PlatformCapability.SET_GAME
+  | PlatformCapability.SET_TAGS
+  | PlatformCapability.UPTIME;
+
 /**
  * Platform-agnostic façade over one streaming platform. Implemented by TwitchPlatform and
- * YouTubePlatform, each delegating to that platform's integration trio. Capability-guarded
- * methods are optional; callers must check getCapabilities() (or go through
- * StreamControlService, which does).
+ * YouTubePlatform, each delegating to that platform's integration trio.
+ *
+ * What only some platforms can do lives in optional capability objects (`CapabilityApis`); a
+ * façade's capability set is its declared capabilities plus one per object it has
+ * (`capabilitiesOf()`). Callers reach the objects through `StreamControlService.require()`.
  */
-export interface IStreamPlatform {
+export interface IStreamPlatform extends Partial<Readonly<CapabilityApis>> {
   readonly platform: StreamingPlatform;
 
-  /** Which PlatformCapabilities this platform currently supports. */
-  getCapabilities(): Set<PlatformCapability>;
+  /** The capabilities this platform has that no capability object stands for. */
+  readonly declaredCapabilities: ReadonlySet<DeclaredCapability>;
 
   /**
    * Null when this platform can be acted on, otherwise a human-readable reason it can't
@@ -148,101 +280,4 @@ export interface IStreamPlatform {
 
   /** Milliseconds the current broadcast has been live, or null if offline. */
   getUptime(): Promise<number | null>;
-
-  /**
-   * Ad-break state for the current broadcast, or null if the stream is offline.
-   * Requires PlatformCapability.ADS.
-   */
-  getNextAdBreak?(): Promise<AdBreakInfo | null>;
-
-  /**
-   * Upcoming scheduled broadcasts, soonest first; empty if none.
-   * Requires PlatformCapability.SCHEDULE.
-   */
-  getSchedule?(): Promise<ScheduleSegment[]>;
-
-  /**
-   * Content classification labels currently set on the channel.
-   * Requires PlatformCapability.CONTENT_LABELS.
-   */
-  getContentLabels?(): Promise<string[]>;
-
-  /**
-   * Replace the channel's content classification labels.
-   * Requires PlatformCapability.CONTENT_LABELS.
-   */
-  setContentLabels?(labels: string[]): Promise<void>;
-
-  /**
-   * The broadcaster's channel bio/description, or null if unset.
-   * Requires PlatformCapability.BROADCASTER_ABOUT.
-   */
-  getBroadcasterAbout?(): Promise<string | null>;
-
-  /**
-   * Send the platform's native shoutout for another channel, by its login name.
-   * Requires PlatformCapability.SHOUTOUT.
-   */
-  shoutout?(channelName: string): Promise<ShoutoutResult>;
-
-  /** Every channel point reward on the channel. Requires PlatformCapability.CHANNEL_POINTS. */
-  getChannelRewards?(): Promise<ChannelReward[]>;
-
-  /** Create an enabled reward. Requires PlatformCapability.CHANNEL_POINTS. */
-  createChannelReward?(settings: ChannelRewardSettings): Promise<ChannelReward>;
-
-  /** Update a reward this application created. Requires PlatformCapability.CHANNEL_POINTS. */
-  updateChannelReward?(rewardId: string, changes: ChannelRewardChanges): Promise<void>;
-
-  /**
-   * Complete or cancel a redemption waiting in the request queue, for a reward this application
-   * created. Requires PlatformCapability.CHANNEL_POINTS.
-   */
-  resolveRedemption?(
-    rewardId: string,
-    redemptionId: string,
-    outcome: RedemptionOutcome
-  ): Promise<void>;
-
-  /** Time a user out of chat. Requires PlatformCapability.MODERATION. */
-  timeoutUser?(userId: string, seconds: number, reason: string): Promise<void>;
-
-  /** Delete one chat message. Requires PlatformCapability.MODERATION. */
-  deleteChatMessage?(messageId: string): Promise<void>;
-
-  /** Look up a clip by id; null if there's no such clip. Requires PlatformCapability.CLIPS. */
-  getClip?(clipId: string): Promise<ClipInfo | null>;
-
-  /** Push the next ad back, if a snooze is left. Requires PlatformCapability.ADS. */
-  snoozeNextAd?(): Promise<AdSnoozeResult>;
-
-  /**
-   * When a user started following the channel, or null if they don't.
-   * Requires PlatformCapability.FOLLOW_INFO.
-   */
-  getFollowDate?(userId: string): Promise<Date | null>;
-
-  /**
-   * When a user's account was created, or null if there's no such user.
-   * Requires PlatformCapability.ACCOUNT_AGE.
-   */
-  getAccountCreatedAt?(userId: string): Promise<Date | null>;
-
-  /**
-   * Mark the current point of the live broadcast. Throws while offline.
-   * Requires PlatformCapability.MARKERS.
-   */
-  createStreamMarker?(description?: string): Promise<StreamMarker>;
-
-  /**
-   * Delete the most recent past broadcast (the current one while live) and return what was
-   * deleted, or null if there was none. Requires PlatformCapability.VODS.
-   */
-  deleteLatestVod?(): Promise<VodInfo | null>;
-
-  /**
-   * Post a highlighted announcement in chat, passed through `toSafeChatText()` like
-   * sendChatMessage. Requires PlatformCapability.ANNOUNCEMENTS.
-   */
-  sendAnnouncement?(message: string): Promise<void>;
 }

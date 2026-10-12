@@ -23,6 +23,12 @@ export interface CommandInfo {
 
   /** Platform capabilities this command requires (empty = available on every platform) */
   requiredCapabilities: PlatformCapability[];
+
+  /**
+   * The platforms whose capabilities cover `requiredCapabilities`, worked out by the backend
+   * from its platform façades, so clients never keep their own copy of each platform's set.
+   */
+  availableOn: StreamingPlatform[];
 }
 
 /**

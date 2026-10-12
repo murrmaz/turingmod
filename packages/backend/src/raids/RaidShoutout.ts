@@ -56,7 +56,9 @@ export class RaidShoutout implements IService {
     }
 
     try {
-      const result = await this.streamControl.shoutout(StreamingPlatform.TWITCH, channel);
+      const result = await this.streamControl
+        .require(StreamingPlatform.TWITCH, 'shoutout')
+        .shoutout(channel);
       if (!result.sent) {
         this.logger.info(
           `Twitch declined the shoutout for ${channel} (${result.reason ?? 'rate limited'}; ` +

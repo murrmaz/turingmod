@@ -2,12 +2,20 @@ import 'reflect-metadata';
 import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Logger } from '../utils/Logger.js';
-import type { IStreamPlatform, StreamInfo } from './interfaces/IStreamPlatform.js';
+import type {
+  DeclaredCapability,
+  IStreamPlatform,
+  StreamInfo,
+} from './interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from './PlatformRegistry.js';
 import { StreamControlService } from './StreamControlService.js';
 
 /** A façade whose availability and live state the test drives directly. */
 class FakePlatform implements IStreamPlatform {
+  readonly declaredCapabilities = new Set<DeclaredCapability>([
+    PlatformCapability.SEND_CHAT,
+    PlatformCapability.SET_TITLE,
+  ]);
   setStreamInfo = vi.fn<(info: Partial<StreamInfo>) => Promise<void>>(() => Promise.resolve());
   sendChatMessage = vi.fn<(message: string) => Promise<void>>(() => Promise.resolve());
 
@@ -17,9 +25,6 @@ class FakePlatform implements IStreamPlatform {
     private live: boolean
   ) {}
 
-  getCapabilities(): Set<PlatformCapability> {
-    return new Set([PlatformCapability.SEND_CHAT, PlatformCapability.SET_TITLE]);
-  }
   getUnavailableReason(): string | null {
     return this.unavailable;
   }
@@ -92,13 +97,23 @@ describe('StreamControlService mirroring', () => {
     expect(twitch.setStreamInfo).not.toHaveBeenCalled();
   });
 
-  it('refuses a capability the platform does not advertise', async () => {
+  it('refuses a capability the platform does not have', () => {
     registry.register(new FakePlatform(StreamingPlatform.TWITCH, null, true));
     const service = new StreamControlService(registry, logger);
 
-    await expect(service.getSchedule(StreamingPlatform.TWITCH)).rejects.toThrow(
-      'twitch does not support schedule'
+    expect(() => service.require(StreamingPlatform.TWITCH, 'schedule')).toThrow(
+      'Twitch does not support schedule'
     );
+  });
+
+  it("hands out a platform's capability object", () => {
+    const twitch = new FakePlatform(StreamingPlatform.TWITCH, null, true);
+    const schedule = { getSchedule: () => Promise.resolve([]) };
+    registry.register(Object.assign(twitch, { schedule }));
+    const service = new StreamControlService(registry, logger);
+
+    expect(service.require(StreamingPlatform.TWITCH, 'schedule')).toBe(schedule);
+    expect(service.supports(StreamingPlatform.TWITCH, PlatformCapability.SCHEDULE)).toBe(true);
   });
 });
 
@@ -193,11 +208,9 @@ describe('unavailableReason wiring', () => {
 
 describe('StreamControlService announcements', () => {
   class AnnouncingPlatform extends FakePlatform {
-    sendAnnouncement = vi.fn<(message: string) => Promise<void>>(() => Promise.resolve());
-
-    override getCapabilities(): Set<PlatformCapability> {
-      return new Set([PlatformCapability.SEND_CHAT, PlatformCapability.ANNOUNCEMENTS]);
-    }
+    announcements = {
+      sendAnnouncement: vi.fn<(message: string) => Promise<void>>(() => Promise.resolve()),
+    };
   }
 
   it('highlights the message where the platform can, and posts it plainly elsewhere', async () => {
@@ -210,7 +223,7 @@ describe('StreamControlService announcements', () => {
 
     await service.announce(() => 'Follow me', { highlight: true });
 
-    expect(twitch.sendAnnouncement).toHaveBeenCalledWith('Follow me');
+    expect(twitch.announcements.sendAnnouncement).toHaveBeenCalledWith('Follow me');
     expect(twitch.sendChatMessage).not.toHaveBeenCalled();
     expect(youtube.sendChatMessage).toHaveBeenCalledWith('Follow me');
   });
@@ -223,6 +236,6 @@ describe('StreamControlService announcements', () => {
     await new StreamControlService(registry, makeLogger()).announce(() => 'Hello');
 
     expect(twitch.sendChatMessage).toHaveBeenCalledWith('Hello');
-    expect(twitch.sendAnnouncement).not.toHaveBeenCalled();
+    expect(twitch.announcements.sendAnnouncement).not.toHaveBeenCalled();
   });
 });

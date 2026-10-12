@@ -32,7 +32,7 @@ export class AdCommand implements ICommand {
 
   async execute(context: CommandContext): Promise<CommandResult> {
     try {
-      const adBreak = await this.streamControl.getNextAdBreak(context.platform);
+      const adBreak = await this.streamControl.require(context.platform, 'ads').getNextAdBreak();
 
       if (!adBreak) {
         return {

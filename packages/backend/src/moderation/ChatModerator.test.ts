@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DatabaseManager } from '../database/DatabaseManager.js';
 import { BannedWordRepository } from '../database/repositories/BannedWordRepository.js';
 import { createTestDatabase } from '../database/repositories/testDatabase.js';
+import { fakeRequire } from '../platforms/fakeRequire.js';
+import type { ModerationApi } from '../platforms/interfaces/IStreamPlatform.js';
 import type { StreamControlService } from '../platforms/StreamControlService.js';
 import { chatMessage } from '../platforms/testing.js';
 import type { Logger } from '../utils/Logger.js';
@@ -24,8 +26,11 @@ describe('ChatModerator', () => {
   let streamControl: {
     supports: (platform: StreamingPlatform, capability: PlatformCapability) => boolean;
     sendChatMessage: ReturnType<typeof vi.fn>;
-    timeoutUser: ReturnType<typeof vi.fn>;
-    deleteChatMessage: ReturnType<typeof vi.fn>;
+    require: StreamControlService['require'];
+  };
+  let moderation: {
+    timeoutUser: ReturnType<typeof vi.fn<ModerationApi['timeoutUser']>>;
+    deleteChatMessage: ReturnType<typeof vi.fn<ModerationApi['deleteChatMessage']>>;
   };
   let moderator: ChatModerator;
 
@@ -33,12 +38,15 @@ describe('ChatModerator', () => {
     ({ db, cleanup } = await createTestDatabase());
     bannedWords = new BannedWordRepository(db);
     moderated = new Set([StreamingPlatform.TWITCH]);
+    moderation = {
+      timeoutUser: vi.fn(() => Promise.resolve()),
+      deleteChatMessage: vi.fn(() => Promise.resolve()),
+    };
     streamControl = {
       supports: (platform, capability) =>
         capability === PlatformCapability.MODERATION && moderated.has(platform),
       sendChatMessage: vi.fn(() => Promise.resolve()),
-      timeoutUser: vi.fn(() => Promise.resolve()),
-      deleteChatMessage: vi.fn(() => Promise.resolve()),
+      require: fakeRequire(StreamingPlatform.TWITCH, { moderation }),
     };
     moderator = new ChatModerator(
       streamControl as unknown as StreamControlService,
@@ -56,8 +64,7 @@ describe('ChatModerator', () => {
 
     expect(await moderator.review(chatMessage('I love CHEESE!'))).toBe('blocked');
 
-    expect(streamControl.timeoutUser).toHaveBeenCalledWith(
-      StreamingPlatform.TWITCH,
+    expect(moderation.timeoutUser).toHaveBeenCalledWith(
       'viewer-id',
       BANNED_WORD_TIMEOUT_SECONDS,
       'Said a chat member defined banned word'
@@ -84,7 +91,7 @@ describe('ChatModerator', () => {
     await bannedWords.ban('cheese', null, Date.now() - BAN_DURATION_MS - 1000);
 
     expect(await moderator.review(chatMessage('cheese'))).toBe('allowed');
-    expect(streamControl.timeoutUser).not.toHaveBeenCalled();
+    expect(moderation.timeoutUser).not.toHaveBeenCalled();
   });
 
   it('exempts the broadcaster', async () => {
@@ -109,10 +116,7 @@ describe('ChatModerator', () => {
     moderator.setQuietMode(true);
 
     expect(await moderator.review(chatMessage('hey @Pope_Pontius, hi!'))).toBe('blocked');
-    expect(streamControl.deleteChatMessage).toHaveBeenCalledWith(
-      StreamingPlatform.TWITCH,
-      'message-id'
-    );
+    expect(moderation.deleteChatMessage).toHaveBeenCalledWith('message-id');
   });
 
   it('lets mentions through outside quiet mode, and commands through in it', async () => {
@@ -121,12 +125,12 @@ describe('ChatModerator', () => {
     moderator.setQuietMode(true);
     expect(await moderator.review(chatMessage('!so @pope_pontius'))).toBe('allowed');
     expect(await moderator.review(chatMessage('hey @pope_pontius_fan'))).toBe('allowed');
-    expect(streamControl.deleteChatMessage).not.toHaveBeenCalled();
+    expect(moderation.deleteChatMessage).not.toHaveBeenCalled();
   });
 
   it('still blocks the message when acting on it fails', async () => {
     await bannedWords.ban('cheese', null);
-    streamControl.timeoutUser.mockRejectedValue(new Error('cannot time out a moderator'));
+    moderation.timeoutUser.mockRejectedValue(new Error('cannot time out a moderator'));
 
     expect(await moderator.review(chatMessage('cheese'))).toBe('blocked');
   });

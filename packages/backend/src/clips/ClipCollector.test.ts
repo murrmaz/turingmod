@@ -3,7 +3,8 @@ import { readFile, rm } from 'node:fs/promises';
 import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
-import type { ClipInfo } from '../platforms/interfaces/IStreamPlatform.js';
+import { fakeRequire } from '../platforms/fakeRequire.js';
+import type { ClipInfo, ClipsApi } from '../platforms/interfaces/IStreamPlatform.js';
 import type { StreamControlService } from '../platforms/StreamControlService.js';
 import { chatMessage } from '../platforms/testing.js';
 import { Logger } from '../utils/Logger.js';
@@ -32,17 +33,22 @@ describe('clipIdsIn', () => {
 
 describe('ClipCollector', () => {
   let eventBus: EventBus;
-  let getClip: ReturnType<typeof vi.fn>;
+  let getClip: ReturnType<typeof vi.fn<ClipsApi['getClip']>>;
   let collector: ClipCollector;
   let written: string[];
 
   beforeEach(() => {
     const logger = new Logger({ level: 'silent' });
     eventBus = new EventBus(logger);
-    getClip = vi.fn((_platform: StreamingPlatform, id: string) =>
-      Promise.resolve(id.startsWith('Fake') ? null : clip(id))
+    getClip = vi.fn((id: string) => Promise.resolve(id.startsWith('Fake') ? null : clip(id)));
+    const streamControl = {
+      require: fakeRequire(StreamingPlatform.TWITCH, { clips: { getClip } }),
+    };
+    collector = new ClipCollector(
+      eventBus,
+      streamControl as unknown as StreamControlService,
+      logger
     );
-    collector = new ClipCollector(eventBus, { getClip } as unknown as StreamControlService, logger);
     collector.start();
     written = [];
   });

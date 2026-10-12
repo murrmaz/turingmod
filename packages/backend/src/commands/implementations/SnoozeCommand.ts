@@ -33,7 +33,7 @@ export class SnoozeCommand implements ICommand {
   async execute(context: CommandContext): Promise<CommandResult> {
     const user = context.user.username;
     try {
-      const result = await this.streamControl.snoozeNextAd(context.platform);
+      const result = await this.streamControl.require(context.platform, 'ads').snoozeNextAd();
       if (!result.snoozed) {
         return {
           success: true,

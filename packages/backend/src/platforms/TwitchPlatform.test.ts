@@ -62,7 +62,7 @@ describe('TwitchPlatform', () => {
       api.getAdSchedule.mockResolvedValue({ snoozeCount: 2, nextAdDate: new Date(0) });
       api.snoozeNextAd.mockResolvedValue({ snoozeCount: 1, nextAdDate });
 
-      expect(await platform.snoozeNextAd()).toEqual({
+      expect(await platform.ads.snoozeNextAd()).toEqual({
         snoozed: true,
         snoozesLeft: 1,
         nextAdDate,
@@ -73,7 +73,7 @@ describe('TwitchPlatform', () => {
       const nextAdDate = new Date(0);
       api.getAdSchedule.mockResolvedValue({ snoozeCount: 0, nextAdDate });
 
-      expect(await platform.snoozeNextAd()).toEqual({
+      expect(await platform.ads.snoozeNextAd()).toEqual({
         snoozed: false,
         snoozesLeft: 0,
         nextAdDate,
@@ -87,8 +87,8 @@ describe('TwitchPlatform', () => {
     api.getChannelFollowers.mockResolvedValueOnce({ data: [{ followDate }] });
     api.getChannelFollowers.mockResolvedValueOnce({ data: [] });
 
-    expect(await platform.getFollowDate('viewer')).toBe(followDate);
-    expect(await platform.getFollowDate('stranger')).toBeNull();
+    expect(await platform.followInfo.getFollowDate('viewer')).toBe(followDate);
+    expect(await platform.followInfo.getFollowDate('stranger')).toBeNull();
     expect(api.getChannelFollowers).toHaveBeenCalledWith(BROADCASTER, 'viewer');
   });
 
@@ -96,7 +96,7 @@ describe('TwitchPlatform', () => {
     const creationDate = new Date(7000);
     api.getUserById.mockResolvedValue({ creationDate });
 
-    expect(await platform.getAccountCreatedAt('viewer')).toBe(creationDate);
+    expect(await platform.accountAge.getAccountCreatedAt('viewer')).toBe(creationDate);
   });
 
   describe('createStreamMarker', () => {
@@ -104,7 +104,7 @@ describe('TwitchPlatform', () => {
       api.getStream.mockResolvedValue({});
       api.createStreamMarker.mockResolvedValue({ positionInSeconds: 754, description: 'clip' });
 
-      expect(await platform.createStreamMarker('clip')).toEqual({
+      expect(await platform.markers.createStreamMarker('clip')).toEqual({
         positionSeconds: 754,
         description: 'clip',
       });
@@ -114,7 +114,7 @@ describe('TwitchPlatform', () => {
     it('explains that markers need a live broadcast', async () => {
       api.getStream.mockResolvedValue(null);
 
-      await expect(platform.createStreamMarker()).rejects.toThrow(
+      await expect(platform.markers.createStreamMarker()).rejects.toThrow(
         'Stream markers can only be created while live'
       );
       expect(api.createStreamMarker).not.toHaveBeenCalled();
@@ -128,7 +128,7 @@ describe('TwitchPlatform', () => {
         data: [{ id: 'v1', title: 'Last stream', url: 'https://x/v1', creationDate: createdAt }],
       });
 
-      expect(await platform.deleteLatestVod()).toEqual({
+      expect(await platform.vods.deleteLatestVod()).toEqual({
         id: 'v1',
         title: 'Last stream',
         url: 'https://x/v1',
@@ -141,20 +141,20 @@ describe('TwitchPlatform', () => {
     it('deletes nothing when there is no past broadcast', async () => {
       api.getVideosByUser.mockResolvedValue({ data: [] });
 
-      expect(await platform.deleteLatestVod()).toBeNull();
+      expect(await platform.vods.deleteLatestVod()).toBeNull();
       expect(api.deleteVideos).not.toHaveBeenCalled();
     });
   });
 
   it('posts an announcement', async () => {
-    await platform.sendAnnouncement('Follow me');
+    await platform.announcements.sendAnnouncement('Follow me');
 
     expect(api.sendAnnouncement).toHaveBeenCalledWith(BROADCASTER, 'Follow me');
   });
 
   it('never posts a chat message or announcement that starts with a command', async () => {
     await platform.sendChatMessage('!delvod');
-    await platform.sendAnnouncement('/ban someone');
+    await platform.announcements.sendAnnouncement('/ban someone');
 
     expect(api.sendChatMessage).toHaveBeenCalledWith(BROADCASTER, 'delvod');
     expect(api.sendAnnouncement).toHaveBeenCalledWith(BROADCASTER, 'ban someone');
@@ -179,7 +179,7 @@ describe('TwitchPlatform', () => {
     const disconnected = setup();
     disconnected.disconnect();
 
-    await expect(disconnected.platform.deleteLatestVod()).rejects.toBeInstanceOf(
+    await expect(disconnected.platform.vods.deleteLatestVod()).rejects.toBeInstanceOf(
       NotAuthenticatedError
     );
     expect(disconnected.api.getVideosByUser).not.toHaveBeenCalled();

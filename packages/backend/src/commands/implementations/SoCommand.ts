@@ -40,7 +40,9 @@ export class SoCommand implements ICommand {
     }
 
     try {
-      const result = await this.streamControl.shoutout(context.platform, channel);
+      const result = await this.streamControl
+        .require(context.platform, 'shoutout')
+        .shoutout(channel);
       if (!result.sent) {
         this.logger.info(
           `Native shoutout for ${channel} declined: ${result.reason ?? 'rate limited'}`

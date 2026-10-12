@@ -61,7 +61,7 @@ export class ChatModerator {
 
     if (this.quietMode && !parseCommand(event.message) && mentionsChannel(event)) {
       await this.act('delete a message mentioning the streamer', () =>
-        this.streamControl.deleteChatMessage(event.platform, event.messageId)
+        this.streamControl.require(event.platform, 'moderation').deleteChatMessage(event.messageId)
       );
       return 'blocked';
     }
@@ -91,12 +91,13 @@ export class ChatModerator {
       )
     );
     await this.act(`time out ${event.username}`, () =>
-      this.streamControl.timeoutUser(
-        event.platform,
-        event.platformUserId,
-        BANNED_WORD_TIMEOUT_SECONDS,
-        'Said a chat member defined banned word'
-      )
+      this.streamControl
+        .require(event.platform, 'moderation')
+        .timeoutUser(
+          event.platformUserId,
+          BANNED_WORD_TIMEOUT_SECONDS,
+          'Said a chat member defined banned word'
+        )
     );
   }
 

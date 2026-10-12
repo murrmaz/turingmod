@@ -12,6 +12,7 @@ import { injectable, singleton } from 'tsyringe';
 import { CommandExecutor } from '../../commands/CommandExecutor.js';
 import { CommandRegistry } from '../../commands/CommandRegistry.js';
 import type { ICommand } from '../../commands/interfaces/ICommand.js';
+import { capabilitiesOf } from '../../platforms/capabilities.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { Logger } from '../../utils/Logger.js';
 import {
@@ -136,6 +137,10 @@ export class CommandHandler {
       ? this.commandRegistry.getAllForPlatform(this.platformRegistry.capabilitiesFor(platform))
       : this.commandRegistry.getAll();
 
+    const platforms = this.platformRegistry.getAll().map((target) => ({
+      platform: target.platform,
+      capabilities: capabilitiesOf(target),
+    }));
     const commands = source.map((cmd) => ({
       name: cmd.name,
       description: cmd.description,
@@ -143,6 +148,11 @@ export class CommandHandler {
       permissions: cmd.permissions,
       cooldown: cmd.cooldown,
       requiredCapabilities: cmd.requiredCapabilities,
+      availableOn: platforms
+        .filter(({ capabilities }) =>
+          cmd.requiredCapabilities.every((capability) => capabilities.has(capability))
+        )
+        .map(({ platform }) => platform),
     }));
 
     return Promise.resolve({

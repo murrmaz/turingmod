@@ -3,7 +3,9 @@ import { StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import { NotAuthenticatedError } from '../platforms/errors.js';
+import { fakeRequire } from '../platforms/fakeRequire.js';
 import type {
+  ChannelPointsApi,
   ChannelReward,
   ChannelRewardSettings,
 } from '../platforms/interfaces/IStreamPlatform.js';
@@ -50,10 +52,10 @@ describe('RewardSync', () => {
   let eventBus: EventBus;
   let registry: RewardRegistry;
   let rewards: ChannelReward[];
-  let streamControl: {
-    getChannelRewards: ReturnType<typeof vi.fn<StreamControlService['getChannelRewards']>>;
-    createChannelReward: ReturnType<typeof vi.fn<StreamControlService['createChannelReward']>>;
-    updateChannelReward: ReturnType<typeof vi.fn<StreamControlService['updateChannelReward']>>;
+  let channelPoints: {
+    getChannelRewards: ReturnType<typeof vi.fn<ChannelPointsApi['getChannelRewards']>>;
+    createChannelReward: ReturnType<typeof vi.fn<ChannelPointsApi['createChannelReward']>>;
+    updateChannelReward: ReturnType<typeof vi.fn<ChannelPointsApi['updateChannelReward']>>;
   };
   let sync: RewardSync;
 
@@ -69,13 +71,14 @@ describe('RewardSync', () => {
     eventBus = new EventBus(logger);
     registry = new RewardRegistry(logger);
     rewards = [];
-    streamControl = {
+    channelPoints = {
       getChannelRewards: vi.fn(() => Promise.resolve(rewards)),
-      createChannelReward: vi.fn((_platform, settings) =>
+      createChannelReward: vi.fn((settings) =>
         Promise.resolve(onTwitch(`new-${settings.title}`, settings))
       ),
       updateChannelReward: vi.fn(() => Promise.resolve()),
     };
+    const streamControl = { require: fakeRequire(StreamingPlatform.TWITCH, { channelPoints }) };
     sync = new RewardSync(
       eventBus,
       registry,
@@ -103,10 +106,7 @@ describe('RewardSync', () => {
 
     await sync.requestSync();
 
-    expect(streamControl.createChannelReward).toHaveBeenCalledWith(
-      StreamingPlatform.TWITCH,
-      rewardSettingsFor(banAWord)
-    );
+    expect(channelPoints.createChannelReward).toHaveBeenCalledWith(rewardSettingsFor(banAWord));
     expect(sync.isManaged('new-Ban A Word')).toBe(true);
   });
 
@@ -116,8 +116,8 @@ describe('RewardSync', () => {
 
     await sync.requestSync();
 
-    expect(streamControl.createChannelReward).not.toHaveBeenCalled();
-    expect(streamControl.updateChannelReward).not.toHaveBeenCalled();
+    expect(channelPoints.createChannelReward).not.toHaveBeenCalled();
+    expect(channelPoints.updateChannelReward).not.toHaveBeenCalled();
     expect(sync.isManaged('r1')).toBe(true);
   });
 
@@ -129,7 +129,7 @@ describe('RewardSync', () => {
 
     await sync.requestSync();
 
-    expect(streamControl.updateChannelReward).toHaveBeenCalledWith(StreamingPlatform.TWITCH, 'r1', {
+    expect(channelPoints.updateChannelReward).toHaveBeenCalledWith('r1', {
       cost: 100000,
       globalCooldownSeconds: null,
     });
@@ -141,7 +141,7 @@ describe('RewardSync', () => {
 
     await sync.requestSync();
 
-    expect(streamControl.updateChannelReward).not.toHaveBeenCalled();
+    expect(channelPoints.updateChannelReward).not.toHaveBeenCalled();
   });
 
   it("reports a reward another application created once, and doesn't touch it", async () => {
@@ -151,8 +151,8 @@ describe('RewardSync', () => {
     await sync.requestSync();
     await sync.requestSync();
 
-    expect(streamControl.createChannelReward).not.toHaveBeenCalled();
-    expect(streamControl.updateChannelReward).not.toHaveBeenCalled();
+    expect(channelPoints.createChannelReward).not.toHaveBeenCalled();
+    expect(channelPoints.updateChannelReward).not.toHaveBeenCalled();
     expect(sync.isManaged('r1')).toBe(false);
     expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(logger.warn.mock.calls[0]?.[0]).toContain(
@@ -170,27 +170,19 @@ describe('RewardSync', () => {
 
     // A break start doesn't wait for the sync, so wait for its update to land.
     await eventBus.emit('stream.break.started', { reason: 'ad', durationSeconds: 90 });
-    await vi.waitFor(() => expect(streamControl.updateChannelReward).toHaveBeenCalled());
+    await vi.waitFor(() => expect(channelPoints.updateChannelReward).toHaveBeenCalled());
 
-    expect(streamControl.updateChannelReward).toHaveBeenCalledTimes(1);
-    expect(streamControl.updateChannelReward).toHaveBeenCalledWith(
-      StreamingPlatform.TWITCH,
-      'roll',
-      { isPaused: true }
-    );
+    expect(channelPoints.updateChannelReward).toHaveBeenCalledTimes(1);
+    expect(channelPoints.updateChannelReward).toHaveBeenCalledWith('roll', { isPaused: true });
 
     rewards = [
       onTwitch('roll', rewardSettingsFor(barrelRoll), { isPaused: true }),
       onTwitch('ban', rewardSettingsFor(banAWord)),
     ];
-    streamControl.updateChannelReward.mockClear();
+    channelPoints.updateChannelReward.mockClear();
     await eventBus.emit('stream.break.ended', { reason: 'ad', durationSeconds: 90 });
 
-    expect(streamControl.updateChannelReward).toHaveBeenCalledWith(
-      StreamingPlatform.TWITCH,
-      'roll',
-      { isPaused: false }
-    );
+    expect(channelPoints.updateChannelReward).toHaveBeenCalledWith('roll', { isPaused: false });
   });
 
   it('unpauses a reward left paused by a break that never ended (e.g. a crash)', async () => {
@@ -199,11 +191,7 @@ describe('RewardSync', () => {
 
     await sync.requestSync();
 
-    expect(streamControl.updateChannelReward).toHaveBeenCalledWith(
-      StreamingPlatform.TWITCH,
-      'roll',
-      { isPaused: false }
-    );
+    expect(channelPoints.updateChannelReward).toHaveBeenCalledWith('roll', { isPaused: false });
   });
 
   it('syncs when Twitch becomes available', async () => {
@@ -219,7 +207,7 @@ describe('RewardSync', () => {
       available: true,
       reason: null,
     });
-    expect(streamControl.getChannelRewards).not.toHaveBeenCalled();
+    expect(channelPoints.getChannelRewards).not.toHaveBeenCalled();
 
     eventBus.emitSync('platform.availability', {
       platform: StreamingPlatform.TWITCH,
@@ -227,13 +215,13 @@ describe('RewardSync', () => {
       reason: null,
     });
 
-    await vi.waitFor(() => expect(streamControl.getChannelRewards).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(channelPoints.getChannelRewards).toHaveBeenCalledOnce());
   });
 
   it('coalesces requests made during a pass into one more pass', async () => {
     registry.register(banAWord);
     let release: () => void = () => {};
-    streamControl.getChannelRewards.mockImplementationOnce(
+    channelPoints.getChannelRewards.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           release = () => resolve(rewards);
@@ -246,18 +234,18 @@ describe('RewardSync', () => {
     release();
     await first;
 
-    expect(streamControl.getChannelRewards).toHaveBeenCalledTimes(2);
+    expect(channelPoints.getChannelRewards).toHaveBeenCalledTimes(2);
   });
 
   it('does nothing without handlers', async () => {
     await sync.requestSync();
 
-    expect(streamControl.getChannelRewards).not.toHaveBeenCalled();
+    expect(channelPoints.getChannelRewards).not.toHaveBeenCalled();
   });
 
   it('waits quietly for Twitch to connect', async () => {
     registry.register(banAWord);
-    streamControl.getChannelRewards.mockRejectedValue(
+    channelPoints.getChannelRewards.mockRejectedValue(
       new NotAuthenticatedError(StreamingPlatform.TWITCH, false, 'Not connected')
     );
 
@@ -272,11 +260,11 @@ describe('RewardSync', () => {
   it('keeps syncing the other rewards when one fails', async () => {
     registry.register(barrelRoll);
     registry.register(banAWord);
-    streamControl.createChannelReward.mockRejectedValueOnce(new Error('DUPLICATE_REWARD'));
+    channelPoints.createChannelReward.mockRejectedValueOnce(new Error('DUPLICATE_REWARD'));
 
     await sync.requestSync();
 
-    expect(streamControl.createChannelReward).toHaveBeenCalledTimes(2);
+    expect(channelPoints.createChannelReward).toHaveBeenCalledTimes(2);
     expect(logger.error).toHaveBeenCalledWith(
       'Failed to sync reward "Barrel Roll"',
       expect.any(Error)

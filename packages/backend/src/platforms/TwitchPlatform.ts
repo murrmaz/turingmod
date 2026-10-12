@@ -7,19 +7,25 @@ import { unavailableReason } from './availability.js';
 import { toSafeChatText } from './chatMessage.js';
 import { NotAuthenticatedError } from './errors.js';
 import type {
-  AdBreakInfo,
-  AdSnoozeResult,
+  AccountAgeApi,
+  AdsApi,
+  AnnouncementsApi,
+  BroadcasterAboutApi,
+  ChannelPointsApi,
   ChannelReward,
   ChannelRewardChanges,
-  ChannelRewardSettings,
-  ClipInfo,
+  ClipsApi,
+  ContentLabelsApi,
+  DeclaredCapability,
+  FollowInfoApi,
   IStreamPlatform,
-  RedemptionOutcome,
+  MarkersApi,
+  ModerationApi,
+  ScheduleApi,
   ScheduleSegment,
-  ShoutoutResult,
+  ShoutoutApi,
   StreamInfo,
-  StreamMarker,
-  VodInfo,
+  VodsApi,
 } from './interfaces/IStreamPlatform.js';
 import { OwnChatMessages } from './OwnChatMessages.js';
 
@@ -27,40 +33,27 @@ import { OwnChatMessages } from './OwnChatMessages.js';
  * IStreamPlatform façade over the Twitch integration trio. Resolves the broadcaster id from
  * TwitchAuthIntegration and delegates reads/writes to TwitchApiIntegration's Helix methods.
  * Category search (name → id) stays Twitch-specific and lives here rather than in commands.
+ *
+ * Has every capability object; each method resolves the broadcaster id itself, so an object is
+ * safe to hold while Twitch is disconnected and fails with NotAuthenticatedError when used.
  */
 @injectable()
 @singleton()
 export class TwitchPlatform implements IStreamPlatform {
   readonly platform = StreamingPlatform.TWITCH;
+  readonly declaredCapabilities = new Set<DeclaredCapability>([
+    PlatformCapability.SEND_CHAT,
+    PlatformCapability.SET_TITLE,
+    PlatformCapability.SET_GAME,
+    PlatformCapability.SET_TAGS,
+    PlatformCapability.UPTIME,
+  ]);
 
   constructor(
     private auth: TwitchAuthIntegration,
     private api: TwitchApiIntegration,
     private ownMessages: OwnChatMessages
   ) {}
-
-  getCapabilities(): Set<PlatformCapability> {
-    return new Set([
-      PlatformCapability.SEND_CHAT,
-      PlatformCapability.SET_TITLE,
-      PlatformCapability.SET_GAME,
-      PlatformCapability.SET_TAGS,
-      PlatformCapability.UPTIME,
-      PlatformCapability.ADS,
-      PlatformCapability.SCHEDULE,
-      PlatformCapability.CONTENT_LABELS,
-      PlatformCapability.FOLLOW_INFO,
-      PlatformCapability.ACCOUNT_AGE,
-      PlatformCapability.BROADCASTER_ABOUT,
-      PlatformCapability.SHOUTOUT,
-      PlatformCapability.CHANNEL_POINTS,
-      PlatformCapability.MODERATION,
-      PlatformCapability.CLIPS,
-      PlatformCapability.MARKERS,
-      PlatformCapability.VODS,
-      PlatformCapability.ANNOUNCEMENTS,
-    ]);
-  }
 
   getUnavailableReason(): string | null {
     const reason = unavailableReason(this.auth, this.platform);
@@ -142,189 +135,211 @@ export class TwitchPlatform implements IStreamPlatform {
     return Date.now() - stream.startDate.getTime();
   }
 
-  async getNextAdBreak(): Promise<AdBreakInfo | null> {
-    const userId = this.requireUserId();
-    const stream = await this.api.getStream(userId);
-    if (!stream) {
-      return null;
-    }
-    const adSchedule = await this.api.getAdSchedule(userId);
-    return { nextAdDate: adSchedule?.nextAdDate ?? null };
-  }
-
-  async getSchedule(): Promise<ScheduleSegment[]> {
-    const userId = this.requireUserId();
-    const schedule = await this.api.getSchedule(userId);
-    const segments = schedule?.data?.segments ?? [];
-
-    return segments.map((segment) => {
-      const mapped: ScheduleSegment = { startDate: segment.startDate };
-      if (segment.title) {
-        mapped.title = segment.title;
+  readonly ads: AdsApi = {
+    getNextAdBreak: async () => {
+      const userId = this.requireUserId();
+      const stream = await this.api.getStream(userId);
+      if (!stream) {
+        return null;
       }
-      if (segment.categoryName) {
-        mapped.category = segment.categoryName;
+      const adSchedule = await this.api.getAdSchedule(userId);
+      return { nextAdDate: adSchedule?.nextAdDate ?? null };
+    },
+
+    snoozeNextAd: async () => {
+      const userId = this.requireUserId();
+      // Twitch rejects a snooze with none left; check first so that's an answer, not an error.
+      const schedule = await this.api.getAdSchedule(userId);
+      if (!schedule || schedule.snoozeCount <= 0) {
+        return {
+          snoozed: false,
+          snoozesLeft: schedule?.snoozeCount ?? 0,
+          nextAdDate: schedule?.nextAdDate ?? null,
+        };
       }
-      return mapped;
-    });
-  }
+      const result = await this.api.snoozeNextAd(userId);
+      return { snoozed: true, snoozesLeft: result.snoozeCount, nextAdDate: result.nextAdDate };
+    },
+  };
 
-  async getContentLabels(): Promise<string[]> {
-    const userId = this.requireUserId();
-    const channel = await this.api.getChannel(userId);
-    if (!channel) {
-      throw new Error('Failed to retrieve channel information');
-    }
-    return channel.contentClassificationLabels ?? [];
-  }
+  readonly schedule: ScheduleApi = {
+    getSchedule: async () => {
+      const userId = this.requireUserId();
+      const schedule = await this.api.getSchedule(userId);
+      const segments = schedule?.data?.segments ?? [];
 
-  async setContentLabels(labels: string[]): Promise<void> {
-    const userId = this.requireUserId();
-    await this.api.setContentClassificationLabels(userId, labels);
-  }
+      return segments.map((segment) => {
+        const mapped: ScheduleSegment = { startDate: segment.startDate };
+        if (segment.title) {
+          mapped.title = segment.title;
+        }
+        if (segment.categoryName) {
+          mapped.category = segment.categoryName;
+        }
+        return mapped;
+      });
+    },
+  };
 
-  async getBroadcasterAbout(): Promise<string | null> {
-    const userId = this.requireUserId();
-    const user = await this.api.getUserById(userId);
-    const description = user?.description?.trim();
-    return description ? description : null;
-  }
+  readonly contentLabels: ContentLabelsApi = {
+    getContentLabels: async () => {
+      const userId = this.requireUserId();
+      const channel = await this.api.getChannel(userId);
+      if (!channel) {
+        throw new Error('Failed to retrieve channel information');
+      }
+      return channel.contentClassificationLabels ?? [];
+    },
 
-  async shoutout(channelName: string): Promise<ShoutoutResult> {
-    const userId = this.requireUserId();
-    const target = await this.api.getUserByName(channelName);
-    if (!target) {
-      throw new Error(`Twitch user not found: ${channelName}`);
-    }
-    return await this.api.shoutoutUser(userId, target.id);
-  }
+    setContentLabels: async (labels) => {
+      const userId = this.requireUserId();
+      await this.api.setContentClassificationLabels(userId, labels);
+    },
+  };
 
-  async getChannelRewards(): Promise<ChannelReward[]> {
-    const userId = this.requireUserId();
-    // Twitch answers "which rewards may this client edit" only as a filter on the list, so ask
-    // for both and compare.
-    const [all, manageable] = await Promise.all([
-      this.api.getCustomRewards(userId, false),
-      this.api.getCustomRewards(userId, true),
-    ]);
-    const manageableIds = new Set(manageable.map((reward) => reward.id));
-    return all.map((reward) => toChannelReward(reward, manageableIds.has(reward.id)));
-  }
+  readonly broadcasterAbout: BroadcasterAboutApi = {
+    getBroadcasterAbout: async () => {
+      const userId = this.requireUserId();
+      const user = await this.api.getUserById(userId);
+      const description = user?.description?.trim();
+      return description ? description : null;
+    },
+  };
 
-  async createChannelReward(settings: ChannelRewardSettings): Promise<ChannelReward> {
-    const userId = this.requireUserId();
-    const created = await this.api.createCustomReward(userId, {
-      title: settings.title,
-      cost: settings.cost,
-      prompt: settings.prompt,
-      isEnabled: true,
-      userInputRequired: settings.userInputRequired,
-      globalCooldown: settings.globalCooldownSeconds,
-      maxRedemptionsPerStream: settings.maxPerStream,
-      maxRedemptionsPerUserPerStream: settings.maxPerUserPerStream,
-      autoFulfill: settings.autoFulfill,
-    });
-    return toChannelReward(created, true);
-  }
+  readonly shoutout: ShoutoutApi = {
+    shoutout: async (channelName) => {
+      const userId = this.requireUserId();
+      const target = await this.api.getUserByName(channelName);
+      if (!target) {
+        throw new Error(`Twitch user not found: ${channelName}`);
+      }
+      return await this.api.shoutoutUser(userId, target.id);
+    },
+  };
 
-  async updateChannelReward(rewardId: string, changes: ChannelRewardChanges): Promise<void> {
-    const userId = this.requireUserId();
-    await this.api.updateCustomReward(userId, rewardId, toHelixRewardUpdate(changes));
-  }
+  readonly channelPoints: ChannelPointsApi = {
+    getChannelRewards: async () => {
+      const userId = this.requireUserId();
+      // Twitch answers "which rewards may this client edit" only as a filter on the list, so
+      // ask for both and compare.
+      const [all, manageable] = await Promise.all([
+        this.api.getCustomRewards(userId, false),
+        this.api.getCustomRewards(userId, true),
+      ]);
+      const manageableIds = new Set(manageable.map((reward) => reward.id));
+      return all.map((reward) => toChannelReward(reward, manageableIds.has(reward.id)));
+    },
 
-  async resolveRedemption(
-    rewardId: string,
-    redemptionId: string,
-    outcome: RedemptionOutcome
-  ): Promise<void> {
-    const userId = this.requireUserId();
-    await this.api.updateRedemptionStatus(
-      userId,
-      rewardId,
-      [redemptionId],
-      outcome === 'fulfilled' ? 'FULFILLED' : 'CANCELED'
-    );
-  }
+    createChannelReward: async (settings) => {
+      const userId = this.requireUserId();
+      const created = await this.api.createCustomReward(userId, {
+        title: settings.title,
+        cost: settings.cost,
+        prompt: settings.prompt,
+        isEnabled: true,
+        userInputRequired: settings.userInputRequired,
+        globalCooldown: settings.globalCooldownSeconds,
+        maxRedemptionsPerStream: settings.maxPerStream,
+        maxRedemptionsPerUserPerStream: settings.maxPerUserPerStream,
+        autoFulfill: settings.autoFulfill,
+      });
+      return toChannelReward(created, true);
+    },
 
-  async timeoutUser(userId: string, seconds: number, reason: string): Promise<void> {
-    const broadcasterId = this.requireUserId();
-    await this.api.timeoutUser(broadcasterId, userId, seconds, reason);
-  }
+    updateChannelReward: async (rewardId, changes) => {
+      const userId = this.requireUserId();
+      await this.api.updateCustomReward(userId, rewardId, toHelixRewardUpdate(changes));
+    },
 
-  async deleteChatMessage(messageId: string): Promise<void> {
-    const broadcasterId = this.requireUserId();
-    await this.api.deleteChatMessage(broadcasterId, messageId);
-  }
+    resolveRedemption: async (rewardId, redemptionId, outcome) => {
+      const userId = this.requireUserId();
+      await this.api.updateRedemptionStatus(
+        userId,
+        rewardId,
+        [redemptionId],
+        outcome === 'fulfilled' ? 'FULFILLED' : 'CANCELED'
+      );
+    },
+  };
 
-  async getClip(clipId: string): Promise<ClipInfo | null> {
-    this.requireUserId();
-    const clip = await this.api.getClipById(clipId);
-    if (!clip) {
-      return null;
-    }
-    return {
-      id: clip.id,
-      url: clip.url,
-      title: clip.title,
-      creatorName: clip.creatorDisplayName,
-      broadcasterName: clip.broadcasterDisplayName,
-      views: clip.views,
-      createdAt: clip.creationDate,
-    };
-  }
+  readonly moderation: ModerationApi = {
+    timeoutUser: async (userId, seconds, reason) => {
+      const broadcasterId = this.requireUserId();
+      await this.api.timeoutUser(broadcasterId, userId, seconds, reason);
+    },
 
-  async snoozeNextAd(): Promise<AdSnoozeResult> {
-    const userId = this.requireUserId();
-    // Twitch rejects a snooze with none left; check first so that's an answer, not an error.
-    const schedule = await this.api.getAdSchedule(userId);
-    if (!schedule || schedule.snoozeCount <= 0) {
+    deleteChatMessage: async (messageId) => {
+      const broadcasterId = this.requireUserId();
+      await this.api.deleteChatMessage(broadcasterId, messageId);
+    },
+  };
+
+  readonly clips: ClipsApi = {
+    getClip: async (clipId) => {
+      this.requireUserId();
+      const clip = await this.api.getClipById(clipId);
+      if (!clip) {
+        return null;
+      }
       return {
-        snoozed: false,
-        snoozesLeft: schedule?.snoozeCount ?? 0,
-        nextAdDate: schedule?.nextAdDate ?? null,
+        id: clip.id,
+        url: clip.url,
+        title: clip.title,
+        creatorName: clip.creatorDisplayName,
+        broadcasterName: clip.broadcasterDisplayName,
+        views: clip.views,
+        createdAt: clip.creationDate,
       };
-    }
-    const result = await this.api.snoozeNextAd(userId);
-    return { snoozed: true, snoozesLeft: result.snoozeCount, nextAdDate: result.nextAdDate };
-  }
+    },
+  };
 
-  async getFollowDate(userId: string): Promise<Date | null> {
-    const broadcasterId = this.requireUserId();
-    const { data } = await this.api.getChannelFollowers(broadcasterId, userId);
-    return data[0]?.followDate ?? null;
-  }
+  readonly followInfo: FollowInfoApi = {
+    getFollowDate: async (userId) => {
+      const broadcasterId = this.requireUserId();
+      const { data } = await this.api.getChannelFollowers(broadcasterId, userId);
+      return data[0]?.followDate ?? null;
+    },
+  };
 
-  async getAccountCreatedAt(userId: string): Promise<Date | null> {
-    this.requireUserId();
-    const user = await this.api.getUserById(userId);
-    return user?.creationDate ?? null;
-  }
+  readonly accountAge: AccountAgeApi = {
+    getAccountCreatedAt: async (userId) => {
+      this.requireUserId();
+      const user = await this.api.getUserById(userId);
+      return user?.creationDate ?? null;
+    },
+  };
 
-  async createStreamMarker(description?: string): Promise<StreamMarker> {
-    const userId = this.requireUserId();
-    // Twitch only places markers in a live broadcast; say so rather than surface its error.
-    if (!(await this.api.getStream(userId))) {
-      throw new Error('Stream markers can only be created while live');
-    }
-    const marker = await this.api.createStreamMarker(userId, description);
-    return { positionSeconds: marker.positionInSeconds, description: marker.description };
-  }
+  readonly markers: MarkersApi = {
+    createStreamMarker: async (description) => {
+      const userId = this.requireUserId();
+      // Twitch only places markers in a live broadcast; say so rather than surface its error.
+      if (!(await this.api.getStream(userId))) {
+        throw new Error('Stream markers can only be created while live');
+      }
+      const marker = await this.api.createStreamMarker(userId, description);
+      return { positionSeconds: marker.positionInSeconds, description: marker.description };
+    },
+  };
 
-  async deleteLatestVod(): Promise<VodInfo | null> {
-    const userId = this.requireUserId();
-    const { data } = await this.api.getVideosByUser(userId, { type: 'archive', limit: 1 });
-    const video = data[0];
-    if (!video) {
-      return null;
-    }
-    await this.api.deleteVideos(userId, [video.id]);
-    return { id: video.id, title: video.title, url: video.url, createdAt: video.creationDate };
-  }
+  readonly vods: VodsApi = {
+    deleteLatestVod: async () => {
+      const userId = this.requireUserId();
+      const { data } = await this.api.getVideosByUser(userId, { type: 'archive', limit: 1 });
+      const video = data[0];
+      if (!video) {
+        return null;
+      }
+      await this.api.deleteVideos(userId, [video.id]);
+      return { id: video.id, title: video.title, url: video.url, createdAt: video.creationDate };
+    },
+  };
 
-  async sendAnnouncement(message: string): Promise<void> {
-    const userId = this.requireUserId();
-    await this.api.sendAnnouncement(userId, toSafeChatText(message));
-  }
+  readonly announcements: AnnouncementsApi = {
+    sendAnnouncement: async (message) => {
+      const userId = this.requireUserId();
+      await this.api.sendAnnouncement(userId, toSafeChatText(message));
+    },
+  };
 
   /**
    * The broadcaster id, but only while auth is actually usable. Keyed on the integration's

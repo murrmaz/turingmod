@@ -40,10 +40,9 @@ export class FollowageCommand implements ICommand {
     }
 
     try {
-      const followDate = await this.streamControl.getFollowDate(
-        context.platform,
-        user.platformUserId
-      );
+      const followDate = await this.streamControl
+        .require(context.platform, 'followInfo')
+        .getFollowDate(user.platformUserId);
       if (!followDate) {
         return {
           success: true,

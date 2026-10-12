@@ -3,31 +3,32 @@ import { injectable, singleton } from 'tsyringe';
 import { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
 import { unavailableReason } from './availability.js';
 import { toSafeChatText } from './chatMessage.js';
-import type { IStreamPlatform, StreamInfo } from './interfaces/IStreamPlatform.js';
+import type {
+  DeclaredCapability,
+  IStreamPlatform,
+  StreamInfo,
+} from './interfaces/IStreamPlatform.js';
 import { OwnChatMessages } from './OwnChatMessages.js';
 
 /**
  * IStreamPlatform façade over the YouTube integration trio. YouTube has no game/category or tags
- * model, so it advertises only SEND_CHAT, SET_TITLE, and UPTIME — commands requiring the other
- * capabilities auto-hide on YouTube.
+ * model, so it declares only SEND_CHAT, SET_TITLE, and UPTIME and has no capability objects —
+ * commands requiring the other capabilities auto-hide on YouTube.
  */
 @injectable()
 @singleton()
 export class YouTubePlatform implements IStreamPlatform {
   readonly platform = StreamingPlatform.YOUTUBE;
+  readonly declaredCapabilities = new Set<DeclaredCapability>([
+    PlatformCapability.SEND_CHAT,
+    PlatformCapability.SET_TITLE,
+    PlatformCapability.UPTIME,
+  ]);
 
   constructor(
     private api: YouTubeApiIntegration,
     private ownMessages: OwnChatMessages
   ) {}
-
-  getCapabilities(): Set<PlatformCapability> {
-    return new Set([
-      PlatformCapability.SEND_CHAT,
-      PlatformCapability.SET_TITLE,
-      PlatformCapability.UPTIME,
-    ]);
-  }
 
   getUnavailableReason(): string | null {
     return unavailableReason(this.api, this.platform);

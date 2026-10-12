@@ -111,7 +111,9 @@ export class AdWarningScheduler implements IService {
       return null;
     }
     try {
-      const adBreak = await this.streamControl.getNextAdBreak(StreamingPlatform.TWITCH);
+      const adBreak = await this.streamControl
+        .require(StreamingPlatform.TWITCH, 'ads')
+        .getNextAdBreak();
       return adBreak?.nextAdDate?.getTime() ?? null;
     } catch (error) {
       this.logger.warn('Could not read the Twitch ad schedule', {

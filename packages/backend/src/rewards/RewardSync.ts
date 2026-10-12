@@ -132,7 +132,9 @@ export class RewardSync implements IService {
 
     let rewards: ChannelReward[];
     try {
-      rewards = await this.streamControl.getChannelRewards(StreamingPlatform.TWITCH);
+      rewards = await this.streamControl
+        .require(StreamingPlatform.TWITCH, 'channelPoints')
+        .getChannelRewards();
     } catch (error) {
       if (error instanceof NotAuthenticatedError) {
         this.logger.debug('Twitch is not connected; rewards will sync once it is');
@@ -159,10 +161,9 @@ export class RewardSync implements IService {
     const existing = rewards.find((reward) => reward.title === title);
 
     if (!existing) {
-      const created = await this.streamControl.createChannelReward(
-        StreamingPlatform.TWITCH,
-        desired
-      );
+      const created = await this.streamControl
+        .require(StreamingPlatform.TWITCH, 'channelPoints')
+        .createChannelReward(desired);
       this.managedIds.add(created.id);
       this.logger.info(`Created channel point reward "${title}"`);
       if (shouldPause) {
@@ -195,7 +196,9 @@ export class RewardSync implements IService {
   }
 
   private async update(id: string, title: string, changes: ChannelRewardChanges): Promise<void> {
-    await this.streamControl.updateChannelReward(StreamingPlatform.TWITCH, id, changes);
+    await this.streamControl
+      .require(StreamingPlatform.TWITCH, 'channelPoints')
+      .updateChannelReward(id, changes);
     this.logger.info(`Updated channel point reward "${title}": ${Object.keys(changes).join(', ')}`);
   }
 }

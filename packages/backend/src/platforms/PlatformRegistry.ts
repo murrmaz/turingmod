@@ -1,5 +1,6 @@
 import type { PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
+import { capabilitiesOf } from './capabilities.js';
 import type { IStreamPlatform } from './interfaces/IStreamPlatform.js';
 
 /**
@@ -25,6 +26,7 @@ export class PlatformRegistry {
 
   /** Capabilities supported by a specific platform (used to filter commands). */
   capabilitiesFor(platform: StreamingPlatform): Set<PlatformCapability> {
-    return this.get(platform)?.getCapabilities() ?? new Set();
+    const target = this.get(platform);
+    return target ? capabilitiesOf(target) : new Set();
   }
 }

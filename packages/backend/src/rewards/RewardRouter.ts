@@ -72,12 +72,9 @@ export class RewardRouter implements IService {
 
   private async resolve(redemption: RewardRedemption, outcome: RedemptionOutcome): Promise<void> {
     try {
-      await this.streamControl.resolveRedemption(
-        StreamingPlatform.TWITCH,
-        redemption.rewardId,
-        redemption.id,
-        outcome
-      );
+      await this.streamControl
+        .require(StreamingPlatform.TWITCH, 'channelPoints')
+        .resolveRedemption(redemption.rewardId, redemption.id, outcome);
       if (outcome === 'canceled') {
         this.logger.info(
           `Refunded ${redemption.userDisplayName}'s "${redemption.rewardTitle}" redemption`

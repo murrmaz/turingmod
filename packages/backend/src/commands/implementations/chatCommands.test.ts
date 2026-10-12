@@ -7,6 +7,7 @@ import { COUNTERS, CounterRepository } from '../../database/repositories/Counter
 import { SuggestionRepository } from '../../database/repositories/SuggestionRepository.js';
 import { createTestDatabase } from '../../database/repositories/testDatabase.js';
 import type { ChatModerator } from '../../moderation/ChatModerator.js';
+import { fakeRequire } from '../../platforms/fakeRequire.js';
 import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import { raidShoutoutMessage } from '../../raids/RaidShoutout.js';
 import type { SoundLibrary } from '../../sounds/SoundLibrary.js';
@@ -26,6 +27,10 @@ import { streamerTime } from './TimeCommand.js';
 import { VoiceCommand } from './VoiceCommand.js';
 
 const logger = new Logger({ level: 'silent' });
+
+/** A StreamControlService whose Twitch has only `apis`. */
+const fakeStreamControl = (apis: Parameters<typeof fakeRequire>[1]) =>
+  ({ require: fakeRequire(StreamingPlatform.TWITCH, apis) }) as unknown as StreamControlService;
 
 /** `args[0]` is the command name, matching how CommandExecutor parses chat input. */
 const contextFor = (
@@ -97,11 +102,11 @@ describe('counter commands', () => {
 describe('!so', () => {
   it('posts the shoutout message even when the native shoutout fails', async () => {
     const shoutout = vi.fn(() => Promise.reject(new Error('not live')));
-    const command = new SoCommand({ shoutout } as unknown as StreamControlService, logger);
+    const command = new SoCommand(fakeStreamControl({ shoutout: { shoutout } }), logger);
 
     const result = await command.execute(contextFor(['so', '@coolraider']));
 
-    expect(shoutout).toHaveBeenCalledWith(StreamingPlatform.TWITCH, 'coolraider');
+    expect(shoutout).toHaveBeenCalledWith('coolraider');
     expect(result.message).toBe(raidShoutoutMessage('coolraider'));
   });
 
@@ -136,7 +141,7 @@ describe('!snooze', () => {
       .fn()
       .mockResolvedValueOnce({ snoozed: true, snoozesLeft: 2, nextAdDate: null })
       .mockResolvedValueOnce({ snoozed: false, snoozesLeft: 0, nextAdDate: null });
-    const command = new SnoozeCommand({ snoozeNextAd } as unknown as StreamControlService, logger);
+    const command = new SnoozeCommand(fakeStreamControl({ ads: { snoozeNextAd } }), logger);
 
     expect((await command.execute(contextFor(['snooze']))).message).toBe(
       '@Viewer: Ads snoozed! There are 2 left.'
@@ -154,7 +159,7 @@ describe('!followage', () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(new Date(Date.now() - 3 * 24 * 60 * 60 * 1000));
     const command = new FollowageCommand(
-      { getFollowDate } as unknown as StreamControlService,
+      fakeStreamControl({ followInfo: { getFollowDate } }),
       logger
     );
 
@@ -177,10 +182,7 @@ describe('!followage', () => {
 describe('!delvod', () => {
   it('refuses to delete a real VOD from the simulator', async () => {
     const deleteLatestVod = vi.fn();
-    const command = new DelvodCommand(
-      { deleteLatestVod } as unknown as StreamControlService,
-      logger
-    );
+    const command = new DelvodCommand(fakeStreamControl({ vods: { deleteLatestVod } }), logger);
 
     const result = await command.execute(contextFor(['delvod'], { isSimulation: true }));
 
@@ -192,10 +194,7 @@ describe('!delvod', () => {
     const deleteLatestVod = vi.fn(() =>
       Promise.resolve({ id: 'v1', title: 'Oops', url: 'u', createdAt: new Date(0) })
     );
-    const command = new DelvodCommand(
-      { deleteLatestVod } as unknown as StreamControlService,
-      logger
-    );
+    const command = new DelvodCommand(fakeStreamControl({ vods: { deleteLatestVod } }), logger);
 
     expect((await command.execute(contextFor(['delvod']))).message).toBe(
       'VOD successfully deleted'

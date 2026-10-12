@@ -40,7 +40,7 @@ export class DelvodCommand implements ICommand {
     }
 
     try {
-      const vod = await this.streamControl.deleteLatestVod(context.platform);
+      const vod = await this.streamControl.require(context.platform, 'vods').deleteLatestVod();
       if (!vod) {
         return { success: true, message: 'There is no past broadcast to delete' };
       }

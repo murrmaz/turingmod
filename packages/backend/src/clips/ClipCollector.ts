@@ -87,7 +87,9 @@ export class ClipCollector implements IService {
     for (const id of clipIdsIn(event.message)) {
       if (clips.has(id)) continue;
       try {
-        const clip = await this.streamControl.getClip(StreamingPlatform.TWITCH, id);
+        const clip = await this.streamControl
+          .require(StreamingPlatform.TWITCH, 'clips')
+          .getClip(id);
         // Collection may have ended while the lookup was in flight.
         if (clip && this.collecting === clips) clips.set(id, clip);
       } catch (error) {

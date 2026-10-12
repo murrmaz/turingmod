@@ -53,7 +53,7 @@ export class ContentWarningCommand implements ICommand {
           .map((label) => label.trim())
           .filter((label) => label !== '');
 
-        await this.streamControl.setContentLabels(platform, labels);
+        await this.streamControl.require(platform, 'contentLabels').setContentLabels(labels);
 
         return {
           success: true,
@@ -63,7 +63,7 @@ export class ContentWarningCommand implements ICommand {
       }
 
       // Read mode: show current labels
-      const labels = await this.streamControl.getContentLabels(platform);
+      const labels = await this.streamControl.require(platform, 'contentLabels').getContentLabels();
 
       if (labels.length === 0) {
         return {

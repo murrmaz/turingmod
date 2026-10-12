@@ -51,7 +51,8 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **WebSocket Handler**: `packages/backend/src/server/handlers/CommandHandler.ts`
 
 ### Platform Provider Layer
-- **Interface**: `packages/backend/src/platforms/interfaces/IStreamPlatform.ts` — platform-agnostic façade; capability-guarded methods are optional
+- **Interface**: `packages/backend/src/platforms/interfaces/IStreamPlatform.ts` — platform-agnostic façade; per-capability objects (`CapabilityApis`) are optional
+- **Capability sets**: `packages/backend/src/platforms/capabilities.ts` — `capabilitiesOf()`, derived from the objects a façade has
 - **Implementations**: `packages/backend/src/platforms/TwitchPlatform.ts`, `YouTubePlatform.ts`
 - **Registry**: `packages/backend/src/platforms/PlatformRegistry.ts` (Platform → façade)
 - **Mirroring/reads**: `packages/backend/src/platforms/StreamControlService.ts` — the seam commands depend on
@@ -263,12 +264,19 @@ the container. Platform-specific logic (Twitch category name → id resolution) 
 façade, and the DTOs crossing it (`StreamInfo`, `ScheduleSegment`, `AdBreakInfo`) are agnostic, so no
 Twurple/googleapis types leak into the interface.
 
-Capabilities that only some platforms have are declared in `PlatformCapability` and exposed as
-*optional* interface methods. `StreamControlService.capableMethod()` resolves one and asserts the
-façade both advertises the capability and implements the method, so a drifted capability set fails
-loudly. A command declares `requiredCapabilities` and is hidden on platforms that don't satisfy them
-(`CommandExecutor` treats hidden as `COMMAND_NOT_FOUND`); the frontend mirrors the same sets manually
-in `packages/frontend/src/constants/platformCapabilities.ts`.
+**Having a capability object is having the capability.** What only some platforms can do is
+grouped into optional capability objects on `IStreamPlatform` (`ads?: AdsApi`,
+`channelPoints?: ChannelPointsApi`, `moderation?: ModerationApi`, …; all listed in
+`CapabilityApis`). Callers get one with `StreamControlService.require(platform, 'channelPoints')`,
+which returns it typed or throws. A façade's capability set is never written out:
+`capabilitiesOf()` (`platforms/capabilities.ts`) derives it from the objects it has, plus the five
+capabilities no object stands for (`SEND_CHAT`, `UPTIME` and the `SET_*` fields of
+`setStreamInfo()`), which the façade lists in `declaredCapabilities`. Its type admits only those
+five, and `CAPABILITY_OF_API` pairs every other `PlatformCapability` with its object, so
+advertising a capability without implementing it, or adding a `PlatformCapability` with no object,
+is a compile error. A command declares `requiredCapabilities` and is hidden on platforms that don't
+satisfy them (`CommandExecutor` treats hidden as `COMMAND_NOT_FOUND`). The console gets each
+command's `availableOn` in `COMMAND_LIST` rather than keeping its own copy of each platform's set.
 
 **Commands never check authentication.** The façade decides, and only reports a problem once nothing
 can recover it automatically — an expired access token is refreshed transparently by the provider, so
@@ -423,6 +431,7 @@ Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend b
 - **New channel point reward handlers** go in `packages/backend/src/rewards/implementations/` and implement `IRewardHandler`, matched by exact `rewardTitle`. They're auto-discovered by `loadRewardHandlers()`.
 - **Behaviour lives in code, not the database.** Commands and reward handlers are TypeScript classes; a table may hold a feature's own data (a banned-word list, a counter), never its logic.
 - **Commands reach platforms through `StreamControlService`**, never through an integration directly, and never check auth themselves (see Platform Provider Layer).
+- **A new platform capability** is a `PlatformCapability` value, an object type in `CapabilityApis`, its `CAPABILITY_OF_API` entry, and the façades' implementations; the compiler holds those together. Don't add a pass-through to `StreamControlService` — callers use `require()`.
 - **Every outgoing chat message goes through `toSafeChatText()` and `OwnChatMessages.record()`** inside the platform façade — a new `IStreamPlatform` (or a new send method) must apply both, so the bot can never post a command or act on what it posted (see Chat Pipeline).
 - **API-backed read commands need a cooldown.** `ICommand.cooldown` is per-viewer seconds; `CommandExecutor` exempts moderators and above, so a shared read/write command (`!game`, `!tags`, `!cw`) can be throttled for viewers without blocking a moderator's write.
 - **New integrations** extend `BaseIntegration`, get decorated `@injectable()`/`@singleton()`, get registered with `IntegrationManager` in `setup.ts`'s `initializeComponents()`, and need a `MessageRouter` handler if they accept WebSocket messages. OAuth-capable integrations also implement `IOAuthIntegration`, override `get oauth()` to return `this`, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.

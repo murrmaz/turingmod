@@ -7,7 +7,6 @@ import Table from '@cloudscape-design/components/table';
 import type { CommandInfo } from '@turingmod/shared';
 import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { useState } from 'react';
-import { isCommandAvailableOnPlatform } from '../../constants/platformCapabilities';
 import { useAppState } from '../../context/AppStateContext';
 import { CommandSimulator } from './CommandSimulator';
 
@@ -20,9 +19,7 @@ export function CommandList() {
   const [platform, setPlatform] = useState<StreamingPlatform>(StreamingPlatform.TWITCH);
 
   // Only show commands available on the selected platform (Twitch-only commands hide on YouTube).
-  const visibleCommands = commands.filter((command) =>
-    isCommandAvailableOnPlatform(command.requiredCapabilities, platform)
-  );
+  const visibleCommands = commands.filter((command) => command.availableOn.includes(platform));
 
   const getPermissionColor = (level: string): 'blue' | 'green' | 'red' | 'grey' => {
     switch (level) {

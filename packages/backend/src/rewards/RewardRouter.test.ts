@@ -2,6 +2,8 @@ import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
+import { fakeRequire } from '../platforms/fakeRequire.js';
+import type { ChannelPointsApi } from '../platforms/interfaces/IStreamPlatform.js';
 import type { StreamControlService } from '../platforms/StreamControlService.js';
 import type { Logger } from '../utils/Logger.js';
 import type { IRewardHandler, RewardRedemption } from './interfaces/IRewardHandler.js';
@@ -46,16 +48,17 @@ describe('RewardRouter', () => {
   let registry: RewardRegistry;
   let router: RewardRouter;
   let managed: boolean;
-  let streamControl: {
-    resolveRedemption: ReturnType<typeof vi.fn<StreamControlService['resolveRedemption']>>;
-  };
+  let resolveRedemption: ReturnType<typeof vi.fn<ChannelPointsApi['resolveRedemption']>>;
 
   beforeEach(() => {
     logger = makeLogger();
     eventBus = new EventBus(logger);
     registry = new RewardRegistry(logger);
     managed = true;
-    streamControl = { resolveRedemption: vi.fn(() => Promise.resolve()) };
+    resolveRedemption = vi.fn(() => Promise.resolve());
+    const streamControl = {
+      require: fakeRequire(StreamingPlatform.TWITCH, { channelPoints: { resolveRedemption } }),
+    };
     const sync = { isManaged: () => managed } as unknown as RewardSync;
     router = new RewardRouter(
       eventBus,
@@ -120,12 +123,7 @@ describe('RewardRouter', () => {
 
     await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'unfulfilled'));
 
-    expect(streamControl.resolveRedemption).toHaveBeenCalledWith(
-      StreamingPlatform.TWITCH,
-      'reward-1',
-      'redemption-1',
-      'fulfilled'
-    );
+    expect(resolveRedemption).toHaveBeenCalledWith('reward-1', 'redemption-1', 'fulfilled');
   });
 
   it('cancels, refunding the viewer, a queued redemption whose handler fails', async () => {
@@ -138,12 +136,7 @@ describe('RewardRouter', () => {
 
     await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'unfulfilled'));
 
-    expect(streamControl.resolveRedemption).toHaveBeenCalledWith(
-      StreamingPlatform.TWITCH,
-      'reward-1',
-      'redemption-1',
-      'canceled'
-    );
+    expect(resolveRedemption).toHaveBeenCalledWith('reward-1', 'redemption-1', 'canceled');
     expect(logger.info).toHaveBeenCalledWith('Refunded Viewer\'s "Bonk" redemption');
   });
 
@@ -152,7 +145,7 @@ describe('RewardRouter', () => {
 
     await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'fulfilled'));
 
-    expect(streamControl.resolveRedemption).not.toHaveBeenCalled();
+    expect(resolveRedemption).not.toHaveBeenCalled();
   });
 
   it('leaves redemptions of rewards another application created for the streamer', async () => {
@@ -161,11 +154,11 @@ describe('RewardRouter', () => {
 
     await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'unfulfilled'));
 
-    expect(streamControl.resolveRedemption).not.toHaveBeenCalled();
+    expect(resolveRedemption).not.toHaveBeenCalled();
   });
 
   it('logs a failure to resolve the redemption without throwing', async () => {
-    streamControl.resolveRedemption.mockRejectedValue(new Error('403'));
+    resolveRedemption.mockRejectedValue(new Error('403'));
     registry.register(handlerFor('Bonk'));
 
     await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'unfulfilled'));

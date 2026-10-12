@@ -32,7 +32,7 @@ export class ScheduleCommand implements ICommand {
 
   async execute(context: CommandContext): Promise<CommandResult> {
     try {
-      const segments = await this.streamControl.getSchedule(context.platform);
+      const segments = await this.streamControl.require(context.platform, 'schedule').getSchedule();
       const nextSegment = segments[0];
 
       if (!nextSegment) {

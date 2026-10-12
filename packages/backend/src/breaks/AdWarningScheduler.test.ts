@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
+import { fakeRequire } from '../platforms/fakeRequire.js';
 import type { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import type { StreamControlService } from '../platforms/StreamControlService.js';
 import { Logger } from '../utils/Logger.js';
@@ -15,10 +16,11 @@ function setup(settings: BreakSettings = DEFAULT_BREAK_SETTINGS) {
   const eventBus = new EventBus(new Logger({ level: 'silent' }));
   let nextAdAt: number | null = Date.now() + 10 * MINUTE;
   const posted: { twitch: string | null; youtube: string | null }[] = [];
+  const getNextAdBreak = vi.fn(() =>
+    Promise.resolve(nextAdAt === null ? null : { nextAdDate: new Date(nextAdAt) })
+  );
   const streamControl = {
-    getNextAdBreak: vi.fn(() =>
-      Promise.resolve(nextAdAt === null ? null : { nextAdDate: new Date(nextAdAt) })
-    ),
+    require: fakeRequire(StreamingPlatform.TWITCH, { ads: { getNextAdBreak } }),
     announce: vi.fn((messageFor: (p: StreamingPlatform) => string | null) => {
       posted.push({
         twitch: messageFor(StreamingPlatform.TWITCH),
@@ -41,7 +43,7 @@ function setup(settings: BreakSettings = DEFAULT_BREAK_SETTINGS) {
   );
   return {
     eventBus,
-    streamControl,
+    getNextAdBreak,
     posted,
     scheduler,
     setNextAd: (at: number | null) => {
@@ -120,21 +122,21 @@ describe('AdWarningScheduler', () => {
   });
 
   it('says nothing when Twitch is offline or unavailable', async () => {
-    const { posted, scheduler, setNextAd, setUnavailable, streamControl } = setup();
+    const { posted, scheduler, setNextAd, setUnavailable, getNextAdBreak } = setup();
     setNextAd(null);
     scheduler.start();
     await vi.advanceTimersByTimeAsync(10 * MINUTE);
     expect(posted).toHaveLength(0);
 
     setUnavailable('Twitch needs re-authorization');
-    streamControl.getNextAdBreak.mockClear();
+    getNextAdBreak.mockClear();
     await vi.advanceTimersByTimeAsync(10 * MINUTE);
-    expect(streamControl.getNextAdBreak).not.toHaveBeenCalled();
+    expect(getNextAdBreak).not.toHaveBeenCalled();
     scheduler.stop();
   });
 
   it('does nothing when automatic breaks are disabled', async () => {
-    const { posted, scheduler, streamControl } = setup({
+    const { posted, scheduler, getNextAdBreak } = setup({
       ...DEFAULT_BREAK_SETTINGS,
       enabled: false,
     });
@@ -143,15 +145,15 @@ describe('AdWarningScheduler', () => {
     await vi.advanceTimersByTimeAsync(10 * MINUTE);
 
     expect(posted).toHaveLength(0);
-    expect(streamControl.getNextAdBreak).not.toHaveBeenCalled();
+    expect(getNextAdBreak).not.toHaveBeenCalled();
     scheduler.stop();
   });
 
   it('re-reads the schedule once Twitch becomes available', async () => {
-    const { eventBus, scheduler, streamControl } = setup();
+    const { eventBus, scheduler, getNextAdBreak } = setup();
     scheduler.start();
     await vi.advanceTimersByTimeAsync(0);
-    streamControl.getNextAdBreak.mockClear();
+    getNextAdBreak.mockClear();
 
     eventBus.emitSync('platform.availability', {
       platform: StreamingPlatform.TWITCH,
@@ -160,7 +162,7 @@ describe('AdWarningScheduler', () => {
     });
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(streamControl.getNextAdBreak).toHaveBeenCalledOnce();
+    expect(getNextAdBreak).toHaveBeenCalledOnce();
     scheduler.stop();
   });
 

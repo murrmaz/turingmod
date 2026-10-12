@@ -33,10 +33,9 @@ export class AccountageCommand implements ICommand {
   async execute(context: CommandContext): Promise<CommandResult> {
     const { user } = context;
     try {
-      const createdAt = await this.streamControl.getAccountCreatedAt(
-        context.platform,
-        user.platformUserId
-      );
+      const createdAt = await this.streamControl
+        .require(context.platform, 'accountAge')
+        .getAccountCreatedAt(user.platformUserId);
       if (!createdAt) {
         return { success: true, message: `@${user.username}, I couldn't find your account` };
       }

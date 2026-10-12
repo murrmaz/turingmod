@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
+import { StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import { NotAuthenticatedError } from '../platforms/errors.js';
@@ -206,26 +206,28 @@ describe('RewardSync', () => {
     );
   });
 
-  it('syncs when the Twitch API connects', async () => {
+  it('syncs when Twitch becomes available', async () => {
     registry.register(banAWord);
 
-    eventBus.emitSync('integration.status', {
-      name: 'twitch-auth',
-      status: IntegrationStatus.CONNECTED,
+    eventBus.emitSync('platform.availability', {
+      platform: StreamingPlatform.TWITCH,
+      available: false,
+      reason: 'Twitch authorization expired',
     });
-    eventBus.emitSync('integration.status', {
-      name: 'twitch-api',
-      status: IntegrationStatus.ERROR,
+    eventBus.emitSync('platform.availability', {
+      platform: StreamingPlatform.YOUTUBE,
+      available: true,
+      reason: null,
     });
     expect(streamControl.getChannelRewards).not.toHaveBeenCalled();
 
-    eventBus.emitSync('integration.status', {
-      name: 'twitch-api',
-      status: IntegrationStatus.CONNECTED,
+    eventBus.emitSync('platform.availability', {
+      platform: StreamingPlatform.TWITCH,
+      available: true,
+      reason: null,
     });
-    await sync.requestSync();
 
-    expect(streamControl.getChannelRewards).toHaveBeenCalled();
+    await vi.waitFor(() => expect(streamControl.getChannelRewards).toHaveBeenCalledOnce());
   });
 
   it('coalesces requests made during a pass into one more pass', async () => {

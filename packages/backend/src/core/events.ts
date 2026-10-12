@@ -25,6 +25,9 @@ export interface EventMap {
   'integration.tokenRefreshed': IntegrationTokenRefreshedEvent;
   'oauth.callback': OAuthCallbackEvent;
 
+  /** A platform became usable or stopped being usable (see PlatformAvailability). */
+  'platform.availability': PlatformAvailabilityEvent;
+
   'stream.break.started': StreamBreakEvent;
   'stream.break.ended': StreamBreakEvent;
 
@@ -83,6 +86,13 @@ export interface OAuthCallbackEvent {
   integrationName: string;
   code: string;
   clientId: string;
+}
+
+export interface PlatformAvailabilityEvent {
+  platform: StreamingPlatform;
+  available: boolean;
+  /** Why it can't be acted on, when it can't; the façade's `getUnavailableReason()`. */
+  reason: string | null;
 }
 
 /** What started a break. Ad breaks come from Twitch; manual ones from `!break`. */

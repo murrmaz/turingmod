@@ -29,6 +29,7 @@ const EVENT_CATEGORIES: Partial<Record<EventName, ActivityCategory>> = {
   'obs.record.stateChanged': ActivityCategory.EVENT,
   'obs.sceneItem.stateChanged': ActivityCategory.EVENT,
   'integration.status': ActivityCategory.STATUS,
+  'platform.availability': ActivityCategory.STATUS,
   'integration.error': ActivityCategory.ERROR,
 };
 

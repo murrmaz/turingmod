@@ -1,4 +1,4 @@
-import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
+import { StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
@@ -57,8 +57,8 @@ export class AdWarningScheduler {
       }),
       // Twitch going live, or its auth recovering, is the moment a schedule appears.
       this.eventBus.on('twitch.stream.online', () => this.schedulePoll(POST_BREAK_REPOLL_MS)),
-      this.eventBus.on('integration.status', (event) => {
-        if (event.name === 'twitch-api' && event.status === IntegrationStatus.CONNECTED) {
+      this.eventBus.on('platform.availability', (event) => {
+        if (event.platform === StreamingPlatform.TWITCH && event.available) {
           this.schedulePoll(0);
         }
       })

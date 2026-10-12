@@ -40,6 +40,7 @@ import { YouTubeChatIntegration } from './integrations/implementations/youtube/Y
 import { LurkTracker } from './lurk/LurkTracker.js';
 import { ChatRouter } from './platforms/ChatRouter.js';
 import { OwnChatMessages } from './platforms/OwnChatMessages.js';
+import { PlatformAvailability } from './platforms/PlatformAvailability.js';
 import { PlatformRegistry } from './platforms/PlatformRegistry.js';
 import { TwitchPlatform } from './platforms/TwitchPlatform.js';
 import { YouTubePlatform } from './platforms/YouTubePlatform.js';
@@ -186,6 +187,7 @@ export async function initializeComponents(): Promise<void> {
   const platformRegistry = container.resolve(PlatformRegistry);
   platformRegistry.register(container.resolve(TwitchPlatform));
   platformRegistry.register(container.resolve(YouTubePlatform));
+  container.resolve(PlatformAvailability).start();
 
   // Gate raw chat (dropping TuringMod's own messages), then start the live
   // chat→command→reply loop on what passes.

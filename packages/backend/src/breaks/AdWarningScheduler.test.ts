@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
+import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import type { PlatformRegistry } from '../platforms/PlatformRegistry.js';
@@ -147,15 +147,16 @@ describe('AdWarningScheduler', () => {
     scheduler.stop();
   });
 
-  it('re-reads the schedule once Twitch API connects', async () => {
+  it('re-reads the schedule once Twitch becomes available', async () => {
     const { eventBus, scheduler, streamControl } = setup();
     scheduler.start();
     await vi.advanceTimersByTimeAsync(0);
     streamControl.getNextAdBreak.mockClear();
 
-    eventBus.emitSync('integration.status', {
-      name: 'twitch-api',
-      status: IntegrationStatus.CONNECTED,
+    eventBus.emitSync('platform.availability', {
+      platform: StreamingPlatform.TWITCH,
+      available: true,
+      reason: null,
     });
     await vi.advanceTimersByTimeAsync(0);
 

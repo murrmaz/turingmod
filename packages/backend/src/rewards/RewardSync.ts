@@ -1,4 +1,4 @@
-import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
+import { StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { NotAuthenticatedError } from '../platforms/errors.js';
@@ -42,7 +42,7 @@ export function rewardSettingsFor(handler: IRewardHandler): ChannelRewardSetting
  * Keeps each reward handler's channel point reward in step with its definition: created when
  * missing, corrected when its settings drift, and paused during stream breaks if it asks to be.
  *
- * Runs when the Twitch API connects (startup, and again after re-authorization) and whenever a
+ * Runs when Twitch becomes available (startup, and again after re-authorization) and whenever a
  * break starts or ends. Each pass compares against what Twitch currently has, so it is safe to
  * repeat; requests that arrive mid-pass are coalesced into one more pass.
  *
@@ -77,8 +77,8 @@ export class RewardSync {
     if (this.started) return;
     this.started = true;
 
-    this.eventBus.on('integration.status', (event) => {
-      if (event.name === 'twitch-api' && event.status === IntegrationStatus.CONNECTED) {
+    this.eventBus.on('platform.availability', (event) => {
+      if (event.platform === StreamingPlatform.TWITCH && event.available) {
         void this.requestSync();
       }
     });

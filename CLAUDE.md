@@ -56,6 +56,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Registry**: `packages/backend/src/platforms/PlatformRegistry.ts` (Platform → façade)
 - **Mirroring/reads**: `packages/backend/src/platforms/StreamControlService.ts` — the seam commands depend on
 - **Auth reporting**: `packages/backend/src/platforms/availability.ts` (`unavailableReason`) + `errors.ts` (`NotAuthenticatedError`)
+- **Availability events**: `packages/backend/src/platforms/PlatformAvailability.ts` — publishes `platform.availability` when a façade becomes usable or stops being usable
 - **Chat routing**: `packages/backend/src/platforms/ChatRouter.ts` (moderate → parse → execute → reply); message shape + `parseCommand` in `chatMessage.ts`
 - **Own-message gate**: `packages/backend/src/platforms/OwnChatMessages.ts` — records sent message ids; republishes `chat.received` as `chat.message` minus TuringMod's own
 - **Display names**: `packages/backend/src/platforms/platformNames.ts`
@@ -266,6 +267,11 @@ can recover it automatically — an expired access token is refreshed transparen
 (`commands/utils/commandErrors.ts`) maps to a `NOT_AUTHENTICATED` result; mirrored *writes* instead
 call `getUnavailableReason()` and log a warning, because a mirror replies in public chat where the
 broadcaster's token state doesn't belong.
+
+**Features react to a platform recovering through `platform.availability`, not `integration.status`.**
+`PlatformAvailability` re-checks every façade's `getUnavailableReason()` on each integration status
+change and publishes only transitions, so a feature like `RewardSync` ("Twitch is back, sync
+rewards") never needs to know which integration name decides a platform's availability.
 
 ### Stream Breaks
 

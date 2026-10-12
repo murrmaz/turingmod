@@ -52,6 +52,7 @@ const contextFor = (permissionLevel: PermissionLevel): CommandContext => ({
 describe('CommandExecutor cooldowns', () => {
   let command: ICommand;
   let executor: CommandExecutor;
+  let eventBus: { emit: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     command = dualModeCommand(30);
@@ -60,11 +61,14 @@ describe('CommandExecutor cooldowns', () => {
       create: vi.fn(() => Promise.resolve()),
     } as unknown as CommandHistoryRepository;
     const platforms = { capabilitiesFor: () => new Set() } as unknown as PlatformRegistry;
-    const eventBus = {
-      emit: vi.fn(),
-      emitAsync: vi.fn(() => Promise.resolve()),
-    } as unknown as EventBus;
-    executor = new CommandExecutor(registry, history, platforms, eventBus, makeLogger());
+    eventBus = { emit: vi.fn(() => Promise.resolve()) };
+    executor = new CommandExecutor(
+      registry,
+      history,
+      platforms,
+      eventBus as unknown as EventBus,
+      makeLogger()
+    );
   });
 
   it('throttles a viewer on the second invocation', async () => {
@@ -76,6 +80,18 @@ describe('CommandExecutor cooldowns', () => {
     expect(first.success).toBe(true);
     expect(second.success).toBe(false);
     expect(second.error?.code).toBe('COMMAND_ON_COOLDOWN');
+  });
+
+  it('records a cooldown rejection in the activity log', async () => {
+    const context = contextFor(PermissionLevel.VIEWER);
+
+    await executor.execute(context);
+    await executor.execute(context);
+
+    expect(eventBus.emit).toHaveBeenLastCalledWith(
+      'command.executed',
+      expect.objectContaining({ command: 'game', errorCode: 'COMMAND_ON_COOLDOWN' })
+    );
   });
 
   it('exempts a moderator, so the write branch stays responsive', async () => {

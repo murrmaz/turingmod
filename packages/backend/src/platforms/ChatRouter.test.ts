@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
+import { type CommandResult, PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { CommandExecutor } from '../commands/CommandExecutor.js';
 import { EventBus } from '../core/EventBus.js';
@@ -15,11 +15,14 @@ const makeLogger = () => {
   return logger as unknown as Logger & typeof logger;
 };
 
-function setup(verdict: ModerationVerdict = 'allowed') {
+function setup(
+  verdict: ModerationVerdict = 'allowed',
+  result: CommandResult = { success: true, message: 'Bonked!' }
+) {
   const logger = makeLogger();
   const eventBus = new EventBus(logger);
   const executor = {
-    execute: vi.fn(() => Promise.resolve({ success: true, message: 'Bonked!' })),
+    execute: vi.fn(() => Promise.resolve(result)),
   };
   const twitch = { sendChatMessage: vi.fn(() => Promise.resolve()) };
   const moderator = { review: vi.fn(() => Promise.resolve(verdict)) };
@@ -31,7 +34,7 @@ function setup(verdict: ModerationVerdict = 'allowed') {
     logger
   );
   router.start();
-  return { eventBus, executor, twitch, moderator };
+  return { eventBus, executor, twitch, moderator, logger };
 }
 
 describe('ChatRouter', () => {
@@ -72,5 +75,48 @@ describe('ChatRouter', () => {
     await vi.waitFor(() => expect(moderator.review).toHaveBeenCalled());
 
     expect(executor.execute).not.toHaveBeenCalled();
+  });
+
+  const failure = (code: string, message: string): CommandResult => ({
+    success: false,
+    message,
+    error: { code, message },
+  });
+
+  it('stays silent in chat for an unrecognized command, logging it at debug', async () => {
+    const { eventBus, executor, twitch, logger } = setup(
+      'allowed',
+      failure('COMMAND_NOT_FOUND', 'Unknown command: sr')
+    );
+
+    await eventBus.emit('chat.message', chatMessage('!sr some song'));
+    await vi.waitFor(() => expect(executor.execute).toHaveBeenCalled());
+
+    expect(twitch.sendChatMessage).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('sr'));
+  });
+
+  it.each([
+    'INSUFFICIENT_PERMISSIONS',
+    'COMMAND_ON_COOLDOWN',
+    'EXECUTION_NOT_ALLOWED',
+    'EXECUTION_ERROR',
+  ])('stays silent in chat for %s', async (code) => {
+    const { eventBus, executor, twitch } = setup('allowed', failure(code, 'Nope'));
+
+    await eventBus.emit('chat.message', chatMessage('!delvod'));
+    await vi.waitFor(() => expect(executor.execute).toHaveBeenCalled());
+
+    expect(twitch.sendChatMessage).not.toHaveBeenCalled();
+  });
+
+  it('still replies with a failure the command reported itself', async () => {
+    const { eventBus, twitch } = setup('allowed', failure('INVALID_INPUT', 'Usage: !so <channel>'));
+
+    await eventBus.emit('chat.message', chatMessage('!so'));
+
+    await vi.waitFor(() =>
+      expect(twitch.sendChatMessage).toHaveBeenCalledWith('Usage: !so <channel>')
+    );
   });
 });

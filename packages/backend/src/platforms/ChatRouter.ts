@@ -1,6 +1,6 @@
 import type { CommandContext } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
-import { CommandExecutor } from '../commands/CommandExecutor.js';
+import { CommandExecutor, EXECUTOR_ERROR_CODES } from '../commands/CommandExecutor.js';
 import { EventBus } from '../core/EventBus.js';
 import { ChatModerator } from '../moderation/ChatModerator.js';
 import { Logger } from '../utils/Logger.js';
@@ -18,8 +18,6 @@ import { PlatformRegistry } from './PlatformRegistry.js';
 @injectable()
 @singleton()
 export class ChatRouter {
-  private readonly liveLoopEnabled = true;
-
   private logger: Logger;
 
   constructor(
@@ -32,13 +30,8 @@ export class ChatRouter {
     this.logger = logger.child({ component: 'ChatRouter' });
   }
 
-  /** Subscribe to `chat.message` and route replies, unless the live loop is disabled. */
+  /** Subscribe to `chat.message` and route replies. */
   start(): void {
-    if (!this.liveLoopEnabled) {
-      this.logger.info('ChatRouter live loop disabled (Phase 5 deferred)');
-      return;
-    }
-
     this.eventBus.on<ChatMessageEvent>('chat.message', (event) => {
       void this.handleChatMessage(event);
     });
@@ -71,6 +64,17 @@ export class ChatRouter {
     };
 
     const result = await this.commandExecutor.execute(context);
+
+    // Failures CommandExecutor produced itself get no reply in chat: an unknown `!word` is often
+    // meant for another bot, and permission and cooldown rejections are in the activity log.
+    // Failures a command reported (usage, "game not found") still reach the viewer.
+    const errorCode = result.error?.code;
+    if (errorCode !== undefined && EXECUTOR_ERROR_CODES.has(errorCode)) {
+      if (errorCode === 'COMMAND_NOT_FOUND') {
+        this.logger.debug(`Unrecognized command from ${event.username}: ${parsed.command}`);
+      }
+      return;
+    }
 
     // A command can deliberately reply with nothing, e.g. when it announces its outcome to
     // every platform itself.

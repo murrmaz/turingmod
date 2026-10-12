@@ -9,6 +9,19 @@ import { CommandRegistry } from './CommandRegistry.js';
 import type { ICommand } from './interfaces/ICommand.js';
 
 /**
+ * Error codes CommandExecutor produces itself, as opposed to a failure a command reported. They
+ * describe the invocation (unknown command, not allowed, on cooldown, crashed), so ChatRouter
+ * doesn't reply to them in public chat; the activity log records each one.
+ */
+export const EXECUTOR_ERROR_CODES: ReadonlySet<string> = new Set([
+  'COMMAND_NOT_FOUND',
+  'INSUFFICIENT_PERMISSIONS',
+  'COMMAND_ON_COOLDOWN',
+  'EXECUTION_NOT_ALLOWED',
+  'EXECUTION_ERROR',
+]);
+
+/**
  * Cooldown tracker
  */
 interface CooldownEntry {
@@ -108,7 +121,8 @@ export class CommandExecutor {
             details: { remainingSeconds },
           },
         };
-        return result; // Don't log cooldown rejections
+        await this.logExecution(commandName, context, result);
+        return result;
       }
     }
 

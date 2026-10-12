@@ -37,6 +37,7 @@ import { TwitchEventSubIntegration } from './integrations/implementations/twitch
 import { YouTubeApiIntegration } from './integrations/implementations/youtube/YouTubeApiIntegration.js';
 import { YouTubeAuthIntegration } from './integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import { YouTubeChatIntegration } from './integrations/implementations/youtube/YouTubeChatIntegration.js';
+import { LurkTracker } from './lurk/LurkTracker.js';
 import { ChatRouter } from './platforms/ChatRouter.js';
 import { PlatformRegistry } from './platforms/PlatformRegistry.js';
 import { TwitchPlatform } from './platforms/TwitchPlatform.js';
@@ -194,10 +195,12 @@ export async function initializeComponents(): Promise<void> {
   container.resolve(RewardRouter).start();
   container.resolve(RaidShoutout).start();
 
-  // Chat services: the interval-message rotation (stopped in Application.stop()) and clip
-  // collection, which listens to chat but only collects while switched on.
+  // Chat services: the interval-message rotation (stopped in Application.stop()), clip
+  // collection (listens to chat, but only collects while switched on), and the lurk list, which
+  // welcomes lurkers back when they chat again.
   container.resolve(IntervalAnnouncer).start();
   container.resolve(ClipCollector).start();
+  container.resolve(LurkTracker).start();
 
   // Start forwarding EventBus activity to the live tail (broadcast) and activity_log (persist).
   container.resolve(ActivityForwarder).start();

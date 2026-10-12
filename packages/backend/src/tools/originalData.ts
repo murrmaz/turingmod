@@ -3,6 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type { BannedWordRepository } from '../database/repositories/BannedWordRepository.js';
 import { COUNTERS, type CounterRepository } from '../database/repositories/CounterRepository.js';
 import type { IntervalMessageRepository } from '../database/repositories/IntervalMessageRepository.js';
+import type { SuggestionRepository } from '../database/repositories/SuggestionRepository.js';
 
 /** What the original bot kept, as read from its SQLite database and `data/` files. */
 export interface OriginalData {
@@ -15,6 +16,8 @@ export interface OriginalData {
   voiceCracks: number | null;
   /** `data/banned_words.json`: word → date banned. */
   bannedWords: { word: string; bannedAt: number }[];
+  /** `data/suggestions.txt`, one suggestion per line. */
+  suggestions: string[];
 }
 
 type Row = Record<string, unknown>;
@@ -25,7 +28,9 @@ type Row = Record<string, unknown>;
  * tables, and reads `num` from `voicecracks` and `deaths` from `death_count`. Missing tables are
  * treated as empty, so a partial database still imports what it has.
  */
-export function readOriginalDatabase(path: string): Omit<OriginalData, 'bannedWords'> {
+export function readOriginalDatabase(
+  path: string
+): Omit<OriginalData, 'bannedWords' | 'suggestions'> {
   const db = new DatabaseSync(path, { readOnly: true });
   try {
     const tables = new Set(
@@ -84,6 +89,14 @@ export async function readBannedWords(
   }));
 }
 
+/** Read `suggestions.txt`, which `!sg` appended one suggestion per line to. */
+export async function readSuggestions(path: string): Promise<string[]> {
+  return (await readFile(path, 'utf8'))
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+}
+
 function parseOriginalDate(value: unknown): number | null {
   const match = typeof value === 'string' ? /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value) : null;
   if (!match) return null;
@@ -95,6 +108,7 @@ export interface ImportTargets {
   bannedWords: BannedWordRepository;
   counters: CounterRepository;
   intervalMessages: IntervalMessageRepository;
+  suggestions: SuggestionRepository;
 }
 
 /**
@@ -137,6 +151,17 @@ export async function importOriginalData(
   }
   report.push(
     `Banned words: ${banned} imported, ${data.bannedWords.length - banned} already present`
+  );
+
+  let suggested = 0;
+  for (const suggestion of data.suggestions) {
+    if (!(await targets.suggestions.has(suggestion))) {
+      await targets.suggestions.add(suggestion, null);
+      suggested++;
+    }
+  }
+  report.push(
+    `Suggestions: ${suggested} imported, ${data.suggestions.length - suggested} already present`
   );
 
   if (data.customCommands.length > 0) {

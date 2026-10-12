@@ -6,6 +6,7 @@ import { MigrationRunner } from '../database/migrations/MigrationRunner.js';
 import { BannedWordRepository } from '../database/repositories/BannedWordRepository.js';
 import { CounterRepository } from '../database/repositories/CounterRepository.js';
 import { IntervalMessageRepository } from '../database/repositories/IntervalMessageRepository.js';
+import { SuggestionRepository } from '../database/repositories/SuggestionRepository.js';
 import { resolveDbPath } from '../utils/Config.js';
 import { Logger } from '../utils/Logger.js';
 import {
@@ -13,6 +14,7 @@ import {
   type OriginalData,
   readBannedWords,
   readOriginalDatabase,
+  readSuggestions,
 } from './originalData.js';
 
 const USAGE = `Import the original TuringMod's data into this TuringMod's database.
@@ -22,6 +24,7 @@ const USAGE = `Import the original TuringMod's data into this TuringMod's databa
 Options:
   --db <path>             The original bot's SQLite database (it used G:/sqlite3/test.db)
   --banned-words <path>   The original's data/banned_words.json
+  --suggestions <path>    The original's data/suggestions.txt
   --dry-run               Report what would be imported without writing anything
 
 Writes to the database TuringMod itself uses (DB_PATH, or turingmod.db in the working
@@ -35,6 +38,7 @@ async function main(): Promise<number> {
     options: {
       db: { type: 'string' },
       'banned-words': { type: 'string' },
+      suggestions: { type: 'string' },
       'dry-run': { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
     },
@@ -47,6 +51,7 @@ async function main(): Promise<number> {
   const data: OriginalData = {
     ...readOriginalDatabase(values.db),
     bannedWords: values['banned-words'] ? await readBannedWords(values['banned-words']) : [],
+    suggestions: values.suggestions ? await readSuggestions(values.suggestions) : [],
   };
 
   const logger = new Logger({ level: 'warn' });
@@ -63,6 +68,7 @@ async function main(): Promise<number> {
           bannedWords: new BannedWordRepository(db),
           counters: new CounterRepository(db),
           intervalMessages: new IntervalMessageRepository(db),
+          suggestions: new SuggestionRepository(db),
         });
         if (values['dry-run']) throw new DryRun();
       });

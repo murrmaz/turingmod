@@ -8,12 +8,14 @@ import type { DatabaseManager } from '../database/DatabaseManager.js';
 import { BannedWordRepository } from '../database/repositories/BannedWordRepository.js';
 import { COUNTERS, CounterRepository } from '../database/repositories/CounterRepository.js';
 import { IntervalMessageRepository } from '../database/repositories/IntervalMessageRepository.js';
+import { SuggestionRepository } from '../database/repositories/SuggestionRepository.js';
 import { createTestDatabase } from '../database/repositories/testDatabase.js';
 import {
   importOriginalData,
   type OriginalData,
   readBannedWords,
   readOriginalDatabase,
+  readSuggestions,
 } from './originalData.js';
 
 /** An original-bot database, shaped the way its sqlite_db.js reads and writes it. */
@@ -59,6 +61,7 @@ describe('original data import', () => {
     bannedWords: new BannedWordRepository(db),
     counters: new CounterRepository(db),
     intervalMessages: new IntervalMessageRepository(db),
+    suggestions: new SuggestionRepository(db),
   });
 
   it("reads the original's tables, trimming the trailing space it saved messages with", () => {
@@ -83,6 +86,13 @@ describe('original data import', () => {
     expect(readOriginalDatabase(path)).toMatchObject({ deaths: null, voiceCracks: null });
   });
 
+  it('reads suggestions.txt one per line, skipping blanks', async () => {
+    const path = join(dir, 'suggestions.txt');
+    await writeFile(path, 'a quote command\r\n\nmore bonk\n');
+
+    expect(await readSuggestions(path)).toEqual(['a quote command', 'more bonk']);
+  });
+
   it("reads banned_words.json, including the original's unpadded day", async () => {
     const path = join(dir, 'banned_words.json');
     await writeFile(path, JSON.stringify({ cheese: '03/5/2024', moist: 'not a date' }));
@@ -99,6 +109,7 @@ describe('original data import', () => {
     deaths: 12,
     voiceCracks: 57,
     bannedWords: [{ word: 'cheese', bannedAt: 1000 }],
+    suggestions: ['add a quote command'],
   };
 
   it('imports everything and lists custom commands to port by hand', async () => {
@@ -115,6 +126,7 @@ describe('original data import', () => {
       'Deaths: set to 12',
       'Voice cracks: set to 57',
       'Banned words: 1 imported, 0 already present',
+      'Suggestions: 1 imported, 0 already present',
       'Custom commands to port to code (1; not imported):',
       '  !discord → Join the discord',
     ]);
@@ -131,5 +143,6 @@ describe('original data import', () => {
     expect(report).toContain('Interval messages: 0 imported, 1 already present');
     expect(report).toContain('Deaths: kept the existing 13 (the original had 12)');
     expect(report).toContain('Banned words: 0 imported, 1 already present');
+    expect(report).toContain('Suggestions: 0 imported, 1 already present');
   });
 });

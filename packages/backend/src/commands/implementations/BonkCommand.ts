@@ -5,6 +5,9 @@ import { CLIPS } from '../../sounds/clips.js';
 import { SoundLibrary } from '../../sounds/SoundLibrary.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 
+/** How often a bonk of someone else lands on the bonker instead. */
+export const BONK_REVOLT_CHANCE = 0.1;
+
 /**
  * Example command: !bonk
  * Bonks a user (playful command for demonstration)
@@ -27,7 +30,10 @@ export class BonkCommand implements ICommand {
     const { user, args } = context;
 
     // Parse target from args (e.g., "!bonk @username")
-    const target = args[1]?.replace(/^@/, '') || user.username;
+    const requested = args[1]?.replace(/^@/, '') || user.username;
+    // One time in ten the bot turns on whoever asked, as the original did.
+    const revolt = requested !== user.username && Math.random() < BONK_REVOLT_CHANCE;
+    const target = revolt ? user.username : requested;
 
     // Increment bonk count
     const currentCount = this.bonkCounts.get(target) || 0;
@@ -35,8 +41,9 @@ export class BonkCommand implements ICommand {
     this.bonkCounts.set(target, newCount);
 
     // Generate response message
-    const message =
-      target === user.username
+    const message = revolt
+      ? `The bot got tired of doing whatever the meatbags want and bonked ${user.username} instead (Total: ${newCount})`
+      : target === user.username
         ? `${user.username} bonked themselves! (Total: ${newCount})`
         : `${user.username} bonked ${target}! (Total: ${newCount})`;
 
@@ -49,6 +56,7 @@ export class BonkCommand implements ICommand {
         target,
         bonkCount: newCount,
         bonkedBy: user.username,
+        revolt,
       },
     });
   }

@@ -225,31 +225,39 @@ reached through `StreamControlService`.
 
 ## 9. Commands (P2, mechanical once the above exists)
 
-Already ported: `!title`, `!game`, `!tags`, `!cw`, `!ad`, `!schedule`, `!uptime`, `!who`, `!bonk`
-(partial), `!break` (new).
+Already ported before this pass: `!title`, `!game`, `!tags`, `!cw`, `!ad`, `!schedule`, `!uptime`,
+`!who`, `!bonk`, `!break` (new).
 
-**Needs a section above first**
+**Ported** (wording follows the original's replies unless noted)
 
-- [ ] `!so` (section 1/7)
-- [ ] `!died`, `!rdeaths`, `!voice` (section 5, counters table)
-- [ ] `!quiet` (section 6)
-- [ ] `!startcollect`, `!endcollect` (section 6)
-- [ ] `!snooze`, `!followage`, `!accountage`, `!delvod` (section 7)
-- [ ] `!skip` (section 4)
+- [x] `!so <channel>` (mod): the raid shoutout message plus a native shoutout, which is best-effort
+- [x] `!died`, `!rdeaths` (mod), `!voice` (anyone, 30s per-viewer cooldown): `counters` table
+- [x] `!quiet` (mod): toggles `ChatModerator`'s quiet mode; Twitch only
+- [x] `!startcollect`, `!endcollect` (mod): `ClipCollector`; the file path goes to the log, not chat
+- [x] `!snooze` (mod), also says when the next ad now is
+- [x] `!followage`, `!accountage` (anyone, 30s cooldown); `!followage` keeps the streamer joke
+- [x] `!delvod` (mod): refuses to run from the command simulator, since it deletes a real VOD
+- [x] `!skip` (mod): stops any playing sound, silently
+- [x] `!lurk [reason]`, `!unlurk`, `!leave`: `LurkTracker`, in memory; chatting again (not a
+      command) also welcomes a lurker back, as before. `!leave` now says goodbye whether or not the
+      viewer was lurking, as the original README described (its code required lurking)
+- [x] `!roll [n]d<sides>[r<min>]`, `!flip`, `!time` (America/Chicago, zone abbreviation follows
+      daylight saving; the original always said "CST"). `!roll` caps at 1000 dice / 1,000,000 sides
+- [x] `!sg <suggestion>` (30s cooldown), `!suggestionlist`: new `suggestions` table. The list shows
+      the 5 latest (the original showed the first 5 lines of a file he pruned by hand). The import
+      tool takes `--suggestions <suggestions.txt>`
+- [x] `!bonk`: the 1-in-10 "the bot got tired of doing whatever the meatbags want" revolt is back;
+      counts stay in memory
 
-**Standalone**
+**Still to do**
 
-- [ ] Convert his existing chat-defined custom commands (the original's `!addcommand` entries) into
-      code. List what's in his database, then port the ones he actually uses, e.g. as simple
-      static-response command files. The runtime `!addcommand` / `!editcommand` / `!removecommand` /
-      `!customlist` commands are not migrating, because commands are code in this design
+- [ ] Convert his existing chat-defined custom commands into code. The import tool lists them
+      (name → message) when run against his database; port the ones he still uses as small
+      static-reply command files
+- [ ] `!gitchanges` and `!echo` (the original's `@desabotage`-only command) are not ported. The first
+      reported the original repository's commit stats, which no longer mean anything; the second
+      is a gag for one viewer. Add either back if he wants them
 
-- [ ] `!lurk`, `!unlurk`, `!leave`
-- [ ] `!roll`, `!flip`, `!time`
-- [ ] `!sg`, `!suggestionlist`
-- [ ] `!bonk`: restore the 1-in-10 "the bot revolts" gag; persist counts if wanted
-- [ ] `!gitchanges`, `!echo` (the original's `@desabotage`-only command): low value, decide
-      whether to keep
-
-**Not migrating:** `!addcommand` / `!editcommand` / `!removecommand` / `!customlist` (see above), `!wave` (Arduino), `!wikirand`, `!spacepic`, `!freegame`, `!test`, `!shutdown`
-(the console already controls the lifecycle).
+**Not migrating:** `!addcommand` / `!editcommand` / `!removecommand` / `!customlist` (commands are
+code now), `!wave` (Arduino), `!wikirand`, `!spacepic`, `!freegame`, `!test`, `!shutdown` (the
+console already controls the lifecycle).

@@ -69,6 +69,19 @@ export interface ChannelReward extends ChannelRewardSettings {
 /** Changes to apply to an existing reward. */
 export type ChannelRewardChanges = Partial<ChannelRewardSettings> & { isPaused?: boolean };
 
+/** A clip of a stream. */
+export interface ClipInfo {
+  id: string;
+  url: string;
+  title: string;
+  /** Who clipped it. */
+  creatorName: string;
+  /** Whose stream it's from. */
+  broadcasterName: string;
+  views: number;
+  createdAt: Date;
+}
+
 /** How a queued redemption ends: completed, or canceled with the viewer's points refunded. */
 export type RedemptionOutcome = 'fulfilled' | 'canceled';
 
@@ -163,4 +176,13 @@ export interface IStreamPlatform {
     redemptionId: string,
     outcome: RedemptionOutcome
   ): Promise<void>;
+
+  /** Time a user out of chat. Requires PlatformCapability.MODERATION. */
+  timeoutUser?(userId: string, seconds: number, reason: string): Promise<void>;
+
+  /** Delete one chat message. Requires PlatformCapability.MODERATION. */
+  deleteChatMessage?(messageId: string): Promise<void>;
+
+  /** Look up a clip by id; null if there's no such clip. Requires PlatformCapability.CLIPS. */
+  getClip?(clipId: string): Promise<ClipInfo | null>;
 }

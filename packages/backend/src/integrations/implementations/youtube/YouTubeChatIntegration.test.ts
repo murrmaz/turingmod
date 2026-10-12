@@ -300,49 +300,31 @@ describe('YouTubeChatIntegration', () => {
         permissionLevel: PermissionLevel.VIEWER,
         badges: [],
         timestamp: expect.any(Number),
+        messageId: 'msg-1',
+        channelId: 'UC_broadcaster',
       });
     });
 
-    it('emits chat.command for a !-prefixed message', async () => {
-      const commands: Record<string, unknown>[] = [];
-      eventBus.on<Record<string, unknown>>('chat.command', (data) => {
+    it('emits commands as ordinary chat.message events, leaving parsing to ChatRouter', async () => {
+      const commands: unknown[] = [];
+      eventBus.on('chat.command', (data) => {
         commands.push(data);
+      });
+      const messages: Record<string, unknown>[] = [];
+      eventBus.on<Record<string, unknown>>('chat.message', (data) => {
+        messages.push(data);
       });
 
       await connect();
       call.emitData({ items: [textMessage('!bonk someone', { isChatModerator: true })] });
       await flush();
 
-      expect(commands).toHaveLength(1);
-      expect(commands[0]).toEqual({
-        command: 'bonk',
-        args: ['bonk', 'someone'],
-        user: {
-          id: 'UC_viewer',
-          platform: StreamingPlatform.YOUTUBE,
-          platformUserId: 'UC_viewer',
-          username: 'someviewer',
-          permissionLevel: PermissionLevel.MODERATOR,
-        },
-        platform: StreamingPlatform.YOUTUBE,
-        metadata: {
-          badges: ['moderator'],
-          channelId: 'UC_broadcaster',
-        },
-      });
-    });
-
-    it('does not emit chat.command for ordinary chat', async () => {
-      const commands: unknown[] = [];
-      eventBus.on('chat.command', (data) => {
-        commands.push(data);
-      });
-
-      await connect();
-      call.emitData({ items: [textMessage('just talking')] });
-      await flush();
-
       expect(commands).toEqual([]);
+      expect(messages[0]).toMatchObject({
+        message: '!bonk someone',
+        permissionLevel: PermissionLevel.MODERATOR,
+        badges: ['moderator'],
+      });
     });
   });
 

@@ -15,8 +15,10 @@ import {
 } from '@turingmod/shared';
 import { container, instanceCachingFactory } from 'tsyringe';
 import { ActivityForwarder } from './activity/ActivityForwarder.js';
+import { IntervalAnnouncer } from './announcements/IntervalAnnouncer.js';
 import { AdWarningScheduler } from './breaks/AdWarningScheduler.js';
 import { BreakService } from './breaks/BreakService.js';
+import { ClipCollector } from './clips/ClipCollector.js';
 import { CommandRegistry } from './commands/CommandRegistry.js';
 import { loadCommands } from './commands/loadCommands.js';
 import { EventBus } from './core/EventBus.js';
@@ -191,6 +193,11 @@ export async function initializeComponents(): Promise<void> {
   container.resolve(RewardSync).start();
   container.resolve(RewardRouter).start();
   container.resolve(RaidShoutout).start();
+
+  // Chat services: the interval-message rotation (stopped in Application.stop()) and clip
+  // collection, which listens to chat but only collects while switched on.
+  container.resolve(IntervalAnnouncer).start();
+  container.resolve(ClipCollector).start();
 
   // Start forwarding EventBus activity to the live tail (broadcast) and activity_log (persist).
   container.resolve(ActivityForwarder).start();

@@ -1,15 +1,12 @@
 import { access } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { IntegrationStatus } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import { SoundIntegration } from '../integrations/implementations/sound/SoundIntegration.js';
 import { Logger } from '../utils/Logger.js';
+import { DATA_DIRECTORY } from '../utils/paths.js';
 import { parseSoundSettings, SOUND_SETTINGS_KEY } from './soundSettings.js';
-
-/** `packages/backend/data`, where the bundled clips live. */
-const BUNDLED_DIRECTORY = fileURLToPath(new URL('../../data/', import.meta.url));
 
 /**
  * Plays sound clips by name. Names are looked up in the library directory (the `sounds`
@@ -35,7 +32,7 @@ export class SoundLibrary {
   async resolve(name: string): Promise<string> {
     if (isAbsolute(name)) return name;
     const { directory } = await this.settings();
-    return join(directory ?? BUNDLED_DIRECTORY, name);
+    return join(directory ?? DATA_DIRECTORY, name);
   }
 
   /**

@@ -225,6 +225,13 @@ export class TwitchApiIntegration extends BaseIntegration {
   }
 
   /**
+   * Look up a clip by id
+   */
+  async getClipById(clipId: string) {
+    return await this.call((apiClient) => apiClient.clips.getClipById(clipId));
+  }
+
+  /**
    * Send a chat message
    */
   async sendChatMessage(broadcasterId: string, message: string) {

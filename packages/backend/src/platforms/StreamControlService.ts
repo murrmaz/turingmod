@@ -7,6 +7,7 @@ import type {
   ChannelReward,
   ChannelRewardChanges,
   ChannelRewardSettings,
+  ClipInfo,
   IStreamPlatform,
   RedemptionOutcome,
   ScheduleSegment,
@@ -87,6 +88,11 @@ export class StreamControlService {
       throw new Error(`Platform not available: ${platform}`);
     }
     return target.sendChatMessage(message);
+  }
+
+  /** Whether a platform is registered and advertises `capability`. */
+  supports(platform: StreamingPlatform, capability: PlatformCapability): boolean {
+    return this.registry.get(platform)?.getCapabilities().has(capability) ?? false;
   }
 
   /** Read current stream metadata from the platform the command originated on. */
@@ -198,6 +204,34 @@ export class StreamControlService {
       PlatformCapability.CHANNEL_POINTS,
       'resolveRedemption'
     )(rewardId, redemptionId, outcome);
+  }
+
+  /** Time a user out of a platform's chat. */
+  async timeoutUser(
+    platform: StreamingPlatform,
+    userId: string,
+    seconds: number,
+    reason: string
+  ): Promise<void> {
+    return await this.capableMethod(platform, PlatformCapability.MODERATION, 'timeoutUser')(
+      userId,
+      seconds,
+      reason
+    );
+  }
+
+  /** Delete one message from a platform's chat. */
+  async deleteChatMessage(platform: StreamingPlatform, messageId: string): Promise<void> {
+    return await this.capableMethod(
+      platform,
+      PlatformCapability.MODERATION,
+      'deleteChatMessage'
+    )(messageId);
+  }
+
+  /** Look up a clip on a platform; null if there's no such clip. */
+  async getClip(platform: StreamingPlatform, clipId: string): Promise<ClipInfo | null> {
+    return await this.capableMethod(platform, PlatformCapability.CLIPS, 'getClip')(clipId);
   }
 
   /**

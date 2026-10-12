@@ -22,4 +22,6 @@ export enum PlatformCapability {
   BROADCASTER_ABOUT = 'broadcaster_about', // Twitch only (channel bio/description lookups)
   SHOUTOUT = 'shoutout', // Twitch only (native /shoutout)
   CHANNEL_POINTS = 'channel_points', // Twitch only (custom rewards and their redemptions)
+  MODERATION = 'moderation', // Twitch only for now (timeouts, deleting messages)
+  CLIPS = 'clips', // Twitch only (clip lookups)
 }

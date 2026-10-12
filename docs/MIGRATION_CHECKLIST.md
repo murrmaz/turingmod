@@ -149,23 +149,39 @@ Done: migration `002_feature_data` adds the feature tables, and `npm run import:
 - [ ] Run it against his real database in the dress rehearsal. The schema is inferred, so check the
       report against what he expects (e.g. his death count)
 - [x] Lurk list and bonk counts stay in memory: both were per-session in the original too
-- [ ] Ban expiry: "Ban A Word" promises "a single month", but the original never unbanned anything.
-      `banned_at` is stored (imported from the JSON dates), so the filter in section 6 can expire
-      words after a month, or not. Decide before building the filter; with expiry, words he banned
-      long ago stop being enforced
+- [x] Ban expiry: decided — bans lapse after 30 days, as the reward promises (the original never
+      unbanned anything). Imported words keep their original dates, so ones he banned over a month
+      ago are no longer enforced
 - [ ] Suggestions (`data/suggestions.txt`): not imported yet; belongs with `!sg` / `!suggestionlist`
       (section 9), which will need a table of its own
 
 ## 6. Chat services (P1)
 
-- [ ] Interval announcer: scheduled rotation through interval messages (original: every 30 min)
-      via `StreamControlService.announce()`; skip when offline
-- [ ] Message filter stage before command dispatch: banned words → timeout + reply, quiet mode
-      (remove `@streamer` mentions), with a toggle in settings
-- [ ] Moderation capability on the façade: timeout, delete message (Helix wrappers exist)
-- [ ] Ban-a-word reward handler (depends on sections 1 and 5)
-- [ ] Clip collection state and HTML export (original `!startcollect` / `!endcollect`);
-      `createClip` exists on the Twitch API wrapper
+Done. Chat now flows through one pipeline: both chat integrations emit only `chat.message`, and
+`ChatRouter` screens each message with `ChatModerator` before parsing and running any command, so a
+banned word can't ride in on a command.
+
+- [x] Interval announcer (`announcements/IntervalAnnouncer.ts`): every 30 minutes, the next interval
+      message in order, to every live platform via `StreamControlService.announce()`. While nothing
+      is live the rotation doesn't advance. Posted as a normal chat message (the original used a
+      Twitch announcement, which is highlighted)
+- [x] Moderation (`moderation/ChatModerator.ts`), on platforms with the new `MODERATION` capability
+      (Twitch; YouTube chat isn't moderated yet):
+      - banned words: a viewer saying one gets the original's "penal colony" reply and a 10-second
+        timeout, and the message (and any command in it) goes no further. Whole words only,
+        punctuation and case ignored
+      - quiet mode: while on, non-command messages @-mentioning the streamer are deleted (the
+        original timed the viewer out for a second, which also deleted the message). Off at
+        startup, like the original; `setQuietMode()` is ready for `!quiet`
+      - the broadcaster is exempt from both, as in the original (moderators aren't, though Twitch
+        won't time a moderator out)
+- [x] Moderation capability on the façade: `timeoutUser`, `deleteChatMessage`
+- [x] Ban A Word reward (100000, input required): bans exactly one word for **30 days**, then it
+      lapses and can be banned again. Anything else, or an already-banned word, is refused with a
+      chat reply and refunded (the original asked the viewer to find a mod for a refund)
+- [x] Clip collection (`clips/ClipCollector.ts`): while on, Twitch clip links in chat are checked
+      with Twitch (new `CLIPS` capability) and kept once each; turning it off writes an HTML list
+      to `packages/backend/data/clips/`. `begin()`/`end()` are ready for `!startcollect`/`!endcollect`
 
 ## 7. Platform façade additions (P1, enables the mechanical command work)
 

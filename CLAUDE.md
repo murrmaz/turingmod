@@ -56,7 +56,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Registry**: `packages/backend/src/platforms/PlatformRegistry.ts` (Platform → façade)
 - **Mirroring/reads**: `packages/backend/src/platforms/StreamControlService.ts` — the seam commands depend on
 - **Auth reporting**: `packages/backend/src/platforms/availability.ts` (`unavailableReason`) + `errors.ts` (`NotAuthenticatedError`)
-- **Chat routing**: `packages/backend/src/platforms/ChatRouter.ts`
+- **Chat routing**: `packages/backend/src/platforms/ChatRouter.ts` (moderate → parse → execute → reply); message shape + `parseCommand` in `chatMessage.ts`
 - **Display names**: `packages/backend/src/platforms/platformNames.ts`
 
 ### Channel Point Rewards & Raids
@@ -77,6 +77,11 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Library**: `packages/backend/src/sounds/SoundLibrary.ts` — plays clips by name from the library directory
 - **Clip names**: `packages/backend/src/sounds/clips.ts`; settings in `soundSettings.ts`, stored under the `sounds` key
 - **Playback**: `packages/backend/src/integrations/implementations/sound/SoundIntegration.ts` (per-OS player processes)
+
+### Chat Services
+- **Moderation**: `packages/backend/src/moderation/ChatModerator.ts` (banned words, quiet mode) + `bannedWords.ts` (matching, 30-day expiry)
+- **Interval messages**: `packages/backend/src/announcements/IntervalAnnouncer.ts`
+- **Clip collection**: `packages/backend/src/clips/ClipCollector.ts`
 
 ### Stream Breaks
 - **Lifecycle**: `packages/backend/src/breaks/BreakService.ts` — starts/extends/ends breaks; listens for `twitch.ad.break`; emits `stream.break.started`/`.ended`
@@ -317,6 +322,16 @@ otherwise, so a sound-only reward is refunded; `tryPlay()` logs instead, for cal
 is incidental (`!bonk`, the Bonk reward, break sounds). Neither waits for the clip to end.
 `SoundIntegration` tracks its player processes, so a clip can be cut off after `maxDurationMs` and
 `stopAll()` silences everything; an intentional kill counts as a normal end, not an error.
+
+### Chat Pipeline
+
+Each chat integration emits one `chat.message` (`ChatMessageEvent`) per message and nothing else;
+commands are not parsed at the source. `ChatRouter` takes it from there: `ChatModerator.review()`
+first, and only a message it allows is parsed with `parseCommand()` and executed. That order is the
+point — a command can't carry a banned word past the filter. Moderation acts only on platforms
+with the `MODERATION` capability and always exempts the broadcaster. Banned words are data
+(`banned_words`, written by the Ban A Word reward) and lapse 30 days after being banned. Other
+listeners on `chat.message` (activity log, `ClipCollector`) see every message, moderated or not.
 
 ### Frontend State
 

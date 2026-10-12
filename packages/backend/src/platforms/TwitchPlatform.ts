@@ -10,6 +10,7 @@ import type {
   ChannelReward,
   ChannelRewardChanges,
   ChannelRewardSettings,
+  ClipInfo,
   IStreamPlatform,
   RedemptionOutcome,
   ScheduleSegment,
@@ -46,6 +47,8 @@ export class TwitchPlatform implements IStreamPlatform {
       PlatformCapability.BROADCASTER_ABOUT,
       PlatformCapability.SHOUTOUT,
       PlatformCapability.CHANNEL_POINTS,
+      PlatformCapability.MODERATION,
+      PlatformCapability.CLIPS,
     ]);
   }
 
@@ -227,6 +230,33 @@ export class TwitchPlatform implements IStreamPlatform {
       [redemptionId],
       outcome === 'fulfilled' ? 'FULFILLED' : 'CANCELED'
     );
+  }
+
+  async timeoutUser(userId: string, seconds: number, reason: string): Promise<void> {
+    const broadcasterId = this.requireUserId();
+    await this.api.timeoutUser(broadcasterId, userId, seconds, reason);
+  }
+
+  async deleteChatMessage(messageId: string): Promise<void> {
+    const broadcasterId = this.requireUserId();
+    await this.api.deleteChatMessage(broadcasterId, messageId);
+  }
+
+  async getClip(clipId: string): Promise<ClipInfo | null> {
+    this.requireUserId();
+    const clip = await this.api.getClipById(clipId);
+    if (!clip) {
+      return null;
+    }
+    return {
+      id: clip.id,
+      url: clip.url,
+      title: clip.title,
+      creatorName: clip.creatorDisplayName,
+      broadcasterName: clip.broadcasterDisplayName,
+      views: clip.views,
+      createdAt: clip.creationDate,
+    };
   }
 
   /**

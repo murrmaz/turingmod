@@ -10,6 +10,7 @@ import type { EventSubChannelChatMessageEvent } from '@twurple/eventsub-base';
 import { EventSubWsListener } from '@twurple/eventsub-ws';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
+import type { ChatMessageEvent } from '../../../platforms/chatMessage.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IIntegration } from '../../interfaces/IIntegration.js';
@@ -351,8 +352,8 @@ export class TwitchEventSubIntegration extends BaseIntegration {
     const badgeNames = Object.keys(event.badges);
     const permissionLevel = this.getPermissionFromBadges(badgeNames, isBroadcaster);
 
-    // Emit chat message event
-    this.eventBus.emit('chat.message', {
+    // Commands are parsed out by ChatRouter, after moderation.
+    this.eventBus.emit<ChatMessageEvent>('chat.message', {
       platform: StreamingPlatform.TWITCH,
       platformUserId: event.chatterId,
       username: event.chatterDisplayName,
@@ -360,31 +361,10 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       permissionLevel,
       badges: badgeNames,
       timestamp: Date.now(),
+      messageId: event.messageId,
+      channelId: event.broadcasterId,
+      channelName: event.broadcasterName,
     });
-
-    // Check if message is a command (starts with !)
-    if (event.messageText.startsWith('!')) {
-      const parts = event.messageText.slice(1).split(' ');
-      const commandName = parts[0] || '';
-      const args = parts;
-
-      this.eventBus.emit('chat.command', {
-        command: commandName,
-        args,
-        user: {
-          id: event.chatterId,
-          platform: StreamingPlatform.TWITCH,
-          platformUserId: event.chatterId,
-          username: event.chatterDisplayName,
-          permissionLevel,
-        },
-        platform: StreamingPlatform.TWITCH,
-        metadata: {
-          badges: badgeNames,
-          channelId: event.broadcasterId,
-        },
-      });
-    }
   }
 
   /**

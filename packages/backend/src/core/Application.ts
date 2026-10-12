@@ -6,6 +6,7 @@ import {
   type YouTubeChatState,
 } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
+import { IntervalAnnouncer } from '../announcements/IntervalAnnouncer.js';
 import { AdWarningScheduler } from '../breaks/AdWarningScheduler.js';
 import { BreakService } from '../breaks/BreakService.js';
 import { DatabaseManager } from '../database/DatabaseManager.js';
@@ -34,6 +35,7 @@ export class Application {
     private breakService: BreakService,
     private adWarningScheduler: AdWarningScheduler,
     private facecamEffects: FacecamEffectRunner,
+    private intervalAnnouncer: IntervalAnnouncer,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'Application' });
@@ -138,6 +140,7 @@ export class Application {
     //    connected, so shutting down mid-effect or mid-break doesn't leave the facecam
     //    spinning, or the streamer hidden and muted.
     await this.facecamEffects.stop();
+    this.intervalAnnouncer.stop();
     this.adWarningScheduler.stop();
     await this.breakService.stop();
 

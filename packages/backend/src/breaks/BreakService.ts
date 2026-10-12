@@ -2,6 +2,7 @@ import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
+import { SoundLibrary } from '../sounds/SoundLibrary.js';
 import { formatCountdown } from '../utils/FormatHelpers.js';
 import { Logger } from '../utils/Logger.js';
 import {
@@ -65,6 +66,7 @@ export class BreakService {
     private settingsRepo: SettingsRepository,
     private overlay: ObsBreakOverlay,
     private streamControl: StreamControlService,
+    private sounds: SoundLibrary,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'BreakService' });
@@ -228,9 +230,9 @@ export class BreakService {
     }
   }
 
-  private playSound(filePath: string | null): void {
-    if (filePath) {
-      this.eventBus.emitSync<{ filePath: string }>('sound.play', { filePath });
+  private playSound(clip: string | null): void {
+    if (clip) {
+      void this.sounds.tryPlay(clip);
     }
   }
 }

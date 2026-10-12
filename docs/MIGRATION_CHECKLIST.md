@@ -74,9 +74,9 @@ handler's definition, through a new `CHANNEL_POINTS` platform capability.
 - [x] Facecam reward definitions carried into their handlers (section 3): Australia, Barrel Roll,
       Wide Pope, Long Pope, Bonk (500 each); Screen Saver Camera (1000, "Turn my face cam into a DVD
       screen saver"), all paused during breaks
-- [ ] Remaining original reward definitions (sections 4, 6): Jumpscare (5000, "Just be funny when you hit this please"); Ban A Word
-      (100000, "Bans a SINGLE word for a single month", input required). American Jumpscare has a
-      handler in the original but no definition; get its cost from his dashboard
+- [x] Jumpscare (5000, "Just be funny when you hit this please") and American Jumpscare (section 4)
+- [ ] Remaining original reward definition (section 6): Ban A Word
+      (100000, "Bans a SINGLE word for a single month", input required)
 
 ## 3. OBS effects engine (P0)
 
@@ -105,14 +105,26 @@ handlers for the six facecam rewards, with the original costs and prompts.
 
 ## 4. Sound (P1)
 
-`SoundIntegration` plays a file at a volume on `sound.play`. The original used VLC and a folder of
-clips with a few behaviours the new one lacks.
+Done: `sounds/SoundLibrary.ts` plays clips by name, and the two jumpscare rewards exist.
 
-- [ ] Sound library: configurable directory of assets; copy the original's clips across
-      (ad warning, ad done, bonk, jumpscares 1–5, gunshot). Only `bonk.mp3` ships today
-- [ ] Stop / clear queue (original `!skip`, `kill_audio`, `empty_playlist`)
-- [ ] Random-pick helper for the jumpscare variants
-- [ ] Ad warning / ad done sounds wired to the ad flow (section 2)
+- [x] Sound library: clips are looked up by name in a directory (the `sounds` setting: `directory`,
+      default `packages/backend/data`, and `volume`, default 0.5). Every clip name the code uses is
+      listed in `sounds/clips.ts`. Personal clips in `packages/backend/data` are gitignored
+- [ ] Copy the original's clips into the library directory, or point `sounds.directory` at them. They
+      are **not in the original repository** (its `.gitignore` excludes `*.mp3`/`*.wav`), so they
+      have to come from his machine: `jumpscare_1.mp3`–`jumpscare_5.mp3`, `gunshot.mp3`,
+      `ad warn.wav`, `ad done.wav`. `bonk.mp3` ships with the repo (the original used `bonk.wav`)
+- [x] Stop / cut short: `SoundLibrary.stopAll()` (for a future `!skip`), and `maxDurationMs` per clip
+      (jumpscares play two seconds, as in the original)
+- [x] Random pick for the jumpscare variants
+- [x] Ad warning / ad done sounds: the break already plays `breaks.sounds.breakStarted`/`breakEnded`;
+      these now resolve through the library. Set them to `ad warn.wav` / `ad done.wav` (section 8)
+- [x] Jumpscare (5000, original prompt) and American Jumpscare reward handlers. Neither pauses during
+      breaks, as in the original. A missing clip or stopped sound refunds the redemption; Bonk only
+      logs it, since its squash still plays
+- [ ] American Jumpscare's cost is a placeholder (5000, same as Jumpscare): the original never
+      defined it. Set the real one in `AmericanJumpscareReward.ts` from his dashboard before he
+      deletes the old reward
 
 ## 5. Persistence (P0)
 
@@ -154,6 +166,10 @@ These are Helix calls that exist on `TwitchApiIntegration` but are not exposed t
 
 - [ ] Replace hard-coded values from the original: channel name, bot account name, OBS
       host/port/password (it used port 4444), audio paths, Windows-only launch of Firefox/VLC
+- [ ] A way to edit settings. `breaks`, `effects` and `sounds` live in the `settings` table, but
+      nothing in the console or chat writes them, so today they can only be changed with a SQLite
+      client. At minimum he needs `breaks.sounds` set to `ad warn.wav` / `ad done.wav`, and possibly
+      `effects.facecamSource` and `sounds.directory`
 - [ ] Confirm chat send identity: the original spoke as a separate bot account via `tmi.js`.
       Decide whether the new bot should send as that account or the broadcaster
 - [ ] Re-run Twitch OAuth in the new console (also required on existing dev setups: the

@@ -1,9 +1,8 @@
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
-import { EventBus } from '../../core/EventBus.js';
+import { CLIPS } from '../../sounds/clips.js';
+import { SoundLibrary } from '../../sounds/SoundLibrary.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 
 /**
@@ -21,12 +20,8 @@ export class BonkCommand implements ICommand {
   readonly requiredCapabilities: PlatformCapability[] = [];
 
   private bonkCounts = new Map<string, number>();
-  private bonkSoundPath: string;
 
-  constructor(private eventBus: EventBus) {
-    const dirname = fileURLToPath(new URL('.', import.meta.url));
-    this.bonkSoundPath = join(dirname, '..', '..', '..', 'data', 'bonk.mp3');
-  }
+  constructor(private sounds: SoundLibrary) {}
 
   execute(context: CommandContext): Promise<CommandResult> {
     const { user, args } = context;
@@ -45,9 +40,7 @@ export class BonkCommand implements ICommand {
         ? `${user.username} bonked themselves! (Total: ${newCount})`
         : `${user.username} bonked ${target}! (Total: ${newCount})`;
 
-    this.eventBus.emitSync<{ filePath: string }>('sound.play', {
-      filePath: this.bonkSoundPath,
-    });
+    void this.sounds.tryPlay(CLIPS.bonk);
 
     return Promise.resolve({
       success: true,

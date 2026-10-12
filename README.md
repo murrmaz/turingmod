@@ -15,12 +15,12 @@ The Swiss Army knife of stream automation — chat commands, music, Discord, OBS
 
 - **Backend**: Node.js + TypeScript + WebSocket
 - **Frontend**: React + Cloudscape UI + Vite
-- **Database**: SQLite3 (sql.js - pure JavaScript, no native compilation)
+- **Database**: SQLite via Node's built-in `node:sqlite` (no native compilation)
 - **Architecture**: SOLID principles with dependency injection
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 22.5+ (required for `node:sqlite`)
 - npm 9+
 
 ## Quick Start

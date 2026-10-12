@@ -1,6 +1,7 @@
 import type { StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
+import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { Logger } from '../utils/Logger.js';
 import { PlatformRegistry } from './PlatformRegistry.js';
 
@@ -17,7 +18,8 @@ import { PlatformRegistry } from './PlatformRegistry.js';
  */
 @injectable()
 @singleton()
-export class PlatformAvailability {
+export class PlatformAvailability implements IService {
+  private subscriptions = new Subscriptions();
   private available = new Map<StreamingPlatform, boolean>();
   private logger: Logger;
 
@@ -34,7 +36,11 @@ export class PlatformAvailability {
     for (const platform of this.registry.getAll()) {
       this.available.set(platform.platform, platform.getUnavailableReason() === null);
     }
-    this.eventBus.on('integration.status', () => this.recheck());
+    this.subscriptions.add(this.eventBus.on('integration.status', () => this.recheck()));
+  }
+
+  stop(): void {
+    this.subscriptions.clear();
   }
 
   private recheck(): void {

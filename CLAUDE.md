@@ -110,6 +110,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **DI**: [tsyringe](https://github.com/microsoft/tsyringe) — `@injectable()`/`@singleton()` on class definitions; `registerRootFactories()` in `setup.ts` for the handful of classes tsyringe can't auto-construct
 - **EventBus**: `packages/backend/src/core/EventBus.ts`; every event name and payload type in `core/events.ts` (`EventMap`)
 - **Application**: `packages/backend/src/core/Application.ts`
+- **Feature service lifecycle**: `packages/backend/src/core/ServiceLifecycle.ts` (`IService`, `Subscriptions`); the ordered service list is in `setup.ts`
 - **Setup/Bootstrap**: `packages/backend/src/setup.ts`
 - **Entry Point**: `packages/backend/src/index.ts`
 
@@ -135,6 +136,15 @@ Entry point: `packages/backend/src/index.ts` → calls `registerRootFactories()`
 A handful of classes take primitives or derived values rather than other injectable classes (e.g. `Logger`'s log level, `DatabaseManager`'s file path, `Encryption`'s master password + DB-stored salt, `HttpServer`/`WebSocketServer`'s port/host/allowed-origins) — these can't be auto-constructed from decorated parameters, so they're registered via `container.register(Token, { useFactory: instanceCachingFactory(...) })` in `registerRootFactories()` (`setup.ts`) instead. `instanceCachingFactory` preserves the old container's lazy-singleton semantics, which matters for `Encryption`: its factory reads a salt from the database and must not run before `initializeDatabase()` has created the schema.
 
 Commands remain auto-discovered by directory scan (`loadCommands.ts`): each file's default-exported class is `@injectable()`, and the loader calls `container.resolve(mod.default)` instead of registering it anywhere — tsyringe can construct any `@injectable()` class on demand, so dropping a new command file in `commands/implementations/` still requires no other wiring.
+
+**Feature services** (chat routing, rewards, breaks, effects, announcers — anything that isn't an
+integration but subscribes to the bus or holds timers) implement `IService` and are added, in
+order, to `ServiceLifecycle` in `setup.ts`. `Application` starts them before integrations, so a
+subscriber sees the `platform.availability` changes that connecting causes, and stops them in
+reverse before integrations, so a service can still reach OBS or Twitch to undo what it did.
+Triggers (chat, redemptions, raids) go last in the list so they stop first: nothing new can start a
+break or an effect while those are being restored. Each service keeps its bus subscriptions in a
+`Subscriptions` and clears them in `stop()`.
 
 **Message routing**: WebSocket messages arrive at `WebSocketServer` → `MessageRouter` dispatches by `MessageType` → handler classes (`CommandHandler`, `IntegrationHandler`, `OAuthHandler`) process and return response messages.
 
@@ -283,8 +293,8 @@ is always of the pre-break state. `ObsBreakOverlay` sets absolute states from th
 `ToggleInputMute`-style toggles) and covers every scene on every canvas, which keeps the Aitum
 Vertical canvas in step and makes a mid-break scene switch harmless. `AdWarningScheduler` warns chat
 ahead of Twitch's scheduled ads, re-reading the schedule before each warning because snoozes and
-manual ads move it. `Application.stop()` ends a running break before stopping integrations, so OBS
-is still connected to restore it. Chat fan-out goes through `StreamControlService.announce()`, which
+manual ads move it. Shutdown ends a running break before stopping integrations, so OBS is still
+connected to restore it, and `BreakService` refuses new breaks once stopped. Chat fan-out goes through `StreamControlService.announce()`, which
 shares the live-platform/auth-skip loop with the mirrored writes.
 
 ### Channel Point Rewards & Raids
@@ -316,7 +326,7 @@ Reward handlers play visual gags on the facecam through `FacecamEffectRunner`. A
 (`FacecamEffect`) only describes motion against an `EffectContext`; the runner does the rest. It
 plays effects one at a time — two effects on one source would each capture the other's
 mid-animation state as the "original" — finds the facecam afresh for each one, and restores it in a
-`finally`, so an effect that throws, or is cut short by `Application.stop()`, still leaves the
+`finally`, so an effect that throws, or is cut short at shutdown, still leaves the
 facecam where it was. Filters an effect adds are removed the same way. A run rejects when it can't
 play (OBS down, no facecam), which makes `RewardRouter` refund the redemption.
 
@@ -408,6 +418,7 @@ Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend b
   `getAuthClient()`) — the API layers compare the reference to decide whether to rebuild, so
   returning a fresh object per call makes them rebuild on every access.
 - **Integration lifecycle** — always call `initialize(config)` before `start()`.
+- **New feature services** implement `IService` and get one `services.add(...)` line in `setup.ts`, placed by what they depend on at shutdown — never start or stop them anywhere else.
 - **New commands** go in `packages/backend/src/commands/implementations/` and implement `ICommand`. They're auto-discovered by `loadCommands()`.
 - **New channel point reward handlers** go in `packages/backend/src/rewards/implementations/` and implement `IRewardHandler`, matched by exact `rewardTitle`. They're auto-discovered by `loadRewardHandlers()`.
 - **Behaviour lives in code, not the database.** Commands and reward handlers are TypeScript classes; a table may hold a feature's own data (a banned-word list, a counter), never its logic.

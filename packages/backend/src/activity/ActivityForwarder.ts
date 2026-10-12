@@ -6,6 +6,7 @@ import {
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { EventName } from '../core/events.js';
+import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { ActivityLogRepository } from '../database/repositories/ActivityLogRepository.js';
 import { WebSocketServer } from '../server/WebSocketServer.js';
 import { Logger } from '../utils/Logger.js';
@@ -39,7 +40,8 @@ const EVENT_CATEGORIES: Partial<Record<EventName, ActivityCategory>> = {
  */
 @injectable()
 @singleton()
-export class ActivityForwarder {
+export class ActivityForwarder implements IService {
+  private subscriptions = new Subscriptions();
   private logger: Logger;
 
   constructor(
@@ -56,8 +58,14 @@ export class ActivityForwarder {
       EventName,
       ActivityCategory,
     ][]) {
-      this.eventBus.on(event, (data: unknown) => this.handleEvent(event, category, data));
+      this.subscriptions.add(
+        this.eventBus.on(event, (data: unknown) => this.handleEvent(event, category, data))
+      );
     }
+  }
+
+  stop(): void {
+    this.subscriptions.clear();
   }
 
   private async handleEvent(

@@ -2,6 +2,7 @@ import { StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { TwitchRaidEvent } from '../core/events.js';
+import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
 import { Logger } from '../utils/Logger.js';
 
@@ -20,8 +21,8 @@ export function raidShoutoutMessage(channelName: string): string {
  */
 @injectable()
 @singleton()
-export class RaidShoutout {
-  private subscribed = false;
+export class RaidShoutout implements IService {
+  private subscriptions = new Subscriptions();
   private logger: Logger;
 
   constructor(
@@ -33,9 +34,11 @@ export class RaidShoutout {
   }
 
   start(): void {
-    if (this.subscribed) return;
-    this.subscribed = true;
-    this.eventBus.on('twitch.raid', (event) => this.onRaid(event));
+    this.subscriptions.add(this.eventBus.on('twitch.raid', (event) => this.onRaid(event)));
+  }
+
+  stop(): void {
+    this.subscriptions.clear();
   }
 
   /** Never rejects: each failure is logged and the other half still runs. */

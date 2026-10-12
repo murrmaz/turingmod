@@ -1,4 +1,5 @@
 import { injectable, singleton } from 'tsyringe';
+import type { IService } from '../core/ServiceLifecycle.js';
 import { IntervalMessageRepository } from '../database/repositories/IntervalMessageRepository.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
 import { Logger } from '../utils/Logger.js';
@@ -14,7 +15,7 @@ export const ANNOUNCEMENT_INTERVAL_MS = 30 * 60 * 1000;
  */
 @injectable()
 @singleton()
-export class IntervalAnnouncer {
+export class IntervalAnnouncer implements IService {
   private timer: NodeJS.Timeout | null = null;
   private next = 0;
   private logger: Logger;

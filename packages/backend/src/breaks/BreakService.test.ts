@@ -202,6 +202,15 @@ describe('BreakService', () => {
     expect(overlay.apply).toHaveBeenCalledOnce(); // no longer listening
   });
 
+  it('refuses to start a break once stopped, so none outlives the OBS connection', async () => {
+    const { overlay, service } = setup();
+    await service.start();
+    await service.stop();
+
+    await expect(service.startBreak('manual', 60)).rejects.toThrow(/shutting down/);
+    expect(overlay.apply).not.toHaveBeenCalled();
+  });
+
   it('still runs and restores the break when chat is unreachable', async () => {
     const { overlay, streamControl, service } = setup();
     streamControl.announce.mockRejectedValue(new Error('chat down'));

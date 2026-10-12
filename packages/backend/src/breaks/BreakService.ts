@@ -1,6 +1,7 @@
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { BreakReason } from '../core/events.js';
+import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
 import { SoundLibrary } from '../sounds/SoundLibrary.js';
@@ -41,10 +42,12 @@ export const MAX_BREAK_SECONDS = 60 * 60;
  */
 @injectable()
 @singleton()
-export class BreakService {
+export class BreakService implements IService {
   private settings: BreakSettings = DEFAULT_BREAK_SETTINGS;
   private active: ActiveBreak | null = null;
-  private unsubscribers: (() => void)[] = [];
+  private subscriptions = new Subscriptions();
+  /** Set by `stop()`; a break can't start after it, or it would outlive OBS's connection. */
+  private stopped = false;
   private logger: Logger;
 
   constructor(
@@ -61,7 +64,7 @@ export class BreakService {
   async start(): Promise<void> {
     await this.reloadSettings();
 
-    this.unsubscribers.push(
+    this.subscriptions.add(
       this.eventBus.on('twitch.ad.break', async (event) => {
         if (!this.settings.enabled) {
           this.logger.info('Twitch ad break started; automatic breaks are disabled');
@@ -72,12 +75,13 @@ export class BreakService {
     );
   }
 
-  /** End any running break (restoring OBS) and stop listening. Call before OBS disconnects. */
+  /**
+   * End any running break (restoring OBS), stop listening, and refuse new breaks. Call before OBS
+   * disconnects.
+   */
   async stop(): Promise<void> {
-    for (const unsubscribe of this.unsubscribers) {
-      unsubscribe();
-    }
-    this.unsubscribers = [];
+    this.stopped = true;
+    this.subscriptions.clear();
     await this.endBreak({ announce: false });
   }
 
@@ -113,6 +117,9 @@ export class BreakService {
     reason: BreakReason,
     durationSeconds: number
   ): Promise<{ extended: boolean; endsAt: number }> {
+    if (this.stopped) {
+      throw new Error('Breaks are stopped: TuringMod is shutting down');
+    }
     if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
       throw new Error(`Invalid break duration: ${durationSeconds}`);
     }

@@ -1,6 +1,7 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
+import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import type { RedemptionOutcome } from '../platforms/interfaces/IStreamPlatform.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
 import { Logger } from '../utils/Logger.js';
@@ -21,8 +22,8 @@ import { RewardSync } from './RewardSync.js';
  */
 @injectable()
 @singleton()
-export class RewardRouter {
-  private subscribed = false;
+export class RewardRouter implements IService {
+  private subscriptions = new Subscriptions();
   private logger: Logger;
 
   constructor(
@@ -36,9 +37,13 @@ export class RewardRouter {
   }
 
   start(): void {
-    if (this.subscribed) return;
-    this.subscribed = true;
-    this.eventBus.on('twitch.channelPoint.redemption', (redemption) => this.route(redemption));
+    this.subscriptions.add(
+      this.eventBus.on('twitch.channelPoint.redemption', (redemption) => this.route(redemption))
+    );
+  }
+
+  stop(): void {
+    this.subscriptions.clear();
   }
 
   /** Run the handler for one redemption. Never rejects: a handler failure is logged here. */

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
+import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import type { ChatMessageEvent } from '../platforms/chatMessage.js';
 import type { ClipInfo } from '../platforms/interfaces/IStreamPlatform.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
@@ -25,9 +26,9 @@ export function clipIdsIn(message: string): string[] {
  */
 @injectable()
 @singleton()
-export class ClipCollector {
+export class ClipCollector implements IService {
+  private subscriptions = new Subscriptions();
   private collecting: Map<string, ClipInfo> | null = null;
-  private subscribed = false;
   private logger: Logger;
 
   constructor(
@@ -40,9 +41,13 @@ export class ClipCollector {
 
   /** Listen to chat. Collection itself starts with `begin()`. */
   start(): void {
-    if (this.subscribed) return;
-    this.subscribed = true;
-    this.eventBus.on('chat.message', (event) => this.collectFrom(event));
+    this.subscriptions.add(this.eventBus.on('chat.message', (event) => this.collectFrom(event)));
+  }
+
+  /** Stop listening, and write out a collection still in progress rather than lose it. */
+  async stop(): Promise<void> {
+    this.subscriptions.clear();
+    await this.end();
   }
 
   isCollecting(): boolean {

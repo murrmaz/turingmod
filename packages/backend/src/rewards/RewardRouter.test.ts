@@ -176,14 +176,14 @@ describe('RewardRouter', () => {
     );
   });
 
-  it('subscribes once however many times it is started', async () => {
+  it('stops routing redemptions once stopped', async () => {
     const bonk = handlerFor('Bonk');
     registry.register(bonk);
-    router.start();
+    router.stop();
 
     await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk'));
 
-    expect(bonk.handle).toHaveBeenCalledTimes(1);
+    expect(bonk.handle).not.toHaveBeenCalled();
   });
 });
 

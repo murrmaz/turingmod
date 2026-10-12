@@ -1,6 +1,7 @@
 import type { StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
+import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { type ChatMessageEvent, parseCommand } from '../platforms/chatMessage.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
 import { formatElapsed } from '../utils/FormatHelpers.js';
@@ -30,9 +31,9 @@ export function welcomeBackMessage(username: string, lurker: Lurker, now = Date.
  */
 @injectable()
 @singleton()
-export class LurkTracker {
+export class LurkTracker implements IService {
+  private subscriptions = new Subscriptions();
   private lurkers = new Map<string, Lurker>();
-  private subscribed = false;
   private logger: Logger;
 
   constructor(
@@ -44,9 +45,11 @@ export class LurkTracker {
   }
 
   start(): void {
-    if (this.subscribed) return;
-    this.subscribed = true;
-    this.eventBus.on('chat.message', (event) => this.welcomeBack(event));
+    this.subscriptions.add(this.eventBus.on('chat.message', (event) => this.welcomeBack(event)));
+  }
+
+  stop(): void {
+    this.subscriptions.clear();
   }
 
   /** Start lurking. Resolves false if they already are. */

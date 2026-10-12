@@ -22,8 +22,10 @@ import { ClipCollector } from './clips/ClipCollector.js';
 import { CommandRegistry } from './commands/CommandRegistry.js';
 import { loadCommands } from './commands/loadCommands.js';
 import { EventBus } from './core/EventBus.js';
+import { ServiceLifecycle } from './core/ServiceLifecycle.js';
 import { DatabaseManager } from './database/DatabaseManager.js';
 import { MigrationRunner } from './database/migrations/MigrationRunner.js';
+import { FacecamEffectRunner } from './effects/FacecamEffectRunner.js';
 import { IntegrationManager } from './integrations/IntegrationManager.js';
 import { ArduinoIntegration } from './integrations/implementations/arduino/ArduinoIntegration.js';
 import { DiscordIntegration } from './integrations/implementations/discord/DiscordIntegration.js';
@@ -187,34 +189,35 @@ export async function initializeComponents(): Promise<void> {
   const platformRegistry = container.resolve(PlatformRegistry);
   platformRegistry.register(container.resolve(TwitchPlatform));
   platformRegistry.register(container.resolve(YouTubePlatform));
-  container.resolve(PlatformAvailability).start();
 
-  // Gate raw chat (dropping TuringMod's own messages), then start the live
-  // chat→command→reply loop on what passes.
-  container.resolve(OwnChatMessages).start();
-  container.resolve(ChatRouter).start();
-
-  // Twitch EventSub reactions: channel point redemptions go to their reward handler, and a raid
-  // gets a shoutout. RewardSync keeps each handler's reward on Twitch matching its definition.
-  container.resolve(RewardSync).start();
-  container.resolve(RewardRouter).start();
-  container.resolve(RaidShoutout).start();
-
-  // Chat services: the interval-message rotation (stopped in Application.stop()), clip
-  // collection (listens to chat, but only collects while switched on), and the lurk list, which
-  // welcomes lurkers back when they chat again.
-  container.resolve(IntervalAnnouncer).start();
-  container.resolve(ClipCollector).start();
-  container.resolve(LurkTracker).start();
-
-  // Start forwarding EventBus activity to the live tail (broadcast) and activity_log (persist).
-  container.resolve(ActivityForwarder).start();
-
-  // Stream breaks: Twitch ad breaks (and !break) take the streamer off camera and mic, and chat
-  // on every platform is warned ahead of scheduled ads. Stopped in Application.stop(), before
-  // integrations, so a break in progress is restored while OBS is still connected.
-  await container.resolve(BreakService).start();
-  container.resolve(AdWarningScheduler).start();
+  // Feature services, started by Application before integrations (so they see the availability
+  // changes connecting causes) and stopped in reverse before integrations (so they can still reach
+  // OBS and Twitch to undo what they did). Whatever triggers actions comes last, so it stops first.
+  const services = container.resolve(ServiceLifecycle);
+  // Publishes platform.availability; snapshots each façade before integrations connect.
+  services.add(container.resolve(PlatformAvailability));
+  // EventBus activity to the live tail (broadcast) and activity_log (persist).
+  services.add(container.resolve(ActivityForwarder));
+  // Keeps each reward handler's reward on Twitch matching its definition. Before BreakService:
+  // ending a break on shutdown unpauses rewards, so this must still be listening.
+  services.add(container.resolve(RewardSync));
+  // Stream breaks: Twitch ad breaks (and !break) take the streamer off camera and mic; stopping
+  // restores OBS. AdWarningScheduler reads its poll interval from the break settings.
+  services.add(container.resolve(BreakService));
+  services.add(container.resolve(AdWarningScheduler));
+  // Stopping cuts a running effect short and restores the facecam.
+  services.add(container.resolve(FacecamEffectRunner));
+  // Chat services: the interval-message rotation, clip collection (only collects while switched
+  // on; stopping writes out a collection in progress), and the lurk list.
+  services.add(container.resolve(IntervalAnnouncer));
+  services.add(container.resolve(ClipCollector));
+  services.add(container.resolve(LurkTracker));
+  // Triggers: raids, channel point redemptions, and chat (gated to drop TuringMod's own messages,
+  // then moderated, parsed and executed).
+  services.add(container.resolve(RaidShoutout));
+  services.add(container.resolve(RewardRouter));
+  services.add(container.resolve(OwnChatMessages));
+  services.add(container.resolve(ChatRouter));
 
   // Register message handlers
   const messageRouter = container.resolve(MessageRouter);

@@ -1,5 +1,6 @@
 import { IntegrationStatus } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
+import type { IService } from '../core/ServiceLifecycle.js';
 import { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import {
   ObsIntegration,
@@ -25,7 +26,7 @@ import { restorableTransform } from './transformMath.js';
  */
 @injectable()
 @singleton()
-export class FacecamEffectRunner {
+export class FacecamEffectRunner implements IService {
   private queue: Promise<void> = Promise.resolve();
   private abort = new AbortController();
   private logger: Logger;

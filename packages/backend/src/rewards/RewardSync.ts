@@ -1,6 +1,7 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
+import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { NotAuthenticatedError } from '../platforms/errors.js';
 import type {
   ChannelReward,
@@ -55,13 +56,13 @@ export function rewardSettingsFor(handler: IRewardHandler): ChannelRewardSetting
  */
 @injectable()
 @singleton()
-export class RewardSync {
+export class RewardSync implements IService {
+  private subscriptions = new Subscriptions();
   private inBreak = false;
   private managedIds = new Set<string>();
   private reportedUnmanageable = new Set<string>();
   private running: Promise<void> | null = null;
   private rerun = false;
-  private started = false;
   private logger: Logger;
 
   constructor(
@@ -74,25 +75,28 @@ export class RewardSync {
   }
 
   start(): void {
-    if (this.started) return;
-    this.started = true;
-
-    this.eventBus.on('platform.availability', (event) => {
-      if (event.platform === StreamingPlatform.TWITCH && event.available) {
+    this.subscriptions.add(
+      this.eventBus.on('platform.availability', (event) => {
+        if (event.platform === StreamingPlatform.TWITCH && event.available) {
+          void this.requestSync();
+        }
+      }),
+      // Not awaited by the break: pausing rewards mustn't hold up the break's own reply.
+      this.eventBus.on('stream.break.started', () => {
+        this.inBreak = true;
         void this.requestSync();
-      }
-    });
-    // Not awaited by the break: pausing rewards mustn't hold up the break's own reply.
-    this.eventBus.on('stream.break.started', () => {
-      this.inBreak = true;
-      void this.requestSync();
-    });
-    // Awaited by the break, so the shutdown path (Application.stop() ends a running break before
-    // stopping integrations) unpauses rewards while Twitch is still connected.
-    this.eventBus.on('stream.break.ended', () => {
-      this.inBreak = false;
-      return this.requestSync();
-    });
+      }),
+      // Awaited by the break, so the shutdown path (BreakService stops before this does, and
+      // both before integrations) unpauses rewards while Twitch is still connected.
+      this.eventBus.on('stream.break.ended', () => {
+        this.inBreak = false;
+        return this.requestSync();
+      })
+    );
+  }
+
+  stop(): void {
+    this.subscriptions.clear();
   }
 
   /** True if the reward was created by TuringMod, so its redemptions can be resolved. */

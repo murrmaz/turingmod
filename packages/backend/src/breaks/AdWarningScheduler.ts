@@ -1,6 +1,7 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
+import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
 import { formatCountdown } from '../utils/FormatHelpers.js';
@@ -25,7 +26,7 @@ const POST_BREAK_REPOLL_MS = 10_000;
  */
 @injectable()
 @singleton()
-export class AdWarningScheduler {
+export class AdWarningScheduler implements IService {
   private pollTimer: NodeJS.Timeout | null = null;
   private repollTimer: NodeJS.Timeout | null = null;
   private warningTimers: NodeJS.Timeout[] = [];
@@ -33,7 +34,7 @@ export class AdWarningScheduler {
   private scheduledFor: number | null = null;
   /** `${nextAdAt}:${leadSeconds}` for warnings already posted, so a re-read can't repeat one. */
   private posted = new Set<string>();
-  private unsubscribers: (() => void)[] = [];
+  private subscriptions = new Subscriptions();
   private logger: Logger;
 
   constructor(
@@ -50,7 +51,7 @@ export class AdWarningScheduler {
     const intervalMs = this.breakService.getSettings().adWarnings.pollIntervalSeconds * 1000;
     this.pollTimer = setInterval(() => void this.poll(), intervalMs);
 
-    this.unsubscribers.push(
+    this.subscriptions.add(
       // The schedule only settles after the ad finishes; read it again then.
       this.eventBus.on('twitch.ad.break', (event) => {
         this.schedulePoll(event.durationSeconds * 1000 + POST_BREAK_REPOLL_MS);
@@ -76,10 +77,7 @@ export class AdWarningScheduler {
       clearTimeout(this.repollTimer);
       this.repollTimer = null;
     }
-    for (const unsubscribe of this.unsubscribers) {
-      unsubscribe();
-    }
-    this.unsubscribers = [];
+    this.subscriptions.clear();
     this.clearWarnings();
   }
 

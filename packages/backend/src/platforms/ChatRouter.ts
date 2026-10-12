@@ -2,6 +2,7 @@ import type { CommandContext } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { CommandExecutor, EXECUTOR_ERROR_CODES } from '../commands/CommandExecutor.js';
 import { EventBus } from '../core/EventBus.js';
+import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { ChatModerator } from '../moderation/ChatModerator.js';
 import { Logger } from '../utils/Logger.js';
 import { type ChatMessageEvent, parseCommand } from './chatMessage.js';
@@ -17,7 +18,8 @@ import { PlatformRegistry } from './PlatformRegistry.js';
  */
 @injectable()
 @singleton()
-export class ChatRouter {
+export class ChatRouter implements IService {
+  private subscriptions = new Subscriptions();
   private logger: Logger;
 
   constructor(
@@ -32,10 +34,16 @@ export class ChatRouter {
 
   /** Subscribe to `chat.message` and route replies. */
   start(): void {
-    this.eventBus.on('chat.message', (event) => {
-      void this.handleChatMessage(event);
-    });
+    this.subscriptions.add(
+      this.eventBus.on('chat.message', (event) => {
+        void this.handleChatMessage(event);
+      })
+    );
     this.logger.info('ChatRouter live loop enabled');
+  }
+
+  stop(): void {
+    this.subscriptions.clear();
   }
 
   /** Screen a message, then execute it if it's a command and post the reply. */

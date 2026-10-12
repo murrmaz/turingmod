@@ -4,16 +4,13 @@ import {
   createYouTubeChatStateMessage,
 } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
-import { IntervalAnnouncer } from '../announcements/IntervalAnnouncer.js';
-import { AdWarningScheduler } from '../breaks/AdWarningScheduler.js';
-import { BreakService } from '../breaks/BreakService.js';
 import { DatabaseManager } from '../database/DatabaseManager.js';
-import { FacecamEffectRunner } from '../effects/FacecamEffectRunner.js';
 import { IntegrationManager } from '../integrations/IntegrationManager.js';
 import { HttpServer } from '../server/HttpServer.js';
 import { WebSocketServer } from '../server/WebSocketServer.js';
 import { Logger } from '../utils/Logger.js';
 import { EventBus } from './EventBus.js';
+import { ServiceLifecycle } from './ServiceLifecycle.js';
 
 /**
  * Main application class
@@ -30,10 +27,7 @@ export class Application {
     private webSocketServer: WebSocketServer,
     private integrationManager: IntegrationManager,
     private eventBus: EventBus,
-    private breakService: BreakService,
-    private adWarningScheduler: AdWarningScheduler,
-    private facecamEffects: FacecamEffectRunner,
-    private intervalAnnouncer: IntervalAnnouncer,
+    private services: ServiceLifecycle,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'Application' });
@@ -67,11 +61,14 @@ export class Application {
     // 2. Attach WebSocket server to HTTP server
     this.webSocketServer.start(this.httpServer.getServer());
 
-    // 3. Start enabled integrations
+    // 3. Start feature services, before integrations so they see what connecting changes
+    await this.services.startAll();
+
+    // 4. Start enabled integrations
     this.logger.info('Starting enabled integrations');
     await this.integrationManager.startEnabledIntegrations();
 
-    // 4. Set up global event handlers
+    // 5. Set up global event handlers
     this.setupEventHandlers();
 
     this.logger.info('TuringMod started successfully! 🚀');
@@ -128,13 +125,11 @@ export class Application {
   async stop(): Promise<void> {
     this.logger.info('Stopping TuringMod...');
 
-    // 1. Cut short any facecam effect and end any break in progress while OBS is still
-    //    connected, so shutting down mid-effect or mid-break doesn't leave the facecam
-    //    spinning, or the streamer hidden and muted.
-    await this.facecamEffects.stop();
-    this.intervalAnnouncer.stop();
-    this.adWarningScheduler.stop();
-    await this.breakService.stop();
+    // 1. Stop feature services while integrations are still connected: chat and redemptions
+    //    stop first, then any facecam effect is cut short and any break ended, so shutting down
+    //    mid-effect or mid-break doesn't leave the facecam spinning, or the streamer hidden and
+    //    muted.
+    await this.services.stopAll();
 
     // 2. Stop integrations
     await this.integrationManager.stopAll();

@@ -51,6 +51,24 @@ describe('ClipCollector', () => {
     for (const path of written) await rm(path, { force: true });
   });
 
+  it('writes out a collection in progress when stopped, and stops listening', async () => {
+    collector.begin();
+    await eventBus.emit('chat.message', chatMessage('https://clips.twitch.tv/First'));
+    const end = vi.spyOn(collector, 'end');
+
+    await collector.stop();
+
+    const result = await end.mock.results[0]?.value;
+    if (!result) throw new Error('stop should have ended the collection');
+    written.push(result.path);
+    expect(result.count).toBe(1);
+    expect(collector.isCollecting()).toBe(false);
+
+    collector.begin();
+    await eventBus.emit('chat.message', chatMessage('https://clips.twitch.tv/Late'));
+    expect(getClip).toHaveBeenCalledTimes(1);
+  });
+
   it('ignores clip links until collection is switched on', async () => {
     await eventBus.emit('chat.message', chatMessage('https://clips.twitch.tv/Early'));
 

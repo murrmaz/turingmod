@@ -1,6 +1,7 @@
 import { PermissionLevel, type StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
+import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { Logger } from '../utils/Logger.js';
 import type { ChatMessageEvent } from './chatMessage.js';
 
@@ -21,7 +22,8 @@ import type { ChatMessageEvent } from './chatMessage.js';
  */
 @injectable()
 @singleton()
-export class OwnChatMessages {
+export class OwnChatMessages implements IService {
+  private subscriptions = new Subscriptions();
   /** How long a sent id is remembered; ingest delivers in seconds, so this is generous. */
   static readonly RETENTION_MS = 5 * 60_000;
 
@@ -39,13 +41,19 @@ export class OwnChatMessages {
 
   /** Republish incoming chat as `chat.message`, minus TuringMod's own messages. */
   start(): void {
-    this.eventBus.on('chat.received', async (event) => {
-      if (await this.isOwn(event)) {
-        this.logger.debug('Ignoring own chat message', { platform: event.platform });
-        return;
-      }
-      await this.eventBus.emit('chat.message', event);
-    });
+    this.subscriptions.add(
+      this.eventBus.on('chat.received', async (event) => {
+        if (await this.isOwn(event)) {
+          this.logger.debug('Ignoring own chat message', { platform: event.platform });
+          return;
+        }
+        await this.eventBus.emit('chat.message', event);
+      })
+    );
+  }
+
+  stop(): void {
+    this.subscriptions.clear();
   }
 
   /**

@@ -101,11 +101,6 @@ export class Application {
       this.webSocketServer.broadcast(createYouTubeChatStateMessage(data.state));
     });
 
-    // Integration errors
-    this.eventBus.on('integration.error', (data) => {
-      this.logger.error('Integration error', data.error, { name: data.name });
-    });
-
     // OAuth callback received: deliver the code only to the client that
     // started this flow (correlated via the `state` value), never broadcast
     // it — any other connected client could otherwise redeem it first.

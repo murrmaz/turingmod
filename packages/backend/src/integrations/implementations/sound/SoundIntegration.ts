@@ -79,7 +79,7 @@ export class SoundIntegration extends BaseIntegration {
       this.logger.debug('Sound playback completed', { filePath });
     } catch (error) {
       this.logger.error('Sound playback failed', error, { filePath });
-      this.emitError(error);
+      this.reportFailure(error);
     }
   }
 

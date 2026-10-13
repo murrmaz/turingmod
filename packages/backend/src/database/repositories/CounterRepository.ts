@@ -13,17 +13,17 @@ export const COUNTERS = {
 export class CounterRepository {
   constructor(private db: DatabaseManager) {}
 
-  get(name: string): Promise<number> {
-    return Promise.resolve(this.find(name) ?? 0);
+  get(name: string): number {
+    return this.find(name) ?? 0;
   }
 
   /** Whether the counter has ever been set. */
-  has(name: string): Promise<boolean> {
-    return Promise.resolve(this.find(name) !== null);
+  has(name: string): boolean {
+    return this.find(name) !== null;
   }
 
-  /** Add `by` (default 1) and resolve to the new value, in one statement so counts never race. */
-  increment(name: string, by = 1): Promise<number> {
+  /** Add `by` (default 1) and return the new value, in one statement so counts never race. */
+  increment(name: string, by = 1): number {
     const row = this.db.queryOne<{ value: number }>(
       `INSERT INTO counters (name, value, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(name) DO UPDATE SET value = value + excluded.value,
@@ -31,16 +31,15 @@ export class CounterRepository {
        RETURNING value`,
       [name, by, Date.now()]
     );
-    return Promise.resolve(row?.value ?? by);
+    return row?.value ?? by;
   }
 
-  set(name: string, value: number): Promise<void> {
+  set(name: string, value: number): void {
     this.db.run(
       `INSERT INTO counters (name, value, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
       [name, value, Date.now()]
     );
-    return Promise.resolve();
   }
 
   private find(name: string): number | null {

@@ -82,13 +82,9 @@ function makeStateRepo(enabled: string[] = []): FakeRepo {
   const enabledSet = new Set(enabled);
   return {
     enabled: enabledSet,
-    updateStatus: vi.fn().mockResolvedValue(undefined),
-    getDecryptedConfig: vi.fn().mockResolvedValue(null),
-    findByName: vi
-      .fn()
-      .mockImplementation((name: string) =>
-        Promise.resolve({ name, enabled: enabledSet.has(name) })
-      ),
+    updateStatus: vi.fn(),
+    getDecryptedConfig: vi.fn().mockReturnValue(null),
+    findByName: vi.fn((name: string) => ({ name, enabled: enabledSet.has(name) })),
   } as unknown as FakeRepo;
 }
 

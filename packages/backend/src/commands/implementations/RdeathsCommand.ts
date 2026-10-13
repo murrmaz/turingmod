@@ -19,9 +19,12 @@ export class RdeathsCommand implements ICommand {
 
   constructor(private counters: CounterRepository) {}
 
-  async execute(context: CommandContext): Promise<CommandResult> {
-    await this.counters.set(COUNTERS.deaths, 0);
-    return { success: true, message: `@${context.user.username}: Death count reset back to zero` };
+  execute(context: CommandContext): Promise<CommandResult> {
+    this.counters.set(COUNTERS.deaths, 0);
+    return Promise.resolve({
+      success: true,
+      message: `@${context.user.username}: Death count reset back to zero`,
+    });
   }
 }
 

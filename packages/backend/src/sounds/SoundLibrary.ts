@@ -29,9 +29,9 @@ export class SoundLibrary {
   }
 
   /** The absolute path a clip name refers to. */
-  async resolve(name: string): Promise<string> {
+  resolve(name: string): string {
     if (isAbsolute(name)) return name;
-    const { directory } = await this.settings();
+    const { directory } = this.settings();
     return join(directory ?? DATA_DIRECTORY, name);
   }
 
@@ -43,14 +43,14 @@ export class SoundLibrary {
     if (this.sound.getStatus() !== IntegrationStatus.CONNECTED) {
       throw new Error('Sound is not running');
     }
-    const path = await this.resolve(name);
+    const path = this.resolve(name);
     try {
       await access(path);
     } catch {
       throw new Error(`Sound clip not found: ${path}`);
     }
 
-    const { volume } = await this.settings();
+    const { volume } = this.settings();
     void this.sound.playSound(path, volume, options.maxDurationMs);
   }
 
@@ -70,7 +70,7 @@ export class SoundLibrary {
     this.sound.stopAll();
   }
 
-  private async settings() {
-    return parseSoundSettings(await this.settingsRepo.getJson(SOUND_SETTINGS_KEY));
+  private settings() {
+    return parseSoundSettings(this.settingsRepo.getJson(SOUND_SETTINGS_KEY));
   }
 }

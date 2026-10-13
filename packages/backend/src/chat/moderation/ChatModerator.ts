@@ -53,7 +53,7 @@ export class ChatModerator {
       return 'allowed';
     }
 
-    const bannedWord = await this.findBannedWord(event.message);
+    const bannedWord = this.findBannedWord(event.message);
     if (bannedWord) {
       await this.punishBannedWord(event, bannedWord);
       return 'blocked';
@@ -69,10 +69,10 @@ export class ChatModerator {
     return 'allowed';
   }
 
-  private async findBannedWord(message: string): Promise<string | null> {
+  private findBannedWord(message: string): string | null {
     let banned: string[];
     try {
-      banned = await this.bannedWords.listActive(banCutoff());
+      banned = this.bannedWords.listActive(banCutoff());
     } catch (error) {
       this.logger.error('Could not read banned words; letting the message through', error);
       return null;

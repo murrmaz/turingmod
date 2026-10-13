@@ -24,7 +24,7 @@ describe('SpotifyAuthIntegration', () => {
 
   beforeEach(async () => {
     vi.stubGlobal('fetch', vi.fn());
-    upsert = vi.fn().mockResolvedValue(undefined);
+    upsert = vi.fn();
     integration = new SpotifyAuthIntegration(
       new Logger({ level: 'silent' }),
       { upsert } as unknown as IntegrationStateRepository,

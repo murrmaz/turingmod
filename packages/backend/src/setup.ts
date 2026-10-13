@@ -141,7 +141,7 @@ export async function initializeDatabase(): Promise<void> {
 
   logger.info('Running database migrations');
   const { ALL_MIGRATIONS } = await import('./database/migrations/index.js');
-  await container.resolve(MigrationRunner).runMigrations([...ALL_MIGRATIONS]);
+  container.resolve(MigrationRunner).runMigrations([...ALL_MIGRATIONS]);
 }
 
 /**

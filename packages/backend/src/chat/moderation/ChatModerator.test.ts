@@ -60,7 +60,7 @@ describe('ChatModerator', () => {
   });
 
   it('times out and calls out a viewer who says a banned word, blocking the message', async () => {
-    await bannedWords.ban('cheese', 'someone');
+    bannedWords.ban('cheese', 'someone');
 
     expect(await moderator.review(chatMessage('I love CHEESE!'))).toBe('blocked');
 
@@ -76,26 +76,26 @@ describe('ChatModerator', () => {
   });
 
   it('blocks a command containing a banned word, so it never runs', async () => {
-    await bannedWords.ban('cheese', null);
+    bannedWords.ban('cheese', null);
 
     expect(await moderator.review(chatMessage('!title cheese stream'))).toBe('blocked');
   });
 
   it('only matches whole words', async () => {
-    await bannedWords.ban('cheese', null);
+    bannedWords.ban('cheese', null);
 
     expect(await moderator.review(chatMessage('cheesecake please'))).toBe('allowed');
   });
 
   it('stops enforcing a ban after a month', async () => {
-    await bannedWords.ban('cheese', null, Date.now() - BAN_DURATION_MS - 1000);
+    bannedWords.ban('cheese', null, Date.now() - BAN_DURATION_MS - 1000);
 
     expect(await moderator.review(chatMessage('cheese'))).toBe('allowed');
     expect(moderation.timeoutUser).not.toHaveBeenCalled();
   });
 
   it('exempts the broadcaster', async () => {
-    await bannedWords.ban('cheese', null);
+    bannedWords.ban('cheese', null);
 
     expect(
       await moderator.review(
@@ -105,7 +105,7 @@ describe('ChatModerator', () => {
   });
 
   it('leaves platforms it cannot moderate alone', async () => {
-    await bannedWords.ban('cheese', null);
+    bannedWords.ban('cheese', null);
 
     expect(
       await moderator.review(chatMessage('cheese', { platform: StreamingPlatform.YOUTUBE }))
@@ -129,7 +129,7 @@ describe('ChatModerator', () => {
   });
 
   it('still blocks the message when acting on it fails', async () => {
-    await bannedWords.ban('cheese', null);
+    bannedWords.ban('cheese', null);
     moderation.timeoutUser.mockRejectedValue(new Error('cannot time out a moderator'));
 
     expect(await moderator.review(chatMessage('cheese'))).toBe('blocked');

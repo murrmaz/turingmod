@@ -78,7 +78,7 @@ describe('TwitchAuthIntegration', () => {
   });
 
   it('persists a token refreshed during addUserForToken (not just refreshes triggered later)', async () => {
-    const upsert = vi.fn().mockResolvedValue(undefined);
+    const upsert = vi.fn();
     const integration = makeIntegration({ upsert });
     successfulTokenExchange();
 
@@ -93,22 +93,22 @@ describe('TwitchAuthIntegration', () => {
     );
   });
 
-  it('stays connected, without an unhandled rejection, when a refreshed token cannot be saved', async () => {
-    const upsert = vi.fn().mockRejectedValue(new Error('database is locked'));
+  it('stays connected when a refreshed token cannot be saved', async () => {
+    const upsert = vi.fn(() => {
+      throw new Error('database is locked');
+    });
     const integration = makeIntegration({ upsert });
     successfulTokenExchange();
 
     await integration.initialize(CONFIG);
     await integration.start();
-    // Let the refresh listener's save settle; vitest fails the run on an unhandled rejection.
-    await new Promise((resolve) => setImmediate(resolve));
 
     expect(upsert).toHaveBeenCalled();
     expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
   });
 
   it('marks the integration NEEDS_REAUTH (not a generic ERROR) when the refresh token is dead', async () => {
-    const upsert = vi.fn().mockResolvedValue(undefined);
+    const upsert = vi.fn();
     const integration = makeIntegration({ upsert });
 
     vi.mocked(fetch).mockImplementation((input) => {
@@ -129,7 +129,7 @@ describe('TwitchAuthIntegration', () => {
 
   it('marks itself NEEDS_REAUTH when another integration reports the authorization was revoked', async () => {
     const eventBus = new EventBus(new Logger({ level: 'silent' }));
-    const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
+    const integration = makeIntegration({ upsert: vi.fn() }, eventBus);
     successfulTokenExchange();
 
     await integration.initialize(CONFIG);
@@ -147,7 +147,7 @@ describe('TwitchAuthIntegration', () => {
 
   it('stops reacting to authorizationRevoked events after being stopped', async () => {
     const eventBus = new EventBus(new Logger({ level: 'silent' }));
-    const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
+    const integration = makeIntegration({ upsert: vi.fn() }, eventBus);
     successfulTokenExchange();
 
     await integration.initialize(CONFIG);
@@ -163,7 +163,7 @@ describe('TwitchAuthIntegration', () => {
 
   it('does not accumulate listeners across repeated failed start() retries', async () => {
     const eventBus = new EventBus(new Logger({ level: 'silent' }));
-    const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
+    const integration = makeIntegration({ upsert: vi.fn() }, eventBus);
 
     vi.mocked(fetch).mockImplementation((input) => {
       const url = input.toString();
@@ -183,7 +183,7 @@ describe('TwitchAuthIntegration', () => {
 
   it('requires re-authorization, without contacting Twitch, when the stored grant predates a required scope', async () => {
     const eventBus = new EventBus(new Logger({ level: 'silent' }));
-    const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
+    const integration = makeIntegration({ upsert: vi.fn() }, eventBus);
 
     await integration.initialize({ ...CONFIG, grantedScopes: ['chat:read'] });
     await integration.start();
@@ -194,7 +194,7 @@ describe('TwitchAuthIntegration', () => {
   });
 
   it('requests the current required scopes, not the previously granted ones, in the authorization URL', async () => {
-    const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) });
+    const integration = makeIntegration({ upsert: vi.fn() });
     await integration.initialize({ ...CONFIG, grantedScopes: ['chat:read'] });
 
     const url = new URL(integration.getAuthorizationUrl('state-123'));
@@ -203,7 +203,7 @@ describe('TwitchAuthIntegration', () => {
   });
 
   it('derives its redirect URI from the server port, ignoring one saved in an older config', async () => {
-    const upsert = vi.fn().mockResolvedValue(undefined);
+    const upsert = vi.fn();
     const integration = makeIntegration({ upsert }, undefined, 9123);
     const staleConfig = { ...CONFIG, redirectUri: 'http://localhost:8080/callback/twitch' };
     successfulTokenExchange();
@@ -222,7 +222,7 @@ describe('TwitchAuthIntegration', () => {
   });
 
   it('builds the authorization URL from the stored credentials that will exchange the code', async () => {
-    const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) });
+    const integration = makeIntegration({ upsert: vi.fn() });
 
     expect(integration.isConfigured()).toBe(false);
     expect(() => integration.getAuthorizationUrl('state-123')).toThrow(/not configured/);

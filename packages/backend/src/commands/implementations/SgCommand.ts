@@ -22,29 +22,29 @@ export class SgCommand implements ICommand {
 
   constructor(private suggestions: SuggestionRepository) {}
 
-  async execute(context: CommandContext): Promise<CommandResult> {
+  execute(context: CommandContext): Promise<CommandResult> {
     const user = context.user.username;
     const suggestion = context.args.slice(1).join(' ').trim();
     if (suggestion === '') {
-      return {
+      return Promise.resolve({
         success: false,
         message: `@${user}, an empty suggestion can't be written down. Usage: ${this.usage}`,
         error: { code: 'INVALID_INPUT', message: 'Empty suggestion' },
-      };
+      });
     }
     if (suggestion.length > MAX_SUGGESTION_LENGTH) {
-      return {
+      return Promise.resolve({
         success: false,
         message: `@${user}, please keep suggestions under ${MAX_SUGGESTION_LENGTH} characters`,
         error: { code: 'INVALID_INPUT', message: 'Suggestion too long' },
-      };
+      });
     }
 
-    await this.suggestions.add(suggestion, user);
-    return {
+    this.suggestions.add(suggestion, user);
+    return Promise.resolve({
       success: true,
       message: `@${user}, your suggestion has been written down. Thank you!`,
-    };
+    });
   }
 }
 

@@ -116,15 +116,12 @@ export interface ImportTargets {
  * already exists is overwritten — a counter that has been set (say, by a stream since the last
  * import) keeps its value — so the report says what was skipped and why.
  */
-export async function importOriginalData(
-  data: OriginalData,
-  targets: ImportTargets
-): Promise<string[]> {
+export function importOriginalData(data: OriginalData, targets: ImportTargets): string[] {
   const report: string[] = [];
 
   let added = 0;
   for (const { name, message, createdBy } of data.intervalMessages) {
-    if (await targets.intervalMessages.add(name, message, createdBy)) added++;
+    if (targets.intervalMessages.add(name, message, createdBy)) added++;
   }
   report.push(
     `Interval messages: ${added} imported, ${data.intervalMessages.length - added} already present`
@@ -136,18 +133,18 @@ export async function importOriginalData(
   ] as const) {
     if (value === null) {
       report.push(`${label}: nothing to import`);
-    } else if (await targets.counters.has(name)) {
-      const current = await targets.counters.get(name);
+    } else if (targets.counters.has(name)) {
+      const current = targets.counters.get(name);
       report.push(`${label}: kept the existing ${current} (the original had ${value})`);
     } else {
-      await targets.counters.set(name, value);
+      targets.counters.set(name, value);
       report.push(`${label}: set to ${value}`);
     }
   }
 
   let banned = 0;
   for (const { word, bannedAt } of data.bannedWords) {
-    if (await targets.bannedWords.add(word, null, bannedAt)) banned++;
+    if (targets.bannedWords.add(word, null, bannedAt)) banned++;
   }
   report.push(
     `Banned words: ${banned} imported, ${data.bannedWords.length - banned} already present`
@@ -155,8 +152,8 @@ export async function importOriginalData(
 
   let suggested = 0;
   for (const suggestion of data.suggestions) {
-    if (!(await targets.suggestions.has(suggestion))) {
-      await targets.suggestions.add(suggestion, null);
+    if (!targets.suggestions.has(suggestion)) {
+      targets.suggestions.add(suggestion, null);
       suggested++;
     }
   }

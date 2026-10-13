@@ -20,7 +20,7 @@ class TestOAuthIntegration extends OAuthIntegration<TestConfig> {
   connectImpl = vi.fn((_config: TestConfig) => Promise.resolve());
   reauthErrors = new Set<unknown>();
 
-  constructor(upsert: IntegrationStateRepository['upsert'] = vi.fn().mockResolvedValue(undefined)) {
+  constructor(upsert: IntegrationStateRepository['upsert'] = vi.fn()) {
     super(
       new Logger({ level: 'silent' }),
       'TestAuth',
@@ -133,14 +133,14 @@ describe('OAuthIntegration', () => {
     expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
   });
 
-  it('keeps refreshed tokens in use, without an unhandled rejection, when storing them fails', async () => {
-    const upsert = vi.fn().mockRejectedValue(new Error('database is locked'));
+  it('keeps refreshed tokens in use, without throwing into the refresh listener, when storing them fails', async () => {
+    const upsert = vi.fn(() => {
+      throw new Error('database is locked');
+    });
     const integration = new TestOAuthIntegration(upsert);
     await integration.initialize(GRANT);
 
-    integration.refreshed({ accessToken: 'new-token' });
-    // Let the save settle; vitest fails the run on an unhandled rejection.
-    await new Promise((resolve) => setImmediate(resolve));
+    expect(() => integration.refreshed({ accessToken: 'new-token' })).not.toThrow();
 
     expect(upsert).toHaveBeenCalledWith(
       'test-auth',

@@ -61,8 +61,8 @@ export class BreakService implements IService {
     this.logger = logger.child({ component: 'BreakService' });
   }
 
-  async start(): Promise<void> {
-    await this.reloadSettings();
+  start(): void {
+    this.reloadSettings();
 
     this.subscriptions.add(
       this.eventBus.on('twitch.ad.break', async (event) => {
@@ -86,10 +86,10 @@ export class BreakService implements IService {
   }
 
   /** Re-read settings from the database, keeping valid fields and defaulting the rest. */
-  async reloadSettings(): Promise<void> {
+  reloadSettings(): void {
     let raw: unknown = null;
     try {
-      raw = await this.settingsRepo.getJson(BREAK_SETTINGS_KEY);
+      raw = this.settingsRepo.getJson(BREAK_SETTINGS_KEY);
     } catch (error) {
       this.logger.error('Could not read break settings; using defaults', error);
     }

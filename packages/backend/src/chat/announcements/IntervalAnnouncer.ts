@@ -41,7 +41,7 @@ export class IntervalAnnouncer implements IService {
   /** Post the next message in the rotation. Resolves true if it reached at least one platform. */
   async announceNext(): Promise<boolean> {
     try {
-      const messages = await this.messages.list();
+      const messages = this.messages.list();
       const index = messages.length === 0 ? 0 : this.next % messages.length;
       const entry = messages[index];
       if (!entry) return false;

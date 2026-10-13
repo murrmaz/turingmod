@@ -95,7 +95,7 @@ export class OAuthFlowService {
   async completeExchange(name: string, code: string): Promise<void> {
     const integration = this.getOAuthIntegration(name);
     await integration.exchangeCode(code);
-    await this.stateRepository.updateEnabled(name, true);
+    this.stateRepository.updateEnabled(name, true);
     await this.integrationManager.startIntegration(name);
   }
 

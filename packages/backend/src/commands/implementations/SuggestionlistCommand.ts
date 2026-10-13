@@ -22,15 +22,15 @@ export class SuggestionlistCommand implements ICommand {
 
   constructor(private suggestions: SuggestionRepository) {}
 
-  async execute(_context: CommandContext): Promise<CommandResult> {
-    const latest = await this.suggestions.latest(SHOWN);
+  execute(_context: CommandContext): Promise<CommandResult> {
+    const latest = this.suggestions.latest(SHOWN);
     if (latest.length === 0) {
-      return { success: true, message: 'No suggestions yet. Make one with !sg' };
+      return Promise.resolve({ success: true, message: 'No suggestions yet. Make one with !sg' });
     }
-    return {
+    return Promise.resolve({
       success: true,
       message: `Latest suggestions for the bot: ${latest.map((s) => s.suggestion).join('; ')}`,
-    };
+    });
   }
 }
 

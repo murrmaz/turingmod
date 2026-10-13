@@ -13,36 +13,34 @@ export interface IntervalMessage {
 export class IntervalMessageRepository {
   constructor(private db: DatabaseManager) {}
 
-  list(): Promise<IntervalMessage[]> {
+  list(): IntervalMessage[] {
     const rows = this.db.query<{ name: string; message: string; created_by: string | null }>(
       'SELECT name, message, created_by FROM interval_messages ORDER BY id'
     );
-    return Promise.resolve(
-      rows.map((row) => ({ name: row.name, message: row.message, createdBy: row.created_by }))
-    );
+    return rows.map((row) => ({ name: row.name, message: row.message, createdBy: row.created_by }));
   }
 
-  /** Add a message to the end of the rotation. Resolves false if the name is taken. */
-  add(name: string, message: string, createdBy: string | null): Promise<boolean> {
+  /** Add a message to the end of the rotation. Returns false if the name is taken. */
+  add(name: string, message: string, createdBy: string | null): boolean {
     const { changes } = this.db.run(
       `INSERT OR IGNORE INTO interval_messages (name, message, created_by, created_at)
        VALUES (?, ?, ?, ?)`,
       [name, message, createdBy, Date.now()]
     );
-    return Promise.resolve(changes > 0);
+    return changes > 0;
   }
 
-  /** Replace a message's text, keeping its place. Resolves false if there's no such message. */
-  update(name: string, message: string): Promise<boolean> {
+  /** Replace a message's text, keeping its place. Returns false if there's no such message. */
+  update(name: string, message: string): boolean {
     const { changes } = this.db.run('UPDATE interval_messages SET message = ? WHERE name = ?', [
       message,
       name,
     ]);
-    return Promise.resolve(changes > 0);
+    return changes > 0;
   }
 
-  remove(name: string): Promise<boolean> {
+  remove(name: string): boolean {
     const { changes } = this.db.run('DELETE FROM interval_messages WHERE name = ?', [name]);
-    return Promise.resolve(changes > 0);
+    return changes > 0;
   }
 }

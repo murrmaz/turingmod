@@ -59,8 +59,6 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Mirroring/reads**: `packages/backend/src/platforms/StreamControlService.ts` — the seam commands depend on
 - **Auth reporting**: `packages/backend/src/platforms/availability.ts` (`unavailableReason`) + `errors.ts` (`NotAuthenticatedError`)
 - **Availability events**: `packages/backend/src/platforms/PlatformAvailability.ts` — publishes `platform.availability` when a façade becomes usable or stops being usable
-- **Chat routing**: `packages/backend/src/platforms/ChatRouter.ts` (moderate → parse → execute → reply); message shape + `parseCommand` in `chatMessage.ts`
-- **Own-message gate**: `packages/backend/src/platforms/OwnChatMessages.ts` — records sent message ids; republishes `chat.received` as `chat.message` minus TuringMod's own
 - **Display names**: `packages/backend/src/platforms/platformNames.ts`
 
 ### Channel Point Rewards & Raids
@@ -82,11 +80,15 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Clip names**: `packages/backend/src/sounds/clips.ts`; settings in `soundSettings.ts`, stored under the `sounds` key
 - **Playback**: `packages/backend/src/integrations/implementations/sound/SoundIntegration.ts` (per-OS player processes)
 
-### Chat Services
-- **Moderation**: `packages/backend/src/moderation/ChatModerator.ts` (banned words, quiet mode) + `bannedWords.ts` (matching, 30-day expiry)
-- **Interval messages**: `packages/backend/src/announcements/IntervalAnnouncer.ts`
-- **Clip collection**: `packages/backend/src/clips/ClipCollector.ts`
-- **Lurk list**: `packages/backend/src/lurk/LurkTracker.ts` (in memory; welcomes lurkers back when they chat)
+### Chat
+Everything that consumes or produces chat lives under `packages/backend/src/chat/`: the pipeline at the top level, and the chat features in a folder each.
+- **Message shape**: `chat/chatMessage.ts` — `ChatMessageEvent`, `parseCommand`, and `toSafeChatText` (applied by every façade to outgoing chat)
+- **Own-message gate**: `chat/OwnChatMessages.ts` — records sent message ids; republishes `chat.received` as `chat.message` minus TuringMod's own
+- **Chat routing**: `chat/ChatRouter.ts` (moderate → parse → execute → reply)
+- **Moderation**: `chat/moderation/ChatModerator.ts` (banned words, quiet mode) + `bannedWords.ts` (matching, 30-day expiry)
+- **Interval messages**: `chat/announcements/IntervalAnnouncer.ts`
+- **Clip collection**: `chat/clips/ClipCollector.ts`
+- **Lurk list**: `chat/lurk/LurkTracker.ts` (in memory; welcomes lurkers back when they chat)
 
 ### Stream Breaks
 - **Lifecycle**: `packages/backend/src/breaks/BreakService.ts` — starts/extends/ends breaks; listens for `twitch.ad.break`; emits `stream.break.started`/`.ended`
@@ -386,7 +388,7 @@ for in-flight sends to settle before it is judged; other people's messages pass 
 
 **Outgoing chat can never start with a command**, a second layer that also protects other bots in
 the channel. Every `IStreamPlatform` passes outgoing chat and announcements through
-`toSafeChatText()` (`platforms/chatMessage.ts`), which strips leading whitespace, invisible format
+`toSafeChatText()` (`chat/chatMessage.ts`), which strips leading whitespace, invisible format
 characters and `!`/`/` prefixes. There is deliberately no `!echo`-style command that repeats
 viewer input.
 

@@ -1,14 +1,14 @@
 import { PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
+import { toSafeChatText } from '../chat/chatMessage.js';
+import { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
 import { unavailableReason } from './availability.js';
-import { toSafeChatText } from './chatMessage.js';
 import type {
   DeclaredCapability,
   IStreamPlatform,
   StreamInfo,
 } from './interfaces/IStreamPlatform.js';
-import { OwnChatMessages } from './OwnChatMessages.js';
 
 /**
  * IStreamPlatform façade over the YouTube integration trio. YouTube has no game/category or tags

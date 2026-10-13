@@ -1,10 +1,11 @@
 import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import type { HelixCustomReward, HelixUpdateCustomRewardData } from '@twurple/api';
 import { injectable, singleton } from 'tsyringe';
+import { toSafeChatText } from '../chat/chatMessage.js';
+import { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import { unavailableReason } from './availability.js';
-import { toSafeChatText } from './chatMessage.js';
 import { NotAuthenticatedError } from './errors.js';
 import type {
   AccountAgeApi,
@@ -27,7 +28,6 @@ import type {
   StreamInfo,
   VodsApi,
 } from './interfaces/IStreamPlatform.js';
-import { OwnChatMessages } from './OwnChatMessages.js';
 
 /**
  * IStreamPlatform façade over the Twitch integration trio. Resolves the broadcaster id from

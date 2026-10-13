@@ -1,14 +1,14 @@
 import 'reflect-metadata';
 import { PermissionLevel, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DatabaseManager } from '../database/DatabaseManager.js';
-import { BannedWordRepository } from '../database/repositories/BannedWordRepository.js';
-import { createTestDatabase } from '../database/repositories/testDatabase.js';
-import { fakeRequire } from '../platforms/fakeRequire.js';
-import type { ModerationApi } from '../platforms/interfaces/IStreamPlatform.js';
-import type { StreamControlService } from '../platforms/StreamControlService.js';
-import { chatMessage } from '../platforms/testing.js';
-import type { Logger } from '../utils/Logger.js';
+import type { DatabaseManager } from '../../database/DatabaseManager.js';
+import { BannedWordRepository } from '../../database/repositories/BannedWordRepository.js';
+import { createTestDatabase } from '../../database/repositories/testDatabase.js';
+import { fakeRequire } from '../../platforms/fakeRequire.js';
+import type { ModerationApi } from '../../platforms/interfaces/IStreamPlatform.js';
+import type { StreamControlService } from '../../platforms/StreamControlService.js';
+import { chatMessage } from '../../platforms/testing.js';
+import type { Logger } from '../../utils/Logger.js';
 import { BAN_DURATION_MS } from './bannedWords.js';
 import { BANNED_WORD_TIMEOUT_SECONDS, ChatModerator } from './ChatModerator.js';
 

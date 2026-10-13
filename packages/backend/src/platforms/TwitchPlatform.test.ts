@@ -1,10 +1,10 @@
 import 'reflect-metadata';
 import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import type { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import { NotAuthenticatedError } from './errors.js';
-import type { OwnChatMessages } from './OwnChatMessages.js';
 import { TwitchPlatform } from './TwitchPlatform.js';
 
 const BROADCASTER = 'broadcaster-id';

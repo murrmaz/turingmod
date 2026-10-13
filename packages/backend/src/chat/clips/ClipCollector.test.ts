@@ -2,12 +2,12 @@ import 'reflect-metadata';
 import { readFile, rm } from 'node:fs/promises';
 import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EventBus } from '../core/EventBus.js';
-import { fakeRequire } from '../platforms/fakeRequire.js';
-import type { ClipInfo, ClipsApi } from '../platforms/interfaces/IStreamPlatform.js';
-import type { StreamControlService } from '../platforms/StreamControlService.js';
-import { chatMessage } from '../platforms/testing.js';
-import { Logger } from '../utils/Logger.js';
+import { EventBus } from '../../core/EventBus.js';
+import { fakeRequire } from '../../platforms/fakeRequire.js';
+import type { ClipInfo, ClipsApi } from '../../platforms/interfaces/IStreamPlatform.js';
+import type { StreamControlService } from '../../platforms/StreamControlService.js';
+import { chatMessage } from '../../platforms/testing.js';
+import { Logger } from '../../utils/Logger.js';
 import { ClipCollector, clipIdsIn, renderClipPage } from './ClipCollector.js';
 
 const clip = (id: string): ClipInfo => ({

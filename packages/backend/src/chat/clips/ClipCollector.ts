@@ -2,13 +2,13 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
-import { EventBus } from '../core/EventBus.js';
-import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
-import type { ChatMessageEvent } from '../platforms/chatMessage.js';
-import type { ClipInfo } from '../platforms/interfaces/IStreamPlatform.js';
-import { StreamControlService } from '../platforms/StreamControlService.js';
-import { Logger } from '../utils/Logger.js';
-import { DATA_DIRECTORY } from '../utils/paths.js';
+import { EventBus } from '../../core/EventBus.js';
+import { type IService, Subscriptions } from '../../core/ServiceLifecycle.js';
+import type { ClipInfo } from '../../platforms/interfaces/IStreamPlatform.js';
+import { StreamControlService } from '../../platforms/StreamControlService.js';
+import { Logger } from '../../utils/Logger.js';
+import { DATA_DIRECTORY } from '../../utils/paths.js';
+import type { ChatMessageEvent } from '../chatMessage.js';
 
 /** Twitch clip links, in both the clips.twitch.tv and twitch.tv/<channel>/clip forms. */
 const CLIP_LINK =

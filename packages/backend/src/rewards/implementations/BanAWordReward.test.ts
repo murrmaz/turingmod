@@ -1,10 +1,10 @@
 import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { BAN_DURATION_MS, banCutoff } from '../../chat/moderation/bannedWords.js';
 import type { DatabaseManager } from '../../database/DatabaseManager.js';
 import { BannedWordRepository } from '../../database/repositories/BannedWordRepository.js';
 import { createTestDatabase } from '../../database/repositories/testDatabase.js';
-import { BAN_DURATION_MS, banCutoff } from '../../moderation/bannedWords.js';
 import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 import type { RewardRedemption } from '../interfaces/IRewardHandler.js';

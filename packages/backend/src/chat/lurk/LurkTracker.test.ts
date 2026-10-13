@@ -1,10 +1,10 @@
 import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
-import { EventBus } from '../core/EventBus.js';
-import type { StreamControlService } from '../platforms/StreamControlService.js';
-import { chatMessage } from '../platforms/testing.js';
-import { Logger } from '../utils/Logger.js';
+import { EventBus } from '../../core/EventBus.js';
+import type { StreamControlService } from '../../platforms/StreamControlService.js';
+import { chatMessage } from '../../platforms/testing.js';
+import { Logger } from '../../utils/Logger.js';
 import { LurkTracker, welcomeBackMessage } from './LurkTracker.js';
 
 function setup() {

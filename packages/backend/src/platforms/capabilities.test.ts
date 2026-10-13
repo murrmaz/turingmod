@@ -1,11 +1,11 @@
 import 'reflect-metadata';
 import { PlatformCapability } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
+import type { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import type { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import type { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
 import { capabilitiesOf } from './capabilities.js';
-import type { OwnChatMessages } from './OwnChatMessages.js';
 import { TwitchPlatform } from './TwitchPlatform.js';
 import { YouTubePlatform } from './YouTubePlatform.js';
 

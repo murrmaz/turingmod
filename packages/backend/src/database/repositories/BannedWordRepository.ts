@@ -11,7 +11,7 @@ export interface BannedWord {
 
 /**
  * Words viewers have banned from chat with the "Ban A Word" reward. Rows outlive their ban, which
- * lapses after a month (see moderation/bannedWords.ts): callers pass the cutoff, and a lapsed word
+ * lapses after a month (see chat/moderation/bannedWords.ts): callers pass the cutoff, and a lapsed word
  * can be banned again.
  */
 @injectable()

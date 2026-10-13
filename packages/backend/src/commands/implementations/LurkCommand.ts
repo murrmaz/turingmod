@@ -1,7 +1,7 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
-import { LurkTracker } from '../../lurk/LurkTracker.js';
+import { LurkTracker } from '../../chat/lurk/LurkTracker.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 
 /**

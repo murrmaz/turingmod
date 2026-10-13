@@ -1,7 +1,7 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
-import { ChatModerator } from '../../moderation/ChatModerator.js';
+import { ChatModerator } from '../../chat/moderation/ChatModerator.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 
 /**

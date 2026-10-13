@@ -3,11 +3,11 @@ import { type CommandResult, PermissionLevel, StreamingPlatform } from '@turingm
 import { describe, expect, it, vi } from 'vitest';
 import type { CommandExecutor } from '../commands/CommandExecutor.js';
 import { EventBus } from '../core/EventBus.js';
-import type { ChatModerator, ModerationVerdict } from '../moderation/ChatModerator.js';
+import type { PlatformRegistry } from '../platforms/PlatformRegistry.js';
+import { chatMessage } from '../platforms/testing.js';
 import type { Logger } from '../utils/Logger.js';
 import { ChatRouter } from './ChatRouter.js';
-import type { PlatformRegistry } from './PlatformRegistry.js';
-import { chatMessage } from './testing.js';
+import type { ChatModerator, ModerationVerdict } from './moderation/ChatModerator.js';
 
 const makeLogger = () => {
   const logger = { warn: vi.fn(), debug: vi.fn(), error: vi.fn(), info: vi.fn(), child: vi.fn() };

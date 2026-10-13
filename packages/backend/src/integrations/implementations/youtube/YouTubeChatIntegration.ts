@@ -133,7 +133,6 @@ function isTransportError(error: unknown): boolean {
 @singleton()
 export class YouTubeChatIntegration extends BaseIntegration {
   readonly name = 'youtube-chat';
-  readonly version = '2.0.0';
 
   private liveChatId: string | null = null;
   private broadcasterChannelId: string | null = null;
@@ -231,6 +230,14 @@ export class YouTubeChatIntegration extends BaseIntegration {
   /** Current lifecycle state, for the console's go-live control. */
   getState(): YouTubeChatState {
     return this.state;
+  }
+
+  /**
+   * The live chat being streamed, or null when not streaming. While it's set the broadcast is
+   * live and this is its chat, so posting to it needs no broadcast lookup of its own.
+   */
+  getLiveChatId(): string | null {
+    return this.state === 'streaming' ? this.liveChatId : null;
   }
 
   /**

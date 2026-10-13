@@ -12,7 +12,6 @@ import { BaseIntegration } from '../../BaseIntegration.js';
 @singleton()
 export class DiscordIntegration extends BaseIntegration {
   readonly name = 'discord';
-  readonly version = '1.0.0';
 
   constructor(
     _eventBus: EventBus, // Reserved for future use

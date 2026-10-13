@@ -55,21 +55,24 @@ export class Application {
   async start(): Promise<void> {
     this.logger.info('Starting TuringMod...');
 
-    // 1. Start HTTP server
+    // 1. Forward events to the console before anything can emit them. A console left open
+    //    across a restart reconnects as soon as the WebSocket server is up and fetches the
+    //    integration list then; the status changes from integrations connecting come after,
+    //    and reach it only if this is already listening.
+    this.setupEventHandlers();
+
+    // 2. Start HTTP server
     await this.httpServer.start();
 
-    // 2. Attach WebSocket server to HTTP server
+    // 3. Attach WebSocket server to HTTP server
     this.webSocketServer.start(this.httpServer.getServer());
 
-    // 3. Start feature services, before integrations so they see what connecting changes
+    // 4. Start feature services, before integrations so they see what connecting changes
     await this.services.startAll();
 
-    // 4. Start enabled integrations
+    // 5. Start enabled integrations
     this.logger.info('Starting enabled integrations');
     await this.integrationManager.startEnabledIntegrations();
-
-    // 5. Set up global event handlers
-    this.setupEventHandlers();
 
     this.logger.info('TuringMod started successfully! 🚀');
   }

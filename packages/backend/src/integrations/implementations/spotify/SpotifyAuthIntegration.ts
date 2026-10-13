@@ -60,7 +60,6 @@ interface SpotifyTokenResponse {
 @singleton()
 export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> {
   readonly name = 'spotify-auth';
-  readonly version = '1.0.0';
 
   protected readonly requiredScopes = SPOTIFY_REQUIRED_SCOPES;
   protected readonly callbackPath = '/callback/spotify';

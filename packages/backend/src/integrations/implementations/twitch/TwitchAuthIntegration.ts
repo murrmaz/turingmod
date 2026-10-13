@@ -70,7 +70,6 @@ export const TWITCH_REQUIRED_SCOPES = [
 @singleton()
 export class TwitchAuthIntegration extends OAuthIntegration<TwitchAuthConfig> {
   readonly name = 'twitch-auth';
-  readonly version = '1.0.0';
 
   protected readonly requiredScopes = TWITCH_REQUIRED_SCOPES;
   protected readonly callbackPath = '/callback/twitch';

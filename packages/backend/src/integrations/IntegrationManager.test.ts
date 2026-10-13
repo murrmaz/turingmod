@@ -9,7 +9,6 @@ import { IntegrationManager } from './IntegrationManager.js';
 import { DependencyFailurePolicy, type IIntegration } from './interfaces/IIntegration.js';
 
 class FakeIntegration extends BaseIntegration {
-  readonly version = '1.0.0';
   stopped = false;
   startCount = 0;
   failOnStart = false;

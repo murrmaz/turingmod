@@ -6,6 +6,7 @@ import {
   ObsIntegration,
   type SceneItemTransform,
 } from '../integrations/implementations/obs/ObsIntegration.js';
+import { listScenesByCanvas } from '../integrations/implementations/obs/scenesByCanvas.js';
 import { Logger } from '../utils/Logger.js';
 import { EFFECT_SETTINGS_KEY, parseEffectSettings } from './effectSettings.js';
 import type { EffectContext, FacecamEffect, FacecamTarget } from './FacecamEffect.js';
@@ -128,15 +129,16 @@ export class FacecamEffectRunner implements IService {
 
   private async findFacecam(source: string, mainOnly: boolean): Promise<FacecamTarget[]> {
     const programUuid = await this.obs.getCurrentSceneUuid();
-    const canvases = await this.obs.getCanvases();
 
-    // [scene uuids to search, is main canvas], main canvas first. An OBS without canvas
-    // support has only the main canvas.
+    // [scene uuids to search, is main canvas], main canvas first. The main canvas is the one
+    // holding the program scene; it's searched through that scene alone.
     const candidates: [string[], boolean][] = [[[programUuid], true]];
-    for (const canvas of canvases) {
-      const scenes = (await this.obs.getScenes(canvas.canvasUuid)).map((s) => s.sceneUuid);
-      if (!(mainOnly || scenes.includes(programUuid))) {
-        candidates.push([scenes, false]);
+    if (!mainOnly) {
+      for (const { scenes } of await listScenesByCanvas(this.obs)) {
+        const sceneUuids = scenes.map((s) => s.sceneUuid);
+        if (!sceneUuids.includes(programUuid)) {
+          candidates.push([sceneUuids, false]);
+        }
       }
     }
 

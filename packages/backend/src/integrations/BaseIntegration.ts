@@ -11,7 +11,6 @@ import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
  */
 export abstract class BaseIntegration implements IIntegration {
   abstract readonly name: string;
-  abstract readonly version: string;
 
   /** Statuses whose `errorMessage` carries an explanation worth keeping. */
   private static readonly STATUSES_WITH_MESSAGE: ReadonlySet<IntegrationStatus> = new Set([

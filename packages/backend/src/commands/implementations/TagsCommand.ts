@@ -1,5 +1,5 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
-import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
+import { messageOf, PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { formatPlatformList } from '../../platforms/platformNames.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
@@ -97,7 +97,7 @@ export class TagsCommand implements ICommand {
         message: 'Failed to get/set stream tags',
         error: {
           code: 'API_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
+          message: messageOf(error),
         },
       };
     }

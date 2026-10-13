@@ -10,6 +10,7 @@ import {
   createErrorMessage,
   createOAuthAuthUrlResponseMessage,
   createOAuthExchangeResultMessage,
+  messageOf,
 } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
@@ -94,12 +95,7 @@ export class OAuthHandler {
     } catch (error) {
       this.logger.error(`Failed to exchange code for ${integrationName}`, error);
 
-      return createOAuthExchangeResultMessage(
-        integrationName,
-        false,
-        error instanceof Error ? error.message : 'Unknown error',
-        message.id
-      );
+      return createOAuthExchangeResultMessage(integrationName, false, messageOf(error), message.id);
     }
   }
 }

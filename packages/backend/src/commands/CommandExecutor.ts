@@ -1,5 +1,5 @@
 import type { CommandContext, ExecutionResult } from '@turingmod/shared';
-import { hasPermission, PermissionLevel } from '@turingmod/shared';
+import { hasPermission, messageOf, PermissionLevel } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
@@ -147,7 +147,7 @@ export class CommandExecutor {
         message: 'Command execution failed',
         error: {
           code: 'EXECUTION_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
+          message: messageOf(error),
           details: error,
         },
       };

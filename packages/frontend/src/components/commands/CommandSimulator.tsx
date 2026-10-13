@@ -8,7 +8,7 @@ import Input from '@cloudscape-design/components/input';
 import type { SelectProps } from '@cloudscape-design/components/select';
 import Select from '@cloudscape-design/components/select';
 import SpaceBetween from '@cloudscape-design/components/space-between';
-import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
+import { messageOf, PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { useState } from 'react';
 import { useCommands } from '../../hooks/useCommands';
 
@@ -101,7 +101,7 @@ export function CommandSimulator({
     } catch (error) {
       setResult({
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to execute command',
+        message: messageOf(error, 'Failed to execute command'),
       });
     } finally {
       setIsExecuting(false);

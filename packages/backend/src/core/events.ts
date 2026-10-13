@@ -80,8 +80,7 @@ export interface IntegrationStatusEvent {
 /** A failure an integration reported without changing its status (see IntegrationEvents). */
 export interface IntegrationErrorEvent {
   name: string;
-  /** Whatever was thrown: not necessarily an Error. */
-  error: unknown;
+  error: Error;
 }
 
 /** A transparent token refresh. Carries no credentials by design. */

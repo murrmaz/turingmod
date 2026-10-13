@@ -1,5 +1,5 @@
 import type { IntegrationInfo } from '@turingmod/shared';
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
@@ -239,7 +239,7 @@ export class IntegrationManager {
       // reportError() persists through the status listener. Integrations
       // normally set ERROR themselves; this covers a start() that threw
       // before doing so, and keeps the stored status consistent either way.
-      integration.reportError(error instanceof Error ? error.message : 'Unknown error');
+      integration.reportError(messageOf(error));
       throw error;
     }
   }

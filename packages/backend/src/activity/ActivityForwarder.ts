@@ -96,7 +96,7 @@ export class ActivityForwarder implements IService {
   private normalize(event: EventName, data: unknown): Record<string, unknown> {
     if (event === 'integration.error') {
       const { name, error } = data as EventMap['integration.error'];
-      return { name, message: error instanceof Error ? error.message : String(error) };
+      return { name, message: error.message };
     }
     return data as Record<string, unknown>;
   }

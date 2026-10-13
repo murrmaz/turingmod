@@ -15,7 +15,7 @@ export interface IntegrationEvents {
    * wouldn't play). Not named 'error', which Node's EventEmitter throws on when
    * nothing is listening.
    */
-  failure: [error: unknown];
+  failure: [error: Error];
 }
 
 /**

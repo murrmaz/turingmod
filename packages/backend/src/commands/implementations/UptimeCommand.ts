@@ -1,5 +1,5 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
-import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
+import { messageOf, PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { formatDuration } from '../../utils/FormatHelpers.js';
@@ -54,7 +54,7 @@ export class UptimeCommand implements ICommand {
         message: 'Failed to retrieve stream uptime',
         error: {
           code: 'API_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
+          message: messageOf(error),
         },
       };
     }

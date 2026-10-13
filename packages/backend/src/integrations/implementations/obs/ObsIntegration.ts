@@ -1,4 +1,4 @@
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import OBSWebSocket from 'obs-websocket-js';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
@@ -97,10 +97,7 @@ export class ObsIntegration extends BaseIntegration {
       this.logger.debug('OBS integration started successfully');
     } catch (error) {
       this.logger.error('Failed to connect to OBS', error);
-      this.setStatus(
-        IntegrationStatus.ERROR,
-        error instanceof Error ? error.message : 'Failed to connect to OBS'
-      );
+      this.setStatus(IntegrationStatus.ERROR, messageOf(error, 'Failed to connect to OBS'));
       throw error;
     }
   }
@@ -357,10 +354,7 @@ export class ObsIntegration extends BaseIntegration {
 
     this.obs.on('ConnectionError', (error) => {
       this.logger.error('OBS connection error', error);
-      this.setStatus(
-        IntegrationStatus.ERROR,
-        error instanceof Error ? error.message : 'Connection error'
-      );
+      this.setStatus(IntegrationStatus.ERROR, messageOf(error, 'Connection error'));
     });
   }
 }

@@ -1,4 +1,4 @@
-import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
 import { google } from 'googleapis';
 import { injectable, singleton } from 'tsyringe';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
@@ -115,7 +115,7 @@ export class YouTubeAuthIntegration extends OAuthIntegration<YouTubeAuthConfig> 
   isAuthError(error: unknown): boolean {
     const status = (error as { code?: number; response?: { status?: number } } | null)?.code;
     const responseStatus = (error as { response?: { status?: number } } | null)?.response?.status;
-    const message = error instanceof Error ? error.message : String(error);
+    const message = messageOf(error);
     return status === 401 || responseStatus === 401 || message.includes('invalid_grant');
   }
 

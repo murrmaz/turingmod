@@ -1,4 +1,4 @@
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import {
   ObsIntegration,
@@ -173,8 +173,4 @@ export class ObsBreakOverlay {
       }
     }
   }
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

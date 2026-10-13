@@ -8,6 +8,7 @@ import {
   createOAuthExchangeCodeMessage,
   createOAuthGetAuthUrlMessage,
   MessageType,
+  messageOf,
   type OAuthAuthUrlResponsePayload,
   type OAuthCodeReceivedPayload,
   type OAuthExchangeResultPayload,
@@ -118,7 +119,7 @@ export function OAuthModal({ visible, onDismiss, onSuccess, provider }: OAuthMod
           closePopup();
         }
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : 'Unknown error');
+        setErrorMessage(messageOf(error));
         setStep('error');
         closePopup();
       }
@@ -146,7 +147,7 @@ export function OAuthModal({ visible, onDismiss, onSuccess, provider }: OAuthMod
         setStep('error');
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unknown error');
+      setErrorMessage(messageOf(error));
       setStep('error');
     }
   }, [sendAndWaitForResponse, openAuthPopup, provider.integrationName]);

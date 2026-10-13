@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import type { IWebSocketMessage } from '@turingmod/shared';
-import { createErrorMessage, createPongMessage, MessageType } from '@turingmod/shared';
+import { createErrorMessage, createPongMessage, MessageType, messageOf } from '@turingmod/shared';
 import { WebSocket, WebSocketServer as WSServer } from 'ws';
 import type { Logger } from '../utils/Logger.js';
 import type { MessageRouter } from './MessageRouter.js';
@@ -113,13 +113,7 @@ export class WebSocketServer {
       this.logger.error('Failed to handle message', error, { clientId });
 
       // Send error response
-      this.sendToClient(
-        clientId,
-        createErrorMessage(
-          'MESSAGE_HANDLING_ERROR',
-          error instanceof Error ? error.message : 'Unknown error'
-        )
-      );
+      this.sendToClient(clientId, createErrorMessage('MESSAGE_HANDLING_ERROR', messageOf(error)));
     }
   }
 

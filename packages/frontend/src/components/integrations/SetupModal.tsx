@@ -6,7 +6,12 @@ import Input from '@cloudscape-design/components/input';
 import Link from '@cloudscape-design/components/link';
 import Modal from '@cloudscape-design/components/modal';
 import SpaceBetween from '@cloudscape-design/components/space-between';
-import { createMessage, type IntegrationConfigurePayload, MessageType } from '@turingmod/shared';
+import {
+  createMessage,
+  type IntegrationConfigurePayload,
+  MessageType,
+  messageOf,
+} from '@turingmod/shared';
 import { Fragment, useState } from 'react';
 import { useAppState } from '../../context/AppStateContext';
 import { useWebSocketContext } from '../../context/WebSocketContext';
@@ -60,7 +65,7 @@ export function SetupModal({ visible, onDismiss, onSuccess, provider }: SetupMod
       onSuccess();
       handleClose();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to save credentials');
+      setErrorMessage(messageOf(error, 'Failed to save credentials'));
     } finally {
       setIsLoading(false);
     }

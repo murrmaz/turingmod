@@ -1,4 +1,5 @@
 import type { CommandResult } from '@turingmod/shared';
+import { messageOf } from '@turingmod/shared';
 import { NotAuthenticatedError } from '../../platforms/errors.js';
 
 /**
@@ -28,7 +29,7 @@ export function toCommandError(error: unknown, fallbackMessage: string): Command
     message: fallbackMessage,
     error: {
       code: 'API_ERROR',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: messageOf(error),
     },
   };
 }

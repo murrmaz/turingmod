@@ -1,4 +1,4 @@
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import type { TuringModConfig } from '../utils/Config.js';
 import type { Logger } from '../utils/Logger.js';
@@ -112,10 +112,7 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
           'Refresh token is invalid or revoked — re-authorization required'
         );
       } else {
-        this.setStatus(
-          IntegrationStatus.ERROR,
-          error instanceof Error ? error.message : 'Unknown error'
-        );
+        this.setStatus(IntegrationStatus.ERROR, messageOf(error));
       }
       throw error;
     }

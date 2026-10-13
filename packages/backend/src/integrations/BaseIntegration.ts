@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationStatus, toError } from '@turingmod/shared';
 import type { Logger } from '../utils/Logger.js';
 import {
   DependencyFailurePolicy,
@@ -104,8 +104,9 @@ export abstract class BaseIntegration implements IIntegration {
   /**
    * Report a failure that doesn't change this integration's status, so
    * IntegrationManager can log it and publish it as `integration.error`.
+   * Takes whatever was caught and converts it, so listeners get an Error.
    */
   protected reportFailure(error: unknown): void {
-    this.events.emit('failure', error);
+    this.events.emit('failure', toError(error));
   }
 }

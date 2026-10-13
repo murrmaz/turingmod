@@ -1,4 +1,4 @@
-import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
 import { google, type youtube_v3 } from 'googleapis';
 import { injectable, singleton } from 'tsyringe';
 import { Logger } from '../../../utils/Logger.js';
@@ -91,10 +91,7 @@ export class YouTubeApiIntegration extends BaseIntegration {
       return Promise.resolve();
     } catch (error) {
       this.logger.error('Failed to start YouTube API integration', error);
-      this.setStatus(
-        IntegrationStatus.ERROR,
-        error instanceof Error ? error.message : 'Unknown error'
-      );
+      this.setStatus(IntegrationStatus.ERROR, messageOf(error));
       throw error;
     }
   }

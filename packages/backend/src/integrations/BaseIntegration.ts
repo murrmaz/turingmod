@@ -1,7 +1,11 @@
 import { EventEmitter } from 'node:events';
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationStatus, toError } from '@turingmod/shared';
 import type { Logger } from '../utils/Logger.js';
-import { DependencyFailurePolicy, type IIntegration } from './interfaces/IIntegration.js';
+import {
+  DependencyFailurePolicy,
+  type IIntegration,
+  type IntegrationEvents,
+} from './interfaces/IIntegration.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 
 /**
@@ -21,7 +25,7 @@ export abstract class BaseIntegration implements IIntegration {
 
   protected status: IntegrationStatus = IntegrationStatus.DISCONNECTED;
   protected errorMessage: string | undefined;
-  protected readonly events = new EventEmitter();
+  private readonly events = new EventEmitter<IntegrationEvents>();
   protected readonly logger: Logger;
 
   protected constructor(logger: Logger, loggerContext: Record<string, string>) {
@@ -64,12 +68,12 @@ export abstract class BaseIntegration implements IIntegration {
     this.setStatus(IntegrationStatus.BLOCKED, reason);
   }
 
-  on(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.on(event, handler);
-  }
-
-  off(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.off(event, handler);
+  on<K extends keyof IntegrationEvents>(
+    event: K,
+    handler: (...args: IntegrationEvents[K]) => void
+  ): void {
+    // EventEmitter's own on() can't relate a generic K to its listener type.
+    this.events.on(event, handler as (...args: unknown[]) => void);
   }
 
   /**
@@ -94,13 +98,15 @@ export abstract class BaseIntegration implements IIntegration {
    * the integration for it on access.
    */
   protected reportTokenRefreshed(expiresAt?: number): void {
-    this.events.emit('token-refreshed', expiresAt === undefined ? {} : { expiresAt });
+    this.events.emit('tokenRefreshed', expiresAt === undefined ? {} : { expiresAt });
   }
 
   /**
-   * Emit an error event so IntegrationManager can log/forward it.
+   * Report a failure that doesn't change this integration's status, so
+   * IntegrationManager can log it and publish it as `integration.error`.
+   * Takes whatever was caught and converts it, so listeners get an Error.
    */
-  protected emitError(error: unknown): void {
-    this.events.emit('error', error);
+  protected reportFailure(error: unknown): void {
+    this.events.emit('failure', toError(error));
   }
 }

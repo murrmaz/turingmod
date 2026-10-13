@@ -1,4 +1,9 @@
-import { createErrorMessage, type IWebSocketMessage, type MessageType } from '@turingmod/shared';
+import {
+  createErrorMessage,
+  type IWebSocketMessage,
+  type MessageType,
+  messageOf,
+} from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
 
@@ -57,7 +62,7 @@ export class MessageRouter {
       this.logger.error(`Handler error for ${message.type}`, error);
       return createErrorMessage(
         'HANDLER_ERROR',
-        error instanceof Error ? error.message : 'Handler execution failed',
+        messageOf(error, 'Handler execution failed'),
         message.id
       );
     }

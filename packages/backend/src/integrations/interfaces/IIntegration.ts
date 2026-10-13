@@ -2,6 +2,23 @@ import type { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import type { IOAuthIntegration } from './IOAuthIntegration.js';
 
 /**
+ * Every event an integration emits, with its arguments. IntegrationManager is
+ * the listener: it forwards each one to the EventBus.
+ */
+export interface IntegrationEvents {
+  /** The integration's status changed; its reason is in getErrorMessage(). */
+  status: [status: IntegrationStatus];
+  /** OAuth credentials were rotated. Not a status change: see reportTokenRefreshed(). */
+  tokenRefreshed: [refresh: { expiresAt?: number }];
+  /**
+   * Something failed without changing the integration's status (a sound that
+   * wouldn't play). Not named 'error', which Node's EventEmitter throws on when
+   * nothing is listening.
+   */
+  failure: [error: Error];
+}
+
+/**
  * What should happen to an integration when one of its dependencies becomes
  * unusable (ERROR, NEEDS_REAUTH, BLOCKED, DISCONNECTED).
  */
@@ -72,14 +89,12 @@ export interface IIntegration {
   getStatus(): IntegrationStatus;
 
   /**
-   * Subscribe to integration events
+   * Subscribe to one of this integration's events (see IntegrationEvents).
    */
-  on(event: string, handler: (...args: unknown[]) => void): void;
-
-  /**
-   * Unsubscribe from integration events
-   */
-  off(event: string, handler: (...args: unknown[]) => void): void;
+  on<K extends keyof IntegrationEvents>(
+    event: K,
+    handler: (...args: IntegrationEvents[K]) => void
+  ): void;
 
   /**
    * How this integration should be treated when a dependency becomes

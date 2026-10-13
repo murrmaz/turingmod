@@ -5,7 +5,7 @@ import type {
   IntegrationStopPayload,
   IWebSocketMessage,
 } from '@turingmod/shared';
-import { createErrorMessage, MessageType } from '@turingmod/shared';
+import { createErrorMessage, MessageType, messageOf } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import { Logger } from '../../utils/Logger.js';
@@ -71,7 +71,7 @@ export class IntegrationHandler {
 
       return createErrorMessage(
         'INTEGRATION_START_FAILED',
-        error instanceof Error ? error.message : 'Failed to start integration',
+        messageOf(error, 'Failed to start integration'),
         message.id
       );
     }
@@ -117,7 +117,7 @@ export class IntegrationHandler {
 
       return createErrorMessage(
         'INTEGRATION_STOP_FAILED',
-        error instanceof Error ? error.message : 'Failed to stop integration',
+        messageOf(error, 'Failed to stop integration'),
         message.id
       );
     }
@@ -185,7 +185,7 @@ export class IntegrationHandler {
 
       return createErrorMessage(
         'INTEGRATION_CONFIGURE_FAILED',
-        error instanceof Error ? error.message : 'Failed to configure integration',
+        messageOf(error, 'Failed to configure integration'),
         message.id
       );
     }

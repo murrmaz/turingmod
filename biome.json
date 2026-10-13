@@ -92,7 +92,8 @@
             ]
           }
         },
-        "useTemplate": "error"
+        "useTemplate": "error",
+        "useThrowOnlyError": "error"
       },
       "suspicious": {
         "noAsyncPromiseExecutor": "error",
@@ -107,6 +108,7 @@
         "noGlobalIsNan": "error",
         "noShadowRestrictedNames": "error",
         "useAwait": "warn",
+        "useErrorMessage": "error",
         "noWith": "error",
         "noVar": "error"
       }

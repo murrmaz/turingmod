@@ -3,7 +3,7 @@ import type {
   ActivityQueryPayload,
   IWebSocketMessage,
 } from '@turingmod/shared';
-import { createActivityListMessage, createErrorMessage } from '@turingmod/shared';
+import { createActivityListMessage, createErrorMessage, messageOf } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
 import { Logger } from '../../utils/Logger.js';
@@ -44,7 +44,7 @@ export class ActivityHandler {
       return Promise.resolve(
         createErrorMessage(
           'ACTIVITY_QUERY_FAILED',
-          error instanceof Error ? error.message : 'Failed to query activity log',
+          messageOf(error, 'Failed to query activity log'),
           message.id
         )
       );

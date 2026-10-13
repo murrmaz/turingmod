@@ -5,7 +5,7 @@ import {
 } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
-import type { EventName } from '../core/events.js';
+import type { EventMap, EventName } from '../core/events.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { ActivityLogRepository } from '../database/repositories/ActivityLogRepository.js';
 import { WebSocketServer } from '../server/WebSocketServer.js';
@@ -95,12 +95,8 @@ export class ActivityForwarder implements IService {
 
   private normalize(event: EventName, data: unknown): Record<string, unknown> {
     if (event === 'integration.error') {
-      const { name, error } = data as { name: string; error: unknown };
-      const errorObj = error as { message?: string } | undefined;
-      return {
-        name,
-        message: errorObj?.message ?? String(error),
-      };
+      const { name, error } = data as EventMap['integration.error'];
+      return { name, message: error.message };
     }
     return data as Record<string, unknown>;
   }

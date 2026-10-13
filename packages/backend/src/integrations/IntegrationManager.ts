@@ -1,5 +1,5 @@
 import type { IntegrationInfo } from '@turingmod/shared';
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
@@ -83,8 +83,7 @@ export class IntegrationManager {
     this.logger.info(`Registered integration: ${integration.name}`);
 
     // Forward integration events to event bus
-    integration.on('status', (...args: unknown[]) => {
-      const status = args[0] as IntegrationStatus;
+    integration.on('status', (status) => {
       this.eventBus.emitSync('integration.status', {
         name: integration.name,
         status,
@@ -104,8 +103,7 @@ export class IntegrationManager {
     // Logged as well as published: that gives it at least one consumer today
     // (answering "did my token refresh overnight?" from the log) rather than
     // leaving another emit with nobody listening.
-    integration.on('token-refreshed', (...args: unknown[]) => {
-      const { expiresAt } = (args[0] ?? {}) as { expiresAt?: number };
+    integration.on('tokenRefreshed', ({ expiresAt }) => {
       this.logger.info(`OAuth token refreshed: ${integration.name}`, {
         ...(expiresAt === undefined ? {} : { expiresAt: new Date(expiresAt).toISOString() }),
       });
@@ -115,8 +113,7 @@ export class IntegrationManager {
       });
     });
 
-    integration.on('error', (...args: unknown[]) => {
-      const error = args[0] as Error;
+    integration.on('failure', (error) => {
       this.logger.error(`Integration error: ${integration.name}`, error);
       this.eventBus.emitSync('integration.error', {
         name: integration.name,
@@ -242,7 +239,7 @@ export class IntegrationManager {
       // reportError() persists through the status listener. Integrations
       // normally set ERROR themselves; this covers a start() that threw
       // before doing so, and keeps the stored status consistent either way.
-      integration.reportError(error instanceof Error ? error.message : 'Unknown error');
+      integration.reportError(messageOf(error));
       throw error;
     }
   }

@@ -1,6 +1,7 @@
 import {
   IntegrationGroup,
   IntegrationStatus,
+  messageOf,
   PermissionLevel,
   StreamingPlatform,
 } from '@turingmod/shared';
@@ -171,10 +172,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info('Twitch EventSub integration started successfully');
     } catch (error) {
       this.logger.error('Failed to start Twitch EventSub integration', error);
-      this.setStatus(
-        IntegrationStatus.ERROR,
-        error instanceof Error ? error.message : 'Unknown error'
-      );
+      this.setStatus(IntegrationStatus.ERROR, messageOf(error));
       throw error;
     }
   }

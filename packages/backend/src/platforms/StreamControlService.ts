@@ -1,5 +1,5 @@
 import type { StreamingPlatform } from '@turingmod/shared';
-import { PlatformCapability } from '@turingmod/shared';
+import { messageOf, PlatformCapability } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
 import { CAPABILITY_OF_API, capabilitiesOf } from './capabilities.js';
@@ -171,7 +171,7 @@ export class StreamControlService {
       try {
         live = await platform.isLive();
       } catch (error) {
-        result.failures.push({ platform: platform.platform, error: this.messageOf(error) });
+        result.failures.push({ platform: platform.platform, error: messageOf(error) });
         continue;
       }
 
@@ -188,14 +188,10 @@ export class StreamControlService {
         }
       } catch (error) {
         this.logger.error(`Failed to apply ${capability} on ${platform.platform}`, error);
-        result.failures.push({ platform: platform.platform, error: this.messageOf(error) });
+        result.failures.push({ platform: platform.platform, error: messageOf(error) });
       }
     }
 
     return result;
-  }
-
-  private messageOf(error: unknown): string {
-    return error instanceof Error ? error.message : 'Unknown error';
   }
 }

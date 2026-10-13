@@ -1,6 +1,6 @@
 import type { PlaybackState } from '@spotify/web-api-ts-sdk';
 import { SpotifyApi } from '@spotify/web-api-ts-sdk';
-import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
@@ -81,10 +81,7 @@ export class SpotifyApiIntegration extends BaseIntegration {
       return Promise.resolve();
     } catch (error) {
       this.logger.error('Failed to start Spotify API integration', error);
-      this.setStatus(
-        IntegrationStatus.ERROR,
-        error instanceof Error ? error.message : 'Unknown error'
-      );
+      this.setStatus(IntegrationStatus.ERROR, messageOf(error));
       throw error;
     }
   }

@@ -82,9 +82,8 @@ describe('SoundIntegration playback control', () => {
   });
 
   it('still reports a player that fails on its own', async () => {
-    // IntegrationManager listens for an integration's errors; without a listener they'd throw.
     const errors: unknown[] = [];
-    sound.on('error', (error: unknown) => errors.push(error));
+    sound.on('failure', (error) => errors.push(error));
 
     const playing = sound.playSound('/clips/broken.mp3');
     children[0]?.finish(1);
@@ -92,5 +91,12 @@ describe('SoundIntegration playback control', () => {
 
     expect(logger.error).toHaveBeenCalled();
     expect(errors).toHaveLength(1);
+  });
+
+  it('keeps its promise not to reject when nothing listens for failures', async () => {
+    const playing = sound.playSound('/clips/broken.mp3');
+    children[0]?.finish(1);
+
+    await expect(playing).resolves.toBeUndefined();
   });
 });

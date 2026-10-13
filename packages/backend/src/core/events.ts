@@ -77,6 +77,7 @@ export interface IntegrationStatusEvent {
   status: IntegrationStatus;
 }
 
+/** A failure an integration reported without changing its status (see IntegrationEvents). */
 export interface IntegrationErrorEvent {
   name: string;
   error: Error;

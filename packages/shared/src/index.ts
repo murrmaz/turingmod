@@ -14,3 +14,5 @@ export * from './types/command.js';
 export * from './types/integration.js';
 // Types
 export * from './types/user.js';
+// Utilities
+export * from './utils/errors.js';

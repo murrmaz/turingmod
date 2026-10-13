@@ -1,4 +1,4 @@
-import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
 import type {
   HelixChannelUpdate,
   HelixCreateCustomRewardData,
@@ -102,10 +102,7 @@ export class TwitchApiIntegration extends BaseIntegration {
       return Promise.resolve();
     } catch (error) {
       this.logger.error('Failed to start Twitch API integration', error);
-      this.setStatus(
-        IntegrationStatus.ERROR,
-        error instanceof Error ? error.message : 'Unknown error'
-      );
+      this.setStatus(IntegrationStatus.ERROR, messageOf(error));
       throw error;
     }
   }

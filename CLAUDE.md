@@ -252,9 +252,16 @@ resolve-on-access change above eliminates.
 
 A token refresh is the one thing status *can't* express (the integration stays CONNECTED through
 it), so it has its own forward: `BaseIntegration.reportTokenRefreshed(expiresAt?)` →
-`'token-refreshed'` → logged and republished as `integration.tokenRefreshed` with
+`'tokenRefreshed'` → logged and republished as `integration.tokenRefreshed` with
 `{ name, expiresAt? }`. It carries no credentials by design — anything needing the token asks the
 integration on access.
+
+An integration's own events (`status`, `tokenRefreshed`, `failure`) are typed by
+`IntegrationEvents` in `interfaces/IIntegration.ts`, the same way the bus is typed by `EventMap`;
+`IntegrationManager.register()` is their one listener. `failure` (via `reportFailure()`) is for
+something that went wrong without changing status, and is republished as `integration.error`; it
+carries an `Error`, since `reportFailure()` converts whatever was caught. It is deliberately not
+named `'error'`, which Node's `EventEmitter` throws on when nothing is listening.
 
 ### WebSocket Protocol
 
@@ -418,6 +425,10 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 - Line width 100, single quotes, semicolons always, trailing commas (es5).
 - Naming: camelCase/PascalCase for functions, PascalCase for classes/interfaces, CONSTANT_CASE for enum members.
 - Pre-commit hook (Husky + lint-staged) runs `biome check --write` on staged files.
+- **Errors**: throw only `Error`s, with a message (Biome's `useThrowOnlyError` and `useErrorMessage`
+  enforce it). A caught value is still `unknown`, because dependencies can throw anything: narrow it
+  where it's caught with `messageOf()` or `toError()` (`shared/src/utils/errors.ts`) rather than
+  repeating `instanceof Error` checks or passing `unknown` on.
 
 ## TypeScript
 

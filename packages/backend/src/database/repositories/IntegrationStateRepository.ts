@@ -59,46 +59,42 @@ export class IntegrationStateRepository {
   /**
    * Find integration config by name
    */
-  findByName(name: string): Promise<IntegrationConfig | null> {
+  findByName(name: string): IntegrationConfig | null {
     const row = this.db.queryOne<IntegrationStateRow>(
       'SELECT * FROM integration_state WHERE name = ?',
       [name]
     );
     if (row) {
-      return Promise.resolve(this.rowToEntity(row));
+      return this.rowToEntity(row);
     }
-    return Promise.resolve(null);
+    return null;
   }
 
   /**
    * Find all integration configs
    */
-  findAll(): Promise<IntegrationConfig[]> {
+  findAll(): IntegrationConfig[] {
     const rows = this.db.query<IntegrationStateRow>(
       'SELECT * FROM integration_state ORDER BY name'
     );
-    return Promise.resolve(rows.map((row) => this.rowToEntity(row)));
+    return rows.map((row) => this.rowToEntity(row));
   }
 
   /**
    * Find all enabled integrations
    */
-  findAllEnabled(): Promise<IntegrationConfig[]> {
+  findAllEnabled(): IntegrationConfig[] {
     const rows = this.db.query<IntegrationStateRow>(
       'SELECT * FROM integration_state WHERE enabled = 1 ORDER BY name'
     );
-    return Promise.resolve(rows.map((row) => this.rowToEntity(row)));
+    return rows.map((row) => this.rowToEntity(row));
   }
 
   /**
    * Create or update integration config
    */
-  async upsert(
-    name: string,
-    config: Record<string, unknown>,
-    enabled: boolean
-  ): Promise<IntegrationConfig> {
-    const existing = await this.findByName(name);
+  upsert(name: string, config: Record<string, unknown>, enabled: boolean): IntegrationConfig {
+    const existing = this.findByName(name);
     const now = Date.now();
 
     // Encrypt configuration
@@ -112,7 +108,7 @@ export class IntegrationStateRepository {
          WHERE name = ?`,
         [encryptedConfig, enabled ? 1 : 0, now, name]
       );
-      const updated = await this.findByName(name);
+      const updated = this.findByName(name);
       if (!updated) throw new Error(`Integration state not found after update: ${name}`);
       return updated;
     }
@@ -124,7 +120,7 @@ export class IntegrationStateRepository {
         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [id, name, enabled ? 1 : 0, encryptedConfig, IntegrationStatus.DISCONNECTED, now, now]
     );
-    const created = await this.findByName(name);
+    const created = this.findByName(name);
     if (!created) throw new Error(`Integration state not found after insert: ${name}`);
     return created;
   }
@@ -132,7 +128,7 @@ export class IntegrationStateRepository {
   /**
    * Update integration status
    */
-  updateStatus(name: string, status: IntegrationStatus, error?: string): Promise<void> {
+  updateStatus(name: string, status: IntegrationStatus, error?: string): void {
     const now = Date.now();
     const connectedAt = status === IntegrationStatus.CONNECTED ? now : null;
 
@@ -142,13 +138,12 @@ export class IntegrationStateRepository {
        WHERE name = ?`,
       [status, error ?? null, connectedAt, now, name]
     );
-    return Promise.resolve();
   }
 
   /**
    * Update integration enabled flag
    */
-  updateEnabled(name: string, enabled: boolean): Promise<void> {
+  updateEnabled(name: string, enabled: boolean): void {
     const now = Date.now();
 
     this.db.run(
@@ -157,14 +152,13 @@ export class IntegrationStateRepository {
        WHERE name = ?`,
       [enabled ? 1 : 0, now, name]
     );
-    return Promise.resolve();
   }
 
   /**
    * Get decrypted configuration
    */
-  async getDecryptedConfig(name: string): Promise<Record<string, unknown> | null> {
-    const config = await this.findByName(name);
+  getDecryptedConfig(name: string): Record<string, unknown> | null {
+    const config = this.findByName(name);
     if (!config?.config) {
       return null;
     }

@@ -39,7 +39,7 @@ describe('OAuthFlowService', () => {
       startIntegration: vi.fn().mockResolvedValue(undefined),
     } as unknown as IntegrationManager;
     repo = {
-      updateEnabled: vi.fn().mockResolvedValue(undefined),
+      updateEnabled: vi.fn(),
     } as unknown as IntegrationStateRepository;
     flow = new OAuthFlowService(manager, repo);
   });

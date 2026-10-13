@@ -108,7 +108,7 @@ describe('FacecamEffectRunner', () => {
     logger = makeLogger();
     runner = new FacecamEffectRunner(
       obs as unknown as ObsIntegration,
-      { getJson: () => Promise.resolve(settings) } as unknown as SettingsRepository,
+      { getJson: () => settings } as unknown as SettingsRepository,
       logger
     );
   });

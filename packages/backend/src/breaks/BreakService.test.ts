@@ -28,7 +28,7 @@ function setup(stored: unknown = null) {
       return Promise.resolve({ updated: [], failures: [] });
     }),
   };
-  const settingsRepo = { getJson: vi.fn(() => Promise.resolve(stored)) };
+  const settingsRepo = { getJson: vi.fn(() => stored) };
   const sounds = { tryPlay: vi.fn(() => Promise.resolve()) };
   const service = new BreakService(
     eventBus,

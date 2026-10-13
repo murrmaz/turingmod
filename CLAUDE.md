@@ -262,7 +262,7 @@ All messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/me
 
 ### Database
 
-`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `IntegrationStateRepository`, `SettingsRepository`, `ActivityLogRepository` (the record of everything that happened, commands included), plus repositories for data owned by single features — `BannedWordRepository`, `CounterRepository`, `IntervalMessageRepository`, `SuggestionRepository`. A new migration goes in `migrations/` and must be added to `ALL_MIGRATIONS`. Tests get a migrated temp database from `repositories/testDatabase.ts`. Integration configs are encrypted with AES-256-GCM before storage; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there.
+`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `IntegrationStateRepository`, `SettingsRepository`, `ActivityLogRepository` (the record of everything that happened, commands included), plus repositories for data owned by single features — `BannedWordRepository`, `CounterRepository`, `IntervalMessageRepository`, `SuggestionRepository`. Repositories are synchronous, because `node:sqlite` is: they return values, not promises. `DatabaseManager.transaction()` takes a synchronous callback and rejects an async one, since an `await` inside it would let other writes on the one shared connection join the transaction. A new migration goes in `migrations/` and must be added to `ALL_MIGRATIONS`. Tests get a migrated temp database from `repositories/testDatabase.ts`. Integration configs are encrypted with AES-256-GCM before storage; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there.
 
 ### Platform Provider Layer
 
@@ -378,7 +378,11 @@ moderated or not.
 Failures `CommandExecutor` produces itself (`EXECUTOR_ERROR_CODES`: unknown command, permissions,
 cooldown, crashed) get **no reply in chat** — an unknown `!word` is often meant for
 another bot — and are recorded in the activity log instead (unknown commands are also logged at
-debug). Failures a command reports itself (usage, "game not found") are still replied to.
+debug). Failures a command reports itself (usage, "game not found", a viewer trying a
+moderator-only branch) are still replied to. The two sets of codes are separate unions in
+`shared/src/types/command.ts`: `ICommand.execute()` returns a `CommandResult`, which admits only
+`CommandErrorCode`, so a command can't report an executor code and have its reply silenced. Protocol
+error messages likewise use the `ErrorCode` union in `messages.ts`, not free strings.
 
 **TuringMod never acts on its own chat messages.** It posts with the broadcaster's login — one
 identity per platform, deliberately, rather than a separate bot account that would split actions

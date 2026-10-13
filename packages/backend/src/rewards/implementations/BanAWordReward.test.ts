@@ -48,8 +48,8 @@ describe('BanAWordReward', () => {
   it('bans the word for a month and says so in chat', async () => {
     await reward.handle(redemption('Cheese!'));
 
-    expect(await bannedWords.isActive('cheese', banCutoff())).toBe(true);
-    expect((await bannedWords.list())[0]?.bannedBy).toBe('viewer');
+    expect(bannedWords.isActive('cheese', banCutoff())).toBe(true);
+    expect(bannedWords.list()[0]?.bannedBy).toBe('viewer');
     expect(sendChatMessage).toHaveBeenCalledWith(
       StreamingPlatform.TWITCH,
       '@Viewer has banned the word "cheese" for a month!'
@@ -59,7 +59,7 @@ describe('BanAWordReward', () => {
   it('refuses, and so refunds, anything but one word', async () => {
     await expect(reward.handle(redemption('two words'))).rejects.toThrow('Not a single word');
 
-    expect(await bannedWords.list()).toEqual([]);
+    expect(bannedWords.list()).toEqual([]);
     expect(sendChatMessage).toHaveBeenCalledWith(
       StreamingPlatform.TWITCH,
       '@Viewer: only one word can be banned! Your points have been refunded.'
@@ -67,25 +67,25 @@ describe('BanAWordReward', () => {
   });
 
   it('refuses a word that is already banned', async () => {
-    await bannedWords.ban('cheese', 'someone else');
+    bannedWords.ban('cheese', 'someone else');
 
     await expect(reward.handle(redemption('cheese'))).rejects.toThrow('Already banned');
-    expect((await bannedWords.list())[0]?.bannedBy).toBe('someone else');
+    expect(bannedWords.list()[0]?.bannedBy).toBe('someone else');
   });
 
   it('renews a ban that has lapsed', async () => {
-    await bannedWords.ban('cheese', 'long ago', Date.now() - BAN_DURATION_MS - 1000);
+    bannedWords.ban('cheese', 'long ago', Date.now() - BAN_DURATION_MS - 1000);
 
     await reward.handle(redemption('cheese'));
 
-    expect(await bannedWords.isActive('cheese', banCutoff())).toBe(true);
-    expect((await bannedWords.list())[0]?.bannedBy).toBe('viewer');
+    expect(bannedWords.isActive('cheese', banCutoff())).toBe(true);
+    expect(bannedWords.list()[0]?.bannedBy).toBe('viewer');
   });
 
   it('keeps the ban even if the chat reply fails', async () => {
     sendChatMessage.mockRejectedValue(new Error('chat down'));
 
     await expect(reward.handle(redemption('cheese'))).resolves.toBeUndefined();
-    expect(await bannedWords.isActive('cheese', banCutoff())).toBe(true);
+    expect(bannedWords.isActive('cheese', banCutoff())).toBe(true);
   });
 });

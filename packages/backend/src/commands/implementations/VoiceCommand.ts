@@ -20,13 +20,13 @@ export class VoiceCommand implements ICommand {
 
   constructor(private counters: CounterRepository) {}
 
-  async execute(_context: CommandContext): Promise<CommandResult> {
-    const cracks = await this.counters.increment(COUNTERS.voiceCracks);
-    return {
+  execute(_context: CommandContext): Promise<CommandResult> {
+    const cracks = this.counters.increment(COUNTERS.voiceCracks);
+    return Promise.resolve({
       success: true,
       message: `Streamer's voice has cracked ${cracks} times`,
       data: { cracks },
-    };
+    });
   }
 }
 

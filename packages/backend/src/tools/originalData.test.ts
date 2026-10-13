@@ -112,13 +112,13 @@ describe('original data import', () => {
     suggestions: ['add a quote command'],
   };
 
-  it('imports everything and lists custom commands to port by hand', async () => {
-    const report = await importOriginalData(data, targets());
+  it('imports everything and lists custom commands to port by hand', () => {
+    const report = importOriginalData(data, targets());
 
-    expect(await targets().intervalMessages.list()).toEqual(data.intervalMessages);
-    expect(await targets().counters.get(COUNTERS.deaths)).toBe(12);
-    expect(await targets().counters.get(COUNTERS.voiceCracks)).toBe(57);
-    expect(await targets().bannedWords.list()).toEqual([
+    expect(targets().intervalMessages.list()).toEqual(data.intervalMessages);
+    expect(targets().counters.get(COUNTERS.deaths)).toBe(12);
+    expect(targets().counters.get(COUNTERS.voiceCracks)).toBe(57);
+    expect(targets().bannedWords.list()).toEqual([
       { word: 'cheese', bannedBy: null, bannedAt: 1000 },
     ]);
     expect(report).toEqual([
@@ -132,14 +132,14 @@ describe('original data import', () => {
     ]);
   });
 
-  it('is safe to re-run, and never overwrites a count kept since', async () => {
-    await importOriginalData(data, targets());
-    await targets().counters.increment(COUNTERS.deaths);
+  it('is safe to re-run, and never overwrites a count kept since', () => {
+    importOriginalData(data, targets());
+    targets().counters.increment(COUNTERS.deaths);
 
-    const report = await importOriginalData(data, targets());
+    const report = importOriginalData(data, targets());
 
-    expect(await targets().counters.get(COUNTERS.deaths)).toBe(13);
-    expect(await targets().intervalMessages.list()).toHaveLength(1);
+    expect(targets().counters.get(COUNTERS.deaths)).toBe(13);
+    expect(targets().intervalMessages.list()).toHaveLength(1);
     expect(report).toContain('Interval messages: 0 imported, 1 already present');
     expect(report).toContain('Deaths: kept the existing 13 (the original had 12)');
     expect(report).toContain('Banned words: 0 imported, 1 already present');

@@ -238,7 +238,7 @@ export class TwitchAuthIntegration extends OAuthIntegration<TwitchAuthConfig> {
       scope: string[];
     };
 
-    await this.saveTokens(
+    this.saveTokens(
       toConfigPatch({
         accessToken: data.access_token,
         refreshToken: data.refresh_token || null,

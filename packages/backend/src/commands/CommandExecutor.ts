@@ -1,4 +1,4 @@
-import type { CommandContext, CommandResult } from '@turingmod/shared';
+import type { CommandContext, ExecutionResult } from '@turingmod/shared';
 import { hasPermission, PermissionLevel } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
@@ -6,18 +6,6 @@ import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { Logger } from '../utils/Logger.js';
 import { CommandRegistry } from './CommandRegistry.js';
 import type { ICommand } from './interfaces/ICommand.js';
-
-/**
- * Error codes CommandExecutor produces itself, as opposed to a failure a command reported. They
- * describe the invocation (unknown command, insufficient permissions, on cooldown, crashed), so ChatRouter
- * doesn't reply to them in public chat; the activity log records each one.
- */
-export const EXECUTOR_ERROR_CODES: ReadonlySet<string> = new Set([
-  'COMMAND_NOT_FOUND',
-  'INSUFFICIENT_PERMISSIONS',
-  'COMMAND_ON_COOLDOWN',
-  'EXECUTION_ERROR',
-]);
 
 /**
  * Cooldown tracker
@@ -50,7 +38,7 @@ export class CommandExecutor {
   /**
    * Execute a command
    */
-  async execute(context: CommandContext): Promise<CommandResult> {
+  async execute(context: CommandContext): Promise<ExecutionResult> {
     const { user, args } = context;
 
     // Parse command name from first arg or extract from metadata
@@ -72,7 +60,7 @@ export class CommandExecutor {
       false;
 
     if (!(command && isAvailable)) {
-      const result: CommandResult = {
+      const result: ExecutionResult = {
         success: false,
         message: `Unknown command: ${commandName}`,
         error: {
@@ -90,7 +78,7 @@ export class CommandExecutor {
     );
 
     if (!hasRequiredPermission) {
-      const result: CommandResult = {
+      const result: ExecutionResult = {
         success: false,
         message: `Insufficient permissions for command: ${commandName}`,
         error: {
@@ -109,7 +97,7 @@ export class CommandExecutor {
 
       if (cooldownEntry && cooldownEntry.expiresAt > Date.now()) {
         const remainingSeconds = Math.ceil((cooldownEntry.expiresAt - Date.now()) / 1000);
-        const result: CommandResult = {
+        const result: ExecutionResult = {
           success: false,
           message: `Command on cooldown. Try again in ${remainingSeconds}s`,
           error: {
@@ -154,7 +142,7 @@ export class CommandExecutor {
         user: user.username,
       });
 
-      const result: CommandResult = {
+      const result: ExecutionResult = {
         success: false,
         message: 'Command execution failed',
         error: {
@@ -175,7 +163,7 @@ export class CommandExecutor {
   private async logExecution(
     commandName: string,
     context: CommandContext,
-    result: CommandResult
+    result: ExecutionResult
   ): Promise<void> {
     try {
       await this.eventBus.emit('command.executed', {

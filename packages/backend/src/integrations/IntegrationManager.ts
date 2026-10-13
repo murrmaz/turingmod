@@ -95,7 +95,7 @@ export class IntegrationManager {
       // instead let the stored row disagree with getStatus() — notably by
       // recording CONNECTED for an integration that had set something else
       // during start().
-      void this.persistStatus(integration);
+      this.persistStatus(integration);
 
       void this.onDependencyStatusChange(integration.name, status);
     });
@@ -131,7 +131,7 @@ export class IntegrationManager {
   async loadIntegrations(): Promise<void> {
     this.logger.info('Loading integrations from database');
 
-    const configs = await this.stateRepository.findAll();
+    const configs = this.stateRepository.findAll();
     this.logger.info(`Found ${configs.length} integration configs`);
 
     for (const config of configs) {
@@ -143,7 +143,7 @@ export class IntegrationManager {
 
       if (config.config) {
         try {
-          const decryptedConfig = await this.stateRepository.getDecryptedConfig(config.name);
+          const decryptedConfig = this.stateRepository.getDecryptedConfig(config.name);
           if (decryptedConfig) {
             await integration.initialize(decryptedConfig);
             this.logger.info(`Initialized integration: ${config.name}`);
@@ -161,7 +161,7 @@ export class IntegrationManager {
   async startEnabledIntegrations(): Promise<void> {
     this.logger.info('Starting enabled integrations');
 
-    const configs = await this.stateRepository.findAllEnabled();
+    const configs = this.stateRepository.findAllEnabled();
     this.logger.info(`Found ${configs.length} enabled integrations`);
 
     const enabled = configs.map((c) => c.name).filter((name) => this.integrations.has(name));
@@ -226,7 +226,7 @@ export class IntegrationManager {
     try {
       // Ensure integration is initialized before starting (it may not have been
       // initialized during loadIntegrations if no config existed at that time)
-      const savedConfig = await this.stateRepository.getDecryptedConfig(name);
+      const savedConfig = this.stateRepository.getDecryptedConfig(name);
       if (savedConfig) {
         await integration.initialize(savedConfig);
       }
@@ -467,7 +467,7 @@ export class IntegrationManager {
         continue;
       }
 
-      if (!(await this.isEnabled(name))) {
+      if (!this.isEnabled(name)) {
         this.cascadeStopped.delete(name);
         continue;
       }
@@ -484,9 +484,9 @@ export class IntegrationManager {
     }
   }
 
-  private async isEnabled(name: string): Promise<boolean> {
+  private isEnabled(name: string): boolean {
     try {
-      const config = await this.stateRepository.findByName(name);
+      const config = this.stateRepository.findByName(name);
       return config?.enabled === true;
     } catch (error) {
       this.logger.error(`Could not read enabled state for ${name}`, error);
@@ -498,9 +498,9 @@ export class IntegrationManager {
    * Persist an integration's current status. Single writer, driven by the
    * integration's own 'status' event.
    */
-  private async persistStatus(integration: IIntegration): Promise<void> {
+  private persistStatus(integration: IIntegration): void {
     try {
-      await this.stateRepository.updateStatus(
+      this.stateRepository.updateStatus(
         integration.name,
         integration.getStatus(),
         integration.getErrorMessage?.()
@@ -612,7 +612,7 @@ export class IntegrationManager {
     this.logger.info(`Configuring integration: ${name}`);
 
     // Save configuration
-    await this.stateRepository.upsert(name, config, enabled);
+    this.stateRepository.upsert(name, config, enabled);
 
     // Initialize with new configuration
     await integration.initialize(config);

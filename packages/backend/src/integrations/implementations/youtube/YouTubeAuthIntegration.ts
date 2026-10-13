@@ -143,7 +143,7 @@ export class YouTubeAuthIntegration extends OAuthIntegration<YouTubeAuthConfig> 
     this.logger.info('Exchanging authorization code for tokens');
 
     const { tokens } = await this.buildClient(this.requireConfig()).getToken(code);
-    await this.saveTokens(toConfigPatch(tokens));
+    this.saveTokens(toConfigPatch(tokens));
 
     this.logger.info('Successfully exchanged code for tokens');
   }

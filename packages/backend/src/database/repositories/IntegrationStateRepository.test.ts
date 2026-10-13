@@ -30,8 +30,8 @@ describe('IntegrationStateRepository', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('creates a new integration config on first upsert', async () => {
-    const config = await repo.upsert('twitch', { clientId: 'abc' }, true);
+  it('creates a new integration config on first upsert', () => {
+    const config = repo.upsert('twitch', { clientId: 'abc' }, true);
 
     expect(config.name).toBe('twitch');
     expect(config.enabled).toBe(true);
@@ -39,65 +39,65 @@ describe('IntegrationStateRepository', () => {
     expect(config.config).not.toContain('abc'); // stored encrypted
   });
 
-  it('updates an existing integration config on subsequent upsert', async () => {
-    const created = await repo.upsert('twitch', { clientId: 'abc' }, true);
-    const updated = await repo.upsert('twitch', { clientId: 'xyz' }, false);
+  it('updates an existing integration config on subsequent upsert', () => {
+    const created = repo.upsert('twitch', { clientId: 'abc' }, true);
+    const updated = repo.upsert('twitch', { clientId: 'xyz' }, false);
 
     expect(updated.id).toBe(created.id);
     expect(updated.enabled).toBe(false);
     expect(updated.updatedAt).toBeGreaterThanOrEqual(created.updatedAt);
 
-    const all = await repo.findAll();
+    const all = repo.findAll();
     expect(all).toHaveLength(1);
   });
 
-  it('returns null for a name that has not been configured', async () => {
-    expect(await repo.findByName('missing')).toBeNull();
+  it('returns null for a name that has not been configured', () => {
+    expect(repo.findByName('missing')).toBeNull();
   });
 
-  it('finds all configs and only enabled configs', async () => {
-    await repo.upsert('twitch', {}, true);
-    await repo.upsert('spotify', {}, false);
+  it('finds all configs and only enabled configs', () => {
+    repo.upsert('twitch', {}, true);
+    repo.upsert('spotify', {}, false);
 
-    const all = await repo.findAll();
+    const all = repo.findAll();
     expect(all.map((c) => c.name)).toEqual(['spotify', 'twitch']);
 
-    const enabled = await repo.findAllEnabled();
+    const enabled = repo.findAllEnabled();
     expect(enabled.map((c) => c.name)).toEqual(['twitch']);
   });
 
-  it('updates status, setting lastConnectedAt only when CONNECTED', async () => {
-    await repo.upsert('twitch', {}, true);
+  it('updates status, setting lastConnectedAt only when CONNECTED', () => {
+    repo.upsert('twitch', {}, true);
 
-    await repo.updateStatus('twitch', IntegrationStatus.ERROR, 'boom');
-    let config = await repo.findByName('twitch');
+    repo.updateStatus('twitch', IntegrationStatus.ERROR, 'boom');
+    let config = repo.findByName('twitch');
     expect(config?.lastStatus).toBe(IntegrationStatus.ERROR);
     expect(config?.lastError).toBe('boom');
     expect(config?.lastConnectedAt).toBeUndefined();
 
-    await repo.updateStatus('twitch', IntegrationStatus.CONNECTED);
-    config = await repo.findByName('twitch');
+    repo.updateStatus('twitch', IntegrationStatus.CONNECTED);
+    config = repo.findByName('twitch');
     expect(config?.lastStatus).toBe(IntegrationStatus.CONNECTED);
     expect(config?.lastError).toBeUndefined();
     expect(config?.lastConnectedAt).toBeTypeOf('number');
   });
 
-  it('updates the enabled flag independently of config/status', async () => {
-    await repo.upsert('twitch', {}, true);
-    await repo.updateEnabled('twitch', false);
+  it('updates the enabled flag independently of config/status', () => {
+    repo.upsert('twitch', {}, true);
+    repo.updateEnabled('twitch', false);
 
-    const config = await repo.findByName('twitch');
+    const config = repo.findByName('twitch');
     expect(config?.enabled).toBe(false);
   });
 
-  it('round-trips the decrypted config', async () => {
-    await repo.upsert('twitch', { clientId: 'abc', clientSecret: 'shh' }, true);
+  it('round-trips the decrypted config', () => {
+    repo.upsert('twitch', { clientId: 'abc', clientSecret: 'shh' }, true);
 
-    const decrypted = await repo.getDecryptedConfig('twitch');
+    const decrypted = repo.getDecryptedConfig('twitch');
     expect(decrypted).toEqual({ clientId: 'abc', clientSecret: 'shh' });
   });
 
-  it('returns null decrypted config for a name that has not been configured', async () => {
-    expect(await repo.getDecryptedConfig('missing')).toBeNull();
+  it('returns null decrypted config for a name that has not been configured', () => {
+    expect(repo.getDecryptedConfig('missing')).toBeNull();
   });
 });

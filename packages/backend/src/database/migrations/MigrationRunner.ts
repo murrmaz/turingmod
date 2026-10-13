@@ -13,10 +13,10 @@ export interface Migration {
   name: string;
 
   /** Apply the migration */
-  up(db: DatabaseManager): Promise<void> | void;
+  up(db: DatabaseManager): void;
 
   /** Rollback the migration (optional) */
-  down?(db: DatabaseManager): Promise<void> | void;
+  down?(db: DatabaseManager): void;
 }
 
 /**
@@ -70,7 +70,7 @@ export class MigrationRunner {
   /**
    * Run migrations
    */
-  async runMigrations(migrations: Migration[]): Promise<void> {
+  runMigrations(migrations: Migration[]): void {
     this.logger.info('Running database migrations');
 
     // Ensure migrations table exists
@@ -96,8 +96,8 @@ export class MigrationRunner {
       });
 
       try {
-        await this.db.transaction(async () => {
-          await migration.up(this.db);
+        this.db.transaction(() => {
+          migration.up(this.db);
           this.markAsApplied(migration);
         });
 
@@ -118,7 +118,7 @@ export class MigrationRunner {
   /**
    * Rollback last migration
    */
-  async rollbackLast(migrations: Migration[]): Promise<void> {
+  rollbackLast(migrations: Migration[]): void {
     const appliedVersions = this.getAppliedVersions();
     if (appliedVersions.length === 0) {
       this.logger.info('No migrations to rollback');
@@ -141,8 +141,8 @@ export class MigrationRunner {
     });
 
     try {
-      await this.db.transaction(async () => {
-        await migration.down?.(this.db);
+      this.db.transaction(() => {
+        migration.down?.(this.db);
         this.db.run('DELETE FROM migrations WHERE version = ?', [lastVersion]);
       });
 

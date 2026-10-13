@@ -66,9 +66,7 @@ export class FacecamEffectRunner implements IService {
       throw new Error('OBS is not connected');
     }
 
-    const { facecamSource } = parseEffectSettings(
-      await this.settingsRepo.getJson(EFFECT_SETTINGS_KEY)
-    );
+    const { facecamSource } = parseEffectSettings(this.settingsRepo.getJson(EFFECT_SETTINGS_KEY));
     const targets = await this.findFacecam(facecamSource, effect.mainCanvasOnly === true);
     if (targets.length === 0) {
       throw new Error(`No "${facecamSource}" source in the current scene`);

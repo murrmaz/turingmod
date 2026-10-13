@@ -181,20 +181,22 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
    * in-memory config is updated first, so the tokens stay in use even if
    * storing them fails.
    */
-  protected async saveTokens(patch: Partial<TConfig>): Promise<void> {
+  protected saveTokens(patch: Partial<TConfig>): void {
     this.config = { ...this.requireConfig(), ...patch };
-    await this.stateRepo.upsert(this.name, this.config as unknown as Record<string, unknown>, true);
+    this.stateRepo.upsert(this.name, this.config as unknown as Record<string, unknown>, true);
   }
 
   /**
-   * saveTokens() for a refresh listener that nothing awaits: a failed save is
-   * logged rather than left as an unhandled rejection, which would end the
-   * process.
+   * saveTokens() for a refresh listener, where a throw would escape into the
+   * SDK's event emitter: a failed save is logged instead. The refreshed tokens
+   * stay in use either way.
    */
   protected saveRefreshedTokens(patch: Partial<TConfig>): void {
-    this.saveTokens(patch).catch((error: unknown) => {
+    try {
+      this.saveTokens(patch);
+    } catch (error) {
       this.logger.error('Failed to save refreshed tokens', error);
-    });
+    }
   }
 }
 

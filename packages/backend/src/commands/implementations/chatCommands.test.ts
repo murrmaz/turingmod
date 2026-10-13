@@ -69,13 +69,13 @@ describe('counter commands', () => {
   });
 
   it('!died counts up from the stored count and !rdeaths resets it', async () => {
-    await counters.set(COUNTERS.deaths, 12);
+    counters.set(COUNTERS.deaths, 12);
 
     expect((await new DiedCommand(counters).execute(contextFor(['died']))).message).toBe(
       'Death count: 13'
     );
     await new RdeathsCommand(counters).execute(contextFor(['rdeaths']));
-    expect(await counters.get(COUNTERS.deaths)).toBe(0);
+    expect(counters.get(COUNTERS.deaths)).toBe(0);
   });
 
   it('!voice counts voice cracks', async () => {

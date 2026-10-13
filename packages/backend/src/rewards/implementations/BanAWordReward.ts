@@ -40,12 +40,12 @@ export default class BanAWordReward implements IRewardHandler {
       await this.reply(`@${user}: only one word can be banned! Your points have been refunded.`);
       throw new Error(`Not a single word: "${redemption.input}"`);
     }
-    if (await this.bannedWords.isActive(word, banCutoff())) {
+    if (this.bannedWords.isActive(word, banCutoff())) {
       await this.reply(`@${user}: "${word}" is already banned! Your points have been refunded.`);
       throw new Error(`Already banned: "${word}"`);
     }
 
-    await this.bannedWords.ban(word, redemption.userName);
+    this.bannedWords.ban(word, redemption.userName);
     await this.reply(`@${user} has banned the word "${word}" for a month!`);
   }
 

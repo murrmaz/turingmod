@@ -56,12 +56,12 @@ describe('DatabaseManager', () => {
     await db.initialize();
     db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)');
 
-    await expect(
+    expect(() =>
       db.transaction(() => {
         db.run('INSERT INTO users (name) VALUES (?)', ['carol']);
         throw new Error('boom');
       })
-    ).rejects.toThrow('boom');
+    ).toThrow('boom');
 
     expect(db.query('SELECT * FROM users')).toEqual([]);
     await db.close();
@@ -72,11 +72,27 @@ describe('DatabaseManager', () => {
     await db.initialize();
     db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)');
 
-    await db.transaction(() => {
+    db.transaction(() => {
       db.run('INSERT INTO users (name) VALUES (?)', ['dave']);
     });
 
     expect(db.query('SELECT * FROM users')).toHaveLength(1);
+    await db.close();
+  });
+
+  it('rolls back, rather than commit early, when the callback is async', async () => {
+    const db = makeManager();
+    await db.initialize();
+    db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)');
+
+    expect(() =>
+      // biome-ignore lint/suspicious/useAwait: the mistake under test
+      db.transaction(async () => {
+        db.run('INSERT INTO users (name) VALUES (?)', ['erin']);
+      })
+    ).toThrow('synchronous');
+
+    expect(db.query('SELECT * FROM users')).toEqual([]);
     await db.close();
   });
 

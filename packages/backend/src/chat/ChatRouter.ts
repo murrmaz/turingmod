@@ -1,6 +1,6 @@
-import type { CommandContext } from '@turingmod/shared';
+import { type CommandContext, isExecutorErrorCode } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
-import { CommandExecutor, EXECUTOR_ERROR_CODES } from '../commands/CommandExecutor.js';
+import { CommandExecutor } from '../commands/CommandExecutor.js';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
@@ -77,7 +77,7 @@ export class ChatRouter implements IService {
     // meant for another bot, and permission and cooldown rejections are in the activity log.
     // Failures a command reported (usage, "game not found") still reach the viewer.
     const errorCode = result.error?.code;
-    if (errorCode !== undefined && EXECUTOR_ERROR_CODES.has(errorCode)) {
+    if (errorCode !== undefined && isExecutorErrorCode(errorCode)) {
       if (errorCode === 'COMMAND_NOT_FOUND') {
         this.logger.debug(`Unrecognized command from ${event.username}: ${parsed.command}`);
       }

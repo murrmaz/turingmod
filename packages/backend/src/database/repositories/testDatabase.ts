@@ -17,7 +17,7 @@ export async function createTestDatabase(): Promise<{
   const logger = new Logger({ level: 'silent' });
   const db = new DatabaseManager(path, logger);
   await db.initialize();
-  await new MigrationRunner(db, logger).runMigrations([...ALL_MIGRATIONS]);
+  new MigrationRunner(db, logger).runMigrations([...ALL_MIGRATIONS]);
   return {
     db,
     path,

@@ -45,7 +45,7 @@ export class ActivityLogRepository {
   /**
    * Create an activity log entry
    */
-  create(entry: Omit<ActivityLogEntry, 'id'>): Promise<ActivityLogEntry> {
+  create(entry: Omit<ActivityLogEntry, 'id'>): ActivityLogEntry {
     const id = crypto.randomUUID();
 
     this.db.run(
@@ -58,7 +58,7 @@ export class ActivityLogRepository {
       this.insertsSincePrune = 0;
     }
 
-    return Promise.resolve({ id, ...entry });
+    return { id, ...entry };
   }
 
   /**
@@ -69,7 +69,7 @@ export class ActivityLogRepository {
     limit?: number;
     category?: ActivityCategory;
     before?: number;
-  }): Promise<ActivityLogEntry[]> {
+  }): ActivityLogEntry[] {
     const limit = Math.min(opts.limit ?? DEFAULT_QUERY_LIMIT, MAX_QUERY_LIMIT);
     const conditions: string[] = [];
     const params: SqlValue[] = [];
@@ -91,7 +91,7 @@ export class ActivityLogRepository {
     params.push(limit);
 
     const rows = this.db.query<ActivityLogRow>(sql, params);
-    return Promise.resolve(rows.map((row) => this.rowToEntity(row)));
+    return rows.map((row) => this.rowToEntity(row));
   }
 
   /**

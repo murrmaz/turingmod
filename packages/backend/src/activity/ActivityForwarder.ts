@@ -68,11 +68,7 @@ export class ActivityForwarder implements IService {
     this.subscriptions.clear();
   }
 
-  private async handleEvent(
-    event: EventName,
-    category: ActivityCategory,
-    data: unknown
-  ): Promise<void> {
+  private handleEvent(event: EventName, category: ActivityCategory, data: unknown): void {
     const entry: ActivityLogEntry = {
       id: crypto.randomUUID(),
       category,
@@ -91,7 +87,7 @@ export class ActivityForwarder implements IService {
     }
 
     try {
-      await this.repo.create(entry);
+      this.repo.create(entry);
     } catch (error) {
       this.logger.error('Failed to persist activity log entry', error, { event });
     }

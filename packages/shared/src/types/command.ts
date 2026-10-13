@@ -58,9 +58,44 @@ export interface CommandContext {
 }
 
 /**
- * Result of command execution
+ * Failures a command reports about its own work. Its `message` is written for the viewer, so
+ * chat gets it as a reply.
  */
-export interface CommandResult {
+export type CommandErrorCode =
+  /** The arguments were missing or malformed; the message says how to use the command. */
+  | 'INVALID_INPUT'
+  /** The viewer may run the command, but not this branch of it (e.g. setting rather than reading). */
+  | 'ACTION_NOT_PERMITTED'
+  /** The platform needs someone to complete or redo OAuth. */
+  | 'NOT_AUTHENTICATED'
+  /** The platform call failed. */
+  | 'API_ERROR'
+  /** The command refuses to run from the simulator because it can't be undone. */
+  | 'NOT_SIMULATED';
+
+/**
+ * Failures CommandExecutor reports about the invocation itself, before or around running the
+ * command. Chat gets no reply to these: an unknown `!word` is often meant for another bot.
+ */
+export const EXECUTOR_ERROR_CODES = [
+  'COMMAND_NOT_FOUND',
+  'INSUFFICIENT_PERMISSIONS',
+  'COMMAND_ON_COOLDOWN',
+  /** The command threw instead of returning a result. */
+  'EXECUTION_ERROR',
+] as const;
+
+export type ExecutorErrorCode = (typeof EXECUTOR_ERROR_CODES)[number];
+
+export function isExecutorErrorCode(code: string): code is ExecutorErrorCode {
+  return (EXECUTOR_ERROR_CODES as readonly string[]).includes(code);
+}
+
+/**
+ * What a command returns. Typed with only `CommandErrorCode` by default, so a command can't
+ * report one of the executor's codes and have its reply silenced as if the executor had.
+ */
+export interface CommandResult<TCode extends string = CommandErrorCode> {
   /** Whether the command succeeded */
   success: boolean;
 
@@ -72,8 +107,11 @@ export interface CommandResult {
 
   /** Error details if command failed */
   error?: {
-    code: string;
+    code: TCode;
     message: string;
     details?: unknown;
   };
 }
+
+/** What running a command produced: the command's own result, or the executor's rejection. */
+export type ExecutionResult = CommandResult<CommandErrorCode | ExecutorErrorCode>;

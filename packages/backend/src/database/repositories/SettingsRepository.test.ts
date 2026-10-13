@@ -26,18 +26,18 @@ describe('SettingsRepository', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('returns null for an unset key', async () => {
-    expect(await repo.getJson('missing')).toBeNull();
+  it('returns null for an unset key', () => {
+    expect(repo.getJson('missing')).toBeNull();
   });
 
-  it('round-trips a JSON value', async () => {
-    await repo.setJson('breaks', { obs: { muteInputs: ['Mic/Aux'] } });
-    expect(await repo.getJson('breaks')).toEqual({ obs: { muteInputs: ['Mic/Aux'] } });
+  it('round-trips a JSON value', () => {
+    repo.setJson('breaks', { obs: { muteInputs: ['Mic/Aux'] } });
+    expect(repo.getJson('breaks')).toEqual({ obs: { muteInputs: ['Mic/Aux'] } });
   });
 
-  it('replaces an existing value', async () => {
-    await repo.setJson('breaks', { enabled: true });
-    await repo.setJson('breaks', { enabled: false });
-    expect(await repo.getJson('breaks')).toEqual({ enabled: false });
+  it('replaces an existing value', () => {
+    repo.setJson('breaks', { enabled: true });
+    repo.setJson('breaks', { enabled: false });
+    expect(repo.getJson('breaks')).toEqual({ enabled: false });
   });
 });

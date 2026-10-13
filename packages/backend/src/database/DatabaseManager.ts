@@ -119,12 +119,18 @@ export class DatabaseManager {
   }
 
   /**
-   * Execute a function within a transaction
+   * Run `fn` inside a transaction, committing if it returns and rolling back if it throws.
+   *
+   * Synchronous on purpose: there is one connection, so anything another caller wrote while `fn`
+   * awaited would silently join this transaction, and roll back with it.
    */
-  async transaction<T>(fn: () => Promise<T> | T): Promise<T> {
+  transaction<T>(fn: () => T): T {
     this.beginTransaction();
     try {
-      const result = await fn();
+      const result = fn();
+      if (result instanceof Promise) {
+        throw new Error('transaction() needs a synchronous callback');
+      }
       this.commit();
       return result;
     } catch (error) {

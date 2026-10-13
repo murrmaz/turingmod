@@ -136,7 +136,7 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
       throw new Error(`Failed to exchange code: ${error}`);
     }
 
-    await this.saveTokens(toConfigPatch((await response.json()) as SpotifyTokenResponse));
+    this.saveTokens(toConfigPatch((await response.json()) as SpotifyTokenResponse));
 
     this.logger.info('Successfully exchanged code for tokens');
   }
@@ -169,7 +169,7 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
     }
 
     const data = (await response.json()) as SpotifyTokenResponse;
-    await this.saveTokens(toConfigPatch(data));
+    this.saveTokens(toConfigPatch(data));
 
     this.logger.info('Access token refreshed');
 

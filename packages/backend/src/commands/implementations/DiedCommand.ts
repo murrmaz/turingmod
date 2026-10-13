@@ -19,9 +19,9 @@ export class DiedCommand implements ICommand {
 
   constructor(private counters: CounterRepository) {}
 
-  async execute(_context: CommandContext): Promise<CommandResult> {
-    const deaths = await this.counters.increment(COUNTERS.deaths);
-    return { success: true, message: `Death count: ${deaths}`, data: { deaths } };
+  execute(_context: CommandContext): Promise<CommandResult> {
+    const deaths = this.counters.increment(COUNTERS.deaths);
+    return Promise.resolve({ success: true, message: `Death count: ${deaths}`, data: { deaths } });
   }
 }
 

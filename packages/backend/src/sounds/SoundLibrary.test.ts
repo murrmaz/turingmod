@@ -40,7 +40,7 @@ describe('SoundLibrary', () => {
     logger = makeLogger();
     library = new SoundLibrary(
       sound as unknown as SoundIntegration,
-      { getJson: () => Promise.resolve(settings) } as unknown as SettingsRepository,
+      { getJson: () => settings } as unknown as SettingsRepository,
       logger
     );
   });
@@ -55,16 +55,14 @@ describe('SoundLibrary', () => {
     expect(sound.playSound).toHaveBeenCalledWith(join(dir, 'gunshot.mp3'), 0.4, 2000);
   });
 
-  it('uses an absolute path as-is', async () => {
-    expect(await library.resolve('/somewhere/else.wav')).toBe('/somewhere/else.wav');
+  it('uses an absolute path as-is', () => {
+    expect(library.resolve('/somewhere/else.wav')).toBe('/somewhere/else.wav');
   });
 
   it('defaults to the bundled data directory, where bonk.mp3 ships', async () => {
     settings = null;
 
-    expect(await library.resolve('bonk.mp3')).toMatch(
-      /packages[/\\]backend[/\\]data[/\\]bonk\.mp3$/
-    );
+    expect(library.resolve('bonk.mp3')).toMatch(/packages[/\\]backend[/\\]data[/\\]bonk\.mp3$/);
     await library.play('bonk.mp3');
     expect(sound.playSound).toHaveBeenCalledWith(
       expect.stringMatching(/bonk\.mp3$/),

@@ -45,8 +45,8 @@ describe('IntervalAnnouncer', () => {
   });
 
   it('cycles through the messages in the order they were added', async () => {
-    await messages.add('socials', 'Follow me', null);
-    await messages.add('discord', 'Join the Discord', null);
+    messages.add('socials', 'Follow me', null);
+    messages.add('discord', 'Join the Discord', null);
 
     for (let i = 0; i < 3; i++) await announcer.announceNext();
 
@@ -54,8 +54,8 @@ describe('IntervalAnnouncer', () => {
   });
 
   it("doesn't advance the rotation while nothing is live", async () => {
-    await messages.add('socials', 'Follow me', null);
-    await messages.add('discord', 'Join the Discord', null);
+    messages.add('socials', 'Follow me', null);
+    messages.add('discord', 'Join the Discord', null);
 
     live = false;
     expect(await announcer.announceNext()).toBe(false);
@@ -68,11 +68,11 @@ describe('IntervalAnnouncer', () => {
   it('copes with an empty or shrinking rotation', async () => {
     expect(await announcer.announceNext()).toBe(false);
 
-    await messages.add('a', 'A', null);
-    await messages.add('b', 'B', null);
+    messages.add('a', 'A', null);
+    messages.add('b', 'B', null);
     await announcer.announceNext();
     await announcer.announceNext();
-    await messages.remove('b');
+    messages.remove('b');
     await announcer.announceNext();
 
     expect(posted).toEqual(['A', 'B', 'A']);
@@ -80,7 +80,7 @@ describe('IntervalAnnouncer', () => {
 
   it('posts every half hour once started', async () => {
     vi.useFakeTimers();
-    await messages.add('socials', 'Follow me', null);
+    messages.add('socials', 'Follow me', null);
     announcer.start();
 
     await vi.advanceTimersByTimeAsync(ANNOUNCEMENT_INTERVAL_MS - 1);

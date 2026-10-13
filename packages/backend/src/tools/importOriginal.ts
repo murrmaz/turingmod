@@ -61,12 +61,12 @@ async function main(): Promise<number> {
   const db = new DatabaseManager(dbPath, logger);
   await db.initialize();
   try {
-    await new MigrationRunner(db, logger).runMigrations([...ALL_MIGRATIONS]);
+    new MigrationRunner(db, logger).runMigrations([...ALL_MIGRATIONS]);
 
     let report: string[] = [];
     try {
-      await db.transaction(async () => {
-        report = await importOriginalData(data, {
+      db.transaction(() => {
+        report = importOriginalData(data, {
           bannedWords: new BannedWordRepository(db),
           counters: new CounterRepository(db),
           intervalMessages: new IntervalMessageRepository(db),

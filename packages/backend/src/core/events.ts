@@ -1,4 +1,10 @@
-import type { IntegrationStatus, StreamingPlatform, YouTubeChatState } from '@turingmod/shared';
+import type {
+  CommandErrorCode,
+  ExecutorErrorCode,
+  IntegrationStatus,
+  StreamingPlatform,
+  YouTubeChatState,
+} from '@turingmod/shared';
 import type { OBSEventTypes } from 'obs-websocket-js';
 import type { ChatMessageEvent } from '../chat/chatMessage.js';
 
@@ -61,7 +67,7 @@ export interface CommandExecutedEvent {
   args: string[];
   success: boolean;
   message: string;
-  errorCode: string | undefined;
+  errorCode: CommandErrorCode | ExecutorErrorCode | undefined;
   isSimulation: boolean;
 }
 

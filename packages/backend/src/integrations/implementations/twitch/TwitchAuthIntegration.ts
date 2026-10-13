@@ -37,10 +37,11 @@ export interface TwitchAuthConfig {
  * Single source of truth — the frontend and OAuthHandler should not specify scopes.
  */
 export const TWITCH_REQUIRED_SCOPES = [
-  'chat:read',
-  'chat:edit',
+  // Chat over EventSub (channel.chat.message) and Helix Send Chat Message. The IRC-era
+  // chat:read/chat:edit aren't needed: nothing connects to IRC.
   'user:read:chat',
   'user:write:chat',
+  // The channel.subscribe EventSub topic
   'channel:read:subscriptions',
   // Changing the title, category, tags and content labels, and creating stream markers
   'channel:manage:broadcast',
@@ -50,17 +51,18 @@ export const TWITCH_REQUIRED_SCOPES = [
   'channel:read:ads',
   // Snoozing the next ad break
   'channel:manage:ads',
-  // Enabling/disabling channel point rewards (e.g. pausing redemptions during an ad break)
+  // Creating, correcting and pausing channel point rewards, resolving redemptions, and the
+  // channel.channel_points_custom_reward_redemption.add EventSub topic
   'channel:manage:redemptions',
+  // Follow dates (`!followage`) and the channel.follow EventSub topic
   'moderator:read:followers',
+  // Timeouts and deleting messages (chat moderation)
   'moderator:manage:banned_users',
   'moderator:manage:chat_messages',
-  'moderator:manage:warnings',
   // Native shoutouts (raid shoutouts, `!so`)
   'moderator:manage:shoutouts',
   // Highlighted chat announcements (interval messages)
   'moderator:manage:announcements',
-  'user:read:email',
 ];
 
 const TWITCH_CALLBACK_PATH = '/callback/twitch';

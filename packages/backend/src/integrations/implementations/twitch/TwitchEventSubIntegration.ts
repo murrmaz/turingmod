@@ -262,7 +262,8 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info('Subscribed to channel.raid');
     }
 
-    // Channel Cheer
+    // Channel Cheer. Off by default; turning it on also needs `bits:read` added to
+    // TWITCH_REQUIRED_SCOPES, which isn't requested until then.
     if (subscriptions.channelCheer) {
       await this.eventSubListener.onChannelCheer(broadcasterId, (event) => {
         this.eventBus.emit('twitch.cheer', {

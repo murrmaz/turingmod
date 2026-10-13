@@ -31,7 +31,6 @@
     "@twurple/api": "^8.0.0",
     "@twurple/api-call": "^8.0.0",
     "@twurple/auth": "^8.0.0",
-    "@twurple/chat": "^8.0.0",
     "@twurple/eventsub-base": "^8.0.0",
     "@twurple/eventsub-ws": "^8.0.0",
     "googleapis": "^185.0.0",

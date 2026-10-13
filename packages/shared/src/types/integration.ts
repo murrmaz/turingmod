@@ -49,6 +49,12 @@ export interface IntegrationInfo {
   oauth?: {
     /** HTTP callback path this integration's OAuth flow completes on */
     callbackPath: string;
+    /**
+     * The full redirect URI the provider sends the browser back to. Derived by the backend from
+     * its port and the provider's loopback host; the user registers this exact value with the
+     * provider.
+     */
+    redirectUri: string;
   };
 
   /** Logical group this integration belongs to, for grouping related integrations in the UI. Absent for standalone integrations (Discord, OBS, Arduino, Sound). */

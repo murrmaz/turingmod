@@ -6,13 +6,13 @@ import {
   StreamingPlatform,
 } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
+import type { OwnChatMessages } from '../../chat/OwnChatMessages.js';
 import type { CommandExecutor } from '../../commands/CommandExecutor.js';
 import { CommandRegistry } from '../../commands/CommandRegistry.js';
 import type { ICommand } from '../../commands/interfaces/ICommand.js';
 import type { TwitchApiIntegration } from '../../integrations/implementations/twitch/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import type { YouTubeApiIntegration } from '../../integrations/implementations/youtube/YouTubeApiIntegration.js';
-import type { OwnChatMessages } from '../../platforms/OwnChatMessages.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { TwitchPlatform } from '../../platforms/TwitchPlatform.js';
 import { YouTubePlatform } from '../../platforms/YouTubePlatform.js';

@@ -1,7 +1,11 @@
 /**
  * Default server configuration
  */
-export const DEFAULT_WS_PORT = 8080;
+/**
+ * The backend's one port: the HTTP server (console, OAuth callbacks, health check) and the
+ * WebSocket endpoint it hosts at WS_PATH.
+ */
+export const DEFAULT_SERVER_PORT = 8080;
 export const DEFAULT_HOST = '127.0.0.1'; // localhost only
 
 /** Vite dev server port (packages/frontend/vite.config.ts) */

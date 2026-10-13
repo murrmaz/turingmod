@@ -2,11 +2,13 @@ import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { google } from 'googleapis';
 import { injectable, singleton } from 'tsyringe';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
+import { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
 import {
   buildOAuthEnvConfig,
+  oauthRedirectUri,
   persistOAuthTokens,
   validateOAuthConfig,
 } from '../../oauthConfigHelpers.js';
@@ -17,7 +19,6 @@ import {
 export interface YouTubeAuthConfig {
   clientId: string;
   clientSecret: string;
-  redirectUri: string;
   scopes: string[];
   accessToken?: string;
   refreshToken?: string;
@@ -45,8 +46,8 @@ type YouTubeCredentials = NonNullable<Parameters<YouTubeOAuth2Client['setCredent
 const YOUTUBE_CALLBACK_PATH = '/callback/youtube';
 // Google's loopback flow recommends the literal loopback IP (127.0.0.1) rather than `localhost`,
 // which can trigger client-firewall issues. This matches Spotify, and differs from Twitch (which
-// requires `localhost`). See the oauth_redirect_host_constraint note.
-const YOUTUBE_REDIRECT_URI = `http://127.0.0.1:8080${YOUTUBE_CALLBACK_PATH}`;
+// requires `localhost`).
+const YOUTUBE_REDIRECT_HOST = '127.0.0.1';
 
 /**
  * YouTube Auth Integration
@@ -69,7 +70,8 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
 
   constructor(
     logger: Logger,
-    private stateRepo: IntegrationStateRepository
+    private stateRepo: IntegrationStateRepository,
+    private serverConfig: TuringModConfig
   ) {
     super(logger, { component: 'YouTubeAuth' });
   }
@@ -184,7 +186,6 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
       providerLabel: 'YouTube',
       clientIdEnvVar: 'YOUTUBE_CLIENT_ID',
       clientSecretEnvVar: 'YOUTUBE_CLIENT_SECRET',
-      redirectUri: YOUTUBE_REDIRECT_URI,
       scopes: YOUTUBE_REQUIRED_SCOPES,
     }) as unknown as Record<string, unknown>;
   }
@@ -194,6 +195,17 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
    */
   getCallbackPath(): string {
     return YOUTUBE_CALLBACK_PATH;
+  }
+
+  /**
+   * OAuth redirect URI (IOAuthIntegration)
+   */
+  getRedirectUri(): string {
+    return oauthRedirectUri(
+      YOUTUBE_REDIRECT_HOST,
+      this.serverConfig.serverPort,
+      YOUTUBE_CALLBACK_PATH
+    );
   }
 
   /**
@@ -230,7 +242,7 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
   }
 
   private buildClient(config: YouTubeAuthConfig): YouTubeOAuth2Client {
-    return new google.auth.OAuth2(config.clientId, config.clientSecret, config.redirectUri);
+    return new google.auth.OAuth2(config.clientId, config.clientSecret, this.getRedirectUri());
   }
 
   private applyCredentials(client: YouTubeOAuth2Client, config: YouTubeAuthConfig): void {

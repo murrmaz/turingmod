@@ -584,7 +584,12 @@ export class IntegrationManager {
         dependencies,
       },
       ...(integration.oauth
-        ? { oauth: { callbackPath: integration.oauth.getCallbackPath() } }
+        ? {
+            oauth: {
+              callbackPath: integration.oauth.getCallbackPath(),
+              redirectUri: integration.oauth.getRedirectUri(),
+            },
+          }
         : {}),
       ...(group ? { group } : {}),
     };

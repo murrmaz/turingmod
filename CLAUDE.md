@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Development (starts both backend + frontend via concurrently)
-npm run dev                # Backend on :8080, Frontend on :3000
+npm run dev                # Backend on :8080 (SERVER_PORT), Frontend on :3000 (proxies /ws)
 npm run dev:backend        # Backend only (tsc --watch + node --watch)
 npm run dev:frontend       # Frontend only (Vite dev server)
 
@@ -59,8 +59,6 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Mirroring/reads**: `packages/backend/src/platforms/StreamControlService.ts` — the seam commands depend on
 - **Auth reporting**: `packages/backend/src/platforms/availability.ts` (`unavailableReason`) + `errors.ts` (`NotAuthenticatedError`)
 - **Availability events**: `packages/backend/src/platforms/PlatformAvailability.ts` — publishes `platform.availability` when a façade becomes usable or stops being usable
-- **Chat routing**: `packages/backend/src/platforms/ChatRouter.ts` (moderate → parse → execute → reply); message shape + `parseCommand` in `chatMessage.ts`
-- **Own-message gate**: `packages/backend/src/platforms/OwnChatMessages.ts` — records sent message ids; republishes `chat.received` as `chat.message` minus TuringMod's own
 - **Display names**: `packages/backend/src/platforms/platformNames.ts`
 
 ### Channel Point Rewards & Raids
@@ -82,11 +80,15 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Clip names**: `packages/backend/src/sounds/clips.ts`; settings in `soundSettings.ts`, stored under the `sounds` key
 - **Playback**: `packages/backend/src/integrations/implementations/sound/SoundIntegration.ts` (per-OS player processes)
 
-### Chat Services
-- **Moderation**: `packages/backend/src/moderation/ChatModerator.ts` (banned words, quiet mode) + `bannedWords.ts` (matching, 30-day expiry)
-- **Interval messages**: `packages/backend/src/announcements/IntervalAnnouncer.ts`
-- **Clip collection**: `packages/backend/src/clips/ClipCollector.ts`
-- **Lurk list**: `packages/backend/src/lurk/LurkTracker.ts` (in memory; welcomes lurkers back when they chat)
+### Chat
+Everything that consumes or produces chat lives under `packages/backend/src/chat/`: the pipeline at the top level, and the chat features in a folder each.
+- **Message shape**: `chat/chatMessage.ts` — `ChatMessageEvent`, `parseCommand`, and `toSafeChatText` (applied by every façade to outgoing chat)
+- **Own-message gate**: `chat/OwnChatMessages.ts` — records sent message ids; republishes `chat.received` as `chat.message` minus TuringMod's own
+- **Chat routing**: `chat/ChatRouter.ts` (moderate → parse → execute → reply)
+- **Moderation**: `chat/moderation/ChatModerator.ts` (banned words, quiet mode) + `bannedWords.ts` (matching, 30-day expiry)
+- **Interval messages**: `chat/announcements/IntervalAnnouncer.ts`
+- **Clip collection**: `chat/clips/ClipCollector.ts`
+- **Lurk list**: `chat/lurk/LurkTracker.ts` (in memory; welcomes lurkers back when they chat)
 
 ### Stream Breaks
 - **Lifecycle**: `packages/backend/src/breaks/BreakService.ts` — starts/extends/ends breaks; listens for `twitch.ad.break`; emits `stream.break.started`/`.ended`
@@ -115,6 +117,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Feature service lifecycle**: `packages/backend/src/core/ServiceLifecycle.ts` (`IService`, `Subscriptions`); the ordered service list is in `setup.ts`
 - **Setup/Bootstrap**: `packages/backend/src/setup.ts`
 - **Entry Point**: `packages/backend/src/index.ts`
+- **Environment**: `packages/backend/src/utils/loadEnv.ts` loads the repository-root `.env` (template: `.env.example`); it's the first import of each entry point (`index.ts`, `tools/importOriginal.ts`). Shell variables win over the file. `TuringModConfig` (`utils/Config.ts`) is what reads them.
 
 ### Frontend State
 - **App State Context**: `packages/frontend/src/context/AppStateContext.tsx`
@@ -226,7 +229,7 @@ own their provider for their lifetime and cannot be re-pointed.
 
 `YouTubeChatIntegration` has no periodic timers. It idles until a go-live signal — OBS's `obs.stream.stateChanged` (`OBS_WEBSOCKET_OUTPUT_STARTED`), or a `youtube.goLive` message from the console — then resolves the broadcast's `liveChatId` with a bounded retry (a broadcast doesn't expose one until YouTube transitions it to `live`) and opens the stream. Its `idle → resolving → streaming` transitions are broadcast to the frontend as `YOUTUBE_CHAT_STATE`.
 
-OAuth-capable integrations (currently `TwitchAuthIntegration`, `SpotifyAuthIntegration`) additionally implement `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and expose it via a `get oauth()` getter (`null` on `BaseIntegration` by default). This is the single source of truth for OAuth capability — `OAuthFlowService` derives callback routing and the frontend's OAuth affordance from it instead of checking integration names.
+OAuth-capable integrations (`TwitchAuthIntegration`, `SpotifyAuthIntegration`, `YouTubeAuthIntegration`) additionally implement `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and expose it via a `get oauth()` getter (`null` on `BaseIntegration` by default). This is the single source of truth for OAuth capability — `OAuthFlowService` derives callback routing and the frontend's OAuth affordance from it instead of checking integration names.
 
 Cross-integration communication uses `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
 It is typed against `EventMap` (`core/events.ts`), which declares every event name and its payload
@@ -256,7 +259,7 @@ All messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/me
 
 ### Database
 
-`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `UserRepository`, `CommandHistoryRepository`, `IntegrationStateRepository`, `SettingsRepository`, plus repositories for data owned by single features — `BannedWordRepository`, `CounterRepository`, `IntervalMessageRepository`, `SuggestionRepository`. A new migration goes in `migrations/` and must be added to `ALL_MIGRATIONS`. Tests get a migrated temp database from `repositories/testDatabase.ts`. Integration configs are encrypted with AES-256-GCM before storage; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there.
+`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `CommandHistoryRepository`, `IntegrationStateRepository`, `SettingsRepository`, plus repositories for data owned by single features — `BannedWordRepository`, `CounterRepository`, `IntervalMessageRepository`, `SuggestionRepository`. A new migration goes in `migrations/` and must be added to `ALL_MIGRATIONS`. Tests get a migrated temp database from `repositories/testDatabase.ts`. Integration configs are encrypted with AES-256-GCM before storage; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there.
 
 ### Platform Provider Layer
 
@@ -370,7 +373,7 @@ listeners on `chat.message` (activity log, `ClipCollector`) see every message bu
 moderated or not.
 
 Failures `CommandExecutor` produces itself (`EXECUTOR_ERROR_CODES`: unknown command, permissions,
-cooldown, not allowed, crashed) get **no reply in chat** — an unknown `!word` is often meant for
+cooldown, crashed) get **no reply in chat** — an unknown `!word` is often meant for
 another bot — and are recorded in the activity log instead (unknown commands are also logged at
 debug). Failures a command reports itself (usage, "game not found") are still replied to.
 
@@ -386,7 +389,7 @@ for in-flight sends to settle before it is judged; other people's messages pass 
 
 **Outgoing chat can never start with a command**, a second layer that also protects other bots in
 the channel. Every `IStreamPlatform` passes outgoing chat and announcements through
-`toSafeChatText()` (`platforms/chatMessage.ts`), which strips leading whitespace, invisible format
+`toSafeChatText()` (`chat/chatMessage.ts`), which strips leading whitespace, invisible format
 characters and `!`/`/` prefixes. There is deliberately no `!echo`-style command that repeats
 viewer input.
 
@@ -400,7 +403,7 @@ React Context for state management: `WebSocketContext` (connection + send/subscr
 
 ### HTTP Server
 
-Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend build in production. OAuth callback routes (currently `/callback/twitch` and `/callback/spotify`) are built from each `IOAuthIntegration.getCallbackPath()` via `OAuthFlowService.getCallbackRoutes()`, not hardcoded. Health check at `/health`. Localhost-only binding enforced.
+Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which also hosts the WebSocket endpoint (`/ws`) — the backend has one port. The console connects to `/ws` on its own origin; in development Vite proxies that to the backend. Serves static frontend build in production. OAuth callback routes (`/callback/twitch`, `/callback/spotify`, `/callback/youtube`) are built from each `IOAuthIntegration.getCallbackPath()` via `OAuthFlowService.getCallbackRoutes()`, not hardcoded. Redirect URIs are derived, never stored or sent by the console: `getRedirectUri()` combines the callback path, `SERVER_PORT`, and the one loopback host each provider accepts for plain HTTP (Twitch `localhost`; Spotify and Google `127.0.0.1`). Health check at `/health`. Localhost-only binding enforced.
 
 ## Code Style
 

@@ -1,11 +1,11 @@
 import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DatabaseManager } from '../database/DatabaseManager.js';
-import { IntervalMessageRepository } from '../database/repositories/IntervalMessageRepository.js';
-import { createTestDatabase } from '../database/repositories/testDatabase.js';
-import type { MirrorResult, StreamControlService } from '../platforms/StreamControlService.js';
-import { Logger } from '../utils/Logger.js';
+import type { DatabaseManager } from '../../database/DatabaseManager.js';
+import { IntervalMessageRepository } from '../../database/repositories/IntervalMessageRepository.js';
+import { createTestDatabase } from '../../database/repositories/testDatabase.js';
+import type { MirrorResult, StreamControlService } from '../../platforms/StreamControlService.js';
+import { Logger } from '../../utils/Logger.js';
 import { ANNOUNCEMENT_INTERVAL_MS, IntervalAnnouncer } from './IntervalAnnouncer.js';
 
 describe('IntervalAnnouncer', () => {

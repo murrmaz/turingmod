@@ -1,7 +1,7 @@
 import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
-import { ClipCollector } from '../../clips/ClipCollector.js';
+import { ClipCollector } from '../../chat/clips/ClipCollector.js';
 import { Logger } from '../../utils/Logger.js';
 import type { ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';

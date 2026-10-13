@@ -35,20 +35,6 @@ export interface SceneItemTransform {
   cropTop: number;
 }
 
-/**
- * Stream status information from OBS.
- */
-export interface ObsStreamStatus {
-  outputActive: boolean;
-  outputReconnecting: boolean;
-  outputTimecode: string;
-  outputDuration: number;
-  outputCongestion: number;
-  outputBytes: number;
-  outputSkippedFrames: number;
-  outputTotalFrames: number;
-}
-
 /** A canvas (OBS 31+/obs-websocket 5.7+), e.g. the main canvas or an Aitum Vertical canvas. */
 export interface ObsCanvas {
   canvasUuid: string;
@@ -130,106 +116,10 @@ export class ObsIntegration extends BaseIntegration {
     this.logger.debug('OBS integration stopped');
   }
 
-  /**
-   * Get the underlying OBSWebSocket client for direct use by commands.
-   * Use `client.call(requestType, requestData)` to send any OBS request.
-   */
-  getClient(): OBSWebSocket {
-    return this.obs;
-  }
-
-  // ── Scene Item Resolution ──────────────────────────────────────────────
-
-  /**
-   * Get a scene item's numeric ID by source name.
-   * @param sceneName Scene to search in. Defaults to current program scene.
-   */
-  async getSceneItemId(sourceName: string, sceneName?: string): Promise<number> {
-    this.ensureConnected();
-    const scene = await this.resolveSceneName(sceneName);
-    const { sceneItemId } = await this.obs.call('GetSceneItemId', {
-      sceneName: scene,
-      sourceName,
-    });
-    return sceneItemId;
-  }
-
-  // ── Transform Primitives ──────────────────────────────────────────────
-
-  /**
-   * Get the full transform of a scene item.
-   * @param sceneName Scene the item is in. Defaults to current program scene.
-   */
-  async getSceneItemTransform(
-    sceneItemId: number,
-    sceneName?: string
-  ): Promise<SceneItemTransform> {
-    this.ensureConnected();
-    const scene = await this.resolveSceneName(sceneName);
-    const { sceneItemTransform } = await this.obs.call('GetSceneItemTransform', {
-      sceneName: scene,
-      sceneItemId,
-    });
-    return sceneItemTransform as unknown as SceneItemTransform;
-  }
-
-  /**
-   * Set (merge) transform properties on a scene item.
-   * Only provided fields are changed; others are untouched.
-   * @param sceneName Scene the item is in. Defaults to current program scene.
-   */
-  async setSceneItemTransform(
-    sceneItemId: number,
-    transform: Partial<SceneItemTransform>,
-    sceneName?: string
-  ): Promise<void> {
-    this.ensureConnected();
-    const scene = await this.resolveSceneName(sceneName);
-    await this.obs.call('SetSceneItemTransform', {
-      sceneName: scene,
-      sceneItemId,
-      sceneItemTransform: transform as Record<string, number | string>,
-    });
-  }
-
-  // ── Visibility Primitives ─────────────────────────────────────────────
-
-  /**
-   * Get whether a scene item is currently visible.
-   * @param sceneName Scene the item is in. Defaults to current program scene.
-   */
-  async getSceneItemEnabled(sceneItemId: number, sceneName?: string): Promise<boolean> {
-    this.ensureConnected();
-    const scene = await this.resolveSceneName(sceneName);
-    const { sceneItemEnabled } = await this.obs.call('GetSceneItemEnabled', {
-      sceneName: scene,
-      sceneItemId,
-    });
-    return sceneItemEnabled;
-  }
-
-  /**
-   * Show or hide a scene item.
-   * @param sceneName Scene the item is in. Defaults to current program scene.
-   */
-  async setSceneItemEnabled(
-    sceneItemId: number,
-    enabled: boolean,
-    sceneName?: string
-  ): Promise<void> {
-    this.ensureConnected();
-    const scene = await this.resolveSceneName(sceneName);
-    await this.obs.call('SetSceneItemEnabled', {
-      sceneName: scene,
-      sceneItemId,
-      sceneItemEnabled: enabled,
-    });
-  }
-
-  // ── Canvases, Scenes and Items by UUID ───────────────────────────────
+  // ── Canvases, Scenes and Items ────────────────────────────────────────
   //
   // Scene names are only unique within a canvas, so anything that walks more than one canvas
-  // addresses scenes by UUID. These don't default to the program scene: a non-main canvas has
+  // addresses scenes by UUID. Nothing here defaults to the program scene: a non-main canvas has
   // no program scene of its own as far as obs-websocket is concerned.
 
   /**
@@ -287,8 +177,8 @@ export class ObsIntegration extends BaseIntegration {
     );
   }
 
-  /** Show or hide a scene item in a scene identified by UUID. */
-  async setSceneItemEnabledInScene(
+  /** Show or hide a scene item. */
+  async setSceneItemEnabled(
     sceneUuid: string,
     sceneItemId: number,
     enabled: boolean
@@ -301,11 +191,8 @@ export class ObsIntegration extends BaseIntegration {
     });
   }
 
-  /** Get the full transform of a scene item in a scene identified by UUID. */
-  async getSceneItemTransformInScene(
-    sceneUuid: string,
-    sceneItemId: number
-  ): Promise<SceneItemTransform> {
+  /** Get the full transform of a scene item. */
+  async getSceneItemTransform(sceneUuid: string, sceneItemId: number): Promise<SceneItemTransform> {
     this.ensureConnected();
     const { sceneItemTransform } = await this.obs.call('GetSceneItemTransform', {
       sceneUuid,
@@ -314,8 +201,8 @@ export class ObsIntegration extends BaseIntegration {
     return sceneItemTransform as unknown as SceneItemTransform;
   }
 
-  /** Set (merge) transform properties on a scene item in a scene identified by UUID. */
-  async setSceneItemTransformInScene(
+  /** Set (merge) transform properties on a scene item. */
+  async setSceneItemTransform(
     sceneUuid: string,
     sceneItemId: number,
     transform: Partial<SceneItemTransform>
@@ -350,30 +237,13 @@ export class ObsIntegration extends BaseIntegration {
     await this.obs.call('SetInputMute', { inputName, inputMuted: muted });
   }
 
-  // ── Scene Switching ───────────────────────────────────────────────────
-
-  /**
-   * Get the name of the current program (live) scene.
-   */
-  async getCurrentScene(): Promise<string> {
-    this.ensureConnected();
-    const { sceneName } = await this.obs.call('GetCurrentProgramScene');
-    return sceneName;
-  }
+  // ── Program Scene ─────────────────────────────────────────────────────
 
   /** The UUID of the current program (live) scene, which is on the main canvas. */
   async getCurrentSceneUuid(): Promise<string> {
     this.ensureConnected();
     const { sceneUuid } = await this.obs.call('GetCurrentProgramScene');
     return sceneUuid;
-  }
-
-  /**
-   * Switch the program (live) scene.
-   */
-  async setCurrentScene(sceneName: string): Promise<void> {
-    this.ensureConnected();
-    await this.obs.call('SetCurrentProgramScene', { sceneName });
   }
 
   // ── Filter Management ─────────────────────────────────────────────────
@@ -425,18 +295,6 @@ export class ObsIntegration extends BaseIntegration {
   }
 
   /**
-   * Enable or disable a filter on a source.
-   */
-  async setFilterEnabled(sourceName: string, filterName: string, enabled: boolean): Promise<void> {
-    this.ensureConnected();
-    await this.obs.call('SetSourceFilterEnabled', {
-      sourceName,
-      filterName,
-      filterEnabled: enabled,
-    });
-  }
-
-  /**
    * Update settings on an existing filter.
    * @param overlay If true (default), merge on top of existing settings. If false, reset then apply.
    */
@@ -455,32 +313,12 @@ export class ObsIntegration extends BaseIntegration {
     });
   }
 
-  // ── Stream Status ─────────────────────────────────────────────────────
-
-  /**
-   * Get stream status including uptime.
-   */
-  async getStreamStatus(): Promise<ObsStreamStatus> {
-    this.ensureConnected();
-    return await this.obs.call('GetStreamStatus');
-  }
-
   // ── Private Helpers ───────────────────────────────────────────────────
 
   private ensureConnected(): void {
     if (this.status !== IntegrationStatus.CONNECTED) {
       throw new Error('OBS is not connected');
     }
-  }
-
-  /**
-   * Resolve a scene name, defaulting to the current program scene.
-   * For animation loops, resolve once and pass explicitly to avoid repeated calls.
-   */
-  private async resolveSceneName(sceneName?: string): Promise<string> {
-    if (sceneName) return sceneName;
-    const { sceneName: current } = await this.obs.call('GetCurrentProgramScene');
-    return current;
   }
 
   private isObsError(error: unknown): error is { code: number; message: string } {

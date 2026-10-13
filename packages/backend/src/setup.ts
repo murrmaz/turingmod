@@ -15,10 +15,13 @@ import {
 } from '@turingmod/shared';
 import { container, instanceCachingFactory } from 'tsyringe';
 import { ActivityForwarder } from './activity/ActivityForwarder.js';
-import { IntervalAnnouncer } from './announcements/IntervalAnnouncer.js';
 import { AdWarningScheduler } from './breaks/AdWarningScheduler.js';
 import { BreakService } from './breaks/BreakService.js';
-import { ClipCollector } from './clips/ClipCollector.js';
+import { IntervalAnnouncer } from './chat/announcements/IntervalAnnouncer.js';
+import { ChatRouter } from './chat/ChatRouter.js';
+import { ClipCollector } from './chat/clips/ClipCollector.js';
+import { LurkTracker } from './chat/lurk/LurkTracker.js';
+import { OwnChatMessages } from './chat/OwnChatMessages.js';
 import { CommandRegistry } from './commands/CommandRegistry.js';
 import { loadCommands } from './commands/loadCommands.js';
 import { EventBus } from './core/EventBus.js';
@@ -40,9 +43,6 @@ import { YouTubeApiIntegration } from './integrations/implementations/youtube/Yo
 import { YouTubeAuthIntegration } from './integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import { YouTubeChatIntegration } from './integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { OAuthFlowService } from './integrations/OAuthFlowService.js';
-import { LurkTracker } from './lurk/LurkTracker.js';
-import { ChatRouter } from './platforms/ChatRouter.js';
-import { OwnChatMessages } from './platforms/OwnChatMessages.js';
 import { PlatformAvailability } from './platforms/PlatformAvailability.js';
 import { PlatformRegistry } from './platforms/PlatformRegistry.js';
 import { TwitchPlatform } from './platforms/TwitchPlatform.js';
@@ -103,7 +103,7 @@ export function registerRootFactories(): void {
     useFactory: instanceCachingFactory((c) => {
       const config = c.resolve(TuringModConfig);
       return new HttpServer(
-        config.wsPort,
+        config.serverPort,
         config.host,
         config.frontendDistPath,
         c.resolve(EventBus),
@@ -120,7 +120,7 @@ export function registerRootFactories(): void {
       // bound to 127.0.0.1 per vite.config.ts, regardless of backend HOST) —
       // the only two pages ever allowed to open a WS connection to us.
       const allowedOrigins = [
-        `http://${config.host}:${config.wsPort}`,
+        `http://${config.host}:${config.serverPort}`,
         `http://127.0.0.1:${DEFAULT_FRONTEND_DEV_PORT}`,
       ];
       return new WebSocketServer(c.resolve(MessageRouter), allowedOrigins, c.resolve(Logger));

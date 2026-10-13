@@ -30,17 +30,6 @@ export class CommandRegistry {
   }
 
   /**
-   * Unregister a command
-   */
-  unregister(name: string): boolean {
-    const existed = this.commands.delete(name);
-    if (existed) {
-      this.logger.info(`Unregistered command: ${name}`);
-    }
-    return existed;
-  }
-
-  /**
    * Get a command by name
    */
   get(name: string): ICommand | undefined {

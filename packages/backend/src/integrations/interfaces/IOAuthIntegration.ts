@@ -35,4 +35,12 @@ export interface IOAuthIntegration extends IIntegration {
    * integration's name.
    */
   getCallbackPath(): string;
+
+  /**
+   * The full redirect URI sent to the provider: the callback path on this
+   * server's port, on the loopback host the provider accepts. Derived, never
+   * stored or taken from the client, so it always matches the port the server
+   * is actually listening on.
+   */
+  getRedirectUri(): string;
 }

@@ -4,12 +4,32 @@ import { OAuthNotConfiguredError } from './errors.js';
 /**
  * Config shape shared by every OAuth-capable integration, extended with
  * provider-specific token fields (e.g. accessToken, expiresIn vs expiryDate).
+ *
+ * There is deliberately no redirect URI here: it follows from the server's
+ * port, so it's derived (oauthRedirectUri) rather than stored. Configs saved
+ * before that may still carry a `redirectUri` field, which nothing reads.
  */
 export interface OAuthConfigBase {
   clientId: string;
   clientSecret: string;
-  redirectUri: string;
   scopes: string[];
+}
+
+/**
+ * The loopback host a provider accepts plain-HTTP redirects to. Each accepts
+ * only one: Twitch requires `localhost`, while Spotify and Google require the
+ * literal `127.0.0.1`.
+ */
+export type LoopbackHost = 'localhost' | '127.0.0.1';
+
+/**
+ * The redirect URI an OAuth provider sends the browser back to: this server's
+ * callback route, on the host the provider allows. It has to match what the
+ * user registered with the provider, so changing SERVER_PORT means updating
+ * that registration too.
+ */
+export function oauthRedirectUri(host: LoopbackHost, port: number, callbackPath: string): string {
+  return `http://${host}:${port}${callbackPath}`;
 }
 
 /**
@@ -42,13 +62,11 @@ export function buildOAuthEnvConfig<T extends OAuthConfigBase>(params: {
   providerLabel: string;
   clientIdEnvVar: string;
   clientSecretEnvVar: string;
-  redirectUri: string;
   scopes: string[];
 }): T {
   const config = {
     clientId: process.env[params.clientIdEnvVar] || '',
     clientSecret: process.env[params.clientSecretEnvVar] || '',
-    redirectUri: params.redirectUri,
     scopes: params.scopes,
   } as T;
 

@@ -1,7 +1,7 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
+import { banCutoff, normalizeBannedWord } from '../../chat/moderation/bannedWords.js';
 import { BannedWordRepository } from '../../database/repositories/BannedWordRepository.js';
-import { banCutoff, normalizeBannedWord } from '../../moderation/bannedWords.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 import type {

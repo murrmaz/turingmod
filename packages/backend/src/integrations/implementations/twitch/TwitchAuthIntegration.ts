@@ -9,11 +9,13 @@ import {
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
+import { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
 import {
   buildOAuthEnvConfig,
+  oauthRedirectUri,
   persistOAuthTokens,
   validateOAuthConfig,
 } from '../../oauthConfigHelpers.js';
@@ -24,7 +26,6 @@ import {
 export interface TwitchAuthConfig {
   clientId: string;
   clientSecret: string;
-  redirectUri: string;
   scopes: string[];
   accessToken?: string;
   refreshToken?: string;
@@ -64,7 +65,8 @@ export const TWITCH_REQUIRED_SCOPES = [
 ];
 
 const TWITCH_CALLBACK_PATH = '/callback/twitch';
-const TWITCH_REDIRECT_URI = `http://localhost:8080${TWITCH_CALLBACK_PATH}`;
+/** Twitch accepts plain-HTTP redirects only to `localhost`, not `127.0.0.1`. */
+const TWITCH_REDIRECT_HOST = 'localhost';
 
 /**
  * Twitch Auth Integration
@@ -90,7 +92,8 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
   constructor(
     private eventBus: EventBus,
     logger: Logger,
-    private stateRepo: IntegrationStateRepository
+    private stateRepo: IntegrationStateRepository,
+    private serverConfig: TuringModConfig
   ) {
     super(logger, { component: 'TwitchAuth' });
   }
@@ -273,7 +276,6 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
       providerLabel: 'Twitch',
       clientIdEnvVar: 'TWITCH_CLIENT_ID',
       clientSecretEnvVar: 'TWITCH_CLIENT_SECRET',
-      redirectUri: TWITCH_REDIRECT_URI,
       scopes: TWITCH_REQUIRED_SCOPES,
     }) as unknown as Record<string, unknown>;
   }
@@ -286,16 +288,27 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
   }
 
   /**
+   * OAuth redirect URI (IOAuthIntegration)
+   */
+  getRedirectUri(): string {
+    return oauthRedirectUri(
+      TWITCH_REDIRECT_HOST,
+      this.serverConfig.serverPort,
+      TWITCH_CALLBACK_PATH
+    );
+  }
+
+  /**
    * Generate OAuth authorization URL
    */
   getAuthorizationUrl(config: Record<string, unknown>, state: string): string {
     // Always request the current required set rather than config.scopes:
     // after the first grant, config.scopes records what Twitch *granted*, so
     // reusing it would re-request the old set and never pick up added scopes.
-    const { clientId, redirectUri } = config as unknown as TwitchAuthConfig;
+    const { clientId } = config as unknown as TwitchAuthConfig;
     const params = new URLSearchParams({
       client_id: clientId,
-      redirect_uri: redirectUri,
+      redirect_uri: this.getRedirectUri(),
       response_type: 'code',
       scope: TWITCH_REQUIRED_SCOPES.join(' '),
       state,
@@ -324,7 +337,7 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
         client_secret: this.config.clientSecret,
         code,
         grant_type: 'authorization_code',
-        redirect_uri: this.config.redirectUri,
+        redirect_uri: this.getRedirectUri(),
       }),
     });
 

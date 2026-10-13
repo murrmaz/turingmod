@@ -3,10 +3,10 @@ import { injectable, singleton } from 'tsyringe';
 import { CommandExecutor, EXECUTOR_ERROR_CODES } from '../commands/CommandExecutor.js';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
-import { ChatModerator } from '../moderation/ChatModerator.js';
+import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { Logger } from '../utils/Logger.js';
 import { type ChatMessageEvent, parseCommand } from './chatMessage.js';
-import { PlatformRegistry } from './PlatformRegistry.js';
+import { ChatModerator } from './moderation/ChatModerator.js';
 
 /**
  * The live chat → moderation → command → reply loop.

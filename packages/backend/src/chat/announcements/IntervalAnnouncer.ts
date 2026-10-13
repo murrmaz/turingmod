@@ -1,8 +1,8 @@
 import { injectable, singleton } from 'tsyringe';
-import type { IService } from '../core/ServiceLifecycle.js';
-import { IntervalMessageRepository } from '../database/repositories/IntervalMessageRepository.js';
-import { StreamControlService } from '../platforms/StreamControlService.js';
-import { Logger } from '../utils/Logger.js';
+import type { IService } from '../../core/ServiceLifecycle.js';
+import { IntervalMessageRepository } from '../../database/repositories/IntervalMessageRepository.js';
+import { StreamControlService } from '../../platforms/StreamControlService.js';
+import { Logger } from '../../utils/Logger.js';
 
 /** How often an interval message is posted, as in the original bot. */
 export const ANNOUNCEMENT_INTERVAL_MS = 30 * 60 * 1000;

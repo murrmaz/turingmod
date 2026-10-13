@@ -16,6 +16,7 @@ function oauthIntegration(name: string, callbackPath: string): IOAuthIntegration
     getAuthorizationUrl: (_config: Record<string, unknown>, state: string) => state,
     exchangeCode: vi.fn().mockResolvedValue(undefined),
     getCallbackPath: () => callbackPath,
+    getRedirectUri: () => `http://localhost:8080${callbackPath}`,
   } as unknown as IOAuthIntegration & { oauth: IOAuthIntegration };
   integration.oauth = integration;
   return integration;

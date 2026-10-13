@@ -82,7 +82,7 @@ export class ObsBreakOverlay {
 
     for (const { sceneUuid, sceneItemId, enabled } of snapshot.items.values()) {
       try {
-        await this.obs.setSceneItemEnabledInScene(sceneUuid, sceneItemId, enabled);
+        await this.obs.setSceneItemEnabled(sceneUuid, sceneItemId, enabled);
       } catch (error) {
         // Most likely the scene or item was deleted during the break.
         this.logger.warn('Could not restore a scene item after the break', {
@@ -172,7 +172,7 @@ export class ObsBreakOverlay {
         continue;
       }
       try {
-        await this.obs.setSceneItemEnabledInScene(sceneUuid, item.sceneItemId, target);
+        await this.obs.setSceneItemEnabled(sceneUuid, item.sceneItemId, target);
       } catch (error) {
         this.logger.warn(`Could not ${target ? 'show' : 'hide'} "${item.sourceName}"`, {
           sceneUuid,

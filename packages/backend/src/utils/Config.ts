@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_HOST, DEFAULT_WS_PORT } from '@turingmod/shared';
+import { DEFAULT_HOST, DEFAULT_SERVER_PORT } from '@turingmod/shared';
 import type { LevelWithSilentOrString } from 'pino';
 import { injectable, singleton } from 'tsyringe';
 
@@ -19,8 +19,11 @@ export function resolveDbPath(): string {
 @injectable()
 @singleton()
 export class TuringModConfig {
-  /** WebSocket server port */
-  readonly wsPort: number;
+  /**
+   * The port the backend listens on: the HTTP server, the WebSocket endpoint it hosts, and the
+   * OAuth redirect URIs, which providers send the browser back to.
+   */
+  readonly serverPort: number;
 
   /** Server host (should always be localhost) */
   readonly host: string;
@@ -41,7 +44,12 @@ export class TuringModConfig {
   readonly frontendDistPath: string;
 
   constructor() {
-    this.wsPort = this.parseNumber(process.env.WS_PORT, DEFAULT_WS_PORT);
+    if (process.env.WS_PORT !== undefined && process.env.SERVER_PORT === undefined) {
+      // Renamed because it was never only the WebSocket's port. Refuse rather than ignore it, so
+      // a customized port can't silently fall back to the default.
+      throw new Error('WS_PORT has been renamed to SERVER_PORT; set SERVER_PORT instead.');
+    }
+    this.serverPort = this.parseNumber(process.env.SERVER_PORT, DEFAULT_SERVER_PORT);
     this.host = process.env.HOST ?? DEFAULT_HOST;
     this.dbPath = resolveDbPath();
     this.logLevel = this.parseLogLevel(process.env.LOG_LEVEL);
@@ -94,8 +102,8 @@ export class TuringModConfig {
       );
     }
 
-    if (this.wsPort < 1 || this.wsPort > 65535) {
-      throw new Error(`Invalid port: ${this.wsPort}. Must be between 1 and 65535.`);
+    if (this.serverPort < 1 || this.serverPort > 65535) {
+      throw new Error(`Invalid port: ${this.serverPort}. Must be between 1 and 65535.`);
     }
 
     if (
@@ -111,7 +119,7 @@ export class TuringModConfig {
    */
   toObject(): Record<string, unknown> {
     return {
-      wsPort: this.wsPort,
+      serverPort: this.serverPort,
       host: this.host,
       dbPath: this.dbPath,
       logLevel: this.logLevel,

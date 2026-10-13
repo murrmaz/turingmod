@@ -38,10 +38,11 @@ npm run dev
 ```
 
 This starts:
-- Backend (HTTP + WebSocket): http://localhost:8080
-- Frontend (Vite): http://localhost:3000
+- Backend (HTTP + WebSocket + OAuth callbacks): http://127.0.0.1:8080 (`SERVER_PORT`)
+- Frontend (Vite): http://127.0.0.1:3000, proxying the WebSocket to the backend
 
-Open http://localhost:3000 in your browser to access the UI.
+Open http://127.0.0.1:3000 in your browser to access the UI. (The backend only accepts WebSocket
+connections from that exact origin, so `localhost:3000` won't connect.)
 
 ## Development Workflow
 
@@ -57,7 +58,7 @@ npm run dev:frontend     # Start frontend only
 
 ```bash
 npm run build           # Build all packages
-npm start               # Start production server on :8080
+npm start               # Start production server on :8080 (SERVER_PORT)
 ```
 
 ### Other Commands
@@ -84,26 +85,31 @@ TuringMod/
 
 ### Environment Variables
 
-Create a `.env` file in the project root:
+Copy `.env.example` to `.env` in the project root and fill it in:
+
+```bash
+cp .env.example .env
+```
+
+The backend and the Vite dev server both load it at startup. Variables already set in your shell
+take precedence over the file, and everything is optional in development. `.env.example`
+documents each variable; the main ones:
 
 ```env
-# Server Configuration
-WS_PORT=8080
-DB_PATH=./turingmod.db
-LOG_LEVEL=info
-
-# Security
-MASTER_PASSWORD=your-encryption-password-here
-
-# Twitch Integration (from https://dev.twitch.tv)
+SERVER_PORT=8080                 # console, WebSocket and OAuth redirect URIs
+MASTER_PASSWORD=your-password    # encrypts stored credentials; set it before configuring anything
 TWITCH_CLIENT_ID=your-client-id
 TWITCH_CLIENT_SECRET=your-client-secret
 ```
 
+Changing `MASTER_PASSWORD` after integrations are configured makes their stored credentials
+unreadable, so they'd need setting up again.
+
 ### Twitch Setup
 
 1. Create a Twitch application at https://dev.twitch.tv/console
-2. Set redirect URI to `http://localhost:8080/auth/twitch/callback`
+2. Set the redirect URI to `http://localhost:8080/callback/twitch` (the setup dialog shows the
+   exact URI to register; it follows `SERVER_PORT`)
 3. Copy Client ID and Client Secret to `.env`
 4. Authenticate via the UI to generate OAuth token
 

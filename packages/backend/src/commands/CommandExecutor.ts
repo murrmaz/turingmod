@@ -10,14 +10,13 @@ import type { ICommand } from './interfaces/ICommand.js';
 
 /**
  * Error codes CommandExecutor produces itself, as opposed to a failure a command reported. They
- * describe the invocation (unknown command, not allowed, on cooldown, crashed), so ChatRouter
+ * describe the invocation (unknown command, insufficient permissions, on cooldown, crashed), so ChatRouter
  * doesn't reply to them in public chat; the activity log records each one.
  */
 export const EXECUTOR_ERROR_CODES: ReadonlySet<string> = new Set([
   'COMMAND_NOT_FOUND',
   'INSUFFICIENT_PERMISSIONS',
   'COMMAND_ON_COOLDOWN',
-  'EXECUTION_NOT_ALLOWED',
   'EXECUTION_ERROR',
 ]);
 
@@ -119,23 +118,6 @@ export class CommandExecutor {
             code: 'COMMAND_ON_COOLDOWN',
             message: `Cooldown expires in ${remainingSeconds} seconds`,
             details: { remainingSeconds },
-          },
-        };
-        await this.logExecution(commandName, context, result);
-        return result;
-      }
-    }
-
-    // Check if command can be executed (custom validation)
-    if (command.canExecute) {
-      const canExecute = await command.canExecute(context);
-      if (!canExecute) {
-        const result: CommandResult = {
-          success: false,
-          message: 'Command cannot be executed at this time',
-          error: {
-            code: 'EXECUTION_NOT_ALLOWED',
-            message: 'Command validation failed',
           },
         };
         await this.logExecution(commandName, context, result);
@@ -248,12 +230,5 @@ export class CommandExecutor {
         this.cooldowns.delete(key);
       }
     }
-  }
-
-  /**
-   * Clear all cooldowns (useful for testing)
-   */
-  clearCooldowns(): void {
-    this.cooldowns.clear();
   }
 }

@@ -8,6 +8,7 @@ import Modal from '@cloudscape-design/components/modal';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import { createMessage, type IntegrationConfigurePayload, MessageType } from '@turingmod/shared';
 import { Fragment, useState } from 'react';
+import { useAppState } from '../../context/AppStateContext';
 import { useWebSocketContext } from '../../context/WebSocketContext';
 import type { OAuthProviderConfig } from './oauthProviders';
 
@@ -25,6 +26,11 @@ export interface SetupModalProps {
  */
 export function SetupModal({ visible, onDismiss, onSuccess, provider }: SetupModalProps) {
   const { sendAndWaitForResponse } = useWebSocketContext();
+  const { integrations } = useAppState();
+  // Reported by the backend, which derives it from its own port; never sent back to it.
+  const redirectUri =
+    integrations.find((integration) => integration.name === provider.integrationName)?.oauth
+      ?.redirectUri ?? 'unavailable until the backend is connected';
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -45,7 +51,6 @@ export function SetupModal({ visible, onDismiss, onSuccess, provider }: SetupMod
         config: {
           clientId: clientId.trim(),
           clientSecret: clientSecret.trim(),
-          redirectUri: provider.redirectUri,
         },
       };
 
@@ -116,7 +121,7 @@ export function SetupModal({ visible, onDismiss, onSuccess, provider }: SetupMod
           <br />
           3. Fill in:
           <ul>
-            {provider.fields.map((field) => (
+            {provider.fields(redirectUri).map((field) => (
               <li key={field.label}>
                 <strong>{field.label}:</strong> {field.value}
               </li>

@@ -3,13 +3,13 @@ import { IntegrationStatus } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../core/EventBus.js';
 import type { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
+import type { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
 import { TWITCH_REQUIRED_SCOPES, TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
 const CONFIG = {
   clientId: 'client-id',
   clientSecret: 'client-secret',
-  redirectUri: 'http://localhost:8080/callback/twitch',
   scopes: [...TWITCH_REQUIRED_SCOPES],
   accessToken: 'stale-access-token',
   refreshToken: 'refresh-token',
@@ -30,12 +30,14 @@ function jsonResponse(status: number, body: unknown): Promise<Response> {
 
 function makeIntegration(
   stateRepo: Pick<IntegrationStateRepository, 'upsert'>,
-  eventBus: EventBus = new EventBus(new Logger({ level: 'silent' }))
+  eventBus: EventBus = new EventBus(new Logger({ level: 'silent' })),
+  serverPort = 8080
 ) {
   return new TwitchAuthIntegration(
     eventBus,
     new Logger({ level: 'silent' }),
-    stateRepo as IntegrationStateRepository
+    stateRepo as IntegrationStateRepository,
+    { serverPort } as TuringModConfig
   );
 }
 
@@ -185,5 +187,24 @@ describe('TwitchAuthIntegration', () => {
     );
 
     expect(url.searchParams.get('scope')?.split(' ')).toEqual(TWITCH_REQUIRED_SCOPES);
+  });
+
+  it('derives its redirect URI from the server port, ignoring one saved in an older config', async () => {
+    const upsert = vi.fn().mockResolvedValue(undefined);
+    const integration = makeIntegration({ upsert }, undefined, 9123);
+    const staleConfig = { ...CONFIG, redirectUri: 'http://localhost:8080/callback/twitch' };
+    successfulTokenExchange();
+
+    expect(integration.getRedirectUri()).toBe('http://localhost:9123/callback/twitch');
+
+    const url = new URL(integration.getAuthorizationUrl(staleConfig, 'state-123'));
+    expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:9123/callback/twitch');
+
+    await integration.initialize(staleConfig);
+    await integration.exchangeCode('code-123');
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(new URLSearchParams(String(init?.body)).get('redirect_uri')).toBe(
+      'http://localhost:9123/callback/twitch'
+    );
   });
 });

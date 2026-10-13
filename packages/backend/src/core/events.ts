@@ -1,6 +1,6 @@
 import type { IntegrationStatus, StreamingPlatform, YouTubeChatState } from '@turingmod/shared';
 import type { OBSEventTypes } from 'obs-websocket-js';
-import type { ChatMessageEvent } from '../platforms/chatMessage.js';
+import type { ChatMessageEvent } from '../chat/chatMessage.js';
 
 /**
  * Every EventBus event, by name, with the payload it carries. `EventBus` is typed against this

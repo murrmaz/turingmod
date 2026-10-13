@@ -1,5 +1,5 @@
 import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
-import type { ChatMessageEvent } from './chatMessage.js';
+import type { ChatMessageEvent } from '../chat/chatMessage.js';
 
 /**
  * Test fixture: a Twitch chat message from an ordinary viewer in pope_pontius's channel. Lives

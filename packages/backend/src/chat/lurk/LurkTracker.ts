@@ -1,11 +1,11 @@
 import type { StreamingPlatform } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
-import { EventBus } from '../core/EventBus.js';
-import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
-import { type ChatMessageEvent, parseCommand } from '../platforms/chatMessage.js';
-import { StreamControlService } from '../platforms/StreamControlService.js';
-import { formatElapsed } from '../utils/FormatHelpers.js';
-import { Logger } from '../utils/Logger.js';
+import { EventBus } from '../../core/EventBus.js';
+import { type IService, Subscriptions } from '../../core/ServiceLifecycle.js';
+import { StreamControlService } from '../../platforms/StreamControlService.js';
+import { formatElapsed } from '../../utils/FormatHelpers.js';
+import { Logger } from '../../utils/Logger.js';
+import { type ChatMessageEvent, parseCommand } from '../chatMessage.js';
 
 interface Lurker {
   since: number;

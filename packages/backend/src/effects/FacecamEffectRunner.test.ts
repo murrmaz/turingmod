@@ -63,14 +63,12 @@ class FakeObs {
   getCanvases = () => Promise.resolve(this.canvases);
   getScenes = (canvasUuid?: string) => Promise.resolve(this.scenes.get(canvasUuid ?? '') ?? []);
   getSceneItems = (sceneUuid: string) => Promise.resolve(this.items.get(sceneUuid) ?? []);
-  getSceneItemTransformInScene = (sceneUuid: string, id: number) =>
+  getSceneItemTransform = (sceneUuid: string, id: number) =>
     Promise.resolve({ ...(this.transforms.get(`${sceneUuid}:${id}`) ?? transform()) });
-  setSceneItemTransformInScene = vi.fn(
-    (sceneUuid: string, id: number, t: Partial<SceneItemTransform>) => {
-      this.writes.push({ key: `${sceneUuid}:${id}`, transform: t });
-      return Promise.resolve();
-    }
-  );
+  setSceneItemTransform = vi.fn((sceneUuid: string, id: number, t: Partial<SceneItemTransform>) => {
+    this.writes.push({ key: `${sceneUuid}:${id}`, transform: t });
+    return Promise.resolve();
+  });
   getCanvasSize = () => Promise.resolve({ width: 1920, height: 1080 });
   addFilter = vi.fn((_source: string, name: string) => {
     this.filters.add(name);
@@ -258,7 +256,7 @@ describe('FacecamEffectRunner', () => {
   });
 
   it('logs, rather than throws, a failed restore', async () => {
-    obs.setSceneItemTransformInScene.mockRejectedValue(new Error('gone'));
+    obs.setSceneItemTransform.mockRejectedValue(new Error('gone'));
 
     await runner.run(effect(() => Promise.resolve()));
 

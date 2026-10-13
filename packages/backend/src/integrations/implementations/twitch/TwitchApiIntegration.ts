@@ -215,17 +215,6 @@ export class TwitchApiIntegration extends BaseIntegration {
   }
 
   /**
-   * Create a clip
-   */
-  async createClip(broadcasterId: string) {
-    return await this.call((apiClient) =>
-      apiClient.clips.createClip({
-        channel: broadcasterId,
-      })
-    );
-  }
-
-  /**
    * Look up a clip by id
    */
   async getClipById(clipId: string) {
@@ -256,18 +245,6 @@ export class TwitchApiIntegration extends BaseIntegration {
   }
 
   /**
-   * Permanently ban a user from the channel
-   */
-  async banUser(broadcasterId: string, userId: string, reason: string) {
-    return await this.call((apiClient) =>
-      apiClient.moderation.banUser(broadcasterId, {
-        user: userId,
-        reason,
-      })
-    );
-  }
-
-  /**
    * Timeout a user for a specified duration
    */
   async timeoutUser(broadcasterId: string, userId: string, duration: number, reason: string) {
@@ -277,22 +254,6 @@ export class TwitchApiIntegration extends BaseIntegration {
         duration,
         reason,
       })
-    );
-  }
-
-  /**
-   * Remove a ban or timeout from a user
-   */
-  async unbanUser(broadcasterId: string, userId: string) {
-    await this.call((apiClient) => apiClient.moderation.unbanUser(broadcasterId, userId));
-  }
-
-  /**
-   * Warn a user in chat
-   */
-  async warnUser(broadcasterId: string, userId: string, reason: string) {
-    return await this.call((apiClient) =>
-      apiClient.moderation.warnUser(broadcasterId, userId, reason)
     );
   }
 
@@ -423,15 +384,6 @@ export class TwitchApiIntegration extends BaseIntegration {
   }
 
   /**
-   * Get a specific custom channel point reward by ID.
-   */
-  async getCustomRewardById(broadcasterId: string, rewardId: string) {
-    return await this.call((apiClient) =>
-      apiClient.channelPoints.getCustomRewardById(broadcasterId, rewardId)
-    );
-  }
-
-  /**
    * Create a new custom channel point reward.
    */
   async createCustomReward(broadcasterId: string, data: HelixCreateCustomRewardData) {
@@ -470,15 +422,6 @@ export class TwitchApiIntegration extends BaseIntegration {
         redemptionIds,
         status
       )
-    );
-  }
-
-  /**
-   * Delete a custom channel point reward.
-   */
-  async deleteCustomReward(broadcasterId: string, rewardId: string): Promise<void> {
-    await this.call((apiClient) =>
-      apiClient.channelPoints.deleteCustomReward(broadcasterId, rewardId)
     );
   }
 
@@ -524,13 +467,6 @@ export class TwitchApiIntegration extends BaseIntegration {
   }
 
   // ── Content Classification Labels ─────────────────────────────────────
-
-  /**
-   * Get all available content classification labels.
-   */
-  async getContentClassificationLabels(locale?: string) {
-    return await this.call((apiClient) => apiClient.contentClassificationLabels.getAll(locale));
-  }
 
   /**
    * Set content classification labels on a channel.

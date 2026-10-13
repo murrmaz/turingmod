@@ -26,7 +26,7 @@ export function checkPermission(
     success: false,
     message: `Only ${required}s can ${action}`,
     error: {
-      code: 'INSUFFICIENT_PERMISSIONS',
+      code: 'ACTION_NOT_PERMITTED',
       message: `${label} required`,
     },
   };

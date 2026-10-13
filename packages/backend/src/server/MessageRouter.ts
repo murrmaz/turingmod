@@ -1,5 +1,4 @@
-import type { IWebSocketMessage } from '@turingmod/shared';
-import { MessageType } from '@turingmod/shared';
+import { createErrorMessage, type IWebSocketMessage, type MessageType } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
 
@@ -45,33 +44,22 @@ export class MessageRouter {
 
     if (!handler) {
       this.logger.warn(`No handler registered for message type: ${message.type}`);
-      return {
-        id: message.id,
-        type: MessageType.ERROR,
-        timestamp: Date.now(),
-        payload: {
-          code: 'UNKNOWN_MESSAGE_TYPE',
-          message: `No handler for message type: ${message.type}`,
-          originalMessageId: message.id,
-        },
-      };
+      return createErrorMessage(
+        'UNKNOWN_MESSAGE_TYPE',
+        `No handler for message type: ${message.type}`,
+        message.id
+      );
     }
 
     try {
       return await handler(message, clientId);
     } catch (error) {
       this.logger.error(`Handler error for ${message.type}`, error);
-      return {
-        id: message.id,
-        type: MessageType.ERROR,
-        timestamp: Date.now(),
-        payload: {
-          code: 'HANDLER_ERROR',
-          message: error instanceof Error ? error.message : 'Handler execution failed',
-          originalMessageId: message.id,
-          details: error,
-        },
-      };
+      return createErrorMessage(
+        'HANDLER_ERROR',
+        error instanceof Error ? error.message : 'Handler execution failed',
+        message.id
+      );
     }
   }
 }

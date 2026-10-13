@@ -6,8 +6,8 @@ import { NotAuthenticatedError } from '../../platforms/errors.js';
  *
  * Commands don't check whether a platform is authenticated — the platform façade decides that
  * and raises NotAuthenticatedError only once no automatic recovery is left. This translates that
- * one case into the NOT_AUTHENTICATED code the frontend keys its re-auth prompt off, and treats
- * everything else as an API failure described by `fallbackMessage`.
+ * one case into NOT_AUTHENTICATED, and treats everything else as an API failure described by
+ * `fallbackMessage`.
  */
 export function toCommandError(error: unknown, fallbackMessage: string): CommandResult {
   if (error instanceof NotAuthenticatedError) {

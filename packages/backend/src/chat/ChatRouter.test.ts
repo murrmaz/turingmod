@@ -1,7 +1,14 @@
 import 'reflect-metadata';
-import { type CommandResult, PermissionLevel, StreamingPlatform } from '@turingmod/shared';
+import {
+  type CommandErrorCode,
+  type ExecutionResult,
+  type ExecutorErrorCode,
+  PermissionLevel,
+  StreamingPlatform,
+} from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { CommandExecutor } from '../commands/CommandExecutor.js';
+import { checkPermission } from '../commands/utils/permissionChecks.js';
 import { EventBus } from '../core/EventBus.js';
 import type { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { chatMessage } from '../platforms/testing.js';
@@ -17,7 +24,7 @@ const makeLogger = () => {
 
 function setup(
   verdict: ModerationVerdict = 'allowed',
-  result: CommandResult = { success: true, message: 'Bonked!' }
+  result: ExecutionResult = { success: true, message: 'Bonked!' }
 ) {
   const logger = makeLogger();
   const eventBus = new EventBus(logger);
@@ -77,7 +84,10 @@ describe('ChatRouter', () => {
     expect(executor.execute).not.toHaveBeenCalled();
   });
 
-  const failure = (code: string, message: string): CommandResult => ({
+  const failure = (
+    code: CommandErrorCode | ExecutorErrorCode,
+    message: string
+  ): ExecutionResult => ({
     success: false,
     message,
     error: { code, message },
@@ -96,7 +106,7 @@ describe('ChatRouter', () => {
     expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('sr'));
   });
 
-  it.each(['INSUFFICIENT_PERMISSIONS', 'COMMAND_ON_COOLDOWN', 'EXECUTION_ERROR'])(
+  it.each(['INSUFFICIENT_PERMISSIONS', 'COMMAND_ON_COOLDOWN', 'EXECUTION_ERROR'] as const)(
     'stays silent in chat for %s',
     async (code) => {
       const { eventBus, executor, twitch } = setup('allowed', failure(code, 'Nope'));
@@ -115,6 +125,22 @@ describe('ChatRouter', () => {
 
     await vi.waitFor(() =>
       expect(twitch.sendChatMessage).toHaveBeenCalledWith('Usage: !so <channel>')
+    );
+  });
+
+  it('replies when a command refuses a viewer one of its moderator-only actions', async () => {
+    const refusal = checkPermission(
+      PermissionLevel.VIEWER,
+      PermissionLevel.MODERATOR,
+      'change the game'
+    );
+    if (!refusal) throw new Error('expected a refusal');
+    const { eventBus, twitch } = setup('allowed', refusal);
+
+    await eventBus.emit('chat.message', chatMessage('!game Minecraft'));
+
+    await vi.waitFor(() =>
+      expect(twitch.sendChatMessage).toHaveBeenCalledWith('Only moderators can change the game')
     );
   });
 });

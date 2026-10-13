@@ -1,6 +1,6 @@
 import type { StreamingPlatform } from '../constants/platform.js';
 import type { ActivityCategory, ActivityLogEntry } from '../types/activity.js';
-import type { CommandContext, CommandInfo, CommandResult } from '../types/command.js';
+import type { CommandContext, CommandInfo, ExecutionResult } from '../types/command.js';
 import type { IntegrationInfo, IntegrationStatus } from '../types/integration.js';
 import type { SimulatedUser } from '../types/user.js';
 
@@ -116,7 +116,7 @@ export interface CommandResultPayload {
   command: string;
 
   /** Execution result */
-  result: CommandResult;
+  result: ExecutionResult;
 
   /** Whether this was a simulation */
   isSimulation: boolean;
@@ -257,12 +257,28 @@ export interface HealthUpdatePayload {
   integrations: Record<string, IntegrationStatus>;
 }
 
+/** Why a request got an error message instead of its response. */
+export type ErrorCode =
+  /** The payload didn't have the shape its message type requires. */
+  | 'INVALID_PAYLOAD'
+  /** No handler is registered for the message type. */
+  | 'UNKNOWN_MESSAGE_TYPE'
+  /** The handler threw. */
+  | 'HANDLER_ERROR'
+  /** The message couldn't be read or routed at all (e.g. it wasn't JSON). */
+  | 'MESSAGE_HANDLING_ERROR'
+  | 'INTEGRATION_START_FAILED'
+  | 'INTEGRATION_STOP_FAILED'
+  | 'INTEGRATION_CONFIGURE_FAILED'
+  | 'ACTIVITY_QUERY_FAILED'
+  /** Client side: the connection closed before the response arrived. */
+  | 'CONNECTION_CLOSED';
+
 /**
  * Error payload
  */
 export interface ErrorPayload {
-  /** Error code */
-  code: string;
+  code: ErrorCode;
 
   /** Error message */
   message: string;
@@ -446,7 +462,7 @@ export function createHealthUpdateMessage(
  * Create an error message
  */
 export function createErrorMessage(
-  code: string,
+  code: ErrorCode,
   message: string,
   originalMessageId?: string,
   details?: unknown

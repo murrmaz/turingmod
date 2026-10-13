@@ -378,7 +378,11 @@ moderated or not.
 Failures `CommandExecutor` produces itself (`EXECUTOR_ERROR_CODES`: unknown command, permissions,
 cooldown, crashed) get **no reply in chat** — an unknown `!word` is often meant for
 another bot — and are recorded in the activity log instead (unknown commands are also logged at
-debug). Failures a command reports itself (usage, "game not found") are still replied to.
+debug). Failures a command reports itself (usage, "game not found", a viewer trying a
+moderator-only branch) are still replied to. The two sets of codes are separate unions in
+`shared/src/types/command.ts`: `ICommand.execute()` returns a `CommandResult`, which admits only
+`CommandErrorCode`, so a command can't report an executor code and have its reply silenced. Protocol
+error messages likewise use the `ErrorCode` union in `messages.ts`, not free strings.
 
 **TuringMod never acts on its own chat messages.** It posts with the broadcaster's login — one
 identity per platform, deliberately, rather than a separate bot account that would split actions

@@ -2,7 +2,6 @@ import type { CommandContext, CommandResult } from '@turingmod/shared';
 import { hasPermission, PermissionLevel } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
-import { CommandHistoryRepository } from '../database/repositories/CommandHistoryRepository.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { Logger } from '../utils/Logger.js';
 import { CommandRegistry } from './CommandRegistry.js';
@@ -41,7 +40,6 @@ export class CommandExecutor {
 
   constructor(
     private registry: CommandRegistry,
-    private historyRepository: CommandHistoryRepository,
     private platformRegistry: PlatformRegistry,
     private eventBus: EventBus,
     logger: Logger
@@ -172,7 +170,7 @@ export class CommandExecutor {
   }
 
   /**
-   * Log command execution to history
+   * Publish the run as `command.executed`, which the activity log records.
    */
   private async logExecution(
     commandName: string,
@@ -180,21 +178,12 @@ export class CommandExecutor {
     result: CommandResult
   ): Promise<void> {
     try {
-      await this.historyRepository.create({
-        commandName,
-        userId: context.user.id,
-        platform: context.platform,
-        args: context.args,
-        result,
-        isSimulation: context.isSimulation,
-        executedAt: Date.now(),
-      });
-
       await this.eventBus.emit('command.executed', {
         command: commandName,
         username: context.user.username,
         userId: context.user.id,
         platform: context.platform,
+        args: context.args,
         success: result.success,
         message: result.message,
         errorCode: result.error?.code,

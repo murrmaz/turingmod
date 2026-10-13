@@ -77,32 +77,3 @@ export interface CommandResult {
     details?: unknown;
   };
 }
-
-/**
- * Command history entry for audit log
- */
-export interface CommandHistoryEntry {
-  /** Unique identifier */
-  id: string;
-
-  /** Command name */
-  commandName: string;
-
-  /** User who executed the command */
-  userId: string;
-
-  /** Platform where command was executed */
-  platform: StreamingPlatform;
-
-  /** Command arguments */
-  args: string[];
-
-  /** Command result */
-  result: CommandResult;
-
-  /** Whether this was a simulated execution */
-  isSimulation: boolean;
-
-  /** Timestamp when command was executed */
-  executedAt: number;
-}

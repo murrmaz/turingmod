@@ -58,6 +58,7 @@ export interface CommandExecutedEvent {
   username: string;
   userId: string;
   platform: StreamingPlatform;
+  args: string[];
   success: boolean;
   message: string;
   errorCode: string | undefined;

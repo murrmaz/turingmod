@@ -3,21 +3,12 @@ import { injectable, singleton } from 'tsyringe';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
 import { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
-import { BaseIntegration } from '../../BaseIntegration.js';
-import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
-import {
-  oauthRedirectUri,
-  persistOAuthTokens,
-  validateOAuthConfig,
-} from '../../oauthConfigHelpers.js';
+import { type OAuthConfigBase, OAuthIntegration, parseScopes } from '../../OAuthIntegration.js';
 
 /**
  * Spotify Auth Configuration
  */
-export interface SpotifyAuthConfig {
-  clientId: string;
-  clientSecret: string;
-  scopes: string[];
+export interface SpotifyAuthConfig extends OAuthConfigBase {
   accessToken?: string;
   refreshToken?: string;
   expiresIn?: number;
@@ -35,10 +26,6 @@ const SPOTIFY_REQUIRED_SCOPES = [
   'user-read-recently-played',
 ];
 
-const SPOTIFY_CALLBACK_PATH = '/callback/spotify';
-/** Spotify accepts plain-HTTP redirects only to the literal loopback IP, not `localhost`. */
-const SPOTIFY_REDIRECT_HOST = '127.0.0.1';
-
 /**
  * Token data exposed to SpotifyApiIntegration
  */
@@ -47,6 +34,16 @@ export interface SpotifyTokenData {
   refreshToken: string;
   expiresIn: number;
   obtainmentTimestamp: number;
+}
+
+/** A response from Spotify's token endpoint, for both a code exchange and a refresh. */
+interface SpotifyTokenResponse {
+  access_token: string;
+  token_type: string;
+  scope: string;
+  expires_in: number;
+  /** Always sent for a code exchange; a refresh may omit it, keeping the old one valid. */
+  refresh_token?: string;
 }
 
 /**
@@ -61,57 +58,29 @@ export interface SpotifyTokenData {
  */
 @injectable()
 @singleton()
-export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthIntegration {
+export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> {
   readonly name = 'spotify-auth';
   readonly version = '1.0.0';
 
-  private config: SpotifyAuthConfig | null = null;
+  protected readonly requiredScopes = SPOTIFY_REQUIRED_SCOPES;
+  protected readonly callbackPath = '/callback/spotify';
+  /** Spotify accepts plain-HTTP redirects only to the literal loopback IP, not `localhost`. */
+  protected readonly redirectHost = '127.0.0.1';
 
   constructor(
     logger: Logger,
-    private stateRepo: IntegrationStateRepository,
-    private serverConfig: TuringModConfig
+    stateRepo: IntegrationStateRepository,
+    serverConfig: TuringModConfig
   ) {
-    super(logger, { component: 'SpotifyAuth' });
+    super(logger, 'SpotifyAuth', stateRepo, serverConfig);
   }
 
-  initialize(config: Record<string, unknown>): Promise<void> {
-    this.logger.info('Initializing Spotify Auth integration');
-
-    this.config = config as unknown as SpotifyAuthConfig;
-    validateOAuthConfig(this.config, this.getRequiredScopes());
-
-    this.logger.info('Spotify Auth integration initialized');
-    return Promise.resolve();
+  protected hasTokens(config: SpotifyAuthConfig): boolean {
+    return Boolean(config.accessToken);
   }
 
-  start(): Promise<void> {
-    if (!this.config) {
-      throw new Error('Integration not initialized. Call initialize() first.');
-    }
-
-    this.logger.debug('Starting Spotify Auth integration');
-    this.setStatus(IntegrationStatus.CONNECTING);
-
-    // Check if we have tokens
-    if (!this.config.accessToken) {
-      this.logger.warn('No tokens available. User must complete OAuth flow.');
-      this.setStatus(IntegrationStatus.DISCONNECTED);
-      return Promise.resolve();
-    }
-
-    this.setStatus(IntegrationStatus.CONNECTED);
-    this.logger.debug('Spotify Auth integration started successfully');
-
-    return Promise.resolve();
-  }
-
-  stop(): Promise<void> {
-    this.logger.debug('Stopping Spotify Auth integration');
-
-    this.setStatus(IntegrationStatus.DISCONNECTED);
-
-    this.logger.debug('Spotify Auth integration stopped');
+  /** Nothing to build: SpotifyApiIntegration reads the tokens on access. */
+  protected connect(): Promise<void> {
     return Promise.resolve();
   }
 
@@ -142,51 +111,9 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
     return this.config?.clientId ?? null;
   }
 
-  override get oauth(): IOAuthIntegration {
-    return this;
-  }
-
-  /**
-   * OAuth scopes this integration requires (IOAuthIntegration)
-   */
-  getRequiredScopes(): string[] {
-    return SPOTIFY_REQUIRED_SCOPES;
-  }
-
-  /**
-   * Whether client credentials have been set up (IOAuthIntegration)
-   */
-  isConfigured(): boolean {
-    return Boolean(this.config?.clientId && this.config.clientSecret);
-  }
-
-  /**
-   * HTTP path this integration's OAuth redirect URI points at (IOAuthIntegration)
-   */
-  getCallbackPath(): string {
-    return SPOTIFY_CALLBACK_PATH;
-  }
-
-  /**
-   * OAuth redirect URI (IOAuthIntegration)
-   */
-  getRedirectUri(): string {
-    return oauthRedirectUri(
-      SPOTIFY_REDIRECT_HOST,
-      this.serverConfig.serverPort,
-      SPOTIFY_CALLBACK_PATH
-    );
-  }
-
-  /**
-   * Generate OAuth authorization URL
-   */
   getAuthorizationUrl(state: string): string {
-    if (!this.config) {
-      throw new Error('Spotify client credentials are not configured');
-    }
     const params = new URLSearchParams({
-      client_id: this.config.clientId,
+      client_id: this.requireConfig().clientId,
       response_type: 'code',
       redirect_uri: this.getRedirectUri(),
       scope: SPOTIFY_REQUIRED_SCOPES.join(' '),
@@ -196,28 +123,13 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
     return `https://accounts.spotify.com/authorize?${params.toString()}`;
   }
 
-  /**
-   * Exchange authorization code for tokens
-   */
   async exchangeCode(code: string): Promise<void> {
-    if (!this.config) {
-      throw new Error('Integration not initialized');
-    }
-
     this.logger.info('Exchanging authorization code for tokens');
 
-    const response = await fetch('https://accounts.spotify.com/api/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        // biome-ignore lint/style/useNamingConvention: HTTP header
-        Authorization: `Basic ${Buffer.from(`${this.config.clientId}:${this.config.clientSecret}`).toString('base64')}`,
-      },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: this.getRedirectUri(),
-      }),
+    const response = await this.requestToken({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: this.getRedirectUri(),
     });
 
     if (!response.ok) {
@@ -225,20 +137,7 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
       throw new Error(`Failed to exchange code: ${error}`);
     }
 
-    const data = (await response.json()) as {
-      access_token: string;
-      token_type: string;
-      scope: string;
-      expires_in: number;
-      refresh_token: string;
-    };
-
-    await this.saveTokens({
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-      expiresIn: data.expires_in,
-      obtainmentTimestamp: Date.now(),
-    });
+    await this.saveTokens(toConfigPatch((await response.json()) as SpotifyTokenResponse));
 
     this.logger.info('Successfully exchanged code for tokens');
   }
@@ -248,23 +147,16 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
    * Called by SpotifyApiIntegration when an API call is rejected (401).
    */
   async refreshAccessToken(): Promise<void> {
-    if (!this.config?.refreshToken) {
+    const refreshToken = this.config?.refreshToken;
+    if (!refreshToken) {
       throw new Error('No refresh token available');
     }
 
     this.logger.info('Refreshing access token');
 
-    const response = await fetch('https://accounts.spotify.com/api/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        // biome-ignore lint/style/useNamingConvention: HTTP header
-        Authorization: `Basic ${Buffer.from(`${this.config.clientId}:${this.config.clientSecret}`).toString('base64')}`,
-      },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: this.config.refreshToken,
-      }),
+    const response = await this.requestToken({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
     });
 
     if (!response.ok) {
@@ -272,45 +164,47 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
       this.logger.error('Token refresh failed', error);
       this.setStatus(
         IntegrationStatus.NEEDS_REAUTH,
-        'Token refresh failed \u2014 re-authorization required'
+        'Token refresh failed — re-authorization required'
       );
       throw new Error(`Token refresh failed: ${error}`);
     }
 
-    const data = (await response.json()) as {
-      access_token: string;
-      token_type: string;
-      scope: string;
-      expires_in: number;
-      refresh_token?: string;
-    };
-
-    await this.saveTokens({
-      accessToken: data.access_token,
-      // Spotify may or may not return a new refresh token
-      refreshToken: data.refresh_token ?? this.config.refreshToken,
-      expiresIn: data.expires_in,
-      obtainmentTimestamp: Date.now(),
-    });
+    const data = (await response.json()) as SpotifyTokenResponse;
+    await this.saveTokens(toConfigPatch(data));
 
     this.logger.info('Access token refreshed');
 
     this.reportTokenRefreshed(Date.now() + data.expires_in * 1000);
   }
 
-  /**
-   * Save tokens to database
-   */
-  private async saveTokens(token: {
-    accessToken: string;
-    refreshToken: string;
-    expiresIn: number;
-    obtainmentTimestamp: number;
-  }): Promise<void> {
-    if (!this.config) {
-      throw new Error('Integration not initialized');
-    }
-
-    this.config = await persistOAuthTokens(this.stateRepo, this.name, this.config, token);
+  /** POST to Spotify's token endpoint, authenticating with the client credentials. */
+  private requestToken(params: Record<string, string>): Promise<Response> {
+    const { clientId, clientSecret } = this.requireConfig();
+    return fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        // biome-ignore lint/style/useNamingConvention: HTTP header
+        Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+      },
+      body: new URLSearchParams(params),
+    });
   }
+}
+
+/** The stored-config fields for a token response; a refresh without a new refresh token keeps the old one. */
+function toConfigPatch(data: SpotifyTokenResponse): Partial<SpotifyAuthConfig> {
+  const patch: Partial<SpotifyAuthConfig> = {
+    accessToken: data.access_token,
+    expiresIn: data.expires_in,
+    obtainmentTimestamp: Date.now(),
+  };
+  if (data.refresh_token) {
+    patch.refreshToken = data.refresh_token;
+  }
+  const grantedScopes = parseScopes(data.scope);
+  if (grantedScopes) {
+    patch.grantedScopes = grantedScopes;
+  }
+  return patch;
 }

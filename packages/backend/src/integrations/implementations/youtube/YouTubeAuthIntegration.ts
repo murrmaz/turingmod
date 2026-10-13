@@ -4,21 +4,12 @@ import { injectable, singleton } from 'tsyringe';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
 import { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
-import { BaseIntegration } from '../../BaseIntegration.js';
-import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
-import {
-  oauthRedirectUri,
-  persistOAuthTokens,
-  validateOAuthConfig,
-} from '../../oauthConfigHelpers.js';
+import { type OAuthConfigBase, OAuthIntegration, parseScopes } from '../../OAuthIntegration.js';
 
 /**
  * YouTube Auth Configuration
  */
-export interface YouTubeAuthConfig {
-  clientId: string;
-  clientSecret: string;
-  scopes: string[];
+export interface YouTubeAuthConfig extends OAuthConfigBase {
   accessToken?: string;
   refreshToken?: string;
   /** Absolute token expiry as a Unix ms timestamp (Google's expiry_date). */
@@ -42,12 +33,6 @@ const YOUTUBE_REQUIRED_SCOPES = [
 export type YouTubeOAuth2Client = InstanceType<typeof google.auth.OAuth2>;
 type YouTubeCredentials = NonNullable<Parameters<YouTubeOAuth2Client['setCredentials']>[0]>;
 
-const YOUTUBE_CALLBACK_PATH = '/callback/youtube';
-// Google's loopback flow recommends the literal loopback IP (127.0.0.1) rather than `localhost`,
-// which can trigger client-firewall issues. This matches Spotify, and differs from Twitch (which
-// requires `localhost`).
-const YOUTUBE_REDIRECT_HOST = '127.0.0.1';
-
 /**
  * YouTube Auth Integration
  * Handles Google OAuth 2.0 authorization-code flow, token storage, and token refresh.
@@ -60,73 +45,50 @@ const YOUTUBE_REDIRECT_HOST = '127.0.0.1';
  */
 @injectable()
 @singleton()
-export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthIntegration {
+export class YouTubeAuthIntegration extends OAuthIntegration<YouTubeAuthConfig> {
   readonly name = 'youtube-auth';
   readonly version = '1.0.0';
 
-  private config: YouTubeAuthConfig | null = null;
+  protected readonly requiredScopes = YOUTUBE_REQUIRED_SCOPES;
+  protected readonly callbackPath = '/callback/youtube';
+  // Google's loopback flow recommends the literal loopback IP (127.0.0.1) rather than `localhost`,
+  // which can trigger client-firewall issues. This matches Spotify, and differs from Twitch (which
+  // requires `localhost`).
+  protected readonly redirectHost = '127.0.0.1';
+
   private oauth2Client: YouTubeOAuth2Client | null = null;
 
   constructor(
     logger: Logger,
-    private stateRepo: IntegrationStateRepository,
-    private serverConfig: TuringModConfig
+    stateRepo: IntegrationStateRepository,
+    serverConfig: TuringModConfig
   ) {
-    super(logger, { component: 'YouTubeAuth' });
+    super(logger, 'YouTubeAuth', stateRepo, serverConfig);
   }
 
-  initialize(config: Record<string, unknown>): Promise<void> {
-    this.logger.info('Initializing YouTube Auth integration');
-
-    this.config = config as unknown as YouTubeAuthConfig;
-    validateOAuthConfig(this.config, this.getRequiredScopes());
-
-    this.logger.info('YouTube Auth integration initialized');
-    return Promise.resolve();
+  /** The client refreshes access tokens itself, so a refresh token is what matters. */
+  protected hasTokens(config: YouTubeAuthConfig): boolean {
+    return Boolean(config.refreshToken);
   }
 
-  start(): Promise<void> {
-    if (!this.config) {
-      throw new Error('Integration not initialized. Call initialize() first.');
-    }
+  protected connect(config: YouTubeAuthConfig): Promise<void> {
+    this.oauth2Client = this.buildClient(config);
+    this.applyCredentials(this.oauth2Client, config);
 
-    this.logger.debug('Starting YouTube Auth integration');
-    this.setStatus(IntegrationStatus.CONNECTING);
-
-    // Check if we have tokens
-    if (!this.config.refreshToken) {
-      this.logger.warn('No tokens available. User must complete OAuth flow.');
-      this.setStatus(IntegrationStatus.DISCONNECTED);
-      return Promise.resolve();
-    }
-
-    this.oauth2Client = this.buildClient(this.config);
-    this.applyCredentials(this.oauth2Client, this.config);
-
-    // Persist tokens whenever the client refreshes them. Nothing awaits this
-    // listener, so a failed save must be caught here: an unhandled rejection
-    // would take the whole process down.
+    // Persist tokens whenever the client refreshes them.
     this.oauth2Client.on('tokens', (tokens) => {
-      this.saveTokens(tokens).catch((error: unknown) => {
-        this.logger.error('Failed to save refreshed YouTube tokens', error);
-      });
+      this.saveRefreshedTokens(toConfigPatch(tokens));
+      if (this.oauth2Client && this.config) {
+        this.applyCredentials(this.oauth2Client, this.config);
+      }
       this.reportTokenRefreshed(tokens.expiry_date ?? undefined);
     });
 
-    this.setStatus(IntegrationStatus.CONNECTED);
-    this.logger.info('YouTube Auth integration started successfully');
-
     return Promise.resolve();
   }
 
-  stop(): Promise<void> {
-    this.logger.debug('Stopping YouTube Auth integration');
-
+  protected override disconnect(): void {
     this.oauth2Client = null;
-    this.setStatus(IntegrationStatus.DISCONNECTED);
-
-    this.logger.debug('YouTube Auth integration stopped');
-    return Promise.resolve();
   }
 
   getGroup(): IntegrationGroup {
@@ -134,11 +96,8 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
   }
 
   /**
-   * Get the authenticated OAuth2 client for use by the API + Chat integrations.
-   * The client refreshes its own access token on demand.
-   */
-  /**
-   * The current OAuth2 client, or null.
+   * The current OAuth2 client, or null. It refreshes its own access token on
+   * demand.
    *
    * Returns the stored instance, not a new one per call: YouTubeApiIntegration
    * compares this reference against the one its cached API client was built
@@ -146,10 +105,6 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
    */
   getAuthClient(): YouTubeOAuth2Client | null {
     return this.oauth2Client;
-  }
-
-  override get oauth(): IOAuthIntegration {
-    return this;
   }
 
   /**
@@ -174,68 +129,22 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
   }
 
   /**
-   * OAuth scopes this integration requires (IOAuthIntegration)
-   */
-  getRequiredScopes(): string[] {
-    return YOUTUBE_REQUIRED_SCOPES;
-  }
-
-  /**
-   * Whether client credentials have been set up (IOAuthIntegration)
-   */
-  isConfigured(): boolean {
-    return Boolean(this.config?.clientId && this.config.clientSecret);
-  }
-
-  /**
-   * HTTP path this integration's OAuth redirect URI points at (IOAuthIntegration)
-   */
-  getCallbackPath(): string {
-    return YOUTUBE_CALLBACK_PATH;
-  }
-
-  /**
-   * OAuth redirect URI (IOAuthIntegration)
-   */
-  getRedirectUri(): string {
-    return oauthRedirectUri(
-      YOUTUBE_REDIRECT_HOST,
-      this.serverConfig.serverPort,
-      YOUTUBE_CALLBACK_PATH
-    );
-  }
-
-  /**
-   * Generate OAuth authorization URL. `access_type: 'offline'` + `prompt: 'consent'` ensures a
-   * refresh token is issued.
+   * `access_type: 'offline'` + `prompt: 'consent'` ensures a refresh token is issued.
    */
   getAuthorizationUrl(state: string): string {
-    if (!this.config) {
-      throw new Error('YouTube client credentials are not configured');
-    }
-    const client = this.buildClient(this.config);
-    return client.generateAuthUrl({
+    return this.buildClient(this.requireConfig()).generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
-      scope: YOUTUBE_REQUIRED_SCOPES,
+      scope: [...YOUTUBE_REQUIRED_SCOPES],
       state,
     });
   }
 
-  /**
-   * Exchange authorization code for tokens
-   */
   async exchangeCode(code: string): Promise<void> {
-    if (!this.config) {
-      throw new Error('Integration not initialized');
-    }
-
     this.logger.info('Exchanging authorization code for tokens');
 
-    const client = this.buildClient(this.config);
-    const { tokens } = await client.getToken(code);
-
-    await this.saveTokens(tokens);
+    const { tokens } = await this.buildClient(this.requireConfig()).getToken(code);
+    await this.saveTokens(toConfigPatch(tokens));
 
     this.logger.info('Successfully exchanged code for tokens');
   }
@@ -257,31 +166,26 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
     }
     client.setCredentials(credentials);
   }
+}
 
-  /**
-   * Save tokens to database. Google omits refresh_token on refreshes, so we preserve the
-   * previously stored one when a new one isn't returned.
-   */
-  private async saveTokens(tokens: YouTubeCredentials): Promise<void> {
-    if (!this.config) {
-      throw new Error('Integration not initialized');
-    }
-
-    const patch: Partial<YouTubeAuthConfig> = {};
-    if (tokens.access_token) {
-      patch.accessToken = tokens.access_token;
-    }
-    if (tokens.refresh_token) {
-      patch.refreshToken = tokens.refresh_token;
-    }
-    if (tokens.expiry_date !== undefined && tokens.expiry_date !== null) {
-      patch.expiryDate = tokens.expiry_date;
-    }
-
-    this.config = await persistOAuthTokens(this.stateRepo, this.name, this.config, patch);
-
-    if (this.oauth2Client) {
-      this.applyCredentials(this.oauth2Client, this.config);
-    }
+/**
+ * The stored-config fields for Google's tokens. Google omits refresh_token on
+ * refreshes, so a patch without one keeps the stored refresh token.
+ */
+function toConfigPatch(tokens: YouTubeCredentials): Partial<YouTubeAuthConfig> {
+  const patch: Partial<YouTubeAuthConfig> = {};
+  if (tokens.access_token) {
+    patch.accessToken = tokens.access_token;
   }
+  if (tokens.refresh_token) {
+    patch.refreshToken = tokens.refresh_token;
+  }
+  if (tokens.expiry_date !== undefined && tokens.expiry_date !== null) {
+    patch.expiryDate = tokens.expiry_date;
+  }
+  const grantedScopes = parseScopes(tokens.scope);
+  if (grantedScopes) {
+    patch.grantedScopes = grantedScopes;
+  }
+  return patch;
 }

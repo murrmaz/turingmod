@@ -10,7 +10,7 @@ import { TWITCH_REQUIRED_SCOPES, TwitchAuthIntegration } from './TwitchAuthInteg
 const CONFIG = {
   clientId: 'client-id',
   clientSecret: 'client-secret',
-  scopes: [...TWITCH_REQUIRED_SCOPES],
+  grantedScopes: [...TWITCH_REQUIRED_SCOPES],
   accessToken: 'stale-access-token',
   refreshToken: 'refresh-token',
   expiresIn: 3600,
@@ -185,7 +185,7 @@ describe('TwitchAuthIntegration', () => {
     const eventBus = new EventBus(new Logger({ level: 'silent' }));
     const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
 
-    await integration.initialize({ ...CONFIG, scopes: ['chat:read'] });
+    await integration.initialize({ ...CONFIG, grantedScopes: ['chat:read'] });
     await integration.start();
 
     expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
@@ -195,7 +195,7 @@ describe('TwitchAuthIntegration', () => {
 
   it('requests the current required scopes, not the previously granted ones, in the authorization URL', async () => {
     const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) });
-    await integration.initialize({ ...CONFIG, scopes: ['chat:read'] });
+    await integration.initialize({ ...CONFIG, grantedScopes: ['chat:read'] });
 
     const url = new URL(integration.getAuthorizationUrl('state-123'));
 

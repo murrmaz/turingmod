@@ -139,6 +139,27 @@ describe('ObsBreakOverlay', () => {
     expect(obs.visible('gameplay', 'Facecam')).toBe(false);
   });
 
+  it('falls back to the main canvas when listing every canvas fails', async () => {
+    obs.getCanvases = () => Promise.reject(new Error('canvas list failed'));
+    obs.scenesByCanvas.set(undefined, [{ sceneName: 'Gameplay', sceneUuid: 'gameplay' }]);
+
+    await overlay.apply(settings);
+
+    expect(obs.visible('gameplay', 'Facecam')).toBe(false);
+    expect(obs.visible('vert-gameplay', 'Facecam')).toBe(true);
+    expect(obs.muted.get('Mic/Aux')).toBe(true);
+  });
+
+  it('still mutes the mic when no scenes can be listed at all', async () => {
+    obs.getCanvases = () => Promise.reject(new Error('canvas list failed'));
+    obs.getScenes = () => Promise.reject(new Error('scene list failed'));
+
+    await overlay.apply(settings);
+
+    expect(obs.visible('gameplay', 'Facecam')).toBe(true);
+    expect(obs.muted.get('Mic/Aux')).toBe(true);
+  });
+
   it('carries on past a source or input it cannot change', async () => {
     obs.failSetFor.add('Ads Text');
     obs.muted.delete('Mic/Aux');

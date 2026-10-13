@@ -1,6 +1,10 @@
 import { IntegrationStatus } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
-import { ObsIntegration } from '../integrations/implementations/obs/ObsIntegration.js';
+import {
+  ObsIntegration,
+  type ObsScene,
+} from '../integrations/implementations/obs/ObsIntegration.js';
+import { listScenesByCanvas } from '../integrations/implementations/obs/scenesByCanvas.js';
 import { Logger } from '../utils/Logger.js';
 import type { BreakSettings } from './breakSettings.js';
 
@@ -108,35 +112,23 @@ export class ObsBreakOverlay {
   private async allScenes(
     keepVisibleInScenes: string[]
   ): Promise<{ uuid: string; keepVisible: boolean }[]> {
-    let canvasUuids: (string | undefined)[] = [undefined];
+    let scenes: ObsScene[];
     try {
-      const canvases = await this.obs.getCanvases();
-      if (canvases.length > 0) {
-        canvasUuids = canvases.map((canvas) => canvas.canvasUuid);
-      }
+      scenes = (await listScenesByCanvas(this.obs)).flatMap((canvas) => canvas.scenes);
     } catch (error) {
-      this.logger.warn('Could not list OBS canvases; using the main canvas only', {
+      // A break should still cover what it can, so fall back to the main canvas.
+      this.logger.warn('Could not list scenes on every OBS canvas; using the main canvas only', {
         error: messageOf(error),
       });
+      scenes = await this.obs.getScenes().catch((fallbackError: unknown) => {
+        this.logger.warn('Could not list OBS scenes', { error: messageOf(fallbackError) });
+        return [];
+      });
     }
-
-    const scenes: { uuid: string; keepVisible: boolean }[] = [];
-    for (const canvasUuid of canvasUuids) {
-      try {
-        for (const scene of await this.obs.getScenes(canvasUuid)) {
-          scenes.push({
-            uuid: scene.sceneUuid,
-            keepVisible: keepVisibleInScenes.includes(scene.sceneName),
-          });
-        }
-      } catch (error) {
-        this.logger.warn('Could not list scenes for an OBS canvas', {
-          canvasUuid,
-          error: messageOf(error),
-        });
-      }
-    }
-    return scenes;
+    return scenes.map((scene) => ({
+      uuid: scene.sceneUuid,
+      keepVisible: keepVisibleInScenes.includes(scene.sceneName),
+    }));
   }
 
   private async applyToScene(

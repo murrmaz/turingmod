@@ -40,13 +40,19 @@ export function useIntegrationActions() {
   const [oauthModalVisible, setOauthModalVisible] = useState(false);
   const [setupModalVisible, setSetupModalVisible] = useState(false);
 
-  const handleAuthorize = useCallback((integrationName: string) => {
-    if (!OAUTH_INTEGRATION_REGISTRY[integrationName]) {
-      console.error(`No OAuth modal registered for integration "${integrationName}"`);
+  // Without client credentials there's nothing to authorize with yet, so
+  // connecting starts at the setup dialog, which hands off to the OAuth modal.
+  const handleAuthorize = useCallback((integration: IntegrationInfo) => {
+    if (!OAUTH_INTEGRATION_REGISTRY[integration.name]) {
+      console.error(`No OAuth modal registered for integration "${integration.name}"`);
       return;
     }
-    setActiveOAuthIntegration(integrationName);
-    setOauthModalVisible(true);
+    setActiveOAuthIntegration(integration.name);
+    if (integration.oauth?.configured) {
+      setOauthModalVisible(true);
+    } else {
+      setSetupModalVisible(true);
+    }
   }, []);
 
   const handleStart = useCallback(
@@ -86,17 +92,13 @@ export function useIntegrationActions() {
   const closeOAuthModal = useCallback(() => setOauthModalVisible(false), []);
   const closeSetupModal = useCallback(() => setSetupModalVisible(false), []);
 
-  // SetupModal saved credentials -> hand off to the OAuth authorize flow.
+  // SetupModal saved credentials -> hand off to the OAuth authorize flow, and
+  // refresh so the integration now reports itself configured.
   const handleSetupSuccess = useCallback(() => {
     setSetupModalVisible(false);
     setOauthModalVisible(true);
-  }, []);
-
-  // OAuthModal discovered credentials aren't configured yet -> hand off to setup.
-  const handleNeedsSetup = useCallback(() => {
-    setOauthModalVisible(false);
-    setSetupModalVisible(true);
-  }, []);
+    refreshIntegrations();
+  }, [refreshIntegrations]);
 
   const getActionState = useCallback(
     (item: IntegrationInfo): IntegrationActionState => ({
@@ -144,7 +146,6 @@ export function useIntegrationActions() {
     closeOAuthModal,
     closeSetupModal,
     handleSetupSuccess,
-    handleNeedsSetup,
     getActionState,
     getStatusColor,
   };

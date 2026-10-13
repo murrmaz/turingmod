@@ -23,8 +23,6 @@ export interface OAuthModalProps {
   onDismiss: () => void;
   /** Callback when OAuth is successful */
   onSuccess: () => void;
-  /** Callback when credentials are not configured */
-  onNeedsSetup?: () => void;
   /** The integration this modal is authorizing */
   provider: OAuthProviderConfig;
 }
@@ -33,13 +31,7 @@ export interface OAuthModalProps {
  * OAuth Authorization Modal
  * Opens popup window for OAuth, automatically captures code and exchanges it
  */
-export function OAuthModal({
-  visible,
-  onDismiss,
-  onSuccess,
-  onNeedsSetup,
-  provider,
-}: OAuthModalProps) {
+export function OAuthModal({ visible, onDismiss, onSuccess, provider }: OAuthModalProps) {
   const { sendAndWaitForResponse, subscribe } = useWebSocketContext();
   const [step, setStep] = useState<'loading' | 'waiting' | 'exchanging' | 'error'>('loading');
   const [authUrl, setAuthUrl] = useState<string>('');
@@ -154,22 +146,10 @@ export function OAuthModal({
         setStep('error');
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-
-      // Check if error is due to missing credentials
-      if (errorMsg.includes('not configured') || errorMsg.includes('Client ID')) {
-        // Credentials not configured - show setup modal instead
-        if (onNeedsSetup) {
-          onNeedsSetup();
-          handleClose();
-          return;
-        }
-      }
-
-      setErrorMessage(errorMsg);
+      setErrorMessage(error instanceof Error ? error.message : 'Unknown error');
       setStep('error');
     }
-  }, [sendAndWaitForResponse, openAuthPopup, onNeedsSetup, handleClose, provider.integrationName]);
+  }, [sendAndWaitForResponse, openAuthPopup, provider.integrationName]);
 
   // Subscribe to OAuth code received events
   useEffect(() => {

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { injectable, singleton } from 'tsyringe';
 import { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
-import { Logger } from '../utils/Logger.js';
 import { IntegrationManager } from './IntegrationManager.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 
@@ -27,15 +26,10 @@ export class OAuthFlowService {
     { integrationName: string; clientId: string; expiresAt: number }
   >();
 
-  private logger: Logger;
-
   constructor(
     private integrationManager: IntegrationManager,
-    private stateRepository: IntegrationStateRepository,
-    logger: Logger
-  ) {
-    this.logger = logger.child({ component: 'OAuthFlowService' });
-  }
+    private stateRepository: IntegrationStateRepository
+  ) {}
 
   /**
    * Get the OAuth callback path for every OAuth-capable registered
@@ -59,16 +53,18 @@ export class OAuthFlowService {
   }
 
   /**
-   * Build the OAuth authorization URL for an integration, resolving config
-   * from previously-saved (database) credentials and falling back to
-   * environment variables for first-time setup. Required scopes always come
-   * from the integration itself, never the caller.
+   * Build the OAuth authorization URL for an integration from its configured
+   * client credentials. The same credentials then exchange the code, since
+   * both come from the integration itself. Required scopes always come from
+   * the integration, never the caller.
    */
-  async getAuthorizationUrl(name: string, clientId: string): Promise<string> {
+  getAuthorizationUrl(name: string, clientId: string): string {
     const integration = this.getOAuthIntegration(name);
-    const config = await this.resolveConfig(integration, name);
+    if (!integration.isConfigured()) {
+      throw new Error(`${name} has no client credentials; set them up in the console first`);
+    }
     const state = this.createState(name, clientId);
-    return integration.getAuthorizationUrl(config, state);
+    return integration.getAuthorizationUrl(state);
   }
 
   /**
@@ -143,28 +139,5 @@ export class OAuthFlowService {
         this.pendingStates.delete(state);
       }
     }
-  }
-
-  /**
-   * Resolve the config needed to build an authorization URL: prefer
-   * previously-saved (database) credentials, falling back to environment
-   * variables for first-time setup.
-   */
-  private async resolveConfig(
-    integration: IOAuthIntegration,
-    name: string
-  ): Promise<Record<string, unknown>> {
-    try {
-      const decryptedConfig = await this.stateRepository.getDecryptedConfig(name);
-      if (decryptedConfig?.clientId && decryptedConfig.clientSecret) {
-        this.logger.info(`Loaded ${name} credentials from database`);
-        return { ...decryptedConfig, scopes: integration.getRequiredScopes() };
-      }
-    } catch (error) {
-      this.logger.warn(`Could not load ${name} config from database`, error);
-    }
-
-    this.logger.info(`Falling back to environment variables for ${name}`);
-    return integration.getEnvConfig();
   }
 }

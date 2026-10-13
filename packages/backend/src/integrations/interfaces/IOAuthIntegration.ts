@@ -3,30 +3,31 @@ import type { IIntegration } from './IIntegration.js';
 /**
  * Extension of IIntegration for integrations that support the OAuth
  * authorization-code flow. Implementers own their required scopes and
- * environment-variable fallback config, so OAuthHandler can drive any
- * OAuth-capable integration without knowing which provider it is.
+ * client credentials, so OAuthFlowService can drive any OAuth-capable
+ * integration without knowing which provider it is.
  */
 export interface IOAuthIntegration extends IIntegration {
   /** OAuth scopes this integration requires. Single source of truth per provider. */
   getRequiredScopes(): string[];
 
   /**
-   * Build a config from environment variables, for first-time setup before
-   * any config has been saved to the database. Throws if required env vars
-   * are missing.
+   * Whether client credentials (id and secret) have been set up. They're
+   * entered once in the console's setup dialog and stored with the rest of
+   * the integration's config; there is no other source.
    */
-  getEnvConfig(): Record<string, unknown>;
+  isConfigured(): boolean;
 
   /**
-   * Generate the provider's authorization URL for the given config. `state`
+   * Generate the provider's authorization URL from the configured client
+   * credentials, requesting the integration's required scopes. `state`
    * is an opaque, server-generated, single-use value that must be echoed
    * back unmodified by the provider on the callback — it's how the callback
    * gets correlated back to the WebSocket client that started the flow.
    */
-  getAuthorizationUrl(config: Record<string, unknown>, state: string): string;
+  getAuthorizationUrl(state: string): string;
 
   /** Exchange an authorization code for tokens, persisting them. */
-  exchangeCode(code: string): Promise<unknown>;
+  exchangeCode(code: string): Promise<void>;
 
   /**
    * The HTTP path this integration's OAuth redirect URI points at, e.g.

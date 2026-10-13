@@ -14,7 +14,6 @@ import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
 import {
-  buildOAuthEnvConfig,
   oauthRedirectUri,
   persistOAuthTokens,
   validateOAuthConfig,
@@ -268,16 +267,10 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
   }
 
   /**
-   * Build a config from environment variables, for first-time setup before
-   * any config has been saved to the database (IOAuthIntegration).
+   * Whether client credentials have been set up (IOAuthIntegration)
    */
-  getEnvConfig(): Record<string, unknown> {
-    return buildOAuthEnvConfig<TwitchAuthConfig>({
-      providerLabel: 'Twitch',
-      clientIdEnvVar: 'TWITCH_CLIENT_ID',
-      clientSecretEnvVar: 'TWITCH_CLIENT_SECRET',
-      scopes: TWITCH_REQUIRED_SCOPES,
-    }) as unknown as Record<string, unknown>;
+  isConfigured(): boolean {
+    return Boolean(this.config?.clientId && this.config.clientSecret);
   }
 
   /**
@@ -301,13 +294,15 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
   /**
    * Generate OAuth authorization URL
    */
-  getAuthorizationUrl(config: Record<string, unknown>, state: string): string {
+  getAuthorizationUrl(state: string): string {
+    if (!this.config) {
+      throw new Error('Twitch client credentials are not configured');
+    }
     // Always request the current required set rather than config.scopes:
     // after the first grant, config.scopes records what Twitch *granted*, so
     // reusing it would re-request the old set and never pick up added scopes.
-    const { clientId } = config as unknown as TwitchAuthConfig;
     const params = new URLSearchParams({
-      client_id: clientId,
+      client_id: this.config.clientId,
       redirect_uri: this.getRedirectUri(),
       response_type: 'code',
       scope: TWITCH_REQUIRED_SCOPES.join(' '),
@@ -320,7 +315,7 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
   /**
    * Exchange authorization code for tokens
    */
-  async exchangeCode(code: string): Promise<AccessToken> {
+  async exchangeCode(code: string): Promise<void> {
     if (!this.config) {
       throw new Error('Integration not initialized');
     }
@@ -365,8 +360,6 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
     await this.saveTokens(token);
 
     this.logger.info('Successfully exchanged code for tokens');
-
-    return token;
   }
 
   /**

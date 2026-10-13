@@ -7,7 +7,6 @@ import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
 import {
-  buildOAuthEnvConfig,
   oauthRedirectUri,
   persistOAuthTokens,
   validateOAuthConfig,
@@ -178,16 +177,10 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
   }
 
   /**
-   * Build a config from environment variables, for first-time setup before
-   * any config has been saved to the database (IOAuthIntegration).
+   * Whether client credentials have been set up (IOAuthIntegration)
    */
-  getEnvConfig(): Record<string, unknown> {
-    return buildOAuthEnvConfig<YouTubeAuthConfig>({
-      providerLabel: 'YouTube',
-      clientIdEnvVar: 'YOUTUBE_CLIENT_ID',
-      clientSecretEnvVar: 'YOUTUBE_CLIENT_SECRET',
-      scopes: YOUTUBE_REQUIRED_SCOPES,
-    }) as unknown as Record<string, unknown>;
+  isConfigured(): boolean {
+    return Boolean(this.config?.clientId && this.config.clientSecret);
   }
 
   /**
@@ -212,13 +205,15 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
    * Generate OAuth authorization URL. `access_type: 'offline'` + `prompt: 'consent'` ensures a
    * refresh token is issued.
    */
-  getAuthorizationUrl(config: Record<string, unknown>, state: string): string {
-    const typed = config as unknown as YouTubeAuthConfig;
-    const client = this.buildClient(typed);
+  getAuthorizationUrl(state: string): string {
+    if (!this.config) {
+      throw new Error('YouTube client credentials are not configured');
+    }
+    const client = this.buildClient(this.config);
     return client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
-      scope: typed.scopes,
+      scope: YOUTUBE_REQUIRED_SCOPES,
       state,
     });
   }

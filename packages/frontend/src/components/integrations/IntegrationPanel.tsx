@@ -41,7 +41,6 @@ export function IntegrationPanel() {
     closeOAuthModal,
     closeSetupModal,
     handleSetupSuccess,
-    handleNeedsSetup,
     getActionState,
     getStatusColor,
   } = useIntegrationActions();
@@ -112,7 +111,7 @@ export function IntegrationPanel() {
                   <Button
                     variant="primary"
                     iconName="unlocked"
-                    onClick={() => handleAuthorize(item.name)}
+                    onClick={() => handleAuthorize(item)}
                     disabled={isLoading}
                   >
                     {needsReauth ? 'Reconnect' : 'Authorize'}
@@ -215,7 +214,6 @@ export function IntegrationPanel() {
         onSetupDismiss={closeSetupModal}
         onSetupSuccess={handleSetupSuccess}
         onOAuthSuccess={handleOAuthSuccess}
-        onNeedsSetup={handleNeedsSetup}
       />
     </SpaceBetween>
   );

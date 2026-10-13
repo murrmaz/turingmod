@@ -6,7 +6,6 @@ import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
 import {
-  buildOAuthEnvConfig,
   oauthRedirectUri,
   persistOAuthTokens,
   validateOAuthConfig,
@@ -155,16 +154,10 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
   }
 
   /**
-   * Build a config from environment variables, for first-time setup before
-   * any config has been saved to the database (IOAuthIntegration).
+   * Whether client credentials have been set up (IOAuthIntegration)
    */
-  getEnvConfig(): Record<string, unknown> {
-    return buildOAuthEnvConfig<SpotifyAuthConfig>({
-      providerLabel: 'Spotify',
-      clientIdEnvVar: 'SPOTIFY_CLIENT_ID',
-      clientSecretEnvVar: 'SPOTIFY_CLIENT_SECRET',
-      scopes: SPOTIFY_REQUIRED_SCOPES,
-    }) as unknown as Record<string, unknown>;
+  isConfigured(): boolean {
+    return Boolean(this.config?.clientId && this.config.clientSecret);
   }
 
   /**
@@ -188,13 +181,15 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
   /**
    * Generate OAuth authorization URL
    */
-  getAuthorizationUrl(config: Record<string, unknown>, state: string): string {
-    const { clientId, scopes } = config as unknown as SpotifyAuthConfig;
+  getAuthorizationUrl(state: string): string {
+    if (!this.config) {
+      throw new Error('Spotify client credentials are not configured');
+    }
     const params = new URLSearchParams({
-      client_id: clientId,
+      client_id: this.config.clientId,
       response_type: 'code',
       redirect_uri: this.getRedirectUri(),
-      scope: scopes.join(' '),
+      scope: SPOTIFY_REQUIRED_SCOPES.join(' '),
       state,
     });
 

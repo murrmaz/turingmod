@@ -1,31 +1,4 @@
 import type { PermissionLevel } from '../constants/permissions.js';
-import type { StreamingPlatform } from '../constants/platform.js';
-
-/**
- * Represents a user in the system
- */
-export interface User {
-  /** Unique identifier */
-  id: string;
-
-  /** Platform the user belongs to */
-  platform: StreamingPlatform;
-
-  /** Platform-specific user ID */
-  platformUserId: string;
-
-  /** Display username */
-  username: string;
-
-  /** User's permission level */
-  permissionLevel: PermissionLevel;
-
-  /** Timestamp when user was created */
-  createdAt: number;
-
-  /** Timestamp when user was last updated */
-  updatedAt: number;
-}
 
 /**
  * Simulated user for command testing

@@ -96,19 +96,17 @@ describe('ChatRouter', () => {
     expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('sr'));
   });
 
-  it.each([
-    'INSUFFICIENT_PERMISSIONS',
-    'COMMAND_ON_COOLDOWN',
-    'EXECUTION_NOT_ALLOWED',
-    'EXECUTION_ERROR',
-  ])('stays silent in chat for %s', async (code) => {
-    const { eventBus, executor, twitch } = setup('allowed', failure(code, 'Nope'));
+  it.each(['INSUFFICIENT_PERMISSIONS', 'COMMAND_ON_COOLDOWN', 'EXECUTION_ERROR'])(
+    'stays silent in chat for %s',
+    async (code) => {
+      const { eventBus, executor, twitch } = setup('allowed', failure(code, 'Nope'));
 
-    await eventBus.emit('chat.message', chatMessage('!delvod'));
-    await vi.waitFor(() => expect(executor.execute).toHaveBeenCalled());
+      await eventBus.emit('chat.message', chatMessage('!delvod'));
+      await vi.waitFor(() => expect(executor.execute).toHaveBeenCalled());
 
-    expect(twitch.sendChatMessage).not.toHaveBeenCalled();
-  });
+      expect(twitch.sendChatMessage).not.toHaveBeenCalled();
+    }
+  );
 
   it('still replies with a failure the command reported itself', async () => {
     const { eventBus, twitch } = setup('allowed', failure('INVALID_INPUT', 'Usage: !so <channel>'));

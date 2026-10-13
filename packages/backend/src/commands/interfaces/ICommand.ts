@@ -34,11 +34,4 @@ export interface ICommand {
    * @returns Command result
    */
   execute(context: CommandContext): Promise<CommandResult>;
-
-  /**
-   * Validate if command can be executed
-   * @param context - Execution context
-   * @returns True if command can be executed
-   */
-  canExecute?(context: CommandContext): Promise<boolean>;
 }

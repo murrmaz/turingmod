@@ -32,7 +32,7 @@ class FakeObs {
   getSceneItems(sceneUuid: string) {
     return Promise.resolve((this.items.get(sceneUuid) ?? []).map((item) => ({ ...item })));
   }
-  setSceneItemEnabledInScene(sceneUuid: string, sceneItemId: number, enabled: boolean) {
+  setSceneItemEnabled(sceneUuid: string, sceneItemId: number, enabled: boolean) {
     const item = this.items.get(sceneUuid)?.find((i) => i.sceneItemId === sceneItemId);
     if (!item || this.failSetFor.has(item.sourceName)) {
       return Promise.reject(new Error('No source was found'));

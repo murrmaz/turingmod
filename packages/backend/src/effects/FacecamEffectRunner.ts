@@ -78,7 +78,7 @@ export class FacecamEffectRunner implements IService {
       targets,
       signal,
       setTransform: (target, transform) =>
-        this.obs.setSceneItemTransformInScene(target.sceneUuid, target.sceneItemId, transform),
+        this.obs.setSceneItemTransform(target.sceneUuid, target.sceneItemId, transform),
       canvasSize: () => this.obs.getCanvasSize(),
       addFilter: async (name, kind, settings) => {
         filters.add(name);
@@ -105,7 +105,7 @@ export class FacecamEffectRunner implements IService {
   ): Promise<void> {
     for (const target of targets) {
       try {
-        await this.obs.setSceneItemTransformInScene(
+        await this.obs.setSceneItemTransform(
           target.sceneUuid,
           target.sceneItemId,
           restorableTransform(target.original)
@@ -145,7 +145,7 @@ export class FacecamEffectRunner implements IService {
       for (const sceneUuid of sceneUuids) {
         const item = (await this.obs.getSceneItems(sceneUuid)).find((i) => i.sourceName === source);
         if (!item) continue;
-        const original: SceneItemTransform = await this.obs.getSceneItemTransformInScene(
+        const original: SceneItemTransform = await this.obs.getSceneItemTransform(
           sceneUuid,
           item.sceneItemId
         );

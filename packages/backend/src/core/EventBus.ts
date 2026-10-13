@@ -150,11 +150,4 @@ export class EventBus {
   listenerCount(event: EventName): number {
     return this.handlers.get(event)?.size ?? 0;
   }
-
-  /**
-   * Get all registered event names
-   */
-  eventNames(): EventName[] {
-    return Array.from(this.handlers.keys());
-  }
 }

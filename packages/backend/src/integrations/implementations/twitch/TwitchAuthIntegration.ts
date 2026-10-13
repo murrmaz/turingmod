@@ -166,11 +166,14 @@ export class TwitchAuthIntegration extends BaseIntegration implements IOAuthInte
       // stored token is already expired) and fire this event synchronously
       // from inside the call \u2014 a listener added afterwards would miss it,
       // leaving the refreshed token stranded in memory and never persisted.
-      this.authProvider.onRefresh(async (_userId, newToken) => {
+      this.authProvider.onRefresh((_userId, newToken) => {
         this.logger.info('Access token refreshed');
 
-        // Save new tokens to database
-        await this.saveTokens(newToken);
+        // Twurple doesn't await its listeners, so a failed save must be caught
+        // here: an unhandled rejection would take the whole process down.
+        this.saveTokens(newToken).catch((error: unknown) => {
+          this.logger.error('Failed to save refreshed Twitch tokens', error);
+        });
 
         this.reportTokenRefreshed(
           newToken.expiresIn === null

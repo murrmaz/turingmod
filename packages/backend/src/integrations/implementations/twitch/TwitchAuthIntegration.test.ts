@@ -93,6 +93,20 @@ describe('TwitchAuthIntegration', () => {
     );
   });
 
+  it('stays connected, without an unhandled rejection, when a refreshed token cannot be saved', async () => {
+    const upsert = vi.fn().mockRejectedValue(new Error('database is locked'));
+    const integration = makeIntegration({ upsert });
+    successfulTokenExchange();
+
+    await integration.initialize(CONFIG);
+    await integration.start();
+    // Let the refresh listener's save settle; vitest fails the run on an unhandled rejection.
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(upsert).toHaveBeenCalled();
+    expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
+  });
+
   it('marks the integration NEEDS_REAUTH (not a generic ERROR) when the refresh token is dead', async () => {
     const upsert = vi.fn().mockResolvedValue(undefined);
     const integration = makeIntegration({ upsert });

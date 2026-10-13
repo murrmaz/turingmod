@@ -103,9 +103,13 @@ export class YouTubeAuthIntegration extends BaseIntegration implements IOAuthInt
     this.oauth2Client = this.buildClient(this.config);
     this.applyCredentials(this.oauth2Client, this.config);
 
-    // Persist tokens whenever the client refreshes them.
+    // Persist tokens whenever the client refreshes them. Nothing awaits this
+    // listener, so a failed save must be caught here: an unhandled rejection
+    // would take the whole process down.
     this.oauth2Client.on('tokens', (tokens) => {
-      void this.saveTokens(tokens);
+      this.saveTokens(tokens).catch((error: unknown) => {
+        this.logger.error('Failed to save refreshed YouTube tokens', error);
+      });
       this.reportTokenRefreshed(tokens.expiry_date ?? undefined);
     });
 

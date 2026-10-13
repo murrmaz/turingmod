@@ -233,6 +233,14 @@ export class YouTubeChatIntegration extends BaseIntegration {
   }
 
   /**
+   * The live chat being streamed, or null when not streaming. While it's set the broadcast is
+   * live and this is its chat, so posting to it needs no broadcast lookup of its own.
+   */
+  getLiveChatId(): string | null {
+    return this.state === 'streaming' ? this.liveChatId : null;
+  }
+
+  /**
    * Ask the integration to look for an active broadcast and connect its chat. Invoked by the
    * console's go-live button and by the OBS output-started signal. A no-op when already resolving
    * or streaming, so overlapping signals can't stack up retry loops.

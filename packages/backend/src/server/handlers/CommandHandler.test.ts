@@ -13,6 +13,7 @@ import type { ICommand } from '../../commands/interfaces/ICommand.js';
 import type { TwitchApiIntegration } from '../../integrations/implementations/twitch/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import type { YouTubeApiIntegration } from '../../integrations/implementations/youtube/YouTubeApiIntegration.js';
+import type { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { TwitchPlatform } from '../../platforms/TwitchPlatform.js';
 import { YouTubePlatform } from '../../platforms/YouTubePlatform.js';
@@ -44,7 +45,13 @@ describe('CommandHandler.handleList', () => {
         {} as OwnChatMessages
       )
     );
-    platforms.register(new YouTubePlatform({} as YouTubeApiIntegration, {} as OwnChatMessages));
+    platforms.register(
+      new YouTubePlatform(
+        {} as YouTubeApiIntegration,
+        {} as OwnChatMessages,
+        {} as YouTubeChatIntegration
+      )
+    );
     const handler = new CommandHandler({} as CommandExecutor, commands, platforms, logger);
 
     const response = await handler.handleList({

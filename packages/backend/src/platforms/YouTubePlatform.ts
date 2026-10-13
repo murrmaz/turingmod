@@ -3,6 +3,7 @@ import { injectable, singleton } from 'tsyringe';
 import { toSafeChatText } from '../chat/chatMessage.js';
 import { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
+import { YouTubeChatIntegration } from '../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { unavailableReason } from './availability.js';
 import type {
   DeclaredCapability,
@@ -27,25 +28,32 @@ export class YouTubePlatform implements IStreamPlatform {
 
   constructor(
     private api: YouTubeApiIntegration,
-    private ownMessages: OwnChatMessages
+    private ownMessages: OwnChatMessages,
+    private chat: YouTubeChatIntegration
   ) {}
 
   getUnavailableReason(): string | null {
     return unavailableReason(this.api, this.platform);
   }
 
+  // While chat is streaming, its live chat id already answers "are we live, and where does chat
+  // go", so the broadcast is only looked up (one API call each time) when it isn't: replies and
+  // announcements during a stream would otherwise cost an extra call per message.
+
   async isLive(): Promise<boolean> {
-    const broadcast = await this.api.getActiveBroadcast();
-    return broadcast !== null;
+    if (this.chat.getLiveChatId() !== null) {
+      return true;
+    }
+    return (await this.api.getActiveBroadcast()) !== null;
   }
 
   async sendChatMessage(message: string): Promise<void> {
     const text = toSafeChatText(message);
-    const broadcast = await this.api.getActiveBroadcast();
-    if (!broadcast?.liveChatId) {
+    const liveChatId =
+      this.chat.getLiveChatId() ?? (await this.api.getActiveBroadcast())?.liveChatId;
+    if (!liveChatId) {
       throw new Error('No active YouTube live chat to post to');
     }
-    const { liveChatId } = broadcast;
     await this.ownMessages.record(this.platform, () =>
       this.api.sendLiveChatMessage(liveChatId, text)
     );

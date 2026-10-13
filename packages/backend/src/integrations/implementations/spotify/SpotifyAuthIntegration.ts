@@ -1,11 +1,13 @@
 import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
+import { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IOAuthIntegration } from '../../interfaces/IOAuthIntegration.js';
 import {
   buildOAuthEnvConfig,
+  oauthRedirectUri,
   persistOAuthTokens,
   validateOAuthConfig,
 } from '../../oauthConfigHelpers.js';
@@ -16,7 +18,6 @@ import {
 export interface SpotifyAuthConfig {
   clientId: string;
   clientSecret: string;
-  redirectUri: string;
   scopes: string[];
   accessToken?: string;
   refreshToken?: string;
@@ -36,7 +37,8 @@ const SPOTIFY_REQUIRED_SCOPES = [
 ];
 
 const SPOTIFY_CALLBACK_PATH = '/callback/spotify';
-const SPOTIFY_REDIRECT_URI = `http://127.0.0.1:8080${SPOTIFY_CALLBACK_PATH}`;
+/** Spotify accepts plain-HTTP redirects only to the literal loopback IP, not `localhost`. */
+const SPOTIFY_REDIRECT_HOST = '127.0.0.1';
 
 /**
  * Token data exposed to SpotifyApiIntegration
@@ -68,7 +70,8 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
 
   constructor(
     logger: Logger,
-    private stateRepo: IntegrationStateRepository
+    private stateRepo: IntegrationStateRepository,
+    private serverConfig: TuringModConfig
   ) {
     super(logger, { component: 'SpotifyAuth' });
   }
@@ -160,7 +163,6 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
       providerLabel: 'Spotify',
       clientIdEnvVar: 'SPOTIFY_CLIENT_ID',
       clientSecretEnvVar: 'SPOTIFY_CLIENT_SECRET',
-      redirectUri: SPOTIFY_REDIRECT_URI,
       scopes: SPOTIFY_REQUIRED_SCOPES,
     }) as unknown as Record<string, unknown>;
   }
@@ -173,14 +175,25 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
   }
 
   /**
+   * OAuth redirect URI (IOAuthIntegration)
+   */
+  getRedirectUri(): string {
+    return oauthRedirectUri(
+      SPOTIFY_REDIRECT_HOST,
+      this.serverConfig.serverPort,
+      SPOTIFY_CALLBACK_PATH
+    );
+  }
+
+  /**
    * Generate OAuth authorization URL
    */
   getAuthorizationUrl(config: Record<string, unknown>, state: string): string {
-    const { clientId, redirectUri, scopes } = config as unknown as SpotifyAuthConfig;
+    const { clientId, scopes } = config as unknown as SpotifyAuthConfig;
     const params = new URLSearchParams({
       client_id: clientId,
       response_type: 'code',
-      redirect_uri: redirectUri,
+      redirect_uri: this.getRedirectUri(),
       scope: scopes.join(' '),
       state,
     });
@@ -208,7 +221,7 @@ export class SpotifyAuthIntegration extends BaseIntegration implements IOAuthInt
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        redirect_uri: this.config.redirectUri,
+        redirect_uri: this.getRedirectUri(),
       }),
     });
 

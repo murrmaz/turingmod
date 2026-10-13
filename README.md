@@ -38,10 +38,11 @@ npm run dev
 ```
 
 This starts:
-- Backend (HTTP + WebSocket): http://localhost:8080
-- Frontend (Vite): http://localhost:3000
+- Backend (HTTP + WebSocket + OAuth callbacks): http://127.0.0.1:8080 (`SERVER_PORT`)
+- Frontend (Vite): http://127.0.0.1:3000, proxying the WebSocket to the backend
 
-Open http://localhost:3000 in your browser to access the UI.
+Open http://127.0.0.1:3000 in your browser to access the UI. (The backend only accepts WebSocket
+connections from that exact origin, so `localhost:3000` won't connect.)
 
 ## Development Workflow
 
@@ -57,7 +58,7 @@ npm run dev:frontend     # Start frontend only
 
 ```bash
 npm run build           # Build all packages
-npm start               # Start production server on :8080
+npm start               # Start production server on :8080 (SERVER_PORT)
 ```
 
 ### Other Commands
@@ -88,7 +89,8 @@ Create a `.env` file in the project root:
 
 ```env
 # Server Configuration
-WS_PORT=8080
+# The backend's one port: console, WebSocket, and the OAuth redirect URIs
+SERVER_PORT=8080
 DB_PATH=./turingmod.db
 LOG_LEVEL=info
 
@@ -103,7 +105,8 @@ TWITCH_CLIENT_SECRET=your-client-secret
 ### Twitch Setup
 
 1. Create a Twitch application at https://dev.twitch.tv/console
-2. Set redirect URI to `http://localhost:8080/auth/twitch/callback`
+2. Set the redirect URI to `http://localhost:8080/callback/twitch` (the setup dialog shows the
+   exact URI to register; it follows `SERVER_PORT`)
 3. Copy Client ID and Client Secret to `.env`
 4. Authenticate via the UI to generate OAuth token
 

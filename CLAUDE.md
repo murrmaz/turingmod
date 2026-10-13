@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Development (starts both backend + frontend via concurrently)
-npm run dev                # Backend on :8080, Frontend on :3000
+npm run dev                # Backend on :8080 (SERVER_PORT), Frontend on :3000 (proxies /ws)
 npm run dev:backend        # Backend only (tsc --watch + node --watch)
 npm run dev:frontend       # Frontend only (Vite dev server)
 
@@ -226,7 +226,7 @@ own their provider for their lifetime and cannot be re-pointed.
 
 `YouTubeChatIntegration` has no periodic timers. It idles until a go-live signal — OBS's `obs.stream.stateChanged` (`OBS_WEBSOCKET_OUTPUT_STARTED`), or a `youtube.goLive` message from the console — then resolves the broadcast's `liveChatId` with a bounded retry (a broadcast doesn't expose one until YouTube transitions it to `live`) and opens the stream. Its `idle → resolving → streaming` transitions are broadcast to the frontend as `YOUTUBE_CHAT_STATE`.
 
-OAuth-capable integrations (currently `TwitchAuthIntegration`, `SpotifyAuthIntegration`) additionally implement `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and expose it via a `get oauth()` getter (`null` on `BaseIntegration` by default). This is the single source of truth for OAuth capability — `OAuthFlowService` derives callback routing and the frontend's OAuth affordance from it instead of checking integration names.
+OAuth-capable integrations (`TwitchAuthIntegration`, `SpotifyAuthIntegration`, `YouTubeAuthIntegration`) additionally implement `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and expose it via a `get oauth()` getter (`null` on `BaseIntegration` by default). This is the single source of truth for OAuth capability — `OAuthFlowService` derives callback routing and the frontend's OAuth affordance from it instead of checking integration names.
 
 Cross-integration communication uses `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
 It is typed against `EventMap` (`core/events.ts`), which declares every event name and its payload
@@ -400,7 +400,7 @@ React Context for state management: `WebSocketContext` (connection + send/subscr
 
 ### HTTP Server
 
-Minimal Node.js `http` server (`server/HttpServer.ts`). Serves static frontend build in production. OAuth callback routes (currently `/callback/twitch` and `/callback/spotify`) are built from each `IOAuthIntegration.getCallbackPath()` via `OAuthFlowService.getCallbackRoutes()`, not hardcoded. Health check at `/health`. Localhost-only binding enforced.
+Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which also hosts the WebSocket endpoint (`/ws`) — the backend has one port. The console connects to `/ws` on its own origin; in development Vite proxies that to the backend. Serves static frontend build in production. OAuth callback routes (`/callback/twitch`, `/callback/spotify`, `/callback/youtube`) are built from each `IOAuthIntegration.getCallbackPath()` via `OAuthFlowService.getCallbackRoutes()`, not hardcoded. Redirect URIs are derived, never stored or sent by the console: `getRedirectUri()` combines the callback path, `SERVER_PORT`, and the one loopback host each provider accepts for plain HTTP (Twitch `localhost`; Spotify and Google `127.0.0.1`). Health check at `/health`. Localhost-only binding enforced.
 
 ## Code Style
 

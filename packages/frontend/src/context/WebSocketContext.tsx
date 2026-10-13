@@ -1,4 +1,4 @@
-import type { IWebSocketMessage } from '@turingmod/shared';
+import { type IWebSocketMessage, WS_PATH } from '@turingmod/shared';
 import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { WebSocketClient } from '../services/WebSocketClient';
@@ -40,12 +40,22 @@ export interface WebSocketProviderProps {
 }
 
 /**
+ * The backend's WebSocket endpoint on the origin that served this page: the backend itself in
+ * production, or the Vite dev server in development, which proxies it to the backend. Either way
+ * the console never needs to know the backend's port.
+ */
+function defaultWebSocketUrl(): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}${WS_PATH}`;
+}
+
+/**
  * WebSocket provider
  * Manages WebSocket connection and provides it to children
  */
 export function WebSocketProvider({
   children,
-  url = 'ws://localhost:8080/ws',
+  url = defaultWebSocketUrl(),
 }: WebSocketProviderProps) {
   const [isConnected, setIsConnected] = useState(false);
   const clientRef = useRef<WebSocketClient | null>(null);

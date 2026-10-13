@@ -103,7 +103,7 @@ export function registerRootFactories(): void {
     useFactory: instanceCachingFactory((c) => {
       const config = c.resolve(TuringModConfig);
       return new HttpServer(
-        config.wsPort,
+        config.serverPort,
         config.host,
         config.frontendDistPath,
         c.resolve(EventBus),
@@ -120,7 +120,7 @@ export function registerRootFactories(): void {
       // bound to 127.0.0.1 per vite.config.ts, regardless of backend HOST) —
       // the only two pages ever allowed to open a WS connection to us.
       const allowedOrigins = [
-        `http://${config.host}:${config.wsPort}`,
+        `http://${config.host}:${config.serverPort}`,
         `http://127.0.0.1:${DEFAULT_FRONTEND_DEV_PORT}`,
       ];
       return new WebSocketServer(c.resolve(MessageRouter), allowedOrigins, c.resolve(Logger));

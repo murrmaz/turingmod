@@ -28,8 +28,8 @@ export class ArduinoIntegration extends BaseIntegration {
   }
 
   start(): Promise<void> {
-    this.logger.debug('Arduino integration started (placeholder)');
-    this.setStatus(IntegrationStatus.CONNECTED);
+    // Not implemented yet, so it stays DISCONNECTED rather than claiming a connection.
+    this.logger.info('Arduino integration is not implemented yet');
     // TODO: Open serial port
     return Promise.resolve();
   }

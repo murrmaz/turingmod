@@ -28,8 +28,8 @@ export class DiscordIntegration extends BaseIntegration {
   }
 
   start(): Promise<void> {
-    this.logger.debug('Discord integration started (placeholder)');
-    this.setStatus(IntegrationStatus.CONNECTED);
+    // Not implemented yet, so it stays DISCONNECTED rather than claiming a connection.
+    this.logger.info('Discord integration is not implemented yet');
     // TODO: Connect to Discord
     return Promise.resolve();
   }

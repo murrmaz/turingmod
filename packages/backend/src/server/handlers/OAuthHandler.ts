@@ -12,7 +12,6 @@ import {
   createOAuthExchangeResultMessage,
 } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
-import { OAuthNotConfiguredError } from '../../integrations/errors.js';
 import { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
 import { Logger } from '../../utils/Logger.js';
 import { isOAuthExchangeCodePayload, isOAuthGetAuthUrlPayload } from '../validation.js';
@@ -38,15 +37,13 @@ export class OAuthHandler {
   /**
    * Handle get authorization URL request
    */
-  async handleGetAuthUrl(
+  handleGetAuthUrl(
     message: IWebSocketMessage<OAuthGetAuthUrlPayload>,
     clientId: string
   ): Promise<IWebSocketMessage<OAuthAuthUrlResponsePayload | ErrorPayload>> {
     if (!isOAuthGetAuthUrlPayload(message.payload)) {
-      return createErrorMessage(
-        'INVALID_PAYLOAD',
-        'Malformed oauth.getAuthUrl payload',
-        message.id
+      return Promise.resolve(
+        createErrorMessage('INVALID_PAYLOAD', 'Malformed oauth.getAuthUrl payload', message.id)
       );
     }
 
@@ -55,23 +52,16 @@ export class OAuthHandler {
     this.logger.info(`Getting auth URL for: ${integrationName}`);
 
     try {
-      const authUrl = await this.oauthFlow.getAuthorizationUrl(integrationName, clientId);
+      const authUrl = this.oauthFlow.getAuthorizationUrl(integrationName, clientId);
 
-      return createOAuthAuthUrlResponseMessage(integrationName, authUrl, message.id);
+      return Promise.resolve(
+        createOAuthAuthUrlResponseMessage(integrationName, authUrl, message.id)
+      );
     } catch (error) {
-      if (error instanceof OAuthNotConfiguredError) {
-        // Expected on first run — the frontend catches this and shows the
-        // Setup modal, so it's not a failure. Handle the response here
-        // (rather than re-throwing) so MessageRouter's catch-all doesn't
-        // also log it as an error.
-        this.logger.warn(`Auth URL requested for unconfigured integration: ${integrationName}`);
-        return createErrorMessage('OAUTH_NOT_CONFIGURED', error.message, message.id);
-      }
-
       this.logger.error(`Failed to get auth URL for ${integrationName}`, error);
 
-      // Re-throw the error so the WebSocket layer handles it
-      throw error;
+      // Reject so the WebSocket layer reports the error to the client
+      return Promise.reject(error);
     }
   }
 

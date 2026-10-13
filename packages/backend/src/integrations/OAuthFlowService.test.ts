@@ -1,7 +1,6 @@
 import 'reflect-metadata';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
-import { Logger } from '../utils/Logger.js';
 import type { IntegrationManager } from './IntegrationManager.js';
 import type { IIntegration } from './interfaces/IIntegration.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
@@ -12,8 +11,8 @@ function oauthIntegration(name: string, callbackPath: string): IOAuthIntegration
   const integration = {
     name,
     getRequiredScopes: () => ['scope'],
-    getEnvConfig: () => ({ clientId: 'env' }),
-    getAuthorizationUrl: (_config: Record<string, unknown>, state: string) => state,
+    isConfigured: () => true,
+    getAuthorizationUrl: (state: string) => state,
     exchangeCode: vi.fn().mockResolvedValue(undefined),
     getCallbackPath: () => callbackPath,
     getRedirectUri: () => `http://localhost:8080${callbackPath}`,
@@ -40,39 +39,38 @@ describe('OAuthFlowService', () => {
       startIntegration: vi.fn().mockResolvedValue(undefined),
     } as unknown as IntegrationManager;
     repo = {
-      getDecryptedConfig: vi.fn().mockResolvedValue(null),
       updateEnabled: vi.fn().mockResolvedValue(undefined),
     } as unknown as IntegrationStateRepository;
-    flow = new OAuthFlowService(manager, repo, new Logger({ level: 'silent' }));
+    flow = new OAuthFlowService(manager, repo);
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('routes a callback back to the client that started the flow', async () => {
-    const state = await flow.getAuthorizationUrl('twitch-auth', 'client-1');
+  it('routes a callback back to the client that started the flow', () => {
+    const state = flow.getAuthorizationUrl('twitch-auth', 'client-1');
 
     expect(flow.consumeState('twitch-auth', state)).toBe('client-1');
   });
 
-  it('accepts a state only once', async () => {
-    const state = await flow.getAuthorizationUrl('twitch-auth', 'client-1');
+  it('accepts a state only once', () => {
+    const state = flow.getAuthorizationUrl('twitch-auth', 'client-1');
     flow.consumeState('twitch-auth', state);
 
     expect(flow.consumeState('twitch-auth', state)).toBeNull();
   });
 
-  it('rejects a state issued for another integration, and burns it', async () => {
-    const state = await flow.getAuthorizationUrl('spotify-auth', 'client-1');
+  it('rejects a state issued for another integration, and burns it', () => {
+    const state = flow.getAuthorizationUrl('spotify-auth', 'client-1');
 
     expect(flow.consumeState('twitch-auth', state)).toBeNull();
     expect(flow.consumeState('spotify-auth', state)).toBeNull();
   });
 
-  it('rejects a state after ten minutes', async () => {
+  it('rejects a state after ten minutes', () => {
     vi.useFakeTimers();
-    const state = await flow.getAuthorizationUrl('twitch-auth', 'client-1');
+    const state = flow.getAuthorizationUrl('twitch-auth', 'client-1');
 
     vi.advanceTimersByTime(10 * 60 * 1000);
 
@@ -84,9 +82,17 @@ describe('OAuthFlowService', () => {
     expect(flow.consumeState('twitch-auth', 'made-up')).toBeNull();
   });
 
-  it('refuses an integration without OAuth', async () => {
-    await expect(flow.getAuthorizationUrl('obs', 'client-1')).rejects.toThrow(
+  it('refuses an integration without OAuth', () => {
+    expect(() => flow.getAuthorizationUrl('obs', 'client-1')).toThrow(
       'Integration does not support OAuth: obs'
+    );
+  });
+
+  it('refuses an integration whose client credentials are not set up', () => {
+    vi.spyOn(twitch, 'isConfigured').mockReturnValue(false);
+
+    expect(() => flow.getAuthorizationUrl('twitch-auth', 'client-1')).toThrow(
+      'twitch-auth has no client credentials'
     );
   });
 

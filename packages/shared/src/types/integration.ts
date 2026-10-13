@@ -55,6 +55,11 @@ export interface IntegrationInfo {
      * provider.
      */
     redirectUri: string;
+    /**
+     * Whether client credentials have been entered. Until they are, connecting means opening the
+     * setup dialog rather than the provider's authorization page.
+     */
+    configured: boolean;
   };
 
   /** Logical group this integration belongs to, for grouping related integrations in the UI. Absent for standalone integrations (Discord, OBS, Arduino, Sound). */

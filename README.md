@@ -98,9 +98,10 @@ documents each variable; the main ones:
 ```env
 SERVER_PORT=8080                 # console, WebSocket and OAuth redirect URIs
 MASTER_PASSWORD=your-password    # encrypts stored credentials; set it before configuring anything
-TWITCH_CLIENT_ID=your-client-id
-TWITCH_CLIENT_SECRET=your-client-secret
 ```
+
+OAuth client credentials aren't environment variables: the console asks for them the first time
+an integration is connected.
 
 Changing `MASTER_PASSWORD` after integrations are configured makes their stored credentials
 unreadable, so they'd need setting up again.
@@ -110,8 +111,8 @@ unreadable, so they'd need setting up again.
 1. Create a Twitch application at https://dev.twitch.tv/console
 2. Set the redirect URI to `http://localhost:8080/callback/twitch` (the setup dialog shows the
    exact URI to register; it follows `SERVER_PORT`)
-3. Copy Client ID and Client Secret to `.env`
-4. Authenticate via the UI to generate OAuth token
+3. In the console, connect Twitch and paste the Client ID and Client Secret into the setup dialog
+4. Authorize TuringMod in the Twitch window that opens
 
 ## Architecture
 

@@ -11,8 +11,6 @@ export interface IntegrationOAuthModalsProps {
   onSetupSuccess: () => void;
   /** OAuthModal completed the authorization code exchange. */
   onOAuthSuccess: () => void;
-  /** OAuthModal discovered credentials aren't configured yet — hand off to setup. */
-  onNeedsSetup: () => void;
 }
 
 /**
@@ -29,7 +27,6 @@ export function IntegrationOAuthModals({
   onSetupDismiss,
   onSetupSuccess,
   onOAuthSuccess,
-  onNeedsSetup,
 }: IntegrationOAuthModalsProps) {
   if (!activeIntegration) {
     return null;
@@ -54,7 +51,6 @@ export function IntegrationOAuthModals({
         visible={oauthModalVisible}
         onDismiss={onOAuthDismiss}
         onSuccess={onOAuthSuccess}
-        onNeedsSetup={onNeedsSetup}
       />
     </>
   );

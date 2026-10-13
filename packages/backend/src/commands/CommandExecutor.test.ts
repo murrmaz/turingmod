@@ -3,7 +3,6 @@ import type { CommandContext, CommandResult, PlatformCapability } from '@turingm
 import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EventBus } from '../core/EventBus.js';
-import type { CommandHistoryRepository } from '../database/repositories/CommandHistoryRepository.js';
 import type { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import type { Logger } from '../utils/Logger.js';
 import { CommandExecutor } from './CommandExecutor.js';
@@ -57,14 +56,10 @@ describe('CommandExecutor cooldowns', () => {
   beforeEach(() => {
     command = dualModeCommand(30);
     const registry = { get: () => command } as unknown as CommandRegistry;
-    const history = {
-      create: vi.fn(() => Promise.resolve()),
-    } as unknown as CommandHistoryRepository;
     const platforms = { capabilitiesFor: () => new Set() } as unknown as PlatformRegistry;
     eventBus = { emit: vi.fn(() => Promise.resolve()) };
     executor = new CommandExecutor(
       registry,
-      history,
       platforms,
       eventBus as unknown as EventBus,
       makeLogger()

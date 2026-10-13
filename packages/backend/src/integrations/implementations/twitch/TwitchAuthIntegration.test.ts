@@ -10,7 +10,7 @@ import { TWITCH_REQUIRED_SCOPES, TwitchAuthIntegration } from './TwitchAuthInteg
 const CONFIG = {
   clientId: 'client-id',
   clientSecret: 'client-secret',
-  scopes: [...TWITCH_REQUIRED_SCOPES],
+  grantedScopes: [...TWITCH_REQUIRED_SCOPES],
   accessToken: 'stale-access-token',
   refreshToken: 'refresh-token',
   expiresIn: 3600,
@@ -93,6 +93,20 @@ describe('TwitchAuthIntegration', () => {
     );
   });
 
+  it('stays connected, without an unhandled rejection, when a refreshed token cannot be saved', async () => {
+    const upsert = vi.fn().mockRejectedValue(new Error('database is locked'));
+    const integration = makeIntegration({ upsert });
+    successfulTokenExchange();
+
+    await integration.initialize(CONFIG);
+    await integration.start();
+    // Let the refresh listener's save settle; vitest fails the run on an unhandled rejection.
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(upsert).toHaveBeenCalled();
+    expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
+  });
+
   it('marks the integration NEEDS_REAUTH (not a generic ERROR) when the refresh token is dead', async () => {
     const upsert = vi.fn().mockResolvedValue(undefined);
     const integration = makeIntegration({ upsert });
@@ -171,7 +185,7 @@ describe('TwitchAuthIntegration', () => {
     const eventBus = new EventBus(new Logger({ level: 'silent' }));
     const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) }, eventBus);
 
-    await integration.initialize({ ...CONFIG, scopes: ['chat:read'] });
+    await integration.initialize({ ...CONFIG, grantedScopes: ['chat:read'] });
     await integration.start();
 
     expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
@@ -179,12 +193,11 @@ describe('TwitchAuthIntegration', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('requests the current required scopes, not the previously granted ones, in the authorization URL', () => {
+  it('requests the current required scopes, not the previously granted ones, in the authorization URL', async () => {
     const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) });
+    await integration.initialize({ ...CONFIG, grantedScopes: ['chat:read'] });
 
-    const url = new URL(
-      integration.getAuthorizationUrl({ ...CONFIG, scopes: ['chat:read'] }, 'state-123')
-    );
+    const url = new URL(integration.getAuthorizationUrl('state-123'));
 
     expect(url.searchParams.get('scope')?.split(' ')).toEqual(TWITCH_REQUIRED_SCOPES);
   });
@@ -197,14 +210,27 @@ describe('TwitchAuthIntegration', () => {
 
     expect(integration.getRedirectUri()).toBe('http://localhost:9123/callback/twitch');
 
-    const url = new URL(integration.getAuthorizationUrl(staleConfig, 'state-123'));
+    await integration.initialize(staleConfig);
+    const url = new URL(integration.getAuthorizationUrl('state-123'));
     expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:9123/callback/twitch');
 
-    await integration.initialize(staleConfig);
     await integration.exchangeCode('code-123');
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? [];
     expect(new URLSearchParams(String(init?.body)).get('redirect_uri')).toBe(
       'http://localhost:9123/callback/twitch'
     );
+  });
+
+  it('builds the authorization URL from the stored credentials that will exchange the code', async () => {
+    const integration = makeIntegration({ upsert: vi.fn().mockResolvedValue(undefined) });
+
+    expect(integration.isConfigured()).toBe(false);
+    expect(() => integration.getAuthorizationUrl('state-123')).toThrow(/not configured/);
+
+    await integration.initialize({ clientId: 'client-id', clientSecret: 'client-secret' });
+
+    expect(integration.isConfigured()).toBe(true);
+    const url = new URL(integration.getAuthorizationUrl('state-123'));
+    expect(url.searchParams.get('client_id')).toBe('client-id');
   });
 });

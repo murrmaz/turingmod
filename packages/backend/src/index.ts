@@ -1,3 +1,5 @@
+// First, so .env is loaded before any module reads configuration.
+import './utils/loadEnv.js';
 import 'reflect-metadata';
 import { container } from 'tsyringe';
 import { Application } from './core/Application.js';

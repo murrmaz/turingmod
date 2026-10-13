@@ -1,3 +1,5 @@
+// First, so .env (e.g. DB_PATH) is loaded before any module reads configuration.
+import '../utils/loadEnv.js';
 import 'reflect-metadata';
 import { parseArgs } from 'node:util';
 import { DatabaseManager } from '../database/DatabaseManager.js';

@@ -85,22 +85,25 @@ TuringMod/
 
 ### Environment Variables
 
-Create a `.env` file in the project root:
+Copy `.env.example` to `.env` in the project root and fill it in:
+
+```bash
+cp .env.example .env
+```
+
+The backend and the Vite dev server both load it at startup. Variables already set in your shell
+take precedence over the file, and everything is optional in development. `.env.example`
+documents each variable; the main ones:
 
 ```env
-# Server Configuration
-# The backend's one port: console, WebSocket, and the OAuth redirect URIs
-SERVER_PORT=8080
-DB_PATH=./turingmod.db
-LOG_LEVEL=info
-
-# Security
-MASTER_PASSWORD=your-encryption-password-here
-
-# Twitch Integration (from https://dev.twitch.tv)
+SERVER_PORT=8080                 # console, WebSocket and OAuth redirect URIs
+MASTER_PASSWORD=your-password    # encrypts stored credentials; set it before configuring anything
 TWITCH_CLIENT_ID=your-client-id
 TWITCH_CLIENT_SECRET=your-client-secret
 ```
+
+Changing `MASTER_PASSWORD` after integrations are configured makes their stored credentials
+unreadable, so they'd need setting up again.
 
 ### Twitch Setup
 

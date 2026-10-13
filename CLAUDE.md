@@ -117,6 +117,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Feature service lifecycle**: `packages/backend/src/core/ServiceLifecycle.ts` (`IService`, `Subscriptions`); the ordered service list is in `setup.ts`
 - **Setup/Bootstrap**: `packages/backend/src/setup.ts`
 - **Entry Point**: `packages/backend/src/index.ts`
+- **Environment**: `packages/backend/src/utils/loadEnv.ts` loads the repository-root `.env` (template: `.env.example`); it's the first import of each entry point (`index.ts`, `tools/importOriginal.ts`). Shell variables win over the file. `TuringModConfig` (`utils/Config.ts`) is what reads them.
 
 ### Frontend State
 - **App State Context**: `packages/frontend/src/context/AppStateContext.tsx`

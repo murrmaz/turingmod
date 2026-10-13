@@ -47,7 +47,6 @@ type YouTubeCredentials = NonNullable<Parameters<YouTubeOAuth2Client['setCredent
 @singleton()
 export class YouTubeAuthIntegration extends OAuthIntegration<YouTubeAuthConfig> {
   readonly name = 'youtube-auth';
-  readonly version = '1.0.0';
 
   protected readonly requiredScopes = YOUTUBE_REQUIRED_SCOPES;
   protected readonly callbackPath = '/callback/youtube';

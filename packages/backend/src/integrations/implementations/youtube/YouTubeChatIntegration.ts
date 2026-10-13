@@ -133,7 +133,6 @@ function isTransportError(error: unknown): boolean {
 @singleton()
 export class YouTubeChatIntegration extends BaseIntegration {
   readonly name = 'youtube-chat';
-  readonly version = '2.0.0';
 
   private liveChatId: string | null = null;
   private broadcasterChannelId: string | null = null;

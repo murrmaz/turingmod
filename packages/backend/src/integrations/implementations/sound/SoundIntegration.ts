@@ -27,7 +27,6 @@ Exit
 @singleton()
 export class SoundIntegration extends BaseIntegration {
   readonly name = 'sound';
-  readonly version = '1.0.0';
 
   private linuxPlayerCommand: string | undefined;
   /** Player processes still running. */

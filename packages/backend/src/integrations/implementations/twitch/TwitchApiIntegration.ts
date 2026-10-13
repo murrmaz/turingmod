@@ -45,7 +45,6 @@ export interface ShoutoutResult {
 @singleton()
 export class TwitchApiIntegration extends BaseIntegration {
   readonly name = 'twitch-api';
-  readonly version = '1.0.0';
 
   private apiClient: ApiClient | null = null;
   private authProvider: RefreshingAuthProvider | null = null;

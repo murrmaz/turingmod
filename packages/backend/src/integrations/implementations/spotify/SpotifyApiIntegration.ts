@@ -27,7 +27,6 @@ export type SpotifyApiConfig = Record<string, unknown>;
 @singleton()
 export class SpotifyApiIntegration extends BaseIntegration {
   readonly name = 'spotify-api';
-  readonly version = '1.0.0';
 
   private sdk: SpotifyApi | null = null;
   /** The credentials `sdk` was built on, to detect them being replaced. */

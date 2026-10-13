@@ -12,7 +12,6 @@ import { BaseIntegration } from '../../BaseIntegration.js';
 @singleton()
 export class ArduinoIntegration extends BaseIntegration {
   readonly name = 'arduino';
-  readonly version = '1.0.0';
 
   constructor(
     _eventBus: EventBus, // Reserved for future use

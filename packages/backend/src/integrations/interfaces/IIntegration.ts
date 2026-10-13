@@ -44,9 +44,6 @@ export interface IIntegration {
   /** Unique integration name */
   readonly name: string;
 
-  /** Integration version */
-  readonly version: string;
-
   /**
    * This integration's OAuth capability view, or null if it doesn't support
    * OAuth. Callers narrow with a plain `if (integration.oauth)` check instead

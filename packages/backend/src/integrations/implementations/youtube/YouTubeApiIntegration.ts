@@ -42,7 +42,6 @@ export interface ActiveBroadcast {
 @singleton()
 export class YouTubeApiIntegration extends BaseIntegration {
   readonly name = 'youtube-api';
-  readonly version = '1.0.0';
 
   private youtube: youtube_v3.Youtube | null = null;
   /** The auth client `youtube` was built on, to detect it being replaced. */

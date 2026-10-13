@@ -63,7 +63,6 @@ const OBS_UNKNOWN_REQUEST_TYPE = 204;
 @singleton()
 export class ObsIntegration extends BaseIntegration {
   readonly name = 'obs';
-  readonly version = '1.0.0';
 
   private obs: OBSWebSocket = new OBSWebSocket();
   private config: ObsConfig = { url: undefined, password: undefined };

@@ -13,7 +13,6 @@ interface TestConfig extends OAuthConfigBase {
 /** A provider whose connect() and re-auth classification the test controls. */
 class TestOAuthIntegration extends OAuthIntegration<TestConfig> {
   readonly name = 'test-auth';
-  readonly version = '1.0.0';
   protected readonly requiredScopes = ['read', 'write'];
   protected readonly callbackPath = '/callback/test';
   protected readonly redirectHost = '127.0.0.1';

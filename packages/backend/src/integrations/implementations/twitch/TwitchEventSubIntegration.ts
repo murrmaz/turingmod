@@ -50,7 +50,6 @@ export interface TwitchEventSubConfig {
 @singleton()
 export class TwitchEventSubIntegration extends BaseIntegration {
   readonly name = 'twitch-eventsub';
-  readonly version = '1.0.0';
 
   private eventSubListener: EventSubWsListener | null = null;
   private config: TwitchEventSubConfig | null = null;

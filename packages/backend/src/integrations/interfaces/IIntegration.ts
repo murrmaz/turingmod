@@ -105,30 +105,24 @@ export interface IIntegration {
   readonly dependencyFailurePolicy: DependencyFailurePolicy;
 
   /**
-   * Get integration dependencies (optional)
-   *
-   * Returns the integrations that must be CONNECTED before this one can
-   * start, as references rather than names. Implementations return the very
-   * instances they already take in their constructor, so the declared graph
-   * cannot drift out of sync with the injected one and a misspelled
-   * dependency is a compile error instead of a runtime lookup failure.
-   *
-   * @returns The depended-on integrations, or undefined if there are none
+   * The integrations that must be CONNECTED before this one can start, as references rather than
+   * names; empty when there are none. Implementations return the very instances they already take
+   * in their constructor, so the declared graph cannot drift out of sync with the injected one
+   * and a misspelled dependency is a compile error instead of a runtime lookup failure.
    */
-  getDependencies?(): IIntegration[];
+  getDependencies(): IIntegration[];
 
   /**
-   * Get the logical group this integration belongs to, for grouping related
-   * integrations in the frontend (optional)
-   * @returns IntegrationGroup, or undefined if this integration doesn't belong to a group
+   * The group this integration belongs to (e.g. the three Twitch integrations), which the console
+   * shows together; null when it stands alone.
    */
-  getGroup?(): IntegrationGroup;
+  getGroup(): IntegrationGroup | null;
 
   /**
-   * Get error message if status is ERROR (optional)
-   * @returns Error message string, or undefined if no error
+   * Why the integration is in its current status, for ERROR, NEEDS_REAUTH and BLOCKED; undefined
+   * for any other status.
    */
-  getErrorMessage?(): string | undefined;
+  getErrorMessage(): string | undefined;
 
   /**
    * Report a failure that happened outside the integration's own start()/stop()

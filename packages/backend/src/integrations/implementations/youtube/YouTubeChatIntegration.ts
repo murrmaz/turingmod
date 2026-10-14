@@ -183,11 +183,11 @@ export class YouTubeChatIntegration extends BaseIntegration {
     super(logger, { component: 'YouTubeChat' });
   }
 
-  getDependencies(): IIntegration[] {
+  override getDependencies(): IIntegration[] {
     return [this.authIntegration, this.apiIntegration];
   }
 
-  getGroup(): IntegrationGroup {
+  override getGroup(): IntegrationGroup {
     return IntegrationGroup.YOUTUBE;
   }
 

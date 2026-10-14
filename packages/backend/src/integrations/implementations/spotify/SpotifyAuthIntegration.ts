@@ -84,7 +84,7 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
     return Promise.resolve();
   }
 
-  getGroup(): IntegrationGroup {
+  override getGroup(): IntegrationGroup {
     return IntegrationGroup.SPOTIFY;
   }
 

@@ -305,7 +305,7 @@ export class IntegrationManager {
    * every one of them is registered.
    */
   private getBlockedReason(integration: IIntegration): string | null {
-    for (const dep of integration.getDependencies?.() ?? []) {
+    for (const dep of integration.getDependencies()) {
       const status = dep.getStatus();
       if (status !== IntegrationStatus.CONNECTED) {
         return `Cannot start ${integration.name}: dependency ${dep.name} is not connected (status: ${status})`;
@@ -541,7 +541,7 @@ export class IntegrationManager {
       this.stateRepository.updateStatus(
         integration.name,
         integration.getStatus(),
-        integration.getErrorMessage?.()
+        integration.getErrorMessage()
       );
     } catch (error) {
       this.logger.error(`Failed to persist status for ${integration.name}`, error);
@@ -610,9 +610,9 @@ export class IntegrationManager {
    * Build the wire-format snapshot of an integration's current state
    */
   private toIntegrationInfo(integration: IIntegration): IntegrationInfo {
-    const dependencies = (integration.getDependencies?.() ?? []).map((dep) => dep.name);
-    const errorMessage = integration.getErrorMessage?.();
-    const group = integration.getGroup?.();
+    const dependencies = integration.getDependencies().map((dep) => dep.name);
+    const errorMessage = integration.getErrorMessage();
+    const group = integration.getGroup();
 
     return {
       name: integration.name,

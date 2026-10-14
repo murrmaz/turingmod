@@ -99,11 +99,11 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   /**
    * Get integration dependencies
    */
-  getDependencies(): IIntegration[] {
+  override getDependencies(): IIntegration[] {
     return [this.authIntegration, this.apiIntegration];
   }
 
-  getGroup(): IntegrationGroup {
+  override getGroup(): IntegrationGroup {
     return IntegrationGroup.TWITCH;
   }
 

@@ -41,7 +41,7 @@ export class TwitchApiIntegration extends BaseIntegration {
   /**
    * Get integration dependencies
    */
-  getDependencies(): IIntegration[] {
+  override getDependencies(): IIntegration[] {
     return [this.authIntegration];
   }
 
@@ -55,7 +55,7 @@ export class TwitchApiIntegration extends BaseIntegration {
     return DependencyFailurePolicy.BLOCK;
   }
 
-  getGroup(): IntegrationGroup {
+  override getGroup(): IntegrationGroup {
     return IntegrationGroup.TWITCH;
   }
 

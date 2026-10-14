@@ -55,7 +55,7 @@ export class YouTubeApiIntegration extends BaseIntegration {
     super(logger, { component: 'YouTubeAPI' });
   }
 
-  getDependencies(): IIntegration[] {
+  override getDependencies(): IIntegration[] {
     return [this.authIntegration];
   }
 
@@ -67,7 +67,7 @@ export class YouTubeApiIntegration extends BaseIntegration {
     return DependencyFailurePolicy.BLOCK;
   }
 
-  getGroup(): IntegrationGroup {
+  override getGroup(): IntegrationGroup {
     return IntegrationGroup.YOUTUBE;
   }
 

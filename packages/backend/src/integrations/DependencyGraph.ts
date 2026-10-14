@@ -5,7 +5,7 @@
  */
 export interface DependencyNode {
   readonly name: string;
-  getDependencies?(): DependencyNode[];
+  getDependencies(): DependencyNode[];
 }
 
 /**
@@ -27,7 +27,7 @@ export class DependencyGraph<T extends DependencyNode> {
   dependenciesOf(name: string): T[] {
     const node = this.nodes.get(name);
     if (!node) return [];
-    return (node.getDependencies?.() ?? []) as T[];
+    return node.getDependencies() as T[];
   }
 
   /**
@@ -119,7 +119,7 @@ export class DependencyGraph<T extends DependencyNode> {
     const walk = (target: string): void => {
       for (const node of this.nodes.values()) {
         if (found.has(node.name)) continue;
-        const deps = node.getDependencies?.() ?? [];
+        const deps = node.getDependencies();
         if (deps.some((dep) => dep.name === target)) {
           found.add(node.name);
           walk(node.name);
@@ -139,7 +139,7 @@ export class DependencyGraph<T extends DependencyNode> {
    */
   validate(): void {
     for (const node of this.nodes.values()) {
-      for (const dep of node.getDependencies?.() ?? []) {
+      for (const dep of node.getDependencies()) {
         if (this.nodes.get(dep.name) !== dep) {
           throw new Error(
             `Integration '${node.name}' depends on '${dep.name}', which is not registered`

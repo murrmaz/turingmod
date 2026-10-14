@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { IntegrationStatus, toError } from '@turingmod/shared';
+import { type IntegrationGroup, IntegrationStatus, toError } from '@turingmod/shared';
 import { z } from 'zod';
 import type { Logger } from '../utils/Logger.js';
 import {
@@ -63,6 +63,16 @@ export abstract class BaseIntegration implements IIntegration {
    */
   get dependencyFailurePolicy(): DependencyFailurePolicy {
     return DependencyFailurePolicy.STOP;
+  }
+
+  /** No dependencies; an integration that has some overrides this to return them. */
+  getDependencies(): IIntegration[] {
+    return [];
+  }
+
+  /** Not in a group; an integration that belongs to one overrides this. */
+  getGroup(): IntegrationGroup | null {
+    return null;
   }
 
   getStatus(): IntegrationStatus {

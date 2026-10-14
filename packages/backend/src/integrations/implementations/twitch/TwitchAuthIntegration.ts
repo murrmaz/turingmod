@@ -185,7 +185,7 @@ export class TwitchAuthIntegration extends OAuthIntegration<TwitchAuthConfig> {
     return error instanceof HttpStatusCodeError && error.statusCode === 400;
   }
 
-  getGroup(): IntegrationGroup {
+  override getGroup(): IntegrationGroup {
     return IntegrationGroup.TWITCH;
   }
 

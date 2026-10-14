@@ -63,9 +63,77 @@ describe('SpotifyAuthIntegration', () => {
     await integration.exchangeCode('code');
     await integration.refreshAccessToken();
 
-    expect(integration.getTokenData()).toMatchObject({
-      accessToken: 'refreshed',
-      refreshToken: 'refresh',
+    expect(upsert).toHaveBeenLastCalledWith(
+      'spotify-auth',
+      expect.objectContaining({ accessToken: 'refreshed', refreshToken: 'refresh' }),
+      true
+    );
+  });
+
+  describe('getAccessToken', () => {
+    async function connect(expiresIn = 3600) {
+      vi.mocked(fetch).mockReturnValueOnce(
+        tokenResponse({
+          access_token: 'access',
+          refresh_token: 'refresh',
+          scope: SCOPES,
+          expires_in: expiresIn,
+        })
+      );
+      await integration.exchangeCode('code');
+      await integration.start();
+    }
+
+    it('returns the stored token while it has time left', async () => {
+      await connect();
+
+      expect(await integration.getAccessToken()).toBe('access');
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('refreshes, with the client secret, a token about to expire', async () => {
+      await connect(30);
+      vi.mocked(fetch).mockReturnValueOnce(tokenResponse({ access_token: 'fresh', scope: SCOPES }));
+
+      expect(await integration.getAccessToken()).toBe('fresh');
+      const [, init] = vi.mocked(fetch).mock.calls[1] ?? [];
+      expect(new Headers(init?.headers).get('Authorization')).toBe(
+        `Basic ${Buffer.from('id:secret').toString('base64')}`
+      );
+    });
+
+    it('shares one refresh between concurrent callers', async () => {
+      await connect(30);
+      vi.mocked(fetch).mockReturnValueOnce(tokenResponse({ access_token: 'fresh', scope: SCOPES }));
+
+      const tokens = await Promise.all([
+        integration.getAccessToken(),
+        integration.getAccessToken(),
+        integration.refreshAccessToken(),
+      ]);
+
+      expect(tokens).toEqual(['fresh', 'fresh', 'fresh']);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('needs re-authorization when Spotify rejects the refresh token', async () => {
+      await connect(30);
+      vi.mocked(fetch).mockResolvedValueOnce(new Response('invalid_grant', { status: 400 }));
+
+      await expect(integration.getAccessToken()).rejects.toThrow('Token refresh failed');
+      expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
+    });
+
+    it('stays connected when Spotify fails a refresh on its side', async () => {
+      await connect(30);
+      vi.mocked(fetch).mockResolvedValueOnce(new Response('oops', { status: 503 }));
+
+      await expect(integration.getAccessToken()).rejects.toThrow('Token refresh failed');
+      expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
+    });
+
+    it('refuses while Spotify is not connected', async () => {
+      await expect(integration.getAccessToken()).rejects.toThrow('Spotify is not connected');
     });
   });
 });

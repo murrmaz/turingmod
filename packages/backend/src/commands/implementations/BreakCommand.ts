@@ -6,6 +6,7 @@ import { formatCountdown } from '../../utils/FormatHelpers.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
+import { fail, ok } from '../utils/results.js';
 
 const DEFAULT_BREAK_SECONDS = 5 * 60;
 
@@ -43,26 +44,20 @@ export class BreakCommand implements ICommand {
     try {
       if (arg === 'end' || arg === 'stop') {
         const ended = await this.breakService.endBreak();
-        return ended
-          ? { success: true, message: '' }
-          : { success: true, message: 'No break is running' };
+        return ended ? ok('') : ok('No break is running');
       }
 
       const seconds = arg === '' ? DEFAULT_BREAK_SECONDS : parseDuration(arg);
       if (seconds === null || seconds <= 0 || seconds > MAX_BREAK_SECONDS) {
-        return {
-          success: false,
-          message: `Usage: ${this.usage} (up to ${MAX_BREAK_SECONDS / 60} minutes)`,
-          error: { code: 'INVALID_INPUT', message: `Invalid break length: ${arg}` },
-        };
+        return fail(
+          'INVALID_INPUT',
+          `Usage: ${this.usage} (up to ${MAX_BREAK_SECONDS / 60} minutes)`,
+          `Invalid break length: ${arg}`
+        );
       }
 
       const { extended, endsAt } = await this.breakService.startBreak('manual', seconds);
-      return {
-        success: true,
-        message: extended ? `Break extended; back in ${formatCountdown(endsAt - Date.now())}` : '',
-        data: { extended, endsAt: new Date(endsAt).toISOString() },
-      };
+      return ok(extended ? `Break extended; back in ${formatCountdown(endsAt - Date.now())}` : '');
     } catch (error) {
       this.logger.error('Error in break command', error);
       return toCommandError(error, 'Failed to change the break');

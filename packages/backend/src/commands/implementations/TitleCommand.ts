@@ -1,11 +1,11 @@
 import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
-import { formatPlatformList } from '../../platforms/platformNames.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
+import { fail, mirrorReply } from '../utils/results.js';
 
 /**
  * !title command
@@ -41,36 +41,16 @@ export class TitleCommand implements ICommand {
     const newTitle = context.argText;
 
     if (newTitle === '') {
-      return {
-        success: false,
-        message: `Usage: ${this.usage}`,
-        error: {
-          code: 'INVALID_INPUT',
-          message: 'Title must not be empty',
-        },
-      };
+      return fail('INVALID_INPUT', `Usage: ${this.usage}`, 'Title must not be empty');
     }
 
     try {
       const mirror = await this.streamControl.setTitle(newTitle);
-
-      if (mirror.updated.length === 0) {
-        const reason = mirror.failures[0]?.error ?? 'No live platforms to update';
-        return {
-          success: false,
-          message: `Failed to update title: ${reason}`,
-          error: {
-            code: 'API_ERROR',
-            message: reason,
-          },
-        };
-      }
-
-      return {
-        success: true,
-        message: `Title updated on ${formatPlatformList(mirror.updated)}: ${newTitle}`,
-        data: { title: newTitle, updated: mirror.updated },
-      };
+      return mirrorReply(
+        mirror,
+        'title',
+        (platforms) => `Title updated on ${platforms}: ${newTitle}`
+      );
     } catch (error) {
       this.logger.error('Error in title command', error);
       return toCommandError(error, 'Failed to update stream title');

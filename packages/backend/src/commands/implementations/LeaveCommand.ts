@@ -3,6 +3,7 @@ import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { LurkTracker } from '../../chat/lurk/LurkTracker.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !leave command
@@ -21,10 +22,7 @@ export class LeaveCommand implements ICommand {
 
   execute(context: CommandContext): Promise<CommandResult> {
     this.lurkers.unlurk(context.user);
-    return Promise.resolve({
-      success: true,
-      message: `Goodbye for now @${context.user.username}! See you later!`,
-    });
+    return Promise.resolve(ok(`Goodbye for now @${context.user.username}! See you later!`));
   }
 }
 

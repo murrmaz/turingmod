@@ -3,6 +3,7 @@ import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { ChatModerator } from '../../chat/moderation/ChatModerator.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !quiet command
@@ -24,13 +25,13 @@ export class QuietCommand implements ICommand {
     const enabled = !this.moderator.isQuietMode();
     this.moderator.setQuietMode(enabled);
     const user = context.user.username;
-    return Promise.resolve({
-      success: true,
-      message: enabled
-        ? `@${user}: Quiet mode has been enabled. All messages @-ing the streamer will be removed until turned off`
-        : `@${user}: Quiet mode has been disabled. Feel free to @ the streamer`,
-      data: { quietMode: enabled },
-    });
+    return Promise.resolve(
+      ok(
+        enabled
+          ? `@${user}: Quiet mode has been enabled. All messages @-ing the streamer will be removed until turned off`
+          : `@${user}: Quiet mode has been disabled. Feel free to @ the streamer`
+      )
+    );
   }
 }
 

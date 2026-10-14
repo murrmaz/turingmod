@@ -5,6 +5,7 @@ import { ClipCollector } from '../../chat/clips/ClipCollector.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !endcollect command
@@ -33,13 +34,9 @@ export class EndcollectCommand implements ICommand {
     try {
       const result = await this.clips.end();
       if (!result) {
-        return { success: true, message: 'Clip collection is not on' };
+        return ok('Clip collection is not on');
       }
-      return {
-        success: true,
-        message: `All collected clips are written to file! (${result.count})`,
-        data: result,
-      };
+      return ok(`All collected clips are written to file! (${result.count})`);
     } catch (error) {
       this.logger.error('Error in endcollect command', error);
       return toCommandError(error, 'Failed to write the collected clips');

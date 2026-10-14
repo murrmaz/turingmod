@@ -3,6 +3,7 @@ import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { ClipCollector } from '../../chat/clips/ClipCollector.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !startcollect command
@@ -20,12 +21,9 @@ export class StartcollectCommand implements ICommand {
   constructor(private clips: ClipCollector) {}
 
   execute(_context: CommandContext): Promise<CommandResult> {
-    return Promise.resolve({
-      success: true,
-      message: this.clips.begin()
-        ? 'Clip collection is turned on!'
-        : 'Clip collection is already on',
-    });
+    return Promise.resolve(
+      ok(this.clips.begin() ? 'Clip collection is turned on!' : 'Clip collection is already on')
+    );
   }
 }
 

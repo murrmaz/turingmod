@@ -1,11 +1,11 @@
 import type { CommandResult } from '@turingmod/shared';
 import { messageOf, PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
-import { formatPlatformList } from '../../platforms/platformNames.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { checkPermission } from '../utils/permissionChecks.js';
+import { fail, mirrorReply, ok } from '../utils/results.js';
 
 /**
  * !tags command
@@ -52,24 +52,11 @@ export class TagsCommand implements ICommand {
           .filter((tag) => tag !== '');
 
         const mirror = await this.streamControl.setTags(tags);
-
-        if (mirror.updated.length === 0) {
-          const reason = mirror.failures[0]?.error ?? 'No live platforms to update';
-          return {
-            success: false,
-            message: `Failed to update tags: ${reason}`,
-            error: {
-              code: 'API_ERROR',
-              message: reason,
-            },
-          };
-        }
-
-        return {
-          success: true,
-          message: `Tags updated on ${formatPlatformList(mirror.updated)}: [${tags.join(', ')}]`,
-          data: { tags, updated: mirror.updated },
-        };
+        return mirrorReply(
+          mirror,
+          'tags',
+          (platforms) => `Tags updated on ${platforms}: [${tags.join(', ')}]`
+        );
       }
 
       // Read mode: show current tags on the origin platform
@@ -77,28 +64,13 @@ export class TagsCommand implements ICommand {
       const tags = info.tags;
 
       if (!tags || tags.length === 0) {
-        return {
-          success: true,
-          message: 'Tags: None',
-          data: { tags: [] },
-        };
+        return ok('Tags: None');
       }
 
-      return {
-        success: true,
-        message: `Tags: [${tags.join(', ')}]`,
-        data: { tags },
-      };
+      return ok(`Tags: [${tags.join(', ')}]`);
     } catch (error) {
       this.logger.error('Error in tags command', error);
-      return {
-        success: false,
-        message: 'Failed to get/set stream tags',
-        error: {
-          code: 'API_ERROR',
-          message: messageOf(error),
-        },
-      };
+      return fail('API_ERROR', 'Failed to get/set stream tags', messageOf(error));
     }
   }
 }

@@ -3,7 +3,7 @@ import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MirrorResult, StreamControlService } from '../../platforms/StreamControlService.js';
 import type { Logger } from '../../utils/Logger.js';
-import { commandContext } from '../testing.js';
+import { commandContext, errorCodeOf } from '../testing.js';
 import { TitleCommand } from './TitleCommand.js';
 
 const setTitle = vi.fn<(title: string) => Promise<MirrorResult>>();
@@ -45,14 +45,14 @@ describe('TitleCommand', () => {
     expect(setTitle).not.toHaveBeenCalled();
     expect(result.success).toBe(false);
     expect(result.message).toBe('Usage: !title <new title>');
-    expect(result.error?.code).toBe('INVALID_INPUT');
+    expect(errorCodeOf(result)).toBe('INVALID_INPUT');
   });
 
   it('rejects a whitespace-only title without calling the platform', async () => {
     const result = await command.execute(contextFor('   '));
 
     expect(setTitle).not.toHaveBeenCalled();
-    expect(result.error?.code).toBe('INVALID_INPUT');
+    expect(errorCodeOf(result)).toBe('INVALID_INPUT');
   });
 
   it('mirrors a multi-word title and names the platforms it reached', async () => {

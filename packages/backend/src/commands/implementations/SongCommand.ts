@@ -6,6 +6,7 @@ import { SpotifyApiIntegration } from '../../integrations/implementations/spotif
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !song command
@@ -38,7 +39,7 @@ export class SongCommand implements ICommand {
       const playback: PlaybackState | null = await this.spotify.request((sdk) =>
         sdk.player.getCurrentlyPlayingTrack(undefined, 'episode')
       );
-      return { success: true, message: describePlayback(playback) };
+      return ok(describePlayback(playback));
     } catch (error) {
       this.logger.error('Error in song command', error);
       return toCommandError(error, "Couldn't check Spotify right now");

@@ -157,7 +157,7 @@ describe('YouTubeChatIntegration', () => {
 
   /** Drive the integration all the way to a live stream and consume the backlog response. */
   async function connect(): Promise<void> {
-    integration.requestResolve('test');
+    integration.connectChat('console');
     await flush();
     call.emitData({ items: [textMessage('backlog')], nextPageToken: 'page-1' });
   }
@@ -169,8 +169,8 @@ describe('YouTubeChatIntegration', () => {
   });
 
   describe('triggers', () => {
-    it('resolves and streams when the console requests go-live', async () => {
-      integration.requestResolve('console');
+    it('resolves and streams when asked to connect', async () => {
+      integration.connectChat('console');
       expect(integration.getState()).toBe('resolving');
 
       await flush();
@@ -179,31 +179,10 @@ describe('YouTubeChatIntegration', () => {
       expect(streamMock.stream).toHaveBeenCalledWith('chat-1', authClient, undefined);
     });
 
-    it('resolves when OBS reports that streaming started', async () => {
-      await eventBus.emit('obs.stream.stateChanged', {
-        outputActive: true,
-        outputState: 'OBS_WEBSOCKET_OUTPUT_STARTED',
-      });
-      await flush();
-
-      expect(integration.getState()).toBe('streaming');
-    });
-
-    it('ignores an unrelated OBS output state', async () => {
-      await eventBus.emit('obs.stream.stateChanged', {
-        outputActive: true,
-        outputState: 'OBS_WEBSOCKET_OUTPUT_PAUSED',
-      });
-      await flush();
-
-      expect(integration.getState()).toBe('idle');
-      expect(api.getActiveBroadcast).not.toHaveBeenCalled();
-    });
-
-    it('ignores a second go-live signal while already streaming', async () => {
+    it('ignores a second request to connect while already streaming', async () => {
       await connect();
 
-      integration.requestResolve('console');
+      integration.connectChat('console');
       await flush();
 
       expect(streamMock.stream).toHaveBeenCalledTimes(1);
@@ -217,7 +196,7 @@ describe('YouTubeChatIntegration', () => {
       });
 
       await connect();
-      integration.requestStop('console');
+      integration.disconnectChat('console');
       await flush();
 
       expect(states).toEqual(['resolving', 'streaming', 'idle']);
@@ -231,7 +210,7 @@ describe('YouTubeChatIntegration', () => {
         .mockResolvedValueOnce({ ...LIVE_BROADCAST, liveChatId: null })
         .mockResolvedValue(LIVE_BROADCAST);
 
-      integration.requestResolve('test');
+      integration.connectChat('console');
       await flush();
       expect(integration.getState()).toBe('resolving');
 
@@ -245,7 +224,7 @@ describe('YouTubeChatIntegration', () => {
     it('gives up and returns to idle after the deadline instead of retrying forever', async () => {
       api.getActiveBroadcast.mockResolvedValue(null);
 
-      integration.requestResolve('test');
+      integration.connectChat('console');
       await vi.advanceTimersByTimeAsync(130_000);
 
       expect(integration.getState()).toBe('idle');
@@ -260,7 +239,7 @@ describe('YouTubeChatIntegration', () => {
         .mockRejectedValueOnce(new Error('network blip'))
         .mockResolvedValue(LIVE_BROADCAST);
 
-      integration.requestResolve('test');
+      integration.connectChat('console');
       await flush();
       expect(integration.getState()).toBe('resolving');
 
@@ -276,7 +255,7 @@ describe('YouTubeChatIntegration', () => {
         messages.push(data);
       });
 
-      integration.requestResolve('test');
+      integration.connectChat('console');
       await flush();
       call.emitData({ items: [textMessage('old news')], nextPageToken: 'page-1' });
       await flush();
@@ -446,7 +425,7 @@ describe('YouTubeChatIntegration', () => {
       auth.isAuthError.mockReturnValue(true);
       api.getActiveBroadcast.mockRejectedValue(new Error('invalid_grant'));
 
-      integration.requestResolve('test');
+      integration.connectChat('console');
       await flush();
 
       expect(auth.markAuthRequired).toHaveBeenCalled();
@@ -522,7 +501,7 @@ describe('YouTubeChatIntegration', () => {
     it('returns to idle when auth has gone away before the stream opens', async () => {
       auth.getAuthClient.mockReturnValue(null);
 
-      integration.requestResolve('test');
+      integration.connectChat('console');
       await flush();
 
       // No client means the grant is gone, not that the network hiccuped; reconnecting would just
@@ -542,8 +521,8 @@ describe('YouTubeChatIntegration', () => {
         })
       );
 
-      integration.requestResolve('console');
-      integration.requestStop('console');
+      integration.connectChat('console');
+      integration.disconnectChat('console');
 
       // The lookup that was already in flight now comes back with a live broadcast.
       resolveLookup(LIVE_BROADCAST);
@@ -562,8 +541,8 @@ describe('YouTubeChatIntegration', () => {
         })
       );
 
-      integration.requestResolve('console');
-      integration.requestStop('console');
+      integration.connectChat('console');
+      integration.disconnectChat('console');
 
       resolveLookup(null);
       await flush();
@@ -575,13 +554,10 @@ describe('YouTubeChatIntegration', () => {
   });
 
   describe('teardown', () => {
-    it('cancels the call and clears timers when OBS stops streaming', async () => {
+    it('cancels the call and clears timers when asked to disconnect', async () => {
       await connect();
 
-      await eventBus.emit('obs.stream.stateChanged', {
-        outputActive: false,
-        outputState: 'OBS_WEBSOCKET_OUTPUT_STOPPED',
-      });
+      integration.disconnectChat('OBS');
       await flush();
 
       expect(call.cancelled).toBe(true);
@@ -592,7 +568,7 @@ describe('YouTubeChatIntegration', () => {
     it('survives an abort error delivered after cancel()', async () => {
       await connect();
 
-      integration.requestStop('console');
+      integration.disconnectChat('console');
 
       // Aborting a request can surface an error a tick later. If the integration had detached its
       // error listener during teardown, this emit would be unhandled and Node would throw — taking
@@ -612,7 +588,7 @@ describe('YouTubeChatIntegration', () => {
 
       await connect();
       const abandoned = call;
-      integration.requestStop('console');
+      integration.disconnectChat('console');
       await flush();
 
       streamMock.stream.mockClear();
@@ -628,17 +604,17 @@ describe('YouTubeChatIntegration', () => {
     it('cancels an in-flight resolve when the console asks to stop', async () => {
       api.getActiveBroadcast.mockResolvedValue(null);
 
-      integration.requestResolve('console');
+      integration.connectChat('console');
       await flush();
       expect(vi.getTimerCount()).toBe(1);
 
-      integration.requestStop('console');
+      integration.disconnectChat('console');
 
       expect(integration.getState()).toBe('idle');
       expect(vi.getTimerCount()).toBe(0);
     });
 
-    it('closes the channel and stops responding to signals on stop()', async () => {
+    it('closes the channel and refuses to connect after stop()', async () => {
       await connect();
       await integration.stop();
 
@@ -647,10 +623,7 @@ describe('YouTubeChatIntegration', () => {
       expect(vi.getTimerCount()).toBe(0);
 
       streamMock.stream.mockClear();
-      await eventBus.emit('obs.stream.stateChanged', {
-        outputActive: true,
-        outputState: 'OBS_WEBSOCKET_OUTPUT_STARTED',
-      });
+      integration.connectChat('OBS');
       await flush();
 
       expect(streamMock.stream).not.toHaveBeenCalled();

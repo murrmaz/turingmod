@@ -5,6 +5,7 @@ import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { formatDuration } from '../../utils/FormatHelpers.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { fail, ok } from '../utils/results.js';
 
 /**
  * !uptime command
@@ -34,29 +35,15 @@ export class UptimeCommand implements ICommand {
       const uptime = await this.streamControl.getUptime(context.platform);
 
       if (uptime === null) {
-        return {
-          success: true,
-          message: 'Stream is offline',
-        };
+        return ok('Stream is offline');
       }
 
       const formattedUptime = formatDuration(uptime);
 
-      return {
-        success: true,
-        message: `Stream has been live for ${formattedUptime}`,
-        data: { uptime },
-      };
+      return ok(`Stream has been live for ${formattedUptime}`);
     } catch (error) {
       this.logger.error('Error in uptime command', error);
-      return {
-        success: false,
-        message: 'Failed to retrieve stream uptime',
-        error: {
-          code: 'API_ERROR',
-          message: messageOf(error),
-        },
-      };
+      return fail('API_ERROR', 'Failed to retrieve stream uptime', messageOf(error));
     }
   }
 }

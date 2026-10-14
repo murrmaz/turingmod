@@ -1,4 +1,4 @@
-import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
+import { type ExecutionResult, PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import type { CommandContext } from './interfaces/ICommand.js';
 import { parseCommand } from './parseCommand.js';
 
@@ -28,4 +28,9 @@ export function commandContext(
     platform: StreamingPlatform.TWITCH,
     isSimulation,
   };
+}
+
+/** Test helper: a result's error code, or undefined for a success. */
+export function errorCodeOf(result: ExecutionResult): string | undefined {
+  return result.success ? undefined : result.error.code;
 }

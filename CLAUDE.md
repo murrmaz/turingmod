@@ -50,6 +50,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Interface**: `packages/backend/src/commands/interfaces/ICommand.ts`
 - **Implementations**: `packages/backend/src/commands/implementations/*.ts`
 - **Loader**: `packages/backend/src/commands/loadCommands.ts`
+- **Results**: `packages/backend/src/commands/utils/results.ts` — `ok()`, `fail()`, and `mirrorReply()` for title/game/tags writes
 - **Parser**: `packages/backend/src/commands/parseCommand.ts` — the one place command text becomes a name and arguments, for chat and the simulator alike
 - **WebSocket Handler**: `packages/backend/src/server/handlers/CommandHandler.ts`
 
@@ -92,9 +93,14 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Clip collection**: `chat/clips/ClipCollector.ts`
 - **Lurk list**: `chat/lurk/LurkTracker.ts` (in memory; welcomes lurkers back when they chat)
 
+### Going Live
+- **OBS stream state**: `packages/backend/src/live/ObsStreamState.ts` — whether OBS is streaming; publishes `stream.output.changed`, platform-neutral
+- **YouTube chat auto-connect**: `packages/backend/src/live/YouTubeChatAutoConnect.ts` — connects YouTube chat while OBS streams
+
 ### Stream Breaks
 - **Lifecycle**: `packages/backend/src/breaks/BreakService.ts` — starts/extends/ends breaks; listens for `twitch.ad.break`; emits `stream.break.started`/`.ended`
-- **OBS overlay**: `packages/backend/src/breaks/ObsBreakOverlay.ts` — snapshot/apply/restore across all canvases and scenes
+- **OBS overlay**: `packages/backend/src/breaks/ObsBreakOverlay.ts` — snapshot/apply/restore across all canvases, scenes and groups
+- **OBS scene walking**: `packages/backend/src/integrations/implementations/obs/sceneGraph.ts` — every scene on every canvas, and every item in a scene including inside its groups (shared by breaks and effects)
 - **Ad pre-warnings**: `packages/backend/src/breaks/AdWarningScheduler.ts`
 - **Settings**: `packages/backend/src/breaks/breakSettings.ts` (schema and defaults, `BREAK_SETTINGS`), stored under the `breaks` key via `database/repositories/SettingsRepository.ts`
 - **Manual trigger**: `packages/backend/src/commands/implementations/BreakCommand.ts` (`!break`)
@@ -234,7 +240,7 @@ own their provider for their lifetime and cannot be re-pointed.
 
 `YouTubeChatStream` requests it with `responseType: 'stream'` and `timeout: 0`, then splits the body with `JsonFrameParser` (`parseJsonFrames.ts`). Both details are load-bearing. Awaiting the ordinary overload buffers the whole response, so messages would only arrive once the broadcast ended; any timeout would cut a multi-hour stream short. Discovery types the response as a single `LiveChatMessageListResponse` — a code-generator artifact, since the generator emits `response.$ref` identically for unary and streaming methods — so that type describes **one frame** and says nothing about how frames are delimited. `JsonFrameParser` therefore scans for balanced top-level objects instead of assuming a delimiter, which decodes a chunked JSON array, newline-delimited JSON, and bare concatenated objects alike.
 
-`YouTubeChatIntegration` has no periodic timers. It idles until a go-live signal — OBS's `obs.stream.stateChanged` (`OBS_WEBSOCKET_OUTPUT_STARTED`), or a `youtube.goLive` message from the console — then resolves the broadcast's `liveChatId` with a bounded retry (a broadcast doesn't expose one until YouTube transitions it to `live`) and opens the stream. Its `idle → resolving → streaming` transitions are broadcast to the frontend as `YOUTUBE_CHAT_STATE`.
+`YouTubeChatIntegration` has no periodic timers and doesn't decide when the broadcaster is live. It idles until `connectChat()` is called — by `YouTubeChatAutoConnect` (see Going Live), or by a `youtube.goLive` message from the console — then resolves the broadcast's `liveChatId` with a bounded retry (a broadcast doesn't expose one until YouTube transitions it to `live`) and opens the stream. Its `idle → resolving → streaming` transitions are broadcast to the frontend as `YOUTUBE_CHAT_STATE`.
 
 OAuth-capable integrations (`TwitchAuthIntegration`, `SpotifyAuthIntegration`, `YouTubeAuthIntegration`) extend `OAuthIntegration<TConfig>` (`integrations/OAuthIntegration.ts`), which implements `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and returns itself from the `get oauth()` getter (`null` on `BaseIntegration` by default). That getter is the single source of truth for OAuth capability — `OAuthFlowService` derives callback routing and the frontend's OAuth affordance from it instead of checking integration names.
 
@@ -329,6 +335,20 @@ broadcaster's token state doesn't belong.
 change and publishes only transitions, so a feature like `RewardSync` ("Twitch is back, sync
 rewards") never needs to know which integration name decides a platform's availability.
 
+### Going Live
+
+Some platforms need telling that a stream has started. YouTube chat belongs to one broadcast, and
+YouTube can't notify a localhost server that one began; Twitch needs nothing, since its chat
+subscription is per channel and it announces going live itself (`twitch.stream.online`). The
+signal is split in two so a future per-broadcast platform reuses it. `ObsStreamState` knows
+whether OBS is streaming and publishes `stream.output.changed`, with no knowledge of platforms; it
+asks OBS directly whenever OBS connects, since a transition missed while disconnected (TuringMod
+starting mid-stream) produces no event. Each platform that needs it reacts in its own service:
+`YouTubeChatAutoConnect` connects chat on that event, and also when YouTube chat itself comes up
+while OBS is already streaming (after a restart, or a login recovering mid-stream). OBS streaming
+doesn't mean every platform is live, so a platform treats the signal as a reason to look for its
+broadcast, bounded in time, not as proof of one.
+
 ### Stream Breaks
 
 A break takes the streamer off camera and mic in OBS. That's one output, so every platform sees it;
@@ -336,8 +356,9 @@ only the chat wording differs per platform (`PerPlatformMessage`). Twitch ad bre
 (`channel.ad_break.begin` → `twitch.ad.break`) start one automatically, and `!break` starts one by
 hand. A trigger during a running break extends it rather than starting another, so the OBS snapshot
 is always of the pre-break state. `ObsBreakOverlay` sets absolute states from that snapshot (never
-`ToggleInputMute`-style toggles) and covers every scene on every canvas, which keeps the Aitum
-Vertical canvas in step and makes a mid-break scene switch harmless. `AdWarningScheduler` warns chat
+`ToggleInputMute`-style toggles) and covers every scene on every canvas, including items inside
+groups, which keeps the Aitum Vertical canvas in step and makes a mid-break scene switch harmless.
+A canvas or group that can't be read is skipped and logged, so the rest is still covered. `AdWarningScheduler` warns chat
 ahead of Twitch's scheduled ads, re-reading the schedule before each warning because snoozes and
 manual ads move it. Shutdown ends a running break before stopping integrations, so OBS is still
 connected to restore it, and `BreakService` refuses new breaks once stopped. Chat fan-out goes through `StreamControlService.announce()`, which
@@ -376,9 +397,12 @@ mid-animation state as the "original" — finds the facecam afresh for each one,
 facecam where it was. Filters an effect adds are removed the same way. A run rejects when it can't
 play (OBS down, no facecam), which makes `RewardRouter` refund the redemption.
 
-The facecam is found by source name (the `effects` setting) in the main canvas's program scene and,
-on every other canvas, in the first scene that contains it: obs-websocket has no "current scene" for
-a non-main canvas. Effects animate on elapsed time, not frame counts, so a slow OBS drops frames
+The facecam is found by source name (the `effects` setting), placed directly or inside a group, in
+the main canvas's program scene and, on every other canvas, in the first scene that contains it:
+obs-websocket reports no program scene for a non-main canvas. An item inside a group is addressed
+through the group's UUID, and its position is relative to the group, so an effect that moves it in
+canvas coordinates (`usesCanvasSize`, the screensaver) plays on the main canvas only and refuses a
+grouped facecam. Effects animate on elapsed time, not frame counts, so a slow OBS drops frames
 rather than slowing down, and they assume the facecam is unrotated and has no bounding box.
 
 ### Sound
@@ -410,7 +434,11 @@ another bot — and are recorded in the activity log instead (unknown commands a
 debug). Failures a command reports itself (usage, "game not found", a viewer trying a
 moderator-only branch) are still replied to. The two sets of codes are separate unions in
 `shared/src/types/command.ts`: `ICommand.execute()` returns a `CommandResult`, which admits only
-`CommandErrorCode`, so a command can't report an executor code and have its reply silenced. Protocol
+`CommandErrorCode`, so a command can't report an executor code and have its reply silenced.
+`CommandResult` is a union: a failure always carries a code and a `reason`, a success carries
+neither. Commands build results with `ok()`/`fail()` (`commands/utils/results.ts`), never by hand;
+`message` is the reply for chat, and `reason` is for the streamer, recorded with
+`command.executed` in the activity log (a crashed command's reason is the error it threw). Protocol
 error messages likewise use the `ErrorCode` union in `messages.ts`, not free strings.
 
 **TuringMod never acts on its own chat messages.** It posts with the broadcaster's login — one

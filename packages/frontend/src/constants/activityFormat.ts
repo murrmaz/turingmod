@@ -26,7 +26,7 @@ export function getCategoryColor(category: ActivityCategory): ActivityBadgeColor
 
 /**
  * One-line human summary of an activity entry, rendered per category:
- * chat -> `user: message`; command -> `!cmd by user ✓/✗`; event/status/error -> a brief summary.
+ * chat -> `user: message`; command -> `!cmd by user ✓`, or `✗: reason`; event/status/error -> a brief summary.
  */
 export function summarizeActivityEntry(entry: ActivityLogEntry): string {
   const { category, event, data } = entry;
@@ -40,8 +40,11 @@ export function summarizeActivityEntry(entry: ActivityLogEntry): string {
     case ActivityCategory.COMMAND: {
       const command = typeof data.command === 'string' ? data.command : event;
       const username = typeof data.username === 'string' ? data.username : 'unknown';
-      const outcome = data.success ? '✓' : '✗';
-      return `!${command} by ${username} ${outcome}`;
+      if (data.success) {
+        return `!${command} by ${username} ✓`;
+      }
+      const reason = typeof data.reason === 'string' ? `: ${data.reason}` : '';
+      return `!${command} by ${username} ✗${reason}`;
     }
     case ActivityCategory.STATUS: {
       const name = typeof data.name === 'string' ? data.name : event;

@@ -19,11 +19,12 @@ import {
   YouTubeChatStream,
 } from './YouTubeChatStream.js';
 
-/** How often to re-check for an active broadcast after a go-live signal. */
+/** How often to re-check for an active broadcast after a request to connect. */
 const RESOLVE_RETRY_INTERVAL_MS = 5_000;
 /**
- * How long to keep looking before giving up. A go-live signal fires when ingestion starts, but the
- * broadcast only exposes a liveChatId once YouTube transitions it to `live`, which lags by seconds.
+ * How long to keep looking before giving up. OBS asks for chat when the stream starts going out,
+ * but the broadcast only exposes a liveChatId once YouTube transitions it to `live`, which lags by
+ * seconds.
  * Bounded so a false signal (e.g. a Twitch-only stream) can't leave a timer running forever.
  */
 const RESOLVE_TIMEOUT_MS = 120_000;
@@ -38,9 +39,8 @@ const RECONNECT_MAX_DELAY_MS = 30_000;
  */
 const MAX_RECONNECT_ATTEMPTS = 8;
 
-/** obs-websocket output states, from the `obs.stream.stateChanged` payload. */
-const OBS_OUTPUT_STARTED = 'OBS_WEBSOCKET_OUTPUT_STARTED';
-const OBS_OUTPUT_STOPPED = 'OBS_WEBSOCKET_OUTPUT_STOPPED';
+/** What asked chat to connect or disconnect, for the log. */
+export type ChatTrigger = 'OBS' | 'console';
 
 /**
  * HTTP statuses that mean "the chat is gone", as opposed to "the connection dropped". 400 is what
@@ -122,10 +122,11 @@ function isTransportError(error: unknown): boolean {
  * server-streaming RPC and normalizes each message into the same `chat.received` EventBus event
  * Twitch emits, so ChatRouter stays platform-agnostic.
  *
- * There are no periodic timers. The integration idles until something says the broadcaster went
- * live — an OBS output-started event, or an explicit request from the console — then resolves the
+ * There are no periodic timers. The integration idles until it is asked to connect — by
+ * YouTubeChatAutoConnect when OBS is streaming, or from the console — then resolves the
  * broadcast's liveChatId with a short bounded retry and opens the stream. The liveChatId only
- * exists while a broadcast is active, so it is re-resolved for every new stream.
+ * exists while a broadcast is active, so it is re-resolved for every new stream. Deciding when
+ * the broadcaster is live isn't this class's concern.
  *
  * Depends on: YouTubeAuthIntegration, YouTubeApiIntegration
  */
@@ -171,8 +172,6 @@ export class YouTubeChatIntegration extends BaseIntegration {
    */
   private primed = false;
 
-  private unsubscribeObs: (() => void) | null = null;
-
   constructor(
     private eventBus: EventBus,
     logger: Logger,
@@ -183,8 +182,6 @@ export class YouTubeChatIntegration extends BaseIntegration {
   }
 
   getDependencies(): IIntegration[] {
-    // OBS is deliberately absent: the OBS trigger is an EventBus subscription, so YouTube chat must
-    // still start cleanly when OBS isn't running or isn't configured.
     return [this.authIntegration, this.apiIntegration];
   }
 
@@ -201,9 +198,8 @@ export class YouTubeChatIntegration extends BaseIntegration {
     }
 
     this.running = true;
-    this.subscribeToGoLiveSignals();
     this.setStatus(IntegrationStatus.CONNECTED);
-    this.logger.debug('YouTube Chat integration started; idle until a go-live signal');
+    this.logger.debug('YouTube Chat integration started; idle until asked to connect');
 
     return Promise.resolve();
   }
@@ -212,8 +208,6 @@ export class YouTubeChatIntegration extends BaseIntegration {
     this.logger.debug('Stopping YouTube Chat integration');
 
     this.running = false;
-    this.unsubscribeObs?.();
-    this.unsubscribeObs = null;
     this.teardown();
     this.chatStream.close();
     this.setStatus(IntegrationStatus.DISCONNECTED);
@@ -236,48 +230,33 @@ export class YouTubeChatIntegration extends BaseIntegration {
   }
 
   /**
-   * Ask the integration to look for an active broadcast and connect its chat. Invoked by the
-   * console's go-live button and by the OBS output-started signal. A no-op when already resolving
-   * or streaming, so overlapping signals can't stack up retry loops.
+   * Look for an active broadcast and connect its chat. A no-op when already resolving or
+   * streaming, so overlapping requests can't stack up retry loops.
    */
-  requestResolve(source: string): void {
+  connectChat(trigger: ChatTrigger): void {
     if (!this.running) {
-      this.logger.warn(`Ignoring go-live signal from ${source}: integration is not running`);
+      this.logger.warn(`Not connecting chat for ${trigger}: integration is not running`);
       return;
     }
     if (this.state !== 'idle') {
-      this.logger.debug(`Ignoring go-live signal from ${source}: already ${this.state}`);
+      this.logger.debug(`Not connecting chat for ${trigger}: already ${this.state}`);
       return;
     }
 
-    this.logger.info(`Go-live signal from ${source}; looking for an active broadcast`);
+    this.logger.info(`Looking for an active broadcast, asked by ${trigger}`);
     this.setState('resolving');
     this.resolveDeadline = Date.now() + RESOLVE_TIMEOUT_MS;
     void this.attemptResolve();
   }
 
-  /**
-   * Disconnect from chat and return to idle. Invoked by the console's stop control and by the OBS
-   * output-stopped signal.
-   */
-  requestStop(source: string): void {
+  /** Disconnect from chat and return to idle. */
+  disconnectChat(trigger: ChatTrigger): void {
     if (this.state === 'idle') {
       return;
     }
 
-    this.logger.info(`Stop signal from ${source}; disconnecting YouTube chat`);
+    this.logger.info(`Disconnecting YouTube chat, asked by ${trigger}`);
     this.teardown();
-  }
-
-  /** Wire the OBS go-live signal. The console's button arrives via the message handler instead. */
-  private subscribeToGoLiveSignals(): void {
-    this.unsubscribeObs = this.eventBus.on('obs.stream.stateChanged', (data) => {
-      if (data.outputState === OBS_OUTPUT_STARTED) {
-        this.requestResolve('OBS');
-      } else if (data.outputState === OBS_OUTPUT_STOPPED) {
-        this.requestStop('OBS');
-      }
-    });
   }
 
   /**
@@ -394,7 +373,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
     }
 
     // YouTube sets offlineAt when the underlying broadcast has gone offline. Reconnecting would
-    // just re-fetch a dead chat, so go idle and wait for the next go-live signal.
+    // just re-fetch a dead chat, so go idle and wait for the next request to connect.
     if (response.offlineAt) {
       this.logger.info('YouTube broadcast went offline; returning to idle', {
         offlineAt: response.offlineAt,
@@ -438,7 +417,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
     }
 
     if (status !== undefined && TERMINAL_STATUSES.has(status)) {
-      // The chat ended, was disabled, or the broadcast is gone. Wait for the next go-live signal.
+      // The chat ended, was disabled, or the broadcast is gone. Wait for the next request to connect.
       this.logger.info('YouTube live chat is no longer available; returning to idle', { status });
       this.teardown();
       return;

@@ -6,7 +6,11 @@ import {
   ObsIntegration,
   type SceneItemTransform,
 } from '../integrations/implementations/obs/ObsIntegration.js';
-import { listScenesByCanvas } from '../integrations/implementations/obs/scenesByCanvas.js';
+import {
+  listPlacements,
+  listScenesByCanvas,
+  warnSkipped,
+} from '../integrations/implementations/obs/sceneGraph.js';
 import { Logger } from '../utils/Logger.js';
 import { EFFECT_SETTINGS } from './effectSettings.js';
 import type { EffectContext, FacecamEffect, FacecamTarget } from './FacecamEffect.js';
@@ -20,8 +24,9 @@ import { restorableTransform } from './transformMath.js';
  * fresh read of the facecam's transform, which is restored when the effect ends — normally, by
  * throwing, or by `stop()` — and any filter it added is removed.
  *
- * The facecam is found by source name in the program scene on the main canvas and, on every
- * other canvas (e.g. Aitum Vertical), in the first scene that contains it. obs-websocket can't
+ * The facecam is found by source name, placed directly or inside a group, in the program scene on
+ * the main canvas and, on every other canvas (e.g. Aitum Vertical), in the first scene that
+ * contains it. obs-websocket can't
  * report another canvas's live scene, which is why that is a guess, and the same one the
  * original bot made.
  */
@@ -67,7 +72,7 @@ export class FacecamEffectRunner implements IService {
     }
 
     const { facecamSource } = this.settingsRepo.get(EFFECT_SETTINGS);
-    const targets = await this.findFacecam(facecamSource, effect.mainCanvasOnly === true);
+    const targets = await this.findFacecam(facecamSource, effect);
     if (targets.length === 0) {
       throw new Error(`No "${facecamSource}" source in the current scene`);
     }
@@ -125,14 +130,15 @@ export class FacecamEffectRunner implements IService {
     }
   }
 
-  private async findFacecam(source: string, mainOnly: boolean): Promise<FacecamTarget[]> {
+  private async findFacecam(source: string, effect: FacecamEffect): Promise<FacecamTarget[]> {
+    const onSkipped = warnSkipped(this.logger);
     const programUuid = await this.obs.getCurrentSceneUuid();
 
     // [scene uuids to search, is main canvas], main canvas first. The main canvas is the one
     // holding the program scene; it's searched through that scene alone.
     const candidates: [string[], boolean][] = [[[programUuid], true]];
-    if (!mainOnly) {
-      for (const { scenes } of await listScenesByCanvas(this.obs)) {
+    if (effect.usesCanvasSize !== true) {
+      for (const { scenes } of await listScenesByCanvas(this.obs, onSkipped)) {
         const sceneUuids = scenes.map((s) => s.sceneUuid);
         if (!sceneUuids.includes(programUuid)) {
           candidates.push([sceneUuids, false]);
@@ -143,13 +149,21 @@ export class FacecamEffectRunner implements IService {
     const targets: FacecamTarget[] = [];
     for (const [sceneUuids, isMain] of candidates) {
       for (const sceneUuid of sceneUuids) {
-        const item = (await this.obs.getSceneItems(sceneUuid)).find((i) => i.sourceName === source);
-        if (!item) continue;
+        const placement = (await listPlacements(this.obs, sceneUuid, onSkipped)).find(
+          (p) => p.item.sourceName === source
+        );
+        if (!placement) continue;
+        if (placement.inGroup && effect.usesCanvasSize === true) {
+          throw new Error(
+            `"${source}" is inside a group, so "${effect.name}" can't move it around the canvas`
+          );
+        }
+        const { containerUuid, item } = placement;
         const original: SceneItemTransform = await this.obs.getSceneItemTransform(
-          sceneUuid,
+          containerUuid,
           item.sceneItemId
         );
-        targets.push({ sceneUuid, sceneItemId: item.sceneItemId, isMain, original });
+        targets.push({ sceneUuid: containerUuid, sceneItemId: item.sceneItemId, isMain, original });
         break;
       }
     }

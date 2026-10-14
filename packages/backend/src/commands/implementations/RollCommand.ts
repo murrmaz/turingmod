@@ -2,6 +2,7 @@ import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { fail, ok } from '../utils/results.js';
 
 const MAX_DICE = 1000;
 const MAX_SIDES = 1_000_000;
@@ -35,25 +36,27 @@ export class RollCommand implements ICommand {
     const user = context.user.username;
     const roll = parseRoll(context.args[0] ?? '');
     if (!roll || roll.count < 1 || roll.sides < 1) {
-      return Promise.resolve({
-        success: false,
-        message: `@${user}: Usage: ${this.usage}, e.g. !roll 2d6`,
-        error: { code: 'INVALID_INPUT', message: 'Not a dice roll' },
-      });
+      return Promise.resolve(
+        fail('INVALID_INPUT', `@${user}: Usage: ${this.usage}, e.g. !roll 2d6`, 'Not a dice roll')
+      );
     }
     if (roll.count > MAX_DICE || roll.sides > MAX_SIDES) {
-      return Promise.resolve({
-        success: false,
-        message: `@${user}: Amount to roll or number of sides too high`,
-        error: { code: 'INVALID_INPUT', message: 'Roll too large' },
-      });
+      return Promise.resolve(
+        fail(
+          'INVALID_INPUT',
+          `@${user}: Amount to roll or number of sides too high`,
+          'Roll too large'
+        )
+      );
     }
     if (roll.minimum > roll.count * roll.sides) {
-      return Promise.resolve({
-        success: false,
-        message: `@${user}: Minimum roll was higher than possible highest roll`,
-        error: { code: 'INVALID_INPUT', message: 'Minimum out of range' },
-      });
+      return Promise.resolve(
+        fail(
+          'INVALID_INPUT',
+          `@${user}: Minimum roll was higher than possible highest roll`,
+          'Minimum out of range'
+        )
+      );
     }
 
     let total = 0;
@@ -62,11 +65,9 @@ export class RollCommand implements ICommand {
     }
     total = Math.max(total, roll.minimum);
 
-    return Promise.resolve({
-      success: true,
-      message: `@${user}: You rolled ${roll.count} d${roll.sides} and got ${total}`,
-      data: { ...roll, total },
-    });
+    return Promise.resolve(
+      ok(`@${user}: You rolled ${roll.count} d${roll.sides} and got ${total}`)
+    );
   }
 }
 

@@ -5,6 +5,7 @@ import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { raidShoutoutMessage } from '../../raids/RaidShoutout.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { fail, ok } from '../utils/results.js';
 
 /**
  * !so command
@@ -32,11 +33,7 @@ export class SoCommand implements ICommand {
   async execute(context: CommandContext): Promise<CommandResult> {
     const channel = context.args[0]?.replace(/^@/, '');
     if (!channel) {
-      return {
-        success: false,
-        message: `Usage: ${this.usage}`,
-        error: { code: 'INVALID_INPUT', message: 'No channel given' },
-      };
+      return fail('INVALID_INPUT', `Usage: ${this.usage}`, 'No channel given');
     }
 
     try {
@@ -52,7 +49,7 @@ export class SoCommand implements ICommand {
       this.logger.warn(`Native shoutout for ${channel} failed`, error);
     }
 
-    return { success: true, message: raidShoutoutMessage(channel) };
+    return ok(raidShoutoutMessage(channel));
   }
 }
 

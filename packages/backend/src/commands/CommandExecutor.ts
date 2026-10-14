@@ -1,4 +1,4 @@
-import type { ExecutionResult } from '@turingmod/shared';
+import type { ExecutionResult, ExecutorErrorCode } from '@turingmod/shared';
 import { hasPermission, messageOf, PermissionLevel } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
@@ -57,14 +57,11 @@ export class CommandExecutor {
       false;
 
     if (!(command && isAvailable)) {
-      const result: ExecutionResult = {
-        success: false,
-        message: `Unknown command: ${commandName}`,
-        error: {
-          code: 'COMMAND_NOT_FOUND',
-          message: `Command '${commandName}' does not exist`,
-        },
-      };
+      const result = rejected(
+        'COMMAND_NOT_FOUND',
+        `Unknown command: ${commandName}`,
+        `Command '${commandName}' does not exist`
+      );
       await this.logExecution(commandName, context, result);
       return result;
     }
@@ -75,14 +72,11 @@ export class CommandExecutor {
     );
 
     if (!hasRequiredPermission) {
-      const result: ExecutionResult = {
-        success: false,
-        message: `Insufficient permissions for command: ${commandName}`,
-        error: {
-          code: 'INSUFFICIENT_PERMISSIONS',
-          message: `Required permissions: ${command.permissions.join(', ')}`,
-        },
-      };
+      const result = rejected(
+        'INSUFFICIENT_PERMISSIONS',
+        `Insufficient permissions for command: ${commandName}`,
+        `Required permissions: ${command.permissions.join(', ')}`
+      );
       await this.logExecution(commandName, context, result);
       return result;
     }
@@ -94,15 +88,11 @@ export class CommandExecutor {
 
       if (cooldownEntry && cooldownEntry.expiresAt > Date.now()) {
         const remainingSeconds = Math.ceil((cooldownEntry.expiresAt - Date.now()) / 1000);
-        const result: ExecutionResult = {
-          success: false,
-          message: `Command on cooldown. Try again in ${remainingSeconds}s`,
-          error: {
-            code: 'COMMAND_ON_COOLDOWN',
-            message: `Cooldown expires in ${remainingSeconds} seconds`,
-            details: { remainingSeconds },
-          },
-        };
+        const result = rejected(
+          'COMMAND_ON_COOLDOWN',
+          `Command on cooldown. Try again in ${remainingSeconds}s`,
+          `Cooldown expires in ${remainingSeconds} seconds`
+        );
         await this.logExecution(commandName, context, result);
         return result;
       }
@@ -139,15 +129,7 @@ export class CommandExecutor {
         user: user.username,
       });
 
-      const result: ExecutionResult = {
-        success: false,
-        message: 'Command execution failed',
-        error: {
-          code: 'EXECUTION_ERROR',
-          message: messageOf(error),
-          details: error,
-        },
-      };
+      const result = rejected('EXECUTION_ERROR', 'Command execution failed', messageOf(error));
 
       await this.logExecution(commandName, context, result);
       return result;
@@ -171,7 +153,8 @@ export class CommandExecutor {
         args: context.args,
         success: result.success,
         message: result.message,
-        errorCode: result.error?.code,
+        errorCode: result.success ? undefined : result.error.code,
+        reason: result.success ? undefined : result.error.reason,
         isSimulation: context.isSimulation,
       });
     } catch (error) {
@@ -205,4 +188,9 @@ export class CommandExecutor {
       }
     }
   }
+}
+
+/** A run the executor refused or that crashed, as opposed to a failure the command reported. */
+function rejected(code: ExecutorErrorCode, message: string, reason: string): ExecutionResult {
+  return { success: false, message, error: { code, reason } };
 }

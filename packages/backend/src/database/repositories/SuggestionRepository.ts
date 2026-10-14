@@ -13,18 +13,12 @@ export interface Suggestion {
 export class SuggestionRepository {
   constructor(private db: DatabaseManager) {}
 
-  add(suggestion: string, suggestedBy: string | null, createdAt = Date.now()): void {
+  add(suggestion: string, suggestedBy: string | null): void {
     this.db.run('INSERT INTO suggestions (suggestion, suggested_by, created_at) VALUES (?, ?, ?)', [
       suggestion,
       suggestedBy,
-      createdAt,
+      Date.now(),
     ]);
-  }
-
-  /** Whether this exact suggestion is already recorded. */
-  has(suggestion: string): boolean {
-    const row = this.db.queryOne('SELECT 1 FROM suggestions WHERE suggestion = ?', [suggestion]);
-    return row !== null;
   }
 
   /** The most recent `limit` suggestions, newest first. */

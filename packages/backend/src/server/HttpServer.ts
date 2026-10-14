@@ -6,6 +6,23 @@ import type { EventBus } from '../core/EventBus.js';
 import type { OAuthFlowService } from '../integrations/OAuthFlowService.js';
 import type { Logger } from '../utils/Logger.js';
 
+const HTML_ESCAPES: Readonly<Record<string, string>> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+};
+
+/**
+ * Make text safe to place in HTML. The OAuth callback page shows the provider's error, which comes
+ * from the URL and so from whoever made the link: a page served from this origin is trusted by the
+ * WebSocket's origin check, so script injected into it could drive the whole console.
+ */
+export function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char] ?? char);
+}
+
 /**
  * HTTP server
  * Serves static files and handles health checks
@@ -131,8 +148,8 @@ export class HttpServer {
             </head>
             <body style="font-family: system-ui; padding: 40px; text-align: center;">
               <h1>Authorization Failed</h1>
-              <p>Error: ${error}</p>
-              <p>${errorDescription || ''}</p>
+              <p>Error: ${escapeHtml(error)}</p>
+              <p>${escapeHtml(errorDescription ?? '')}</p>
               <p>You can close this window.</p>
             </body>
           </html>

@@ -4,6 +4,7 @@ import 'reflect-metadata';
 import { container } from 'tsyringe';
 import { Application } from './core/Application.js';
 import { initializeComponents, initializeDatabase, registerRootFactories } from './setup.js';
+import { ConfigurationError } from './utils/Config.js';
 import { Logger } from './utils/Logger.js';
 
 /**
@@ -64,7 +65,12 @@ async function main(): Promise<void> {
 }
 
 // Start the application
-main().catch((error) => {
-  console.error('Failed to start TuringMod:', error);
+main().catch((error: unknown) => {
+  if (error instanceof ConfigurationError) {
+    // A setup problem with its own explanation; a stack trace would only bury it.
+    console.error(`TuringMod can't start.\n\n${error.message}`);
+  } else {
+    console.error('Failed to start TuringMod:', error);
+  }
   process.exit(1);
 });

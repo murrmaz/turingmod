@@ -16,11 +16,6 @@ export class CounterRepository {
     return this.find(name) ?? 0;
   }
 
-  /** Whether the counter has ever been set. */
-  has(name: string): boolean {
-    return this.find(name) !== null;
-  }
-
   /** Add `by` (default 1) and return the new value, in one statement so counts never race. */
   increment(name: string, by = 1): number {
     const row = this.db.queryOne<{ value: number }>(

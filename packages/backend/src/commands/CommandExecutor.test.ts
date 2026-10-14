@@ -72,6 +72,37 @@ describe('CommandExecutor cooldowns', () => {
     expect(errorCodeOf(second)).toBe('COMMAND_ON_COOLDOWN');
   });
 
+  it('throttles a viewer who sends the command again while the first run is still working', async () => {
+    // Chat is handled concurrently, so a burst of `!game` arrives while the first one is still
+    // waiting on Helix. Only the first may run.
+    let finishFirst = () => {};
+    vi.mocked(command.execute).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishFirst = () => resolve({ success: true, message: 'ok' });
+        })
+    );
+    const context = contextFor(PermissionLevel.VIEWER);
+
+    const first = executor.execute(context);
+    const second = await executor.execute(context);
+    finishFirst();
+
+    expect(errorCodeOf(second)).toBe('COMMAND_ON_COOLDOWN');
+    expect((await first).success).toBe(true);
+    expect(command.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the cooldown when the command crashes, so retrying a failing API call is throttled too', async () => {
+    vi.mocked(command.execute).mockRejectedValueOnce(new Error('Helix timed out'));
+    const context = contextFor(PermissionLevel.VIEWER);
+
+    await executor.execute(context);
+    const retry = await executor.execute(context);
+
+    expect(errorCodeOf(retry)).toBe('COMMAND_ON_COOLDOWN');
+  });
+
   it('records why a crashed command failed, without telling chat', async () => {
     vi.mocked(command.execute).mockRejectedValueOnce(new Error('Helix timed out'));
 

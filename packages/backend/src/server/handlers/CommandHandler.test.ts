@@ -11,6 +11,7 @@ import type { OwnChatMessages } from '../../chat/OwnChatMessages.js';
 import type { CommandExecutor } from '../../commands/CommandExecutor.js';
 import { CommandRegistry } from '../../commands/CommandRegistry.js';
 import type { ICommand } from '../../commands/interfaces/ICommand.js';
+import { errorCodeOf } from '../../commands/testing.js';
 import type { TwitchApiIntegration } from '../../integrations/implementations/twitch/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import type { YouTubeApiIntegration } from '../../integrations/implementations/youtube/YouTubeApiIntegration.js';
@@ -107,7 +108,7 @@ describe('CommandHandler.handleSimulate', () => {
   it('runs nothing for text chat would not treat as a command', async () => {
     const { execute, response } = simulate('so @coolraider');
 
-    expect((await response).payload.result.error?.code).toBe('INVALID_INPUT');
+    expect(errorCodeOf((await response).payload.result)).toBe('INVALID_INPUT');
     expect(execute).not.toHaveBeenCalled();
   });
 });

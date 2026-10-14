@@ -6,6 +6,7 @@ import { formatElapsed } from '../../utils/FormatHelpers.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !followage command
@@ -33,10 +34,7 @@ export class FollowageCommand implements ICommand {
   async execute(context: CommandContext): Promise<CommandResult> {
     const { user } = context;
     if (user.permissionLevel === PermissionLevel.BROADCASTER) {
-      return {
-        success: true,
-        message: "You're literally the streamer, I can't get a follow time for yourself >:-(",
-      };
+      return ok("You're literally the streamer, I can't get a follow time for yourself >:-(");
     }
 
     try {
@@ -44,16 +42,11 @@ export class FollowageCommand implements ICommand {
         .require(context.platform, 'followInfo')
         .getFollowDate(user.platformUserId);
       if (!followDate) {
-        return {
-          success: true,
-          message: `@${user.username}: You are currently not following this channel`,
-        };
+        return ok(`@${user.username}: You are currently not following this channel`);
       }
-      return {
-        success: true,
-        message: `@${user.username} has been following for ${formatElapsed(Date.now() - followDate.getTime())}`,
-        data: { followedAt: followDate.toISOString() },
-      };
+      return ok(
+        `@${user.username} has been following for ${formatElapsed(Date.now() - followDate.getTime())}`
+      );
     } catch (error) {
       this.logger.error('Error in followage command', error);
       return toCommandError(error, 'Failed to look up the follow date');

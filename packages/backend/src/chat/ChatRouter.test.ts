@@ -100,7 +100,7 @@ describe('ChatRouter', () => {
   ): ExecutionResult => ({
     success: false,
     message,
-    error: { code, message },
+    error: { code, reason: message },
   });
 
   it('stays silent in chat for an unrecognized command, logging it at debug', async () => {

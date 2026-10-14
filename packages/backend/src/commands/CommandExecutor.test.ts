@@ -8,7 +8,7 @@ import type { Logger } from '../utils/Logger.js';
 import { CommandExecutor } from './CommandExecutor.js';
 import type { CommandRegistry } from './CommandRegistry.js';
 import type { CommandContext, ICommand } from './interfaces/ICommand.js';
-import { commandContext } from './testing.js';
+import { commandContext, errorCodeOf } from './testing.js';
 
 /** A viewer-readable command with a moderator-only write branch, like !game or !cw. */
 const dualModeCommand = (cooldown: number): ICommand => ({
@@ -69,7 +69,28 @@ describe('CommandExecutor cooldowns', () => {
 
     expect(first.success).toBe(true);
     expect(second.success).toBe(false);
-    expect(second.error?.code).toBe('COMMAND_ON_COOLDOWN');
+    expect(errorCodeOf(second)).toBe('COMMAND_ON_COOLDOWN');
+  });
+
+  it('records why a crashed command failed, without telling chat', async () => {
+    vi.mocked(command.execute).mockRejectedValueOnce(new Error('Helix timed out'));
+
+    const result = await executor.execute(contextFor(PermissionLevel.VIEWER));
+
+    expect(result.message).toBe('Command execution failed');
+    expect(eventBus.emit).toHaveBeenLastCalledWith(
+      'command.executed',
+      expect.objectContaining({ errorCode: 'EXECUTION_ERROR', reason: 'Helix timed out' })
+    );
+  });
+
+  it('records no reason for a success', async () => {
+    await executor.execute(contextFor(PermissionLevel.VIEWER));
+
+    expect(eventBus.emit).toHaveBeenLastCalledWith(
+      'command.executed',
+      expect.objectContaining({ success: true, errorCode: undefined, reason: undefined })
+    );
   });
 
   it('records a cooldown rejection in the activity log', async () => {

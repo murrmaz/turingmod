@@ -2,6 +2,7 @@ import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { ok } from '../utils/results.js';
 
 /** Where the streamer is (Chicagoland, per the original bot). */
 export const STREAMER_TIME_ZONE = 'America/Chicago';
@@ -30,10 +31,9 @@ export class TimeCommand implements ICommand {
   readonly requiredCapabilities: PlatformCapability[] = [];
 
   execute(context: CommandContext): Promise<CommandResult> {
-    return Promise.resolve({
-      success: true,
-      message: `@${context.user.username}: Currently ${streamerTime()} for the streamer`,
-    });
+    return Promise.resolve(
+      ok(`@${context.user.username}: Currently ${streamerTime()} for the streamer`)
+    );
   }
 }
 

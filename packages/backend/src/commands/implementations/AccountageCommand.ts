@@ -6,6 +6,7 @@ import { formatElapsed } from '../../utils/FormatHelpers.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !accountage command
@@ -37,13 +38,11 @@ export class AccountageCommand implements ICommand {
         .require(context.platform, 'accountAge')
         .getAccountCreatedAt(user.platformUserId);
       if (!createdAt) {
-        return { success: true, message: `@${user.username}, I couldn't find your account` };
+        return ok(`@${user.username}, I couldn't find your account`);
       }
-      return {
-        success: true,
-        message: `@${user.username}, your account is ${formatElapsed(Date.now() - createdAt.getTime())} old`,
-        data: { createdAt: createdAt.toISOString() },
-      };
+      return ok(
+        `@${user.username}, your account is ${formatElapsed(Date.now() - createdAt.getTime())} old`
+      );
     } catch (error) {
       this.logger.error('Error in accountage command', error);
       return toCommandError(error, 'Failed to look up the account');

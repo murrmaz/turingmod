@@ -4,6 +4,7 @@ import { injectable } from 'tsyringe';
 import { CLIPS } from '../../sounds/clips.js';
 import { SoundLibrary } from '../../sounds/SoundLibrary.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { ok } from '../utils/results.js';
 
 /** How often a bonk of someone else lands on the bonker instead. */
 export const BONK_REVOLT_CHANCE = 0.1;
@@ -49,16 +50,7 @@ export class BonkCommand implements ICommand {
 
     void this.sounds.tryPlay(CLIPS.bonk);
 
-    return Promise.resolve({
-      success: true,
-      message,
-      data: {
-        target,
-        bonkCount: newCount,
-        bonkedBy: user.username,
-        revolt,
-      },
-    });
+    return Promise.resolve(ok(message));
   }
 
   /**

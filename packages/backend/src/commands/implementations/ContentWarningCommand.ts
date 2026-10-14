@@ -6,6 +6,7 @@ import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
 import { checkPermission } from '../utils/permissionChecks.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !cw command
@@ -53,29 +54,17 @@ export class ContentWarningCommand implements ICommand {
 
         await this.streamControl.require(platform, 'contentLabels').setContentLabels(labels);
 
-        return {
-          success: true,
-          message: 'Content labels updated',
-          data: { labels },
-        };
+        return ok('Content labels updated');
       }
 
       // Read mode: show current labels
       const labels = await this.streamControl.require(platform, 'contentLabels').getContentLabels();
 
       if (labels.length === 0) {
-        return {
-          success: true,
-          message: 'Content Labels: None',
-          data: { labels: [] },
-        };
+        return ok('Content Labels: None');
       }
 
-      return {
-        success: true,
-        message: `Content Labels: [${labels.join(', ')}]`,
-        data: { labels },
-      };
+      return ok(`Content Labels: [${labels.join(', ')}]`);
     } catch (error) {
       this.logger.error('Error in cw command', error);
       return toCommandError(error, 'Failed to get/set content labels');

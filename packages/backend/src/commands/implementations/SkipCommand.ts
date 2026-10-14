@@ -3,6 +3,7 @@ import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { SoundLibrary } from '../../sounds/SoundLibrary.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !skip command
@@ -21,7 +22,7 @@ export class SkipCommand implements ICommand {
 
   execute(_context: CommandContext): Promise<CommandResult> {
     this.sounds.stopAll();
-    return Promise.resolve({ success: true, message: '' });
+    return Promise.resolve(ok(''));
   }
 }
 

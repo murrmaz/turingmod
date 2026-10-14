@@ -5,6 +5,7 @@ import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
+import { fail, ok } from '../utils/results.js';
 
 /**
  * !delvod command
@@ -32,26 +33,22 @@ export class DelvodCommand implements ICommand {
 
   async execute(context: CommandContext): Promise<CommandResult> {
     if (context.isSimulation) {
-      return {
-        success: false,
-        message: '!delvod deletes a real VOD, so it does not run in the simulator',
-        error: { code: 'NOT_SIMULATED', message: 'Irreversible command' },
-      };
+      return fail(
+        'NOT_SIMULATED',
+        '!delvod deletes a real VOD, so it does not run in the simulator',
+        'Irreversible command'
+      );
     }
 
     try {
       const vod = await this.streamControl.require(context.platform, 'vods').deleteLatestVod();
       if (!vod) {
-        return { success: true, message: 'There is no past broadcast to delete' };
+        return ok('There is no past broadcast to delete');
       }
       this.logger.warn(
         `Deleted VOD ${vod.id} ("${vod.title}") at ${context.user.username}'s request`
       );
-      return {
-        success: true,
-        message: 'VOD successfully deleted',
-        data: { id: vod.id, title: vod.title, createdAt: vod.createdAt.toISOString() },
-      };
+      return ok('VOD successfully deleted');
     } catch (error) {
       this.logger.error('Error in delvod command', error);
       return toCommandError(error, 'Failed to delete the VOD');

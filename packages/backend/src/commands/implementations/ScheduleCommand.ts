@@ -6,6 +6,7 @@ import { formatScheduleDate } from '../../utils/FormatHelpers.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !schedule command
@@ -36,25 +37,14 @@ export class ScheduleCommand implements ICommand {
       const nextSegment = segments[0];
 
       if (!nextSegment) {
-        return {
-          success: true,
-          message: 'No upcoming scheduled streams',
-        };
+        return ok('No upcoming scheduled streams');
       }
 
       const formattedDate = formatScheduleDate(nextSegment.startDate);
       const title = nextSegment.title ? ` - ${nextSegment.title}` : '';
       const category = nextSegment.category ? ` (${nextSegment.category})` : '';
 
-      return {
-        success: true,
-        message: `Next stream: ${formattedDate}${title}${category}`,
-        data: {
-          startDate: nextSegment.startDate.toISOString(),
-          title: nextSegment.title,
-          categoryName: nextSegment.category,
-        },
-      };
+      return ok(`Next stream: ${formattedDate}${title}${category}`);
     } catch (error) {
       this.logger.error('Error in schedule command', error);
       return toCommandError(error, 'Failed to retrieve stream schedule');

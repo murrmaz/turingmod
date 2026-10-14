@@ -2,6 +2,7 @@ import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !flip command
@@ -18,7 +19,7 @@ export class FlipCommand implements ICommand {
 
   execute(context: CommandContext): Promise<CommandResult> {
     const side = Math.random() < 0.5 ? 'Heads' : 'Tails';
-    return Promise.resolve({ success: true, message: `@${context.user.username}: ${side}` });
+    return Promise.resolve(ok(`@${context.user.username}: ${side}`));
   }
 }
 

@@ -6,6 +6,7 @@ import { formatDuration } from '../../utils/FormatHelpers.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !ad command
@@ -35,36 +36,20 @@ export class AdCommand implements ICommand {
       const adBreak = await this.streamControl.require(context.platform, 'ads').getNextAdBreak();
 
       if (!adBreak) {
-        return {
-          success: true,
-          message: 'Stream is offline - no ads scheduled',
-        };
+        return ok('Stream is offline - no ads scheduled');
       }
 
       if (!adBreak.nextAdDate) {
-        return {
-          success: true,
-          message: 'Ad information unavailable',
-        };
+        return ok('Ad information unavailable');
       }
 
       const timeUntilAd = adBreak.nextAdDate.getTime() - Date.now();
 
       if (timeUntilAd <= 0) {
-        return {
-          success: true,
-          message: 'Next ad break is scheduled now or has passed',
-        };
+        return ok('Next ad break is scheduled now or has passed');
       }
 
-      return {
-        success: true,
-        message: `Next ad in ${formatDuration(timeUntilAd)}`,
-        data: {
-          nextAdAt: adBreak.nextAdDate.toISOString(),
-          timeUntilAd,
-        },
-      };
+      return ok(`Next ad in ${formatDuration(timeUntilAd)}`);
     } catch (error) {
       this.logger.error('Error in ad command', error);
       return toCommandError(error, 'Failed to retrieve ad schedule');

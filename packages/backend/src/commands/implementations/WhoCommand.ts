@@ -5,6 +5,7 @@ import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !who command
@@ -36,17 +37,10 @@ export class WhoCommand implements ICommand {
         .getBroadcasterAbout();
 
       if (!description) {
-        return {
-          success: true,
-          message: 'No description set',
-        };
+        return ok('No description set');
       }
 
-      return {
-        success: true,
-        message: `About: ${description}`,
-        data: { description },
-      };
+      return ok(`About: ${description}`);
     } catch (error) {
       this.logger.error('Error in who command', error);
       return toCommandError(error, 'Failed to retrieve broadcaster info');

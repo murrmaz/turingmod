@@ -66,26 +66,26 @@ export function isExecutorErrorCode(code: string): code is ExecutorErrorCode {
 }
 
 /**
- * What a command returns. Typed with only `CommandErrorCode` by default, so a command can't
- * report one of the executor's codes and have its reply silenced as if the executor had.
+ * What a command returns: a success, or a failure that always carries a code. Typed with only
+ * `CommandErrorCode` by default, so a command can't report one of the executor's codes and have
+ * its reply silenced as if the executor had.
  */
-export interface CommandResult<TCode extends string = CommandErrorCode> {
-  /** Whether the command succeeded */
-  success: boolean;
-
-  /** Message to send back to user/chat */
-  message: string;
-
-  /** Optional data returned by the command */
-  data?: Record<string, unknown>;
-
-  /** Error details if command failed */
-  error?: {
-    code: TCode;
-    message: string;
-    details?: unknown;
-  };
-}
+export type CommandResult<TCode extends string = CommandErrorCode> =
+  | {
+      success: true;
+      /** The reply for chat; empty for a command that has nothing to say. */
+      message: string;
+    }
+  | {
+      success: false;
+      /** The reply for chat, written for the viewer. */
+      message: string;
+      error: {
+        code: TCode;
+        /** Why it failed, for the streamer: recorded in the activity log, never sent to chat. */
+        reason: string;
+      };
+    };
 
 /** What running a command produced: the command's own result, or the executor's rejection. */
 export type ExecutionResult = CommandResult<CommandErrorCode | ExecutorErrorCode>;

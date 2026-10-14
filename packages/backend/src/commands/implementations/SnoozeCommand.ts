@@ -6,6 +6,7 @@ import { formatCountdown } from '../../utils/FormatHelpers.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !snooze command
@@ -35,20 +36,12 @@ export class SnoozeCommand implements ICommand {
     try {
       const result = await this.streamControl.require(context.platform, 'ads').snoozeNextAd();
       if (!result.snoozed) {
-        return {
-          success: true,
-          message: `@${user}: There are no more snoozes left. Try again in a bit`,
-          data: { ...result },
-        };
+        return ok(`@${user}: There are no more snoozes left. Try again in a bit`);
       }
       const next = result.nextAdDate
         ? ` Next ad in ${formatCountdown(result.nextAdDate.getTime() - Date.now())}.`
         : '';
-      return {
-        success: true,
-        message: `@${user}: Ads snoozed! There are ${result.snoozesLeft} left.${next}`,
-        data: { ...result },
-      };
+      return ok(`@${user}: Ads snoozed! There are ${result.snoozesLeft} left.${next}`);
     } catch (error) {
       this.logger.error('Error in snooze command', error);
       return toCommandError(error, 'Failed to snooze the next ad');

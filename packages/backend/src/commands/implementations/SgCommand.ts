@@ -3,6 +3,7 @@ import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { SuggestionRepository } from '../../database/repositories/SuggestionRepository.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { fail, ok } from '../utils/results.js';
 
 const MAX_SUGGESTION_LENGTH = 300;
 
@@ -26,25 +27,26 @@ export class SgCommand implements ICommand {
     const user = context.user.username;
     const suggestion = context.argText;
     if (suggestion === '') {
-      return Promise.resolve({
-        success: false,
-        message: `@${user}, an empty suggestion can't be written down. Usage: ${this.usage}`,
-        error: { code: 'INVALID_INPUT', message: 'Empty suggestion' },
-      });
+      return Promise.resolve(
+        fail(
+          'INVALID_INPUT',
+          `@${user}, an empty suggestion can't be written down. Usage: ${this.usage}`,
+          'Empty suggestion'
+        )
+      );
     }
     if (suggestion.length > MAX_SUGGESTION_LENGTH) {
-      return Promise.resolve({
-        success: false,
-        message: `@${user}, please keep suggestions under ${MAX_SUGGESTION_LENGTH} characters`,
-        error: { code: 'INVALID_INPUT', message: 'Suggestion too long' },
-      });
+      return Promise.resolve(
+        fail(
+          'INVALID_INPUT',
+          `@${user}, please keep suggestions under ${MAX_SUGGESTION_LENGTH} characters`,
+          'Suggestion too long'
+        )
+      );
     }
 
     this.suggestions.add(suggestion, user);
-    return Promise.resolve({
-      success: true,
-      message: `@${user}, your suggestion has been written down. Thank you!`,
-    });
+    return Promise.resolve(ok(`@${user}, your suggestion has been written down. Thank you!`));
   }
 }
 

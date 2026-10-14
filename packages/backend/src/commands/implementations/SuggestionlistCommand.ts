@@ -3,6 +3,7 @@ import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { SuggestionRepository } from '../../database/repositories/SuggestionRepository.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { ok } from '../utils/results.js';
 
 const SHOWN = 5;
 
@@ -25,12 +26,11 @@ export class SuggestionlistCommand implements ICommand {
   execute(_context: CommandContext): Promise<CommandResult> {
     const latest = this.suggestions.latest(SHOWN);
     if (latest.length === 0) {
-      return Promise.resolve({ success: true, message: 'No suggestions yet. Make one with !sg' });
+      return Promise.resolve(ok('No suggestions yet. Make one with !sg'));
     }
-    return Promise.resolve({
-      success: true,
-      message: `Latest suggestions for the bot: ${latest.map((s) => s.suggestion).join('; ')}`,
-    });
+    return Promise.resolve(
+      ok(`Latest suggestions for the bot: ${latest.map((s) => s.suggestion).join('; ')}`)
+    );
   }
 }
 

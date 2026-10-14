@@ -11,6 +11,7 @@ import { CommandExecutor } from '../../commands/CommandExecutor.js';
 import { CommandRegistry } from '../../commands/CommandRegistry.js';
 import type { CommandContext, ICommand } from '../../commands/interfaces/ICommand.js';
 import { parseCommand } from '../../commands/parseCommand.js';
+import { fail } from '../../commands/utils/results.js';
 import { capabilitiesOf } from '../../platforms/capabilities.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { Logger } from '../../utils/Logger.js';
@@ -52,11 +53,11 @@ export class CommandHandler {
       return createCommandResultMessage(
         {
           command: commandText,
-          result: {
-            success: false,
-            message: 'Not a command: chat would only run text starting with ! and a name',
-            error: { code: 'INVALID_INPUT', message: 'Not a command' },
-          },
+          result: fail(
+            'INVALID_INPUT',
+            'Not a command: chat would only run text starting with ! and a name',
+            'Not a command'
+          ),
           isSimulation: true,
         },
         message.id

@@ -68,6 +68,8 @@ export interface CommandExecutedEvent {
   success: boolean;
   message: string;
   errorCode: CommandErrorCode | ExecutorErrorCode | undefined;
+  /** Why it failed, when it did: for the activity log, never shown in chat. */
+  reason: string | undefined;
   isSimulation: boolean;
 }
 

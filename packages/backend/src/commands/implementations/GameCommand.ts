@@ -1,11 +1,11 @@
 import type { CommandResult } from '@turingmod/shared';
 import { messageOf, PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
-import { formatPlatformList } from '../../platforms/platformNames.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { checkPermission } from '../utils/permissionChecks.js';
+import { fail, mirrorReply, ok } from '../utils/results.js';
 
 /**
  * !game command
@@ -48,52 +48,24 @@ export class GameCommand implements ICommand {
         }
 
         const mirror = await this.streamControl.setGame(gameName);
-
-        if (mirror.updated.length === 0) {
-          const reason = mirror.failures[0]?.error ?? 'No live platforms to update';
-          return {
-            success: false,
-            message: `Failed to update game: ${reason}`,
-            error: {
-              code: 'API_ERROR',
-              message: reason,
-            },
-          };
-        }
-
-        return {
-          success: true,
-          message: `Game changed to ${gameName} on ${formatPlatformList(mirror.updated)}`,
-          data: { gameName, updated: mirror.updated },
-        };
+        return mirrorReply(
+          mirror,
+          'game',
+          (platforms) => `Game changed to ${gameName} on ${platforms}`
+        );
       }
 
       // Read mode: show current game on the origin platform
       const info = await this.streamControl.getStreamInfo(context.platform);
 
       if (!info.game || info.game === '') {
-        return {
-          success: true,
-          message: 'No game/category set',
-          data: { gameName: undefined },
-        };
+        return ok('No game/category set');
       }
 
-      return {
-        success: true,
-        message: `Current Game: ${info.game}`,
-        data: { gameName: info.game },
-      };
+      return ok(`Current Game: ${info.game}`);
     } catch (error) {
       this.logger.error('Error in game command', error);
-      return {
-        success: false,
-        message: 'Failed to get/set stream game',
-        error: {
-          code: 'API_ERROR',
-          message: messageOf(error),
-        },
-      };
+      return fail('API_ERROR', 'Failed to get/set stream game', messageOf(error));
     }
   }
 }

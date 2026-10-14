@@ -3,6 +3,7 @@ import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { COUNTERS, CounterRepository } from '../../database/repositories/CounterRepository.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !died command
@@ -21,7 +22,7 @@ export class DiedCommand implements ICommand {
 
   execute(_context: CommandContext): Promise<CommandResult> {
     const deaths = this.counters.increment(COUNTERS.deaths);
-    return Promise.resolve({ success: true, message: `Death count: ${deaths}`, data: { deaths } });
+    return Promise.resolve(ok(`Death count: ${deaths}`));
   }
 }
 

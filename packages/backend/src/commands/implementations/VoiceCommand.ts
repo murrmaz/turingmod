@@ -3,6 +3,7 @@ import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { COUNTERS, CounterRepository } from '../../database/repositories/CounterRepository.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !voice command
@@ -22,11 +23,7 @@ export class VoiceCommand implements ICommand {
 
   execute(_context: CommandContext): Promise<CommandResult> {
     const cracks = this.counters.increment(COUNTERS.voiceCracks);
-    return Promise.resolve({
-      success: true,
-      message: `Streamer's voice has cracked ${cracks} times`,
-      data: { cracks },
-    });
+    return Promise.resolve(ok(`Streamer's voice has cracked ${cracks} times`));
   }
 }
 

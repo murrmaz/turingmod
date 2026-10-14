@@ -50,6 +50,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Interface**: `packages/backend/src/commands/interfaces/ICommand.ts`
 - **Implementations**: `packages/backend/src/commands/implementations/*.ts`
 - **Loader**: `packages/backend/src/commands/loadCommands.ts`
+- **Results**: `packages/backend/src/commands/utils/results.ts` — `ok()`, `fail()`, and `mirrorReply()` for title/game/tags writes
 - **Parser**: `packages/backend/src/commands/parseCommand.ts` — the one place command text becomes a name and arguments, for chat and the simulator alike
 - **WebSocket Handler**: `packages/backend/src/server/handlers/CommandHandler.ts`
 
@@ -410,7 +411,11 @@ another bot — and are recorded in the activity log instead (unknown commands a
 debug). Failures a command reports itself (usage, "game not found", a viewer trying a
 moderator-only branch) are still replied to. The two sets of codes are separate unions in
 `shared/src/types/command.ts`: `ICommand.execute()` returns a `CommandResult`, which admits only
-`CommandErrorCode`, so a command can't report an executor code and have its reply silenced. Protocol
+`CommandErrorCode`, so a command can't report an executor code and have its reply silenced.
+`CommandResult` is a union: a failure always carries a code and a `reason`, a success carries
+neither. Commands build results with `ok()`/`fail()` (`commands/utils/results.ts`), never by hand;
+`message` is the reply for chat, and `reason` is for the streamer, recorded with
+`command.executed` in the activity log (a crashed command's reason is the error it threw). Protocol
 error messages likewise use the `ErrorCode` union in `messages.ts`, not free strings.
 
 **TuringMod never acts on its own chat messages.** It posts with the broadcaster's login — one

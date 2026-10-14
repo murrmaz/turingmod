@@ -67,7 +67,7 @@ describe('SongCommand', () => {
     expect(result).toMatchObject({
       success: false,
       message: "Couldn't check Spotify right now",
-      error: { code: 'API_ERROR', message: 'Spotify is not connected' },
+      error: { code: 'API_ERROR', reason: 'Spotify is not connected' },
     });
   });
 });

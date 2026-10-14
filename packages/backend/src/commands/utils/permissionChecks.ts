@@ -1,5 +1,6 @@
 import type { CommandResult } from '@turingmod/shared';
 import { hasPermission, type PermissionLevel } from '@turingmod/shared';
+import { fail } from './results.js';
 
 /**
  * Gate a write-path sub-action within a command that is otherwise open to a
@@ -22,12 +23,5 @@ export function checkPermission(
 
   const label = required.charAt(0).toUpperCase() + required.slice(1);
 
-  return {
-    success: false,
-    message: `Only ${required}s can ${action}`,
-    error: {
-      code: 'ACTION_NOT_PERMITTED',
-      message: `${label} required`,
-    },
-  };
+  return fail('ACTION_NOT_PERMITTED', `Only ${required}s can ${action}`, `${label} required`);
 }

@@ -1,5 +1,4 @@
 import type {
-  CommandExecutePayload,
   CommandListPayload,
   CommandListRequestPayload,
   CommandResultPayload,
@@ -10,14 +9,15 @@ import { createCommandResultMessage, MessageType } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { CommandExecutor } from '../../commands/CommandExecutor.js';
 import { CommandRegistry } from '../../commands/CommandRegistry.js';
-import type { ICommand } from '../../commands/interfaces/ICommand.js';
+import type { CommandContext, ICommand } from '../../commands/interfaces/ICommand.js';
+import { parseCommand } from '../../commands/parseCommand.js';
 import { capabilitiesOf } from '../../platforms/capabilities.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { Logger } from '../../utils/Logger.js';
 
 /**
  * Command message handler
- * Handles command execution and simulation requests
+ * Handles command simulation and list requests
  */
 @injectable()
 @singleton()
@@ -34,27 +34,7 @@ export class CommandHandler {
   }
 
   /**
-   * Handle command execute message
-   */
-  async handleExecute(
-    message: IWebSocketMessage<CommandExecutePayload>
-  ): Promise<IWebSocketMessage<CommandResultPayload>> {
-    const { command, args, context } = message.payload;
-
-    this.logger.info('Executing command', { command, user: context.user.username });
-
-    // Execute command
-    const result = await this.commandExecutor.execute({
-      ...context,
-      args,
-    });
-
-    // Create response
-    return createCommandResultMessage({ command, result, isSimulation: false }, message.id);
-  }
-
-  /**
-   * Handle command simulate message
+   * Run a command typed into the simulator, parsed exactly as it would be from chat.
    */
   async handleSimulate(
     message: IWebSocketMessage<CommandSimulatePayload>
@@ -67,13 +47,24 @@ export class CommandHandler {
       permissionLevel: simulatedUser.permissionLevel,
     });
 
-    // Parse command text
-    const parts = commandText.trim().split(/\s+/);
-    const commandName = parts[0]?.replace(/^!/, '') || '';
-    const args = parts;
+    const parsed = parseCommand(commandText);
+    if (!parsed) {
+      return createCommandResultMessage(
+        {
+          command: commandText,
+          result: {
+            success: false,
+            message: 'Not a command: chat would only run text starting with ! and a name',
+            error: { code: 'INVALID_INPUT', message: 'Not a command' },
+          },
+          isSimulation: true,
+        },
+        message.id
+      );
+    }
 
-    // Create simulated context
-    const context = {
+    const context: CommandContext = {
+      ...parsed,
       user: {
         id: simulatedUser.userId || `sim-${Date.now()}`,
         platform,
@@ -81,20 +72,14 @@ export class CommandHandler {
         username: simulatedUser.username,
         permissionLevel: simulatedUser.permissionLevel,
       },
-      args,
       platform,
-      metadata: {
-        simulated: true,
-      },
       isSimulation: true,
     };
 
-    // Execute command
     const result = await this.commandExecutor.execute(context);
 
-    // Create response
     return createCommandResultMessage(
-      { command: commandName, result, isSimulation: true },
+      { command: parsed.command, result, isSimulation: true },
       message.id
     );
   }

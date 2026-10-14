@@ -1,11 +1,11 @@
-import type { CommandContext, ExecutionResult } from '@turingmod/shared';
+import type { ExecutionResult } from '@turingmod/shared';
 import { hasPermission, messageOf, PermissionLevel } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { Logger } from '../utils/Logger.js';
 import { CommandRegistry } from './CommandRegistry.js';
-import type { ICommand } from './interfaces/ICommand.js';
+import type { CommandContext, ICommand } from './interfaces/ICommand.js';
 
 /**
  * Cooldown tracker
@@ -39,10 +39,7 @@ export class CommandExecutor {
    * Execute a command
    */
   async execute(context: CommandContext): Promise<ExecutionResult> {
-    const { user, args } = context;
-
-    // Parse command name from first arg or extract from metadata
-    const commandName = args[0]?.replace(/^!/, '') || '';
+    const { user, command: commandName } = context;
 
     this.logger.debug(`Executing command: ${commandName}`, {
       user: user.username,

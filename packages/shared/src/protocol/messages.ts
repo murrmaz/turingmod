@@ -3,7 +3,6 @@ import type { CommandInfo, ExecutionResult } from '../types/command.js';
 import type { IntegrationInfo, IntegrationStatus } from '../types/integration.js';
 import type {
   ActivityQueryPayload,
-  CommandExecutePayload,
   CommandSimulatePayload,
   IntegrationStartPayload,
   IntegrationStopPayload,
@@ -33,7 +32,6 @@ export interface IWebSocketMessage<T = unknown> {
  */
 export enum MessageType {
   // Client → Server: Commands
-  COMMAND_EXECUTE = 'command.execute',
   COMMAND_SIMULATE = 'command.simulate',
 
   // Server → Client: Command responses
@@ -271,15 +269,6 @@ export function createMessage<T>(type: MessageType, payload: T, id?: string): IW
     timestamp: Date.now(),
     payload,
   };
-}
-
-/**
- * Create a command execute message
- */
-export function createCommandExecuteMessage(
-  payload: CommandExecutePayload
-): IWebSocketMessage<CommandExecutePayload> {
-  return createMessage(MessageType.COMMAND_EXECUTE, payload);
 }
 
 /**

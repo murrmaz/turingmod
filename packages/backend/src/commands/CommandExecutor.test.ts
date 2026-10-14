@@ -1,13 +1,14 @@
 import 'reflect-metadata';
-import type { CommandContext, CommandResult, PlatformCapability } from '@turingmod/shared';
-import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
+import type { CommandResult, PlatformCapability } from '@turingmod/shared';
+import { PermissionLevel } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EventBus } from '../core/EventBus.js';
 import type { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import type { Logger } from '../utils/Logger.js';
 import { CommandExecutor } from './CommandExecutor.js';
 import type { CommandRegistry } from './CommandRegistry.js';
-import type { ICommand } from './interfaces/ICommand.js';
+import type { CommandContext, ICommand } from './interfaces/ICommand.js';
+import { commandContext } from './testing.js';
 
 /** A viewer-readable command with a moderator-only write branch, like !game or !cw. */
 const dualModeCommand = (cooldown: number): ICommand => ({
@@ -34,19 +35,13 @@ const makeLogger = () => {
   return logger as unknown as Logger;
 };
 
-const contextFor = (permissionLevel: PermissionLevel): CommandContext => ({
-  user: {
+const contextFor = (permissionLevel: PermissionLevel) =>
+  commandContext('!game', {
     id: `user-${permissionLevel}`,
-    platform: StreamingPlatform.TWITCH,
     platformUserId: '1',
     username: 'someone',
     permissionLevel,
-  },
-  args: ['game'],
-  platform: StreamingPlatform.TWITCH,
-  metadata: {},
-  isSimulation: false,
-});
+  });
 
 describe('CommandExecutor cooldowns', () => {
   let command: ICommand;

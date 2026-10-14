@@ -1,9 +1,31 @@
 import type {
-  CommandContext,
   CommandResult,
   PermissionLevel,
   PlatformCapability,
+  StreamingPlatform,
 } from '@turingmod/shared';
+import type { ParsedCommand } from '../parseCommand.js';
+
+/**
+ * Everything a command is run with: the command as parsed by `parseCommand()` (use `args` for
+ * words, `argText` for free text), who ran it, and where.
+ */
+export interface CommandContext extends ParsedCommand {
+  /** User executing the command */
+  user: {
+    id: string;
+    platform: StreamingPlatform;
+    platformUserId: string;
+    username: string;
+    permissionLevel: PermissionLevel;
+  };
+
+  /** Platform where command was executed */
+  platform: StreamingPlatform;
+
+  /** Whether this is a simulated command */
+  isSimulation: boolean;
+}
 
 /**
  * Command interface

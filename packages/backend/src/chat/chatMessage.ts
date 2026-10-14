@@ -22,13 +22,6 @@ export interface ChatMessageEvent {
   channelName?: string;
 }
 
-/** A `!command` and its arguments, `args[0]` being the command name as typed. */
-export function parseCommand(message: string): { command: string; args: string[] } | null {
-  if (!message.startsWith('!')) return null;
-  const args = message.slice(1).split(' ');
-  return { command: args[0] ?? '', args };
-}
-
 /**
  * Leading characters stripped from outgoing chat: whitespace and invisible format characters
  * (zero-width spaces, joiners, tag characters), which chat services may drop on delivery, and

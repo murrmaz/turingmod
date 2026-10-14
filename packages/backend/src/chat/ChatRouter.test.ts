@@ -59,11 +59,21 @@ describe('ChatRouter', () => {
         username: 'Viewer',
         permissionLevel: PermissionLevel.VIEWER,
       },
-      args: ['bonk', 'someone'],
+      command: 'bonk',
+      args: ['someone'],
+      argText: 'someone',
       platform: StreamingPlatform.TWITCH,
-      metadata: { badges: ['vip'], channelId: 'channel-id' },
       isSimulation: false,
     });
+  });
+
+  it('runs a capitalised command, as phone keyboards type it', async () => {
+    const { eventBus, executor } = setup();
+
+    await eventBus.emit('chat.message', chatMessage('!Bonk'));
+    await vi.waitFor(() =>
+      expect(executor.execute).toHaveBeenCalledWith(expect.objectContaining({ command: 'bonk' }))
+    );
   });
 
   it('screens ordinary chat but executes nothing for it', async () => {

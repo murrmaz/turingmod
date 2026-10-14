@@ -50,6 +50,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Interface**: `packages/backend/src/commands/interfaces/ICommand.ts`
 - **Implementations**: `packages/backend/src/commands/implementations/*.ts`
 - **Loader**: `packages/backend/src/commands/loadCommands.ts`
+- **Parser**: `packages/backend/src/commands/parseCommand.ts` — the one place command text becomes a name and arguments, for chat and the simulator alike
 - **WebSocket Handler**: `packages/backend/src/server/handlers/CommandHandler.ts`
 
 ### Platform Provider Layer
@@ -83,7 +84,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 
 ### Chat
 Everything that consumes or produces chat lives under `packages/backend/src/chat/`: the pipeline at the top level, and the chat features in a folder each.
-- **Message shape**: `chat/chatMessage.ts` — `ChatMessageEvent`, `parseCommand`, and `toSafeChatText` (applied by every façade to outgoing chat)
+- **Message shape**: `chat/chatMessage.ts` — `ChatMessageEvent` and `toSafeChatText` (applied by every façade to outgoing chat)
 - **Own-message gate**: `chat/OwnChatMessages.ts` — records sent message ids; republishes `chat.received` as `chat.message` minus TuringMod's own
 - **Chat routing**: `chat/ChatRouter.ts` (moderate → parse → execute → reply)
 - **Moderation**: `chat/moderation/ChatModerator.ts` (banned words, quiet mode) + `bannedWords.ts` (matching, 30-day expiry)
@@ -426,9 +427,20 @@ the channel. Every `IStreamPlatform` passes outgoing chat and announcements thro
 characters and `!`/`/` prefixes. There is deliberately no `!echo`-style command that repeats
 viewer input.
 
+**Commands receive their arguments already parsed.** `parseCommand()` (`commands/parseCommand.ts`)
+lowercases the name, so `!Lurk` runs `lurk` (command names are registered lowercase, which
+`CommandRegistry` enforces), and gives the command two views of what follows it: `args`, the words
+split on any whitespace with no empty entries, for a command that takes a word (`!so <channel>`),
+and `argText`, the trimmed text with its spacing kept, for one that takes free text (`!title`,
+`!tags`). A command with a read and a write mode writes only when `argText` isn't empty, so a stray
+trailing space reads rather than clearing anything. Commands never re-split or re-join arguments
+themselves.
+
 The command simulator deliberately runs commands for real, side effects included: it lets the
-streamer act as a viewer to integration-test a command without asking someone to type it. It is
-only reachable from the localhost console.
+streamer act as a viewer to integration-test a command without asking someone to type it. It parses
+its text with the same `parseCommand()` as chat, so a command behaves identically in both, and text
+chat wouldn't run is answered as not a command. It is only reachable from the localhost console;
+there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 

@@ -1,10 +1,10 @@
-import type { CommandContext, CommandResult } from '@turingmod/shared';
+import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { formatPlatformList } from '../../platforms/platformNames.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
-import type { ICommand } from '../interfaces/ICommand.js';
+import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
 
 /**
@@ -38,7 +38,7 @@ export class TitleCommand implements ICommand {
   async execute(context: CommandContext): Promise<CommandResult> {
     // No inner permission check: the command has no viewer-readable branch left, so
     // CommandExecutor's top-level gate on `permissions` already rejects non-moderators.
-    const newTitle = context.args.slice(1).join(' ').trim();
+    const newTitle = context.argText;
 
     if (newTitle === '') {
       return {

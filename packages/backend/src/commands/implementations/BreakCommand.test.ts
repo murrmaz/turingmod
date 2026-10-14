@@ -1,25 +1,18 @@
 import 'reflect-metadata';
-import { type CommandContext, PermissionLevel, StreamingPlatform } from '@turingmod/shared';
+import { PermissionLevel } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BreakService } from '../../breaks/BreakService.js';
 import { Logger } from '../../utils/Logger.js';
+import { commandContext } from '../testing.js';
 import { BreakCommand } from './BreakCommand.js';
 
-function context(...args: string[]): CommandContext {
-  return {
-    user: {
-      id: 'mod-1',
-      platform: StreamingPlatform.TWITCH,
-      platformUserId: 'mod-1',
-      username: 'a_mod',
-      permissionLevel: PermissionLevel.MODERATOR,
-    },
-    args: ['break', ...args],
-    platform: StreamingPlatform.TWITCH,
-    metadata: {},
-    isSimulation: false,
-  } as CommandContext;
-}
+const context = (...words: string[]) =>
+  commandContext(['!break', ...words].join(' '), {
+    id: 'mod-1',
+    platformUserId: 'mod-1',
+    username: 'a_mod',
+    permissionLevel: PermissionLevel.MODERATOR,
+  });
 
 describe('BreakCommand', () => {
   let breakService: {

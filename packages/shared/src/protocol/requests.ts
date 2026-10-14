@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { StreamingPlatform } from '../constants/platform.js';
 import { ActivityCategory } from '../types/activity.js';
-import { CommandContextSchema } from '../types/command.js';
 import { SimulatedUserSchema } from '../types/user.js';
 import { MessageType } from './messages.js';
 
@@ -24,18 +23,10 @@ export const WebSocketMessageSchema = z.strictObject({
 export const EmptyPayloadSchema = z.strictObject({});
 export type EmptyPayload = z.infer<typeof EmptyPayloadSchema>;
 
-/** Run a command with a full context (real commands from integrations). */
-export const CommandExecutePayloadSchema = z.strictObject({
-  /** Command name (without !) */
-  command: z.string().min(1),
-  /** Command arguments */
-  args: z.array(z.string()),
-  /** Execution context */
-  context: CommandContextSchema.omit({ args: true }),
-});
-export type CommandExecutePayload = z.infer<typeof CommandExecutePayloadSchema>;
-
-/** Run a command typed into the console's simulator. */
+/**
+ * Run a command typed into the console's simulator. The text is parsed exactly as chat is, so
+ * anything chat wouldn't run as a command is answered as not being one.
+ */
 export const CommandSimulatePayloadSchema = z.strictObject({
   /** Full command text (e.g., "!bonk @username") */
   commandText: z.string().min(1),
@@ -100,7 +91,6 @@ export type ActivityQueryPayload = z.infer<typeof ActivityQueryPayloadSchema>;
 
 /** Every request the backend accepts, and the schema its payload must match. */
 export const REQUEST_PAYLOAD_SCHEMAS = {
-  [MessageType.COMMAND_EXECUTE]: CommandExecutePayloadSchema,
   [MessageType.COMMAND_SIMULATE]: CommandSimulatePayloadSchema,
   [MessageType.COMMAND_LIST]: CommandListRequestPayloadSchema,
   [MessageType.INTEGRATION_START]: IntegrationNamePayloadSchema,

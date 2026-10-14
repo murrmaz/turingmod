@@ -1,10 +1,10 @@
-import type { CommandContext, CommandResult } from '@turingmod/shared';
+import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { BreakService, MAX_BREAK_SECONDS } from '../../breaks/BreakService.js';
 import { formatCountdown } from '../../utils/FormatHelpers.js';
 import { Logger } from '../../utils/Logger.js';
-import type { ICommand } from '../interfaces/ICommand.js';
+import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
 
 const DEFAULT_BREAK_SECONDS = 5 * 60;
@@ -38,7 +38,7 @@ export class BreakCommand implements ICommand {
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {
-    const arg = (context.args[1] ?? '').trim().toLowerCase();
+    const arg = (context.args[0] ?? '').toLowerCase();
 
     try {
       if (arg === 'end' || arg === 'stop') {

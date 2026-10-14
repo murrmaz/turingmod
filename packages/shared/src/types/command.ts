@@ -1,6 +1,5 @@
-import { z } from 'zod';
-import { PermissionLevel } from '../constants/permissions.js';
-import { type PlatformCapability, StreamingPlatform } from '../constants/platform.js';
+import type { PermissionLevel } from '../constants/permissions.js';
+import type { PlatformCapability, StreamingPlatform } from '../constants/platform.js';
 
 /**
  * Command metadata exposed to clients
@@ -31,35 +30,6 @@ export interface CommandInfo {
    */
   availableOn: StreamingPlatform[];
 }
-
-/**
- * Context passed to command during execution. A schema because the console can send one
- * (`command.execute`); the type is inferred from it.
- */
-export const CommandContextSchema = z.strictObject({
-  /** User executing the command */
-  user: z.strictObject({
-    id: z.string().min(1),
-    platform: z.enum(StreamingPlatform),
-    platformUserId: z.string().min(1),
-    username: z.string().min(1),
-    permissionLevel: z.enum(PermissionLevel),
-  }),
-
-  /** Command arguments (parsed from command text) */
-  args: z.array(z.string()),
-
-  /** Platform where command was executed */
-  platform: z.enum(StreamingPlatform),
-
-  /** Additional platform-specific metadata */
-  metadata: z.record(z.string(), z.unknown()),
-
-  /** Whether this is a simulated command */
-  isSimulation: z.boolean(),
-});
-
-export type CommandContext = z.infer<typeof CommandContextSchema>;
 
 /**
  * Failures a command reports about its own work. Its `message` is written for the viewer, so

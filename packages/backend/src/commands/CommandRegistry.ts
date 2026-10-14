@@ -18,9 +18,12 @@ export class CommandRegistry {
   }
 
   /**
-   * Register a command
+   * Register a command. Names are lowercase, since `parseCommand()` lowercases what was typed.
    */
   register(command: ICommand): void {
+    if (command.name !== command.name.toLowerCase()) {
+      throw new Error(`Command names must be lowercase: ${command.name}`);
+    }
     if (this.commands.has(command.name)) {
       throw new Error(`Command already registered: ${command.name}`);
     }

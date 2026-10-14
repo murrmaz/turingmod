@@ -194,7 +194,7 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
    */
   protected saveTokens(patch: Partial<TConfig>): void {
     this.config = { ...this.requireConfig(), ...patch };
-    this.stateRepo.upsert(this.name, this.config, true);
+    this.stateRepo.saveConfig(this.name, this.config);
   }
 
   /**

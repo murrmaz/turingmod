@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { IntegrationStatus } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import { EventBus } from '../core/EventBus.js';
 import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import { Logger } from '../utils/Logger.js';
@@ -70,6 +71,22 @@ class FakeIntegration extends BaseIntegration {
   }
 }
 
+/** A fake with a config: `{ url }`, which it records so a test can see what it runs on. */
+class ConfiguredFake extends FakeIntegration {
+  url: string | null = null;
+  startedWith: Array<string | null> = [];
+
+  override initialize(stored: unknown): Promise<void> {
+    this.url = this.parseConfig(z.strictObject({ url: z.string() }), stored).url;
+    return Promise.resolve();
+  }
+
+  override start(): Promise<void> {
+    this.startedWith.push(this.url);
+    return super.start();
+  }
+}
+
 interface FakeRepo extends IntegrationStateRepository {
   enabled: Set<string>;
 }
@@ -79,8 +96,14 @@ function makeStateRepo(enabled: string[] = []): FakeRepo {
   return {
     enabled: enabledSet,
     updateStatus: vi.fn(),
+    saveConfig: vi.fn(),
+    setEnabled: vi.fn((name: string, on: boolean) => {
+      if (on) enabledSet.add(name);
+      else enabledSet.delete(name);
+    }),
     getDecryptedConfig: vi.fn().mockReturnValue(null),
     findByName: vi.fn((name: string) => ({ name, enabled: enabledSet.has(name) })),
+    findAllEnabled: vi.fn(() => [...enabledSet].map((name) => ({ name, enabled: true }))),
   } as unknown as FakeRepo;
 }
 
@@ -392,18 +415,118 @@ describe('IntegrationManager', () => {
   });
 });
 
+describe('IntegrationManager enabling', () => {
+  let auth: FakeIntegration;
+  let api: FakeIntegration;
+  let repo: FakeRepo;
+  let manager: IntegrationManager;
+
+  beforeEach(() => {
+    auth = new FakeIntegration('twitch-auth');
+    api = new FakeIntegration('twitch-api', [auth]);
+    repo = makeStateRepo();
+    manager = makeManager(repo);
+    manager.register(auth);
+    manager.register(api);
+  });
+
+  it('remembers an integration started from the console and starts it', async () => {
+    await manager.enableIntegration('twitch-auth');
+
+    expect(repo.enabled.has('twitch-auth')).toBe(true);
+    expect(auth.getStatus()).toBe(IntegrationStatus.CONNECTED);
+  });
+
+  it('enables an integration whose dependency is down, and starts it once that connects', async () => {
+    await manager.enableIntegration('twitch-api');
+
+    expect(repo.enabled.has('twitch-api')).toBe(true);
+    expect(api.getStatus()).toBe(IntegrationStatus.BLOCKED);
+
+    await manager.enableIntegration('twitch-auth');
+    await settle();
+
+    expect(api.getStatus()).toBe(IntegrationStatus.CONNECTED);
+  });
+
+  it('starts enabled integrations at boot, including ones waiting on a dependency', async () => {
+    repo.enabled.add('twitch-api');
+
+    await manager.startEnabledIntegrations();
+    expect(api.getStatus()).toBe(IntegrationStatus.BLOCKED);
+
+    await auth.start();
+    await settle();
+
+    expect(api.getStatus()).toBe(IntegrationStatus.CONNECTED);
+  });
+
+  it('brings back an integration started from the console after its dependency recovers', async () => {
+    await manager.enableIntegration('twitch-auth');
+    await manager.enableIntegration('twitch-api');
+
+    auth.failReauth();
+    await settle();
+    auth.reportConnected();
+    await settle();
+
+    expect(api.startCount).toBe(2);
+    expect(api.getStatus()).toBe(IntegrationStatus.CONNECTED);
+  });
+
+  it('leaves an integration stopped from the console down when its dependency recovers', async () => {
+    await manager.enableIntegration('twitch-auth');
+    await manager.enableIntegration('twitch-api');
+
+    await manager.disableIntegration('twitch-api');
+    auth.failReauth();
+    await settle();
+    auth.reportConnected();
+    await settle();
+
+    expect(repo.enabled.has('twitch-api')).toBe(false);
+    expect(api.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
+    expect(api.startCount).toBe(1);
+  });
+});
+
 describe('IntegrationManager configs', () => {
   it('rejects a config that does not fit the schema without storing it', async () => {
     const repo = makeStateRepo();
-    const upsert = vi.fn();
-    Object.assign(repo, { upsert });
     const manager = makeManager(repo);
     manager.register(new FakeIntegration('discord'));
 
-    await expect(manager.configureIntegration('discord', { token: 'abc' }, false)).rejects.toThrow(
+    await expect(manager.configureIntegration('discord', { token: 'abc' })).rejects.toThrow(
       /Invalid discord config/
     );
-    expect(upsert).not.toHaveBeenCalled();
+    expect(repo.saveConfig).not.toHaveBeenCalled();
+  });
+
+  it('restarts an enabled integration on its new config, leaving it enabled', async () => {
+    const repo = makeStateRepo(['obs']);
+    const manager = makeManager(repo);
+    const obs = new ConfiguredFake('obs');
+    manager.register(obs);
+    await obs.initialize({ url: 'ws://old' });
+    await manager.startIntegration('obs');
+
+    await manager.configureIntegration('obs', { url: 'ws://new' });
+
+    expect(obs.startedWith).toEqual(['ws://old', 'ws://new']);
+    expect(repo.saveConfig).toHaveBeenCalledWith('obs', { url: 'ws://new' });
+    expect(repo.setEnabled).not.toHaveBeenCalled();
+  });
+
+  it('only stores the config of an integration that is not enabled', async () => {
+    const repo = makeStateRepo();
+    const manager = makeManager(repo);
+    const obs = new ConfiguredFake('obs');
+    manager.register(obs);
+
+    await manager.configureIntegration('obs', { url: 'ws://new' });
+
+    expect(obs.url).toBe('ws://new');
+    expect(obs.startCount).toBe(0);
   });
 
   it('reports a stored config that does not fit the schema as the integration error', async () => {
@@ -420,5 +543,25 @@ describe('IntegrationManager configs', () => {
 
     expect(discord.getStatus()).toBe(IntegrationStatus.ERROR);
     expect(discord.getErrorMessage()).toMatch(/Invalid discord config[\s\S]*token/);
+  });
+
+  it('refuses to start on a stored config that failed to load, until it is given one that fits', async () => {
+    const repo = makeStateRepo(['obs']);
+    Object.assign(repo, {
+      findAll: vi.fn().mockReturnValue([{ name: 'obs', config: 'encrypted' }]),
+      getDecryptedConfig: vi.fn().mockReturnValue({ url: 42 }),
+    });
+    const manager = makeManager(repo);
+    const obs = new ConfiguredFake('obs');
+    manager.register(obs);
+    await manager.loadIntegrations();
+
+    await expect(manager.startIntegration('obs')).rejects.toThrow(/Invalid obs config/);
+    expect(obs.startCount).toBe(0);
+
+    await manager.configureIntegration('obs', { url: 'ws://fixed' });
+
+    expect(obs.getStatus()).toBe(IntegrationStatus.CONNECTED);
+    expect(obs.startedWith).toEqual(['ws://fixed']);
   });
 });

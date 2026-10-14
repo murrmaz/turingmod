@@ -1,6 +1,5 @@
 import 'reflect-metadata';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import type { IntegrationManager } from './IntegrationManager.js';
 import type { IIntegration } from './interfaces/IIntegration.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
@@ -25,7 +24,6 @@ describe('OAuthFlowService', () => {
   let twitch: IOAuthIntegration;
   let spotify: IOAuthIntegration;
   let manager: IntegrationManager;
-  let repo: IntegrationStateRepository;
   let flow: OAuthFlowService;
 
   beforeEach(() => {
@@ -36,12 +34,9 @@ describe('OAuthFlowService', () => {
     manager = {
       getAllIntegrations: () => all,
       getIntegration: (name: string) => all.find((i) => i.name === name) ?? null,
-      startIntegration: vi.fn().mockResolvedValue(undefined),
+      enableIntegration: vi.fn().mockResolvedValue(undefined),
     } as unknown as IntegrationManager;
-    repo = {
-      updateEnabled: vi.fn(),
-    } as unknown as IntegrationStateRepository;
-    flow = new OAuthFlowService(manager, repo);
+    flow = new OAuthFlowService(manager);
   });
 
   afterEach(() => {
@@ -103,11 +98,22 @@ describe('OAuthFlowService', () => {
     ]);
   });
 
+  it('refuses two integrations claiming one callback path', () => {
+    const clash = oauthIntegration('other-auth', '/callback/twitch');
+    const all: IIntegration[] = [twitch, clash];
+    const clashing = new OAuthFlowService({
+      getAllIntegrations: () => all,
+    } as unknown as IntegrationManager);
+
+    expect(() => clashing.getCallbackRoutes()).toThrow(
+      /claimed by both 'twitch-auth' and 'other-auth'/
+    );
+  });
+
   it('enables and starts the integration after exchanging the code', async () => {
     await flow.completeExchange('twitch-auth', 'the-code');
 
     expect(twitch.exchangeCode).toHaveBeenCalledWith('the-code');
-    expect(repo.updateEnabled).toHaveBeenCalledWith('twitch-auth', true);
-    expect(manager.startIntegration).toHaveBeenCalledWith('twitch-auth');
+    expect(manager.enableIntegration).toHaveBeenCalledWith('twitch-auth');
   });
 });

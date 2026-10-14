@@ -19,15 +19,15 @@ function tokenResponse(body: Record<string, unknown>): Promise<Response> {
 }
 
 describe('SpotifyAuthIntegration', () => {
-  let upsert: ReturnType<typeof vi.fn>;
+  let saveConfig: ReturnType<typeof vi.fn>;
   let integration: SpotifyAuthIntegration;
 
   beforeEach(async () => {
     vi.stubGlobal('fetch', vi.fn());
-    upsert = vi.fn();
+    saveConfig = vi.fn();
     integration = new SpotifyAuthIntegration(
       new Logger({ level: 'silent' }),
-      { upsert } as unknown as IntegrationStateRepository,
+      { saveConfig } as unknown as IntegrationStateRepository,
       { serverPort: 8080 } as TuringModConfig
     );
     await integration.initialize({ clientId: 'id', clientSecret: 'secret' });
@@ -45,10 +45,9 @@ describe('SpotifyAuthIntegration', () => {
     await integration.exchangeCode('code');
     await integration.start();
 
-    expect(upsert).toHaveBeenCalledWith(
+    expect(saveConfig).toHaveBeenCalledWith(
       'spotify-auth',
-      expect.objectContaining({ grantedScopes: SCOPES.split(' ') }),
-      true
+      expect.objectContaining({ grantedScopes: SCOPES.split(' ') })
     );
     expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
   });
@@ -63,10 +62,9 @@ describe('SpotifyAuthIntegration', () => {
     await integration.exchangeCode('code');
     await integration.refreshAccessToken();
 
-    expect(upsert).toHaveBeenLastCalledWith(
+    expect(saveConfig).toHaveBeenLastCalledWith(
       'spotify-auth',
-      expect.objectContaining({ accessToken: 'refreshed', refreshToken: 'refresh' }),
-      true
+      expect.objectContaining({ accessToken: 'refreshed', refreshToken: 'refresh' })
     );
   });
 
@@ -74,7 +72,7 @@ describe('SpotifyAuthIntegration', () => {
     vi.mocked(fetch).mockReturnValue(tokenResponse({ refresh_token: 'refresh', scope: SCOPES }));
 
     await expect(integration.exchangeCode('code')).rejects.toThrow(/access_token/);
-    expect(upsert).not.toHaveBeenCalled();
+    expect(saveConfig).not.toHaveBeenCalled();
   });
 
   describe('getAccessToken', () => {

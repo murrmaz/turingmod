@@ -1,4 +1,3 @@
-import type { IntegrationConfig } from '@turingmod/shared';
 import { IntegrationStatus } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { Encryption } from '../../utils/Encryption.js';
@@ -19,6 +18,21 @@ interface IntegrationStateRow {
   updated_at: number;
 }
 
+/** An integration's saved state, as read from `integration_state`. */
+export interface IntegrationState {
+  id: string;
+  name: string;
+  /** Whether the streamer wants it running: set by starting or stopping it from the console. */
+  enabled: boolean;
+  /** Encrypted configuration (JSON); empty if none has been saved. */
+  config: string;
+  lastStatus: IntegrationStatus;
+  lastError?: string;
+  lastConnectedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /**
  * Integration state repository
  * Manages integration configurations with encrypted storage
@@ -32,10 +46,10 @@ export class IntegrationStateRepository {
   ) {}
 
   /**
-   * Convert database row to IntegrationConfig entity
+   * Convert database row to IntegrationState entity
    */
-  private rowToEntity(row: IntegrationStateRow): IntegrationConfig {
-    const entity: IntegrationConfig = {
+  private rowToEntity(row: IntegrationStateRow): IntegrationState {
+    const entity: IntegrationState = {
       id: row.id,
       name: row.name,
       enabled: row.enabled === 1,
@@ -59,7 +73,7 @@ export class IntegrationStateRepository {
   /**
    * Find integration config by name
    */
-  findByName(name: string): IntegrationConfig | null {
+  findByName(name: string): IntegrationState | null {
     const row = this.db.queryOne<IntegrationStateRow>(
       'SELECT * FROM integration_state WHERE name = ?',
       [name]
@@ -73,7 +87,7 @@ export class IntegrationStateRepository {
   /**
    * Find all integration configs
    */
-  findAll(): IntegrationConfig[] {
+  findAll(): IntegrationState[] {
     const rows = this.db.query<IntegrationStateRow>(
       'SELECT * FROM integration_state ORDER BY name'
     );
@@ -83,7 +97,7 @@ export class IntegrationStateRepository {
   /**
    * Find all enabled integrations
    */
-  findAllEnabled(): IntegrationConfig[] {
+  findAllEnabled(): IntegrationState[] {
     const rows = this.db.query<IntegrationStateRow>(
       'SELECT * FROM integration_state WHERE enabled = 1 ORDER BY name'
     );
@@ -91,38 +105,26 @@ export class IntegrationStateRepository {
   }
 
   /**
-   * Create or update integration config
+   * Store an integration's config, encrypted, leaving whether it is enabled as it was. An
+   * integration seen for the first time starts out disabled.
    */
-  upsert(name: string, config: Record<string, unknown>, enabled: boolean): IntegrationConfig {
-    const existing = this.findByName(name);
-    const now = Date.now();
+  saveConfig(name: string, config: Record<string, unknown>): void {
+    this.ensureRow(name);
+    this.db.run('UPDATE integration_state SET config = ?, updated_at = ? WHERE name = ?', [
+      this.encryption.encryptObject(config),
+      Date.now(),
+      name,
+    ]);
+  }
 
-    // Encrypt configuration
-    const encryptedConfig = this.encryption.encryptObject(config);
-
-    if (existing) {
-      // Update
-      this.db.run(
-        `UPDATE integration_state
-         SET config = ?, enabled = ?, updated_at = ?
-         WHERE name = ?`,
-        [encryptedConfig, enabled ? 1 : 0, now, name]
-      );
-      const updated = this.findByName(name);
-      if (!updated) throw new Error(`Integration state not found after update: ${name}`);
-      return updated;
-    }
-    // Create
-    const id = crypto.randomUUID();
-    this.db.run(
-      `INSERT INTO integration_state (
-          id, name, enabled, config, last_status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, name, enabled ? 1 : 0, encryptedConfig, IntegrationStatus.DISCONNECTED, now, now]
-    );
-    const created = this.findByName(name);
-    if (!created) throw new Error(`Integration state not found after insert: ${name}`);
-    return created;
+  /** Record whether the streamer wants an integration running, whether or not it has a config. */
+  setEnabled(name: string, enabled: boolean): void {
+    this.ensureRow(name);
+    this.db.run('UPDATE integration_state SET enabled = ?, updated_at = ? WHERE name = ?', [
+      enabled ? 1 : 0,
+      Date.now(),
+      name,
+    ]);
   }
 
   /**
@@ -140,17 +142,14 @@ export class IntegrationStateRepository {
     );
   }
 
-  /**
-   * Update integration enabled flag
-   */
-  updateEnabled(name: string, enabled: boolean): void {
+  /** Create a disabled, unconfigured row for `name` if it has none. */
+  private ensureRow(name: string): void {
     const now = Date.now();
-
     this.db.run(
-      `UPDATE integration_state
-       SET enabled = ?, updated_at = ?
-       WHERE name = ?`,
-      [enabled ? 1 : 0, now, name]
+      `INSERT INTO integration_state (id, name, enabled, config, last_status, created_at, updated_at)
+       VALUES (?, ?, 0, NULL, ?, ?, ?)
+       ON CONFLICT(name) DO NOTHING`,
+      [crypto.randomUUID(), name, IntegrationStatus.DISCONNECTED, now, now]
     );
   }
 

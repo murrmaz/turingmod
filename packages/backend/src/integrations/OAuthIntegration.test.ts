@@ -23,11 +23,11 @@ class TestOAuthIntegration extends OAuthIntegration<TestConfig> {
   connectImpl = vi.fn((_config: TestConfig) => Promise.resolve());
   reauthErrors = new Set<unknown>();
 
-  constructor(upsert: IntegrationStateRepository['upsert'] = vi.fn()) {
+  constructor(saveConfig: IntegrationStateRepository['saveConfig'] = vi.fn()) {
     super(
       new Logger({ level: 'silent' }),
       'TestAuth',
-      { upsert } as unknown as IntegrationStateRepository,
+      { saveConfig } as unknown as IntegrationStateRepository,
       { serverPort: 9123 } as TuringModConfig
     );
   }
@@ -146,18 +146,17 @@ describe('OAuthIntegration', () => {
   });
 
   it('keeps refreshed tokens in use, without throwing into the refresh listener, when storing them fails', async () => {
-    const upsert = vi.fn(() => {
+    const saveConfig = vi.fn(() => {
       throw new Error('database is locked');
     });
-    const integration = new TestOAuthIntegration(upsert);
+    const integration = new TestOAuthIntegration(saveConfig);
     await integration.initialize(GRANT);
 
     expect(() => integration.refreshed({ accessToken: 'new-token' })).not.toThrow();
 
-    expect(upsert).toHaveBeenCalledWith(
+    expect(saveConfig).toHaveBeenCalledWith(
       'test-auth',
-      expect.objectContaining({ accessToken: 'new-token' }),
-      true
+      expect.objectContaining({ accessToken: 'new-token' })
     );
     await integration.start();
     expect(integration.connectImpl).toHaveBeenCalledWith(

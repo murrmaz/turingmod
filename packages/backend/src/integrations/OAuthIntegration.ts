@@ -35,7 +35,7 @@ export type LoopbackHost = 'localhost' | '127.0.0.1';
  * The base owns what doesn't vary by provider — parsing the stored config, the
  * redirect URI, persisting tokens, and the checks before connecting (no token
  * yet, or a grant missing a required scope). A subclass declares its scopes,
- * callback path and redirect host, and implements what its provider or SDK
+ * callback path, redirect host and config schema, and implements what its provider or SDK
  * does differently: the authorization URL, the code exchange, building its
  * client in connect(), and refreshing tokens.
  */
@@ -170,6 +170,21 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
       throw new Error(`${this.name} client credentials are not configured`);
     }
     return this.config;
+  }
+
+  /**
+   * Read a token endpoint's JSON body against `schema`, so a response missing what we need fails
+   * here rather than being saved as `undefined` tokens. Schemas for a provider's responses aren't
+   * strict: the provider may add fields, and only the ones we use have to be there.
+   */
+  protected async parseTokenResponse<T>(schema: z.ZodType<T>, response: Response): Promise<T> {
+    const result = schema.safeParse(await response.json());
+    if (!result.success) {
+      throw new Error(
+        `Unexpected token response for ${this.name}:\n${z.prettifyError(result.error)}`
+      );
+    }
+    return result.data;
   }
 
   /**

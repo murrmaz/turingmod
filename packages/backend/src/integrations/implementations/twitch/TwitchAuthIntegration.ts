@@ -27,6 +27,14 @@ export const TwitchAuthConfigSchema = OAuthConfigBaseSchema.extend({
 
 export type TwitchAuthConfig = z.infer<typeof TwitchAuthConfigSchema>;
 
+/** A response from Twitch's token endpoint for a code exchange. */
+const TwitchTokenResponseSchema = z.object({
+  access_token: z.string().min(1),
+  refresh_token: z.string().min(1).exactOptional(),
+  expires_in: z.number().positive().exactOptional(),
+  scope: z.array(z.string()),
+});
+
 /**
  * Required OAuth scopes for the Twitch integration.
  * Single source of truth — the frontend and OAuthHandler should not specify scopes.
@@ -236,12 +244,7 @@ export class TwitchAuthIntegration extends OAuthIntegration<TwitchAuthConfig> {
       throw new Error(`Failed to exchange code: ${error}`);
     }
 
-    const data = (await response.json()) as {
-      access_token: string;
-      refresh_token?: string;
-      expires_in?: number;
-      scope: string[];
-    };
+    const data = await this.parseTokenResponse(TwitchTokenResponseSchema, response);
 
     this.saveTokens(
       toConfigPatch({

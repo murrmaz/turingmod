@@ -34,14 +34,15 @@ const SPOTIFY_REQUIRED_SCOPES = [
 const REFRESH_MARGIN_MS = 60 * 1000;
 
 /** A response from Spotify's token endpoint, for both a code exchange and a refresh. */
-interface SpotifyTokenResponse {
-  access_token: string;
-  token_type: string;
-  scope: string;
-  expires_in: number;
+const SpotifyTokenResponseSchema = z.object({
+  access_token: z.string().min(1),
+  scope: z.string(),
+  expires_in: z.number().positive(),
   /** Always sent for a code exchange; a refresh may omit it, keeping the old one valid. */
-  refresh_token?: string;
-}
+  refresh_token: z.string().min(1).exactOptional(),
+});
+
+type SpotifyTokenResponse = z.infer<typeof SpotifyTokenResponseSchema>;
 
 /**
  * Spotify's OAuth grant: the authorization code flow, the stored tokens, and
@@ -128,7 +129,9 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
       throw new Error(`Failed to exchange code: ${error}`);
     }
 
-    this.saveTokens(toConfigPatch((await response.json()) as SpotifyTokenResponse));
+    this.saveTokens(
+      toConfigPatch(await this.parseTokenResponse(SpotifyTokenResponseSchema, response))
+    );
 
     this.logger.info('Successfully exchanged code for tokens');
   }
@@ -184,7 +187,7 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
       throw new Error(`Token refresh failed: ${error}`);
     }
 
-    const data = (await response.json()) as SpotifyTokenResponse;
+    const data = await this.parseTokenResponse(SpotifyTokenResponseSchema, response);
     this.saveTokens(toConfigPatch(data));
 
     this.logger.info('Access token refreshed');

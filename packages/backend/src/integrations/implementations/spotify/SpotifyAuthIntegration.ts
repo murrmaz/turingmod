@@ -26,15 +26,8 @@ const SPOTIFY_REQUIRED_SCOPES = [
   'user-read-recently-played',
 ];
 
-/**
- * Token data exposed to SpotifyApiIntegration
- */
-export interface SpotifyTokenData {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-  obtainmentTimestamp: number;
-}
+/** Refresh this long before the access token expires, so a call never carries one that's about to. */
+const REFRESH_MARGIN_MS = 60 * 1000;
 
 /** A response from Spotify's token endpoint, for both a code exchange and a refresh. */
 interface SpotifyTokenResponse {
@@ -47,14 +40,13 @@ interface SpotifyTokenResponse {
 }
 
 /**
- * Spotify Auth Integration
- * Handles OAuth flow, token storage, and token refresh
+ * Spotify's OAuth grant: the authorization code flow, the stored tokens, and
+ * keeping the access token valid.
  *
- * Responsibilities:
- * - OAuth authorization code flow
- * - Token storage (encrypted in database)
- * - On-demand token refresh (called by SpotifyApiIntegration on 401)
- * - Providing valid tokens to SpotifyApiIntegration
+ * Owns the tokens outright. getAccessToken() hands out one that is good for at
+ * least another minute, refreshing first when it isn't, and nothing else reads
+ * or refreshes them — Spotify's SDK is never given a refresh token, since its
+ * own refresh omits the client secret this confidential-client grant requires.
  */
 @injectable()
 @singleton()
@@ -65,6 +57,9 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
   protected readonly callbackPath = '/callback/spotify';
   /** Spotify accepts plain-HTTP redirects only to the literal loopback IP, not `localhost`. */
   protected readonly redirectHost = '127.0.0.1';
+
+  /** The refresh in flight, shared by every caller that needs one meanwhile. */
+  private refreshing: Promise<string> | null = null;
 
   constructor(
     logger: Logger,
@@ -88,26 +83,18 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
   }
 
   /**
-   * Get token data for use by SpotifyApiIntegration
+   * An access token valid for at least another minute, refreshed first if
+   * needed. Throws while Spotify isn't connected, or if the refresh fails.
    */
-  getTokenData(): SpotifyTokenData | null {
-    if (!(this.config?.accessToken && this.config.refreshToken)) {
-      return null;
+  async getAccessToken(): Promise<string> {
+    if (this.getStatus() !== IntegrationStatus.CONNECTED) {
+      throw new Error('Spotify is not connected');
     }
-
-    return {
-      accessToken: this.config.accessToken,
-      refreshToken: this.config.refreshToken,
-      expiresIn: this.config.expiresIn ?? 3600,
-      obtainmentTimestamp: this.config.obtainmentTimestamp ?? Date.now(),
-    };
-  }
-
-  /**
-   * Get the client ID (needed by SpotifyApiIntegration for SDK initialization)
-   */
-  getClientId(): string | null {
-    return this.config?.clientId ?? null;
+    const accessToken = this.config?.accessToken;
+    if (!accessToken || this.expiresSoon()) {
+      return await this.refreshAccessToken();
+    }
+    return accessToken;
   }
 
   getAuthorizationUrl(state: string): string {
@@ -142,10 +129,29 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
   }
 
   /**
-   * Refresh the access token using the stored refresh token.
-   * Called by SpotifyApiIntegration when an API call is rejected (401).
+   * Refresh the access token now, returning the new one. getAccessToken()
+   * calls this before expiry; SpotifyApiIntegration calls it when Spotify
+   * rejects a token that hadn't expired yet. Concurrent callers share one
+   * refresh: Spotify may rotate the refresh token, so a second request made
+   * with the old one could fail.
    */
-  async refreshAccessToken(): Promise<void> {
+  refreshAccessToken(): Promise<string> {
+    this.refreshing ??= this.refresh().finally(() => {
+      this.refreshing = null;
+    });
+    return this.refreshing;
+  }
+
+  /** True when the stored token expires within the margin, or its expiry is unknown. */
+  private expiresSoon(): boolean {
+    const { expiresIn, obtainmentTimestamp } = this.config ?? {};
+    if (expiresIn === undefined || obtainmentTimestamp === undefined) {
+      return true;
+    }
+    return obtainmentTimestamp + expiresIn * 1000 - REFRESH_MARGIN_MS <= Date.now();
+  }
+
+  private async refresh(): Promise<string> {
     const refreshToken = this.config?.refreshToken;
     if (!refreshToken) {
       throw new Error('No refresh token available');
@@ -160,11 +166,16 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
 
     if (!response.ok) {
       const error = await response.text();
-      this.logger.error('Token refresh failed', error);
-      this.setStatus(
-        IntegrationStatus.NEEDS_REAUTH,
-        'Token refresh failed — re-authorization required'
-      );
+      this.logger.error('Token refresh failed', error, { status: response.status });
+      // 400 (invalid_grant) and 401 mean the grant itself is gone; anything
+      // else (a 5xx, a 429) is Spotify having a bad moment, and the next call
+      // can try again.
+      if (response.status === 400 || response.status === 401) {
+        this.setStatus(
+          IntegrationStatus.NEEDS_REAUTH,
+          'Token refresh failed — re-authorization required'
+        );
+      }
       throw new Error(`Token refresh failed: ${error}`);
     }
 
@@ -174,6 +185,7 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
     this.logger.info('Access token refreshed');
 
     this.reportTokenRefreshed(Date.now() + data.expires_in * 1000);
+    return data.access_token;
   }
 
   /** POST to Spotify's token endpoint, authenticating with the client credentials. */

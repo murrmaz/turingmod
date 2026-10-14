@@ -1,25 +1,36 @@
-import type { PlaybackState } from '@spotify/web-api-ts-sdk';
-import { SpotifyApi } from '@spotify/web-api-ts-sdk';
+import { type AccessToken, type IAuthStrategy, SpotifyApi } from '@spotify/web-api-ts-sdk';
 import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import { DependencyFailurePolicy, type IIntegration } from '../../interfaces/IIntegration.js';
-import { SpotifyAuthIntegration, type SpotifyTokenData } from './SpotifyAuthIntegration.js';
+import { SpotifyAuthIntegration } from './SpotifyAuthIntegration.js';
 
 /**
  * Spotify API Configuration
  */
 export type SpotifyApiConfig = Record<string, unknown>;
 
+/** A Spotify Web API call answered with a non-2xx status. */
+export class SpotifyHttpError extends Error {
+  constructor(
+    readonly status: number,
+    body: string
+  ) {
+    super(`Spotify API responded ${status}${body ? `: ${body}` : ''}`);
+    this.name = 'SpotifyHttpError';
+  }
+}
+
 /**
- * Spotify API Integration
- * Handles Spotify Web API calls via the official SDK
+ * The Spotify Web API connection: one SDK instance, and the integration status
+ * that says whether it can be used.
  *
- * Responsibilities:
- * - Creating and managing the Spotify SDK instance
- * - Exposing API methods to commands and other integrations
- * - Recreating SDK when tokens are refreshed
+ * Owns connection health only. The SDK takes its access token from
+ * SpotifyAuthIntegration on every call, so it never holds a stale one and
+ * never needs rebuilding, and request() retries once with a fresh token when
+ * Spotify rejects one early. What is done with Spotify — which endpoints, and
+ * what to make of the answer — belongs to the feature using it (`!song`).
  *
  * Depends on: SpotifyAuthIntegration
  */
@@ -28,15 +39,16 @@ export type SpotifyApiConfig = Record<string, unknown>;
 export class SpotifyApiIntegration extends BaseIntegration {
   readonly name = 'spotify-api';
 
-  private sdk: SpotifyApi | null = null;
-  /** The credentials `sdk` was built on, to detect them being replaced. */
-  private sdkCredentials: { clientId: string; accessToken: string } | null = null;
+  private readonly sdk: SpotifyApi;
 
   constructor(
     logger: Logger,
     private authIntegration: SpotifyAuthIntegration
   ) {
     super(logger, { component: 'SpotifyAPI' });
+    this.sdk = new SpotifyApi(this.tokenFromAuthIntegration(), {
+      responseValidator: { validateResponse: rejectUnsuccessful },
+    });
   }
 
   /**
@@ -47,9 +59,9 @@ export class SpotifyApiIntegration extends BaseIntegration {
   }
 
   /**
-   * Resolves its SDK from the auth integration's current credentials on
-   * access, so a Spotify auth failure blocks this integration rather than
-   * stopping it.
+   * Holds nothing bound to the grant — every call asks the auth integration
+   * for its token — so a Spotify auth failure blocks this integration rather
+   * than stopping it.
    */
   override get dependencyFailurePolicy(): DependencyFailurePolicy {
     return DependencyFailurePolicy.BLOCK;
@@ -68,144 +80,76 @@ export class SpotifyApiIntegration extends BaseIntegration {
     this.logger.debug('Starting Spotify API integration');
     this.setStatus(IntegrationStatus.CONNECTING);
 
-    try {
-      const sdk = this.resolveSdk();
-
-      if (!sdk) {
-        throw new Error('SpotifyAuthIntegration must be started before SpotifyApiIntegration');
-      }
-
-      this.setStatus(IntegrationStatus.CONNECTED);
-      this.logger.debug('Spotify API integration started successfully');
-
-      return Promise.resolve();
-    } catch (error) {
+    if (this.authIntegration.getStatus() !== IntegrationStatus.CONNECTED) {
+      const error = new Error(
+        'SpotifyAuthIntegration must be started before SpotifyApiIntegration'
+      );
       this.logger.error('Failed to start Spotify API integration', error);
       this.setStatus(IntegrationStatus.ERROR, messageOf(error));
-      throw error;
+      return Promise.reject(error);
     }
+
+    this.setStatus(IntegrationStatus.CONNECTED);
+    this.logger.debug('Spotify API integration started successfully');
+    return Promise.resolve();
   }
 
   stop(): Promise<void> {
-    this.logger.debug('Stopping Spotify API integration');
-
-    this.sdk = null;
-    this.sdkCredentials = null;
     this.setStatus(IntegrationStatus.DISCONNECTED);
-
     this.logger.debug('Spotify API integration stopped');
     return Promise.resolve();
   }
 
   /**
-   * Get the SDK instance for direct use by commands
-   */
-  getSdk(): SpotifyApi | null {
-    return this.resolveSdk();
-  }
-
-  /**
-   * Return an SDK bound to the auth integration's *current* credentials,
-   * rebuilding it when they've changed.
+   * Run a Spotify Web API call. Throws while Spotify auth isn't connected.
+   * A 401 on a token that hadn't expired yet (revoked, or rotated elsewhere)
+   * gets one refresh and one retry; if the refresh fails because the grant is
+   * gone, SpotifyAuthIntegration reports NEEDS_REAUTH.
    *
-   * This replaces a `spotify.auth.token-refreshed` subscription that rebuilt
-   * the SDK on refresh: that covered a refresh but not the auth integration
-   * restarting with different credentials, and it rebuilt against a clientId
-   * captured in a closure at start() time. Resolving on access covers both
-   * and needs no subscription to keep in sync.
+   * Note that the SDK answers a 204 — "nothing is playing", for one — with
+   * null, whatever its declared return type says.
    */
-  private resolveSdk(): SpotifyApi | null {
-    // Credentials that are present but no longer refreshable look identical
-    // from here, so gate on the dependency's status as well as the values.
-    const connected = this.authIntegration.getStatus() === IntegrationStatus.CONNECTED;
-    const tokenData = connected ? this.authIntegration.getTokenData() : null;
-    const clientId = connected ? this.authIntegration.getClientId() : null;
-
-    if (!(tokenData && clientId)) {
-      this.sdk = null;
-      this.sdkCredentials = null;
-      return null;
+  async request<T>(call: (sdk: SpotifyApi) => Promise<T>): Promise<T> {
+    if (this.authIntegration.getStatus() !== IntegrationStatus.CONNECTED) {
+      throw new Error('Spotify is not connected');
     }
-
-    // getTokenData() builds a fresh object per call, so compare the access
-    // token itself rather than object identity.
-    if (
-      this.sdk &&
-      this.sdkCredentials?.clientId === clientId &&
-      this.sdkCredentials.accessToken === tokenData.accessToken
-    ) {
-      return this.sdk;
-    }
-
-    if (this.sdkCredentials) {
-      this.logger.info('Spotify credentials changed; rebuilding SDK');
-    }
-
-    this.sdkCredentials = { clientId, accessToken: tokenData.accessToken };
-    this.sdk = this.createSdk(clientId, tokenData);
-    return this.sdk;
-  }
-
-  /**
-   * Get currently playing track
-   */
-  async getCurrentlyPlaying(): Promise<PlaybackState | null> {
-    return await this.withTokenRefresh(() => {
-      const sdk = this.resolveSdk();
-      if (!sdk) {
-        throw new Error('Spotify SDK not initialized');
-      }
-      return sdk.player.getCurrentlyPlayingTrack();
-    });
-  }
-
-  /**
-   * Execute an API call with automatic token refresh on 401.
-   * If the call fails with a 401, refreshes the token, recreates the SDK, and retries once.
-   */
-  private async withTokenRefresh<T>(apiCall: () => Promise<T>): Promise<T> {
     try {
-      return await apiCall();
+      return await call(this.sdk);
     } catch (error) {
-      if (!this.isExpiredTokenError(error)) {
+      if (!(error instanceof SpotifyHttpError && error.status === 401)) {
         throw error;
       }
-
-      this.logger.info('Access token expired, refreshing and retrying...');
+      this.logger.info('Spotify rejected the access token; refreshing and retrying');
       await this.authIntegration.refreshAccessToken();
-
-      // The retry resolves the SDK again, which picks up the new tokens.
-      if (!this.resolveSdk()) {
-        throw new Error('Failed to obtain refreshed tokens');
-      }
-
-      return await apiCall();
+      return await call(this.sdk);
     }
   }
 
   /**
-   * Check whether an error indicates an expired/invalid access token (HTTP 401).
+   * The SDK's auth strategy, reduced to asking SpotifyAuthIntegration. The
+   * SDK's own strategies refresh tokens themselves, without the client secret
+   * this grant needs, and keep the result to themselves.
    */
-  private isExpiredTokenError(error: unknown): boolean {
-    if (error instanceof Error && error.message.includes('401')) {
-      return true;
-    }
-    // The Spotify SDK may throw an object with a status property
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-      return (error as { status: number }).status === 401;
-    }
-    return false;
-  }
-
-  /**
-   * Create a new Spotify SDK instance with the given tokens
-   */
-  private createSdk(clientId: string, tokenData: SpotifyTokenData): SpotifyApi {
-    return SpotifyApi.withAccessToken(clientId, {
-      access_token: tokenData.accessToken,
+  private tokenFromAuthIntegration(): IAuthStrategy {
+    const current = async (): Promise<AccessToken> => ({
+      access_token: await this.authIntegration.getAccessToken(),
       token_type: 'Bearer',
-      expires_in: tokenData.expiresIn,
-      refresh_token: tokenData.refreshToken,
+      // Unused: expiry and refresh are SpotifyAuthIntegration's business.
+      expires_in: 0,
+      refresh_token: '',
     });
+    return {
+      setConfiguration: () => undefined,
+      getOrCreateAccessToken: current,
+      getAccessToken: current,
+      removeAccessToken: () => undefined,
+    };
+  }
+}
+
+/** Throw a SpotifyHttpError, which carries its status, for anything but a 2xx. */
+async function rejectUnsuccessful(response: Response): Promise<void> {
+  if (!response.ok) {
+    throw new SpotifyHttpError(response.status, await response.text());
   }
 }

@@ -27,14 +27,14 @@ export interface ActiveBroadcast {
 }
 
 /**
- * YouTube API Integration
- * Wraps the YouTube Data API v3 (liveBroadcasts + liveChatMessages).
+ * The YouTube Data API connection: a googleapis client kept in step with
+ * YouTubeAuthIntegration, and the integration status that says whether it can
+ * be used.
  *
- * Responsibilities:
- * - Resolving the active broadcast (+ its liveChatId / start time)
- * - Sending live chat messages
- * - Updating the broadcast title
- * - Exposing typed helpers to commands and the YouTube Chat integration
+ * Owns connection health — which client to use, whether auth is usable, and
+ * noticing a dead refresh token — plus getActiveBroadcast(), the one lookup
+ * YouTubeChatIntegration needs as well. Everything else TuringMod does on
+ * YouTube lives in YouTubePlatform, which makes its calls through request().
  *
  * Depends on: YouTubeAuthIntegration
  */
@@ -108,12 +108,31 @@ export class YouTubeApiIntegration extends BaseIntegration {
   }
 
   /**
+   * Run a YouTube Data API call through the current client. Throws if auth
+   * isn't connected. When the failure looks like a dead refresh token, flags
+   * the auth integration as needing re-authorization; the error is always
+   * rethrown.
+   */
+  async request<T>(call: (youtube: youtube_v3.Youtube) => Promise<T>): Promise<T> {
+    const youtube = this.resolveClient();
+    if (!youtube) {
+      throw new Error('YouTube API client not initialized');
+    }
+    try {
+      return await call(youtube);
+    } catch (error) {
+      if (this.authIntegration.isAuthError(error)) {
+        this.authIntegration.markAuthRequired();
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Resolve the broadcaster's currently active live broadcast, or null if not live.
    */
   async getActiveBroadcast(): Promise<ActiveBroadcast | null> {
-    const youtube = this.requireClient();
-
-    const response = await this.withAuthErrorDetection(() =>
+    const response = await this.request((youtube) =>
       youtube.liveBroadcasts.list({
         part: ['snippet', 'status'],
         broadcastStatus: 'active',
@@ -136,76 +155,6 @@ export class YouTubeApiIntegration extends BaseIntegration {
       actualStartTime: snippet?.actualStartTime ?? null,
       scheduledStartTime: snippet?.scheduledStartTime ?? null,
     };
-  }
-
-  /**
-   * Insert a text message into a live chat, returning the posted message's id.
-   */
-  async sendLiveChatMessage(liveChatId: string, message: string): Promise<string | null> {
-    const youtube = this.requireClient();
-
-    const response = await this.withAuthErrorDetection(() =>
-      youtube.liveChatMessages.insert({
-        part: ['snippet'],
-        requestBody: {
-          snippet: {
-            liveChatId,
-            type: 'textMessageEvent',
-            textMessageDetails: {
-              messageText: message,
-            },
-          },
-        },
-      })
-    );
-    return response.data.id ?? null;
-  }
-
-  /**
-   * Set the active broadcast's title. YouTube has no game/tags equivalent, so only the title is
-   * mutated; the broadcast's scheduledStartTime is preserved (required by liveBroadcasts.update).
-   */
-  async setBroadcastTitle(title: string): Promise<void> {
-    const youtube = this.requireClient();
-
-    const broadcast = await this.getActiveBroadcast();
-    if (!broadcast) {
-      throw new Error('No active YouTube broadcast to update');
-    }
-
-    const snippet: youtube_v3.Schema$LiveBroadcastSnippet = { title };
-    if (broadcast.scheduledStartTime !== null) {
-      snippet.scheduledStartTime = broadcast.scheduledStartTime;
-    }
-
-    await this.withAuthErrorDetection(() =>
-      youtube.liveBroadcasts.update({
-        part: ['snippet'],
-        requestBody: {
-          id: broadcast.id,
-          snippet,
-        },
-      })
-    );
-  }
-
-  /**
-   * Milliseconds the active broadcast has been live, or null if offline / no start time yet.
-   */
-  async getUptime(): Promise<number | null> {
-    const broadcast = await this.getActiveBroadcast();
-    if (!broadcast?.actualStartTime) {
-      return null;
-    }
-    return Date.now() - new Date(broadcast.actualStartTime).getTime();
-  }
-
-  private requireClient(): youtube_v3.Youtube {
-    const youtube = this.resolveClient();
-    if (!youtube) {
-      throw new Error('YouTube API client not initialized');
-    }
-    return youtube;
   }
 
   /**
@@ -244,21 +193,5 @@ export class YouTubeApiIntegration extends BaseIntegration {
     this.authClient = authClient;
     this.youtube = google.youtube({ version: 'v3', auth: authClient });
     return this.youtube;
-  }
-
-  /**
-   * Run a YouTube Data API call, flagging the auth integration as needing re-authorization if the
-   * failure looks like a dead refresh token. The underlying error is always rethrown so existing
-   * callers see the same failure they always did.
-   */
-  private async withAuthErrorDetection<T>(apiCall: () => Promise<T>): Promise<T> {
-    try {
-      return await apiCall();
-    } catch (error) {
-      if (this.authIntegration.isAuthError(error)) {
-        this.authIntegration.markAuthRequired();
-      }
-      throw error;
-    }
   }
 }

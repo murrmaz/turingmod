@@ -1,4 +1,5 @@
 import { PlatformCapability, StreamingPlatform } from '@turingmod/shared';
+import type { youtube_v3 } from 'googleapis';
 import { injectable, singleton } from 'tsyringe';
 import { toSafeChatText } from '../chat/chatMessage.js';
 import { OwnChatMessages } from '../chat/OwnChatMessages.js';
@@ -12,9 +13,15 @@ import type {
 } from './interfaces/IStreamPlatform.js';
 
 /**
- * IStreamPlatform façade over the YouTube integration trio. YouTube has no game/category or tags
- * model, so it declares only SEND_CHAT, SET_TITLE, and UPTIME and has no capability objects —
- * commands requiring the other capabilities auto-hide on YouTube.
+ * IStreamPlatform façade over the YouTube integration trio: everything TuringMod does on YouTube.
+ *
+ * Owns the YouTube endpoints it calls and the rules around them, and translates them into the
+ * platform-agnostic types commands see. Connection health is not its concern: it makes every call
+ * through YouTubeApiIntegration.request(), and asks it for the active broadcast.
+ *
+ * YouTube has no game/category or tags model, so it declares only SEND_CHAT, SET_TITLE, and
+ * UPTIME and has no capability objects — commands requiring the other capabilities auto-hide on
+ * YouTube.
  */
 @injectable()
 @singleton()
@@ -54,9 +61,21 @@ export class YouTubePlatform implements IStreamPlatform {
     if (!liveChatId) {
       throw new Error('No active YouTube live chat to post to');
     }
-    await this.ownMessages.record(this.platform, () =>
-      this.api.sendLiveChatMessage(liveChatId, text)
-    );
+    await this.ownMessages.record(this.platform, async () => {
+      const response = await this.api.request((youtube) =>
+        youtube.liveChatMessages.insert({
+          part: ['snippet'],
+          requestBody: {
+            snippet: {
+              liveChatId,
+              type: 'textMessageEvent',
+              textMessageDetails: { messageText: text },
+            },
+          },
+        })
+      );
+      return response.data.id ?? null;
+    });
   }
 
   async getStreamInfo(): Promise<StreamInfo> {
@@ -70,12 +89,33 @@ export class YouTubePlatform implements IStreamPlatform {
 
   async setStreamInfo(info: Partial<StreamInfo>): Promise<void> {
     // Only the title is settable on YouTube; game/tags are silently ignored.
-    if (info.title !== undefined) {
-      await this.api.setBroadcastTitle(info.title);
+    if (info.title === undefined) {
+      return;
     }
+    const broadcast = await this.api.getActiveBroadcast();
+    if (!broadcast) {
+      throw new Error('No active YouTube broadcast to update');
+    }
+
+    // liveBroadcasts.update replaces the snippet, and requires scheduledStartTime, so keep it.
+    const snippet: youtube_v3.Schema$LiveBroadcastSnippet = { title: info.title };
+    if (broadcast.scheduledStartTime !== null) {
+      snippet.scheduledStartTime = broadcast.scheduledStartTime;
+    }
+    await this.api.request((youtube) =>
+      youtube.liveBroadcasts.update({
+        part: ['snippet'],
+        requestBody: { id: broadcast.id, snippet },
+      })
+    );
   }
 
-  getUptime(): Promise<number | null> {
-    return this.api.getUptime();
+  /** Milliseconds the active broadcast has been live, or null if offline / no start time yet. */
+  async getUptime(): Promise<number | null> {
+    const broadcast = await this.api.getActiveBroadcast();
+    if (!broadcast?.actualStartTime) {
+      return null;
+    }
+    return Date.now() - new Date(broadcast.actualStartTime).getTime();
   }
 }

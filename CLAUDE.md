@@ -179,11 +179,10 @@ dependencies being CONNECTED, and beyond that the manager reacts to status chang
     established under the old conditions can't be assumed valid. Those reconnect and resubscribe
     from scratch.
   - `BLOCK` leaves it running and reports `BLOCKED`. Used by the three API layers, which hold
-    nothing bound to the grant. Stopping them is destructive rather than redundant: `stop()` also
-    discards unrelated state (`TwitchApiIntegration`'s shoutout cooldowns), so a brief auth blip
-    would forget Twitch's global shoutout cooldown.
+    nothing bound to the grant, so stopping them would tear down nothing; `BLOCKED` also says more
+    plainly than `DISCONNECTED` that they are waiting on something else.
   - A `BLOCK`-policy integration **must refuse to act while its dependency isn't CONNECTED**, which
-    its `resolve*()` gates on. Resolving a client on access protects against holding the *wrong*
+    their `request()` gates on. Resolving a client on access protects against holding the *wrong*
     object; it does nothing about holding the right object with dead credentials —
     `markAuthRequired()` sets NEEDS_REAUTH *without* discarding the provider/client.
 - A dependency returning to CONNECTED triggers a `reconcile()` pass that recovers both the stopped
@@ -214,9 +213,10 @@ a level and reversed for shutdown, with a per-integration start timeout
 (`IntegrationManager.START_TIMEOUT_MS`) so one integration that never settles can't hang boot.
 
 **API-layer integrations resolve their dependency's client on access, not at `start()`.**
-`TwitchApiIntegration`, `YouTubeApiIntegration` and `SpotifyApiIntegration` compare the auth
-integration's current provider/client/credentials against the one their cached client was built on
-and rebuild when it changed, so a stale reference can't exist in the first place. This makes the
+`TwitchApiIntegration` and `YouTubeApiIntegration` compare the auth integration's current
+provider/client against the one their cached client was built on and rebuild when it changed, so a
+stale reference can't exist in the first place. `SpotifyApiIntegration` needs no rebuild: its SDK
+asks `SpotifyAuthIntegration.getAccessToken()` for the token on every call. This makes the
 auth accessors (`getAuthProvider()`, `getAuthClient()`) contractually obliged to return a *stable*
 instance rather than a new object per call. The cascade above still matters for the long-lived
 listeners — `TwitchEventSubIntegration`'s EventSub WebSocket and `YouTubeChatIntegration`'s stream
@@ -232,7 +232,10 @@ own their provider for their lifetime and cannot be re-pointed.
 
 OAuth-capable integrations (`TwitchAuthIntegration`, `SpotifyAuthIntegration`, `YouTubeAuthIntegration`) extend `OAuthIntegration<TConfig>` (`integrations/OAuthIntegration.ts`), which implements `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and returns itself from the `get oauth()` getter (`null` on `BaseIntegration` by default). That getter is the single source of truth for OAuth capability — `OAuthFlowService` derives callback routing and the frontend's OAuth affordance from it instead of checking integration names.
 
-`OAuthIntegration` owns what doesn't vary by provider. A subclass declares `requiredScopes`, `callbackPath` and `redirectHost`, and implements `getAuthorizationUrl()`, `exchangeCode()`, `hasTokens()` and `connect()` (build its client); the base's `start()` runs the shared checks first — no token yet stays DISCONNECTED, and a stored `grantedScopes` missing a required scope is NEEDS_REAUTH rather than a failure on the first call that needs it. Refresh is deliberately left to each subclass, because each SDK does it differently (Twurple refreshes proactively, the googleapis client on demand, Spotify by hand on a 401). A refresh listener that nothing awaits saves through `saveRefreshedTokens()`, which logs a failed write instead of leaving an unhandled rejection.
+`OAuthIntegration` owns what doesn't vary by provider. A subclass declares `requiredScopes`, `callbackPath` and `redirectHost`, and implements `getAuthorizationUrl()`, `exchangeCode()`, `hasTokens()` and `connect()` (build its client); the base's `start()` runs the shared checks first — no token yet stays DISCONNECTED, and a stored `grantedScopes` missing a required scope is NEEDS_REAUTH rather than a failure on the first call that needs it. Refresh is deliberately left to each subclass, because each SDK does it differently (Twurple refreshes proactively, the googleapis client on demand). Spotify's SDK can't be trusted
+with it — its own refresh omits the client secret this grant needs — so `SpotifyAuthIntegration`
+refreshes before expiry in `getAccessToken()`, sharing one refresh between concurrent callers, and
+the SDK is never given the refresh token. A refresh listener that nothing awaits saves through `saveRefreshedTokens()`, which logs a failed write instead of leaving an unhandled rejection.
 
 Cross-integration communication uses `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
 It is typed against `EventMap` (`core/events.ts`), which declares every event name and its payload
@@ -274,7 +277,20 @@ All messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/me
 ### Platform Provider Layer
 
 `IStreamPlatform` is a platform-agnostic façade over one platform's integration group, registered
-in `PlatformRegistry` and consumed through `StreamControlService`. Commands depend on this seam, not
+in `PlatformRegistry` and consumed through `StreamControlService`.
+
+**An API integration owns the connection; the platform façade owns what is done with it.**
+`TwitchApiIntegration` and `YouTubeApiIntegration` keep a client built on the current grant,
+report status, and notice a revoked grant; they expose that as `request(fn)`, which runs one call
+through the live client. They hold no endpoint wrappers and no platform rules, only what another
+*integration* also needs (`YouTubeApiIntegration.getActiveBroadcast()`, used by chat). Every
+endpoint commands rely on, and every platform rule around one (Twitch category lookup, snooze
+checks, shoutout cooldowns in `TwitchShoutoutCooldowns`), lives in `TwitchPlatform` /
+`YouTubePlatform`, which call through `request()`. A new platform feature is therefore one change
+to the façade, not a wrapper in the integration plus a call to it. The same split holds for
+integrations that aren't platforms, where the role of the façade is played by the feature using
+it: `SoundLibrary` over `SoundIntegration`, and `!song` (`SongCommand`) over
+`SpotifyApiIntegration.request()`. Commands depend on this seam, not
 on integrations — a command should never resolve `TwitchApiIntegration`/`TwitchAuthIntegration` from
 the container. Platform-specific logic (Twitch category name → id resolution) lives inside the
 façade, and the DTOs crossing it (`StreamInfo`, `ScheduleSegment`, `AdBreakInfo`) are agnostic, so no
@@ -454,7 +470,7 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 - **New commands** go in `packages/backend/src/commands/implementations/` and implement `ICommand`. They're auto-discovered by `loadCommands()`.
 - **New channel point reward handlers** go in `packages/backend/src/rewards/implementations/` and implement `IRewardHandler`, matched by exact `rewardTitle`. They're auto-discovered by `loadRewardHandlers()`.
 - **Behaviour lives in code, not the database.** Commands and reward handlers are TypeScript classes; a table may hold a feature's own data (a banned-word list, a counter), never its logic.
-- **Commands reach platforms through `StreamControlService`**, never through an integration directly, and never check auth themselves (see Platform Provider Layer).
+- **Commands reach platforms through `StreamControlService`**, never through a platform's integrations directly, and never check auth themselves (see Platform Provider Layer). An integration that isn't a platform (Spotify, sound) is used directly, through its `request()` or the feature class over it.
 - **A new platform capability** is a `PlatformCapability` value, an object type in `CapabilityApis`, its `CAPABILITY_OF_API` entry, and the façades' implementations; the compiler holds those together. Don't add a pass-through to `StreamControlService` — callers use `require()`.
 - **Every outgoing chat message goes through `toSafeChatText()` and `OwnChatMessages.record()`** inside the platform façade — a new `IStreamPlatform` (or a new send method) must apply both, so the bot can never post a command or act on what it posted (see Chat Pipeline).
 - **API-backed read commands need a cooldown.** `ICommand.cooldown` is per-viewer seconds; `CommandExecutor` exempts moderators and above, so a shared read/write command (`!game`, `!tags`, `!cw`) can be throttled for viewers without blocking a moderator's write.

@@ -111,7 +111,10 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       // Get broadcaster user - use config if available, otherwise resolve from authenticated user
       let broadcaster: HelixUser;
       if (this.config?.broadcasterName) {
-        const result = await this.apiClient.users.getUserByName(this.config.broadcasterName);
+        const broadcasterName = this.config.broadcasterName;
+        const result = await this.apiIntegration.request((c) =>
+          c.users.getUserByName(broadcasterName)
+        );
         if (!result) {
           throw new Error(`Broadcaster not found: ${this.config.broadcasterName}`);
         }
@@ -122,7 +125,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
         if (!userId) {
           throw new Error('Could not determine authenticated user from auth provider');
         }
-        const result = await this.apiClient.users.getUserById(userId);
+        const result = await this.apiIntegration.request((c) => c.users.getUserById(userId));
         if (!result) {
           throw new Error('Could not resolve authenticated user');
         }

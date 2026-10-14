@@ -502,7 +502,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
 
   /**
    * Flag a dead refresh token if that's what an error is. The streaming path bypasses
-   * YouTubeApiIntegration's withAuthErrorDetection(), so this integration reports re-auth itself.
+   * YouTubeApiIntegration.request(), so this integration reports re-auth itself.
    * Returns true when the error was handled as an auth failure.
    */
   private handleAuthError(error: unknown): boolean {

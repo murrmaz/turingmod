@@ -19,7 +19,7 @@ type StoredHandler = (data: unknown) => void | Promise<void>;
 @singleton()
 export class EventBus {
   private handlers = new Map<EventName, Set<StoredHandler>>();
-  logger: Logger;
+  private logger: Logger;
 
   constructor(logger: Logger) {
     this.logger = logger.child({ component: 'EventBus' });
@@ -76,8 +76,12 @@ export class EventBus {
   }
 
   /**
-   * Emit an event to all subscribers
-   * Handlers are called asynchronously but in order
+   * Emit an event to all subscribers, and resolve once every handler has settled.
+   *
+   * Handlers are called in subscription order, but each runs only until its first `await` before
+   * the next is called, so async handlers run concurrently: none waits for another to finish, and
+   * one must not rely on another having done its work. A handler that throws or rejects is logged
+   * and never rejects `emit()` or stops the others.
    */
   async emit<K extends EventName>(event: K, data: EventMap[K]): Promise<void> {
     const handlers = this.handlers.get(event);
@@ -85,7 +89,6 @@ export class EventBus {
       return;
     }
 
-    // Execute handlers in order
     const promises: Promise<void>[] = [];
     for (const handler of handlers) {
       try {
@@ -98,17 +101,16 @@ export class EventBus {
           );
         }
       } catch (error) {
-        this.logger.error(`Error in asynchronous event handler for ${event}:`, error);
+        this.logger.error(`Error in synchronous event handler for ${event}:`, error);
       }
     }
 
-    // Wait for all async handlers to complete
     await Promise.all(promises);
   }
 
   /**
-   * Emit an event synchronously (does not wait for async handlers)
-   * Use this for fire-and-forget scenarios
+   * Call every subscriber without waiting for async handlers to settle, for fire-and-forget
+   * events. Handlers are called as in `emit()`.
    *
    * An async handler's rejection is still caught and logged: left unhandled it would reach
    * index.ts's `unhandledRejection` handler, which exits the process.

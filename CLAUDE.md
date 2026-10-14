@@ -250,6 +250,9 @@ refreshes before expiry in `getAccessToken()`, sharing one refresh between concu
 the SDK is never given the refresh token. A refresh listener that nothing awaits saves through `saveRefreshedTokens()`, which logs a failed write instead of leaving an unhandled rejection.
 
 Cross-integration communication uses `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
+`emit()` calls handlers in subscription order but runs async ones concurrently, and resolves once
+all have settled; a failing handler is logged, never propagated. No handler may depend on another
+having run first.
 It is typed against `EventMap` (`core/events.ts`), which declares every event name and its payload
 type once, so an emitter and its subscribers can't drift apart. A new event is a new `EventMap` entry;
 don't declare a payload type beside its emitter or consumer. Names are dot-separated camelCase

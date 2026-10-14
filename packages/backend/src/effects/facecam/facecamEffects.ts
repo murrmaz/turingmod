@@ -92,7 +92,7 @@ function nextColor(current: number | undefined): number {
  */
 export const screensaver: FacecamEffect = {
   name: 'Screen Saver Camera',
-  mainCanvasOnly: true,
+  usesCanvasSize: true,
   run: async (context) => {
     const target = context.targets[0];
     if (!target) return;

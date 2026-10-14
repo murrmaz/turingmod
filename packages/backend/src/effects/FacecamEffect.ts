@@ -2,6 +2,7 @@ import type { SceneItemTransform } from '../integrations/implementations/obs/Obs
 
 /** The facecam as placed in one scene that an effect animates. */
 export interface FacecamTarget {
+  /** The scene it is placed in, or its group's UUID when it is inside a group. */
   sceneUuid: string;
   sceneItemId: number;
   /** True for the program scene on the main canvas; false for another canvas's scene. */
@@ -34,7 +35,11 @@ export interface EffectContext {
 /** A visual gag played on the facecam, such as a barrel roll. */
 export interface FacecamEffect {
   readonly name: string;
-  /** Only animate the main canvas (e.g. an effect that needs the canvas size). */
-  readonly mainCanvasOnly?: boolean;
+  /**
+   * Moves the facecam in canvas coordinates using `canvasSize()`. Such an effect only animates
+   * the main canvas, the one whose size is known, and refuses a facecam inside a group, whose
+   * position is relative to the group rather than the canvas.
+   */
+  readonly usesCanvasSize?: boolean;
   run(context: EffectContext): Promise<void>;
 }

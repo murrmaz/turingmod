@@ -32,6 +32,10 @@ class FakeObs {
   getSceneItems(sceneUuid: string) {
     return Promise.resolve((this.items.get(sceneUuid) ?? []).map((item) => ({ ...item })));
   }
+  /** A group's items live in `items` under its UUID, as obs-websocket addresses them. */
+  getGroupItems(groupUuid: string) {
+    return this.getSceneItems(groupUuid);
+  }
   setSceneItemEnabled(sceneUuid: string, sceneItemId: number, enabled: boolean) {
     const item = this.items.get(sceneUuid)?.find((i) => i.sceneItemId === sceneItemId);
     if (!item || this.failSetFor.has(item.sourceName)) {
@@ -56,11 +60,12 @@ class FakeObs {
   }
 }
 
-const item = (sceneItemId: number, sourceName: string, sceneItemEnabled: boolean) => ({
-  sceneItemId,
-  sourceName,
-  sceneItemEnabled,
-});
+const item = (
+  sceneItemId: number,
+  sourceName: string,
+  sceneItemEnabled: boolean,
+  groupUuid?: string
+): ObsSceneItem => ({ sceneItemId, sourceName, sceneItemEnabled, groupUuid });
 
 describe('ObsBreakOverlay', () => {
   let obs: FakeObs;
@@ -148,6 +153,38 @@ describe('ObsBreakOverlay', () => {
     expect(obs.visible('gameplay', 'Facecam')).toBe(false);
     expect(obs.visible('vert-gameplay', 'Facecam')).toBe(true);
     expect(obs.muted.get('Mic/Aux')).toBe(true);
+  });
+
+  it('hides a facecam inside a group, and restores it', async () => {
+    obs.items.set('chatting', [item(4, 'Camera', true, 'camera-group')]);
+    obs.items.set('camera-group', [item(1, 'Facecam', true), item(2, 'Frame', true)]);
+
+    const snapshot = await overlay.apply(settings);
+    expect(obs.visible('camera-group', 'Facecam')).toBe(false);
+    expect(obs.visible('camera-group', 'Frame')).toBe(true);
+    expect(obs.visible('chatting', 'Camera')).toBe(true);
+
+    await overlay.restore(snapshot);
+    expect(obs.visible('camera-group', 'Facecam')).toBe(true);
+  });
+
+  it('still covers the other canvases when one cannot be listed', async () => {
+    const getScenes = obs.getScenes.bind(obs);
+    obs.getScenes = (canvasUuid?: string) =>
+      canvasUuid === 'main' ? Promise.reject(new Error('gone')) : getScenes(canvasUuid);
+
+    await overlay.apply(settings);
+
+    expect(obs.visible('vert-gameplay', 'Facecam')).toBe(false);
+  });
+
+  it("still covers the rest of a scene when one group's items cannot be listed", async () => {
+    obs.items.set('gameplay', [item(1, 'Facecam', true), item(4, 'Broken', true, 'broken')]);
+    obs.getGroupItems = () => Promise.reject(new Error('gone'));
+
+    await overlay.apply(settings);
+
+    expect(obs.visible('gameplay', 'Facecam')).toBe(false);
   });
 
   it('still mutes the mic when no scenes can be listed at all', async () => {

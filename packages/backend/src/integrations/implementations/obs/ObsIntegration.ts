@@ -1,5 +1,5 @@
 import { IntegrationStatus, messageOf } from '@turingmod/shared';
-import OBSWebSocket from 'obs-websocket-js';
+import OBSWebSocket, { type OBSResponseTypes } from 'obs-websocket-js';
 import { injectable, singleton } from 'tsyringe';
 import { z } from 'zod';
 import { EventBus } from '../../../core/EventBus.js';
@@ -43,11 +43,16 @@ export interface ObsScene {
   sceneUuid: string;
 }
 
-/** A source placed in a scene, with its current visibility. */
+/** A source placed in a scene (or a group), with its current visibility. */
 export interface ObsSceneItem {
   sceneItemId: number;
   sourceName: string;
   sceneItemEnabled: boolean;
+  /**
+   * For an item that is a group, the group's UUID, which addresses the items inside it the way
+   * a scene's UUID addresses a scene's. Undefined for anything else.
+   */
+  groupUuid: string | undefined;
 }
 
 const DEFAULT_OBS_URL = 'ws://127.0.0.1:4455';
@@ -158,21 +163,24 @@ export class ObsIntegration extends BaseIntegration {
     );
   }
 
-  /** List the items placed directly in a scene (not inside nested groups). */
+  /**
+   * List the items placed directly in a scene. A group shows up as one item; what's inside it
+   * comes from getGroupItems().
+   */
   async getSceneItems(sceneUuid: string): Promise<ObsSceneItem[]> {
     this.ensureConnected();
     const { sceneItems } = await this.obs.call('GetSceneItemList', { sceneUuid });
-    return sceneItems.flatMap((item) =>
-      typeof item.sceneItemId === 'number' && typeof item.sourceName === 'string'
-        ? [
-            {
-              sceneItemId: item.sceneItemId,
-              sourceName: item.sourceName,
-              sceneItemEnabled: item.sceneItemEnabled === true,
-            },
-          ]
-        : []
-    );
+    return toSceneItems(sceneItems);
+  }
+
+  /**
+   * List the items inside a group. obs-websocket treats a group as a scene for scene item
+   * requests, so they are addressed by `groupUuid` wherever a scene UUID is asked for.
+   */
+  async getGroupItems(groupUuid: string): Promise<ObsSceneItem[]> {
+    this.ensureConnected();
+    const { sceneItems } = await this.obs.call('GetGroupSceneItemList', { sceneUuid: groupUuid });
+    return toSceneItems(sceneItems);
   }
 
   /** Show or hide a scene item. */
@@ -359,4 +367,25 @@ export class ObsIntegration extends BaseIntegration {
       this.setStatus(IntegrationStatus.ERROR, messageOf(error, 'Connection error'));
     });
   }
+}
+
+/** Scene items from obs-websocket's untyped list, dropping any without an id or source name. */
+function toSceneItems(
+  sceneItems: OBSResponseTypes['GetSceneItemList']['sceneItems']
+): ObsSceneItem[] {
+  return sceneItems.flatMap((item) =>
+    typeof item.sceneItemId === 'number' && typeof item.sourceName === 'string'
+      ? [
+          {
+            sceneItemId: item.sceneItemId,
+            sourceName: item.sourceName,
+            sceneItemEnabled: item.sceneItemEnabled === true,
+            groupUuid:
+              item.isGroup === true && typeof item.sourceUuid === 'string'
+                ? item.sourceUuid
+                : undefined,
+          },
+        ]
+      : []
+  );
 }

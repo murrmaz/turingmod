@@ -49,10 +49,19 @@ class FakeObs {
     ],
   ]);
   items = new Map<string, ObsSceneItem[]>([
-    ['main-live', [{ sceneItemId: 7, sourceName: 'Facecam', sceneItemEnabled: true }]],
-    ['main-brb', [{ sceneItemId: 8, sourceName: 'Facecam', sceneItemEnabled: true }]],
+    [
+      'main-live',
+      [{ sceneItemId: 7, sourceName: 'Facecam', sceneItemEnabled: true, groupUuid: undefined }],
+    ],
+    [
+      'main-brb',
+      [{ sceneItemId: 8, sourceName: 'Facecam', sceneItemEnabled: true, groupUuid: undefined }],
+    ],
     ['vert-chat', []],
-    ['vert-cam', [{ sceneItemId: 3, sourceName: 'Facecam', sceneItemEnabled: true }]],
+    [
+      'vert-cam',
+      [{ sceneItemId: 3, sourceName: 'Facecam', sceneItemEnabled: true, groupUuid: undefined }],
+    ],
   ]);
   transforms = new Map<string, SceneItemTransform>([
     ['main-live:7', transform()],
@@ -66,6 +75,8 @@ class FakeObs {
   getCanvases = () => Promise.resolve(this.canvases);
   getScenes = (canvasUuid?: string) => Promise.resolve(this.scenes.get(canvasUuid ?? '') ?? []);
   getSceneItems = (sceneUuid: string) => Promise.resolve(this.items.get(sceneUuid) ?? []);
+  /** A group's items live in `items` under its UUID, as obs-websocket addresses them. */
+  getGroupItems = (groupUuid: string) => this.getSceneItems(groupUuid);
   getSceneItemTransform = (sceneUuid: string, id: number) =>
     Promise.resolve({ ...(this.transforms.get(`${sceneUuid}:${id}`) ?? transform()) });
   setSceneItemTransform = vi.fn((sceneUuid: string, id: number, t: Partial<SceneItemTransform>) => {
@@ -96,8 +107,8 @@ function mainTarget(context: EffectContext) {
 
 const effect = (
   run: (context: EffectContext) => Promise<void>,
-  mainCanvasOnly = false
-): FacecamEffect => ({ name: 'Test', mainCanvasOnly, run });
+  usesCanvasSize = false
+): FacecamEffect => ({ name: 'Test', usesCanvasSize, run });
 
 describe('FacecamEffectRunner', () => {
   let obs: FakeObs;
@@ -134,7 +145,40 @@ describe('FacecamEffectRunner', () => {
     expect(seen[1]?.original.positionX).toBe(10);
   });
 
-  it('only uses the main canvas when the effect asks for it', async () => {
+  it('finds a facecam inside a group and animates it through the group', async () => {
+    obs.items.set('main-live', [
+      { sceneItemId: 2, sourceName: 'Camera', sceneItemEnabled: true, groupUuid: 'cam-group' },
+    ]);
+    obs.items.set('cam-group', [
+      { sceneItemId: 5, sourceName: 'Facecam', sceneItemEnabled: true, groupUuid: undefined },
+    ]);
+
+    let seen: EffectContext['targets'] = [];
+    await runner.run(
+      effect(async (context) => {
+        seen = context.targets;
+        await context.setTransform(mainTarget(context), { rotation: 90 });
+      })
+    );
+
+    expect(seen[0]).toMatchObject({ sceneUuid: 'cam-group', sceneItemId: 5, isMain: true });
+    expect(obs.lastWrite('cam-group:5')).toEqual(restorableTransform(transform()));
+  });
+
+  it("refuses to move a grouped facecam around the canvas, since it's placed relative to the group", async () => {
+    obs.items.set('main-live', [
+      { sceneItemId: 2, sourceName: 'Camera', sceneItemEnabled: true, groupUuid: 'cam-group' },
+    ]);
+    obs.items.set('cam-group', [
+      { sceneItemId: 5, sourceName: 'Facecam', sceneItemEnabled: true, groupUuid: undefined },
+    ]);
+    const run = vi.fn(() => Promise.resolve());
+
+    await expect(runner.run(effect(run, true))).rejects.toThrow(/inside a group/);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('only uses the main canvas for an effect that uses the canvas size', async () => {
     let seen: EffectContext['targets'] = [];
     await runner.run(
       effect((context) => {
@@ -161,7 +205,9 @@ describe('FacecamEffectRunner', () => {
 
   it('uses the configured source name', async () => {
     settings = { facecamSource: 'Cam' };
-    obs.items.set('main-live', [{ sceneItemId: 9, sourceName: 'Cam', sceneItemEnabled: true }]);
+    obs.items.set('main-live', [
+      { sceneItemId: 9, sourceName: 'Cam', sceneItemEnabled: true, groupUuid: undefined },
+    ]);
 
     let seen: EffectContext['targets'] = [];
     await runner.run(

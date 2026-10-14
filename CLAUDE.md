@@ -95,7 +95,8 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 
 ### Stream Breaks
 - **Lifecycle**: `packages/backend/src/breaks/BreakService.ts` — starts/extends/ends breaks; listens for `twitch.ad.break`; emits `stream.break.started`/`.ended`
-- **OBS overlay**: `packages/backend/src/breaks/ObsBreakOverlay.ts` — snapshot/apply/restore across all canvases and scenes
+- **OBS overlay**: `packages/backend/src/breaks/ObsBreakOverlay.ts` — snapshot/apply/restore across all canvases, scenes and groups
+- **OBS scene walking**: `packages/backend/src/integrations/implementations/obs/sceneGraph.ts` — every scene on every canvas, and every item in a scene including inside its groups (shared by breaks and effects)
 - **Ad pre-warnings**: `packages/backend/src/breaks/AdWarningScheduler.ts`
 - **Settings**: `packages/backend/src/breaks/breakSettings.ts` (schema and defaults, `BREAK_SETTINGS`), stored under the `breaks` key via `database/repositories/SettingsRepository.ts`
 - **Manual trigger**: `packages/backend/src/commands/implementations/BreakCommand.ts` (`!break`)
@@ -337,8 +338,9 @@ only the chat wording differs per platform (`PerPlatformMessage`). Twitch ad bre
 (`channel.ad_break.begin` → `twitch.ad.break`) start one automatically, and `!break` starts one by
 hand. A trigger during a running break extends it rather than starting another, so the OBS snapshot
 is always of the pre-break state. `ObsBreakOverlay` sets absolute states from that snapshot (never
-`ToggleInputMute`-style toggles) and covers every scene on every canvas, which keeps the Aitum
-Vertical canvas in step and makes a mid-break scene switch harmless. `AdWarningScheduler` warns chat
+`ToggleInputMute`-style toggles) and covers every scene on every canvas, including items inside
+groups, which keeps the Aitum Vertical canvas in step and makes a mid-break scene switch harmless.
+A canvas or group that can't be read is skipped and logged, so the rest is still covered. `AdWarningScheduler` warns chat
 ahead of Twitch's scheduled ads, re-reading the schedule before each warning because snoozes and
 manual ads move it. Shutdown ends a running break before stopping integrations, so OBS is still
 connected to restore it, and `BreakService` refuses new breaks once stopped. Chat fan-out goes through `StreamControlService.announce()`, which
@@ -377,9 +379,12 @@ mid-animation state as the "original" — finds the facecam afresh for each one,
 facecam where it was. Filters an effect adds are removed the same way. A run rejects when it can't
 play (OBS down, no facecam), which makes `RewardRouter` refund the redemption.
 
-The facecam is found by source name (the `effects` setting) in the main canvas's program scene and,
-on every other canvas, in the first scene that contains it: obs-websocket has no "current scene" for
-a non-main canvas. Effects animate on elapsed time, not frame counts, so a slow OBS drops frames
+The facecam is found by source name (the `effects` setting), placed directly or inside a group, in
+the main canvas's program scene and, on every other canvas, in the first scene that contains it:
+obs-websocket reports no program scene for a non-main canvas. An item inside a group is addressed
+through the group's UUID, and its position is relative to the group, so an effect that moves it in
+canvas coordinates (`usesCanvasSize`, the screensaver) plays on the main canvas only and refuses a
+grouped facecam. Effects animate on elapsed time, not frame counts, so a slow OBS drops frames
 rather than slowing down, and they assume the facecam is unrotated and has no bounding box.
 
 ### Sound

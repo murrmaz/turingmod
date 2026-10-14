@@ -28,7 +28,7 @@ export class YouTubeHandler {
    */
   handleGoLive(message: IWebSocketMessage<EmptyPayload>): Promise<IWebSocketMessage | null> {
     this.logger.info('Go-live requested from the console');
-    this.chatIntegration.requestResolve('console');
+    this.chatIntegration.connectChat('console');
 
     return Promise.resolve(
       createYouTubeChatStateMessage(this.chatIntegration.getState(), message.id)
@@ -40,7 +40,7 @@ export class YouTubeHandler {
    */
   handleGoOffline(message: IWebSocketMessage<EmptyPayload>): Promise<IWebSocketMessage | null> {
     this.logger.info('Go-offline requested from the console');
-    this.chatIntegration.requestStop('console');
+    this.chatIntegration.disconnectChat('console');
 
     return Promise.resolve(
       createYouTubeChatStateMessage(this.chatIntegration.getState(), message.id)

@@ -252,6 +252,15 @@ export class ObsIntegration extends BaseIntegration {
     return sceneUuid;
   }
 
+  // ── Stream Output ─────────────────────────────────────────────────────
+
+  /** Whether OBS's stream output is running (live, or reconnecting to the ingest server). */
+  async isStreaming(): Promise<boolean> {
+    this.ensureConnected();
+    const { outputActive } = await this.obs.call('GetStreamStatus');
+    return outputActive;
+  }
+
   // ── Filter Management ─────────────────────────────────────────────────
 
   /**

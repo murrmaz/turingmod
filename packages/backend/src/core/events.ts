@@ -36,6 +36,8 @@ export interface EventMap {
 
   'stream.break.started': StreamBreakEvent;
   'stream.break.ended': StreamBreakEvent;
+  /** The streaming software started or stopped sending the stream out (see ObsStreamState). */
+  'stream.output.changed': StreamOutputEvent;
 
   'twitch.follow': TwitchFollowEvent;
   'twitch.subscribe': TwitchSubscribeEvent;
@@ -187,6 +189,14 @@ export interface RewardRedemption {
 export interface TwitchAuthorizationRevokedEvent {
   /** The EventSub revocation status, or `api-call-unauthorized` for a 401 from Helix. */
   reason: string;
+}
+
+export interface StreamOutputEvent {
+  /**
+   * True when the stream started going out. That says nothing about which platforms receive it,
+   * so a platform treats it as a reason to look for its own broadcast, not as proof of one.
+   */
+  streaming: boolean;
 }
 
 export interface YouTubeChatStateEvent {

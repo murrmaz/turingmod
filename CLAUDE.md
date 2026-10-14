@@ -93,6 +93,10 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Clip collection**: `chat/clips/ClipCollector.ts`
 - **Lurk list**: `chat/lurk/LurkTracker.ts` (in memory; welcomes lurkers back when they chat)
 
+### Going Live
+- **OBS stream state**: `packages/backend/src/live/ObsStreamState.ts` — whether OBS is streaming; publishes `stream.output.changed`, platform-neutral
+- **YouTube chat auto-connect**: `packages/backend/src/live/YouTubeChatAutoConnect.ts` — connects YouTube chat while OBS streams
+
 ### Stream Breaks
 - **Lifecycle**: `packages/backend/src/breaks/BreakService.ts` — starts/extends/ends breaks; listens for `twitch.ad.break`; emits `stream.break.started`/`.ended`
 - **OBS overlay**: `packages/backend/src/breaks/ObsBreakOverlay.ts` — snapshot/apply/restore across all canvases, scenes and groups
@@ -236,7 +240,7 @@ own their provider for their lifetime and cannot be re-pointed.
 
 `YouTubeChatStream` requests it with `responseType: 'stream'` and `timeout: 0`, then splits the body with `JsonFrameParser` (`parseJsonFrames.ts`). Both details are load-bearing. Awaiting the ordinary overload buffers the whole response, so messages would only arrive once the broadcast ended; any timeout would cut a multi-hour stream short. Discovery types the response as a single `LiveChatMessageListResponse` — a code-generator artifact, since the generator emits `response.$ref` identically for unary and streaming methods — so that type describes **one frame** and says nothing about how frames are delimited. `JsonFrameParser` therefore scans for balanced top-level objects instead of assuming a delimiter, which decodes a chunked JSON array, newline-delimited JSON, and bare concatenated objects alike.
 
-`YouTubeChatIntegration` has no periodic timers. It idles until a go-live signal — OBS's `obs.stream.stateChanged` (`OBS_WEBSOCKET_OUTPUT_STARTED`), or a `youtube.goLive` message from the console — then resolves the broadcast's `liveChatId` with a bounded retry (a broadcast doesn't expose one until YouTube transitions it to `live`) and opens the stream. Its `idle → resolving → streaming` transitions are broadcast to the frontend as `YOUTUBE_CHAT_STATE`.
+`YouTubeChatIntegration` has no periodic timers and doesn't decide when the broadcaster is live. It idles until `connectChat()` is called — by `YouTubeChatAutoConnect` (see Going Live), or by a `youtube.goLive` message from the console — then resolves the broadcast's `liveChatId` with a bounded retry (a broadcast doesn't expose one until YouTube transitions it to `live`) and opens the stream. Its `idle → resolving → streaming` transitions are broadcast to the frontend as `YOUTUBE_CHAT_STATE`.
 
 OAuth-capable integrations (`TwitchAuthIntegration`, `SpotifyAuthIntegration`, `YouTubeAuthIntegration`) extend `OAuthIntegration<TConfig>` (`integrations/OAuthIntegration.ts`), which implements `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and returns itself from the `get oauth()` getter (`null` on `BaseIntegration` by default). That getter is the single source of truth for OAuth capability — `OAuthFlowService` derives callback routing and the frontend's OAuth affordance from it instead of checking integration names.
 
@@ -330,6 +334,20 @@ broadcaster's token state doesn't belong.
 `PlatformAvailability` re-checks every façade's `getUnavailableReason()` on each integration status
 change and publishes only transitions, so a feature like `RewardSync` ("Twitch is back, sync
 rewards") never needs to know which integration name decides a platform's availability.
+
+### Going Live
+
+Some platforms need telling that a stream has started. YouTube chat belongs to one broadcast, and
+YouTube can't notify a localhost server that one began; Twitch needs nothing, since its chat
+subscription is per channel and it announces going live itself (`twitch.stream.online`). The
+signal is split in two so a future per-broadcast platform reuses it. `ObsStreamState` knows
+whether OBS is streaming and publishes `stream.output.changed`, with no knowledge of platforms; it
+asks OBS directly whenever OBS connects, since a transition missed while disconnected (TuringMod
+starting mid-stream) produces no event. Each platform that needs it reacts in its own service:
+`YouTubeChatAutoConnect` connects chat on that event, and also when YouTube chat itself comes up
+while OBS is already streaming (after a restart, or a login recovering mid-stream). OBS streaming
+doesn't mean every platform is live, so a platform treats the signal as a reason to look for its
+broadcast, bounded in time, not as proof of one.
 
 ### Stream Breaks
 

@@ -35,6 +35,8 @@ import { YouTubeApiIntegration } from './integrations/implementations/youtube/Yo
 import { YouTubeAuthIntegration } from './integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import { YouTubeChatIntegration } from './integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { OAuthFlowService } from './integrations/OAuthFlowService.js';
+import { ObsStreamState } from './live/ObsStreamState.js';
+import { YouTubeChatAutoConnect } from './live/YouTubeChatAutoConnect.js';
 import { PlatformAvailability } from './platforms/PlatformAvailability.js';
 import { PlatformRegistry } from './platforms/PlatformRegistry.js';
 import { TwitchPlatform } from './platforms/TwitchPlatform.js';
@@ -220,6 +222,10 @@ export async function initializeComponents(): Promise<void> {
   services.add(container.resolve(IntervalAnnouncer));
   services.add(container.resolve(ClipCollector));
   services.add(container.resolve(LurkTracker));
+  // Go-live: whether OBS is streaming, and connecting YouTube chat (which exists per broadcast)
+  // while it is.
+  services.add(container.resolve(ObsStreamState));
+  services.add(container.resolve(YouTubeChatAutoConnect));
   // Triggers: raids, channel point redemptions, and chat (gated to drop TuringMod's own messages,
   // then moderated, parsed and executed).
   services.add(container.resolve(RaidShoutout));

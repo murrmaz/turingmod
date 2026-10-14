@@ -20,7 +20,8 @@
     "declarationMap": true,
     "sourceMap": true,
     "removeComments": false,
-    "importHelpers": true,
+    // No importHelpers: emitted helpers (the backend's __decorate/__metadata) are inlined per file,
+    // rather than imported from tslib, which no package declares.
 
     // Interop Constraints
     "esModuleInterop": true,

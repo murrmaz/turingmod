@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { IntegrationStatus, toError } from '@turingmod/shared';
+import { z } from 'zod';
 import type { Logger } from '../utils/Logger.js';
 import {
   DependencyFailurePolicy,
@@ -7,6 +8,9 @@ import {
   type IntegrationEvents,
 } from './interfaces/IIntegration.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
+
+/** The config of an integration that has none. */
+const NO_CONFIG = z.strictObject({});
 
 /**
  * Shared status/error/event-emitter plumbing for IIntegration implementations.
@@ -32,7 +36,16 @@ export abstract class BaseIntegration implements IIntegration {
     this.logger = logger.child(loggerContext);
   }
 
-  abstract initialize(config: Record<string, unknown>): Promise<void>;
+  /**
+   * Apply the stored config. This one is for an integration with no config, so anything stored
+   * for it is a mistake; an integration that has one overrides it to parse against its schema
+   * with parseConfig().
+   */
+  initialize(stored: unknown): Promise<void> {
+    this.parseConfig(NO_CONFIG, stored);
+    return Promise.resolve();
+  }
+
   abstract start(): Promise<void>;
   abstract stop(): Promise<void>;
 
@@ -74,6 +87,19 @@ export abstract class BaseIntegration implements IIntegration {
   ): void {
     // EventEmitter's own on() can't relate a generic K to its listener type.
     this.events.on(event, handler as (...args: unknown[]) => void);
+  }
+
+  /**
+   * Check a stored config against `schema`, throwing an error that names every field that was
+   * wrong. Called from initialize(), so a bad config fails when it is loaded or saved rather than
+   * at whatever later moment first reads the bad field.
+   */
+  protected parseConfig<T>(schema: z.ZodType<T>, stored: unknown): T {
+    const result = schema.safeParse(stored);
+    if (!result.success) {
+      throw new Error(`Invalid ${this.name} config:\n${z.prettifyError(result.error)}`);
+    }
+    return result.data;
   }
 
   /**

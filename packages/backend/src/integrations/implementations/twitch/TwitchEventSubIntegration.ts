@@ -10,6 +10,7 @@ import type { RefreshingAuthProvider } from '@twurple/auth';
 import type { EventSubChannelChatMessageEvent } from '@twurple/eventsub-base';
 import { EventSubWsListener } from '@twurple/eventsub-ws';
 import { injectable, singleton } from 'tsyringe';
+import { z } from 'zod';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
@@ -18,16 +19,19 @@ import { TwitchApiIntegration } from './TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
 /** The EventSub topics TuringMod can subscribe to. */
-export type EventSubTopic =
-  | 'channelChatMessage'
-  | 'channelFollow'
-  | 'channelSubscribe'
-  | 'channelRaid'
-  | 'channelCheer'
-  | 'streamOnline'
-  | 'streamOffline'
-  | 'adBreakBegin'
-  | 'channelPointRedemption';
+export const EventSubTopicSchema = z.enum([
+  'channelChatMessage',
+  'channelFollow',
+  'channelSubscribe',
+  'channelRaid',
+  'channelCheer',
+  'streamOnline',
+  'streamOffline',
+  'adBreakBegin',
+  'channelPointRedemption',
+]);
+
+export type EventSubTopic = z.infer<typeof EventSubTopicSchema>;
 
 /**
  * Which topics are on when the saved config doesn't say. A topic is on when something uses it
@@ -51,11 +55,14 @@ export const DEFAULT_EVENTSUB_TOPICS: Readonly<Record<EventSubTopic, boolean>> =
 /**
  * Twitch EventSub Configuration
  */
-export interface TwitchEventSubConfig {
-  broadcasterName: string;
+export const TwitchEventSubConfigSchema = z.strictObject({
+  /** The channel to listen to. Omitted = the authenticated user's own channel. */
+  broadcasterName: z.string().min(1).exactOptional(),
   /** Overrides of DEFAULT_EVENTSUB_TOPICS; a topic left out keeps its default. */
-  subscriptions: Partial<Record<EventSubTopic, boolean>>;
-}
+  subscriptions: z.partialRecord(EventSubTopicSchema, z.boolean()).exactOptional(),
+});
+
+export type TwitchEventSubConfig = z.infer<typeof TwitchEventSubConfigSchema>;
 
 /**
  * Twitch EventSub Integration
@@ -75,7 +82,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   readonly name = 'twitch-eventsub';
 
   private eventSubListener: EventSubWsListener | null = null;
-  private config: TwitchEventSubConfig | null = null;
+  private config: TwitchEventSubConfig = {};
   private broadcasterId: string | null = null;
   private authProvider: RefreshingAuthProvider | null = null;
   private apiClient: ApiClient | null = null;
@@ -100,17 +107,8 @@ export class TwitchEventSubIntegration extends BaseIntegration {
     return IntegrationGroup.TWITCH;
   }
 
-  initialize(config: Record<string, unknown>): Promise<void> {
-    this.logger.info('Initializing Twitch EventSub integration');
-
-    this.config = config as unknown as TwitchEventSubConfig;
-
-    // Validate config
-    if (!this.config.broadcasterName) {
-      throw new Error('broadcasterName is required');
-    }
-
-    this.logger.info('Twitch EventSub integration initialized');
+  override initialize(stored: unknown): Promise<void> {
+    this.config = this.parseConfig(TwitchEventSubConfigSchema, stored);
     return Promise.resolve();
   }
 
@@ -132,7 +130,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
 
       // Get broadcaster user - use config if available, otherwise resolve from authenticated user
       let broadcaster: HelixUser;
-      if (this.config?.broadcasterName) {
+      if (this.config.broadcasterName) {
         const broadcasterName = this.config.broadcasterName;
         const result = await this.apiIntegration.request((c) =>
           c.users.getUserByName(broadcasterName)
@@ -184,14 +182,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       // Start listening
       await this.eventSubListener.start();
 
-      // Build subscription config from saved config or use defaults
-      const subscriptionConfig: TwitchEventSubConfig = this.config ?? {
-        broadcasterName: broadcaster.name,
-        subscriptions: {},
-      };
-
-      // Subscribe to configured events
-      await this.subscribeToEvents(subscriptionConfig, broadcaster.id);
+      await this.subscribeToEvents(this.config.subscriptions ?? {}, broadcaster.id);
 
       this.setStatus(IntegrationStatus.CONNECTED);
       this.logger.info('Twitch EventSub integration started successfully');
@@ -226,15 +217,15 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   }
 
   /**
-   * Subscribe to EventSub events based on configuration
+   * Subscribe to the default topics, as overridden by the stored config
    */
   private async subscribeToEvents(
-    config: TwitchEventSubConfig,
+    overrides: Partial<Record<EventSubTopic, boolean>>,
     broadcasterId: string
   ): Promise<void> {
     if (!this.eventSubListener) return;
 
-    const subscriptions = { ...DEFAULT_EVENTSUB_TOPICS, ...config.subscriptions };
+    const subscriptions = { ...DEFAULT_EVENTSUB_TOPICS, ...overrides };
 
     // Channel Chat Message (for commands and chat)
     if (subscriptions.channelChatMessage) {

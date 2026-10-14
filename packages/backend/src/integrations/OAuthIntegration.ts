@@ -1,4 +1,5 @@
 import { IntegrationStatus, messageOf } from '@turingmod/shared';
+import { z } from 'zod';
 import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import type { TuringModConfig } from '../utils/Config.js';
 import type { Logger } from '../utils/Logger.js';
@@ -6,19 +7,18 @@ import { BaseIntegration } from './BaseIntegration.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 
 /**
- * Stored config shared by every OAuth-capable integration, extended with the
- * provider's own token fields (e.g. expiresIn vs Google's expiryDate).
- *
- * Requested scopes aren't stored: they're always the integration's required
- * set. Configs saved before that may still carry a `scopes` field, and older
- * ones a `redirectUri`; nothing reads either.
+ * Stored config shared by every OAuth-capable integration. Each provider's schema extends it with
+ * its own token fields (e.g. expiresIn vs Google's expiryDate). Requested scopes aren't stored:
+ * they're always the integration's required set.
  */
-export interface OAuthConfigBase {
-  clientId: string;
-  clientSecret: string;
+export const OAuthConfigBaseSchema = z.strictObject({
+  clientId: z.string().min(1),
+  clientSecret: z.string().min(1),
   /** What the provider actually granted with the current token. Absent until the first grant. */
-  grantedScopes?: string[];
-}
+  grantedScopes: z.array(z.string()).exactOptional(),
+});
+
+export type OAuthConfigBase = z.infer<typeof OAuthConfigBaseSchema>;
 
 /**
  * The loopback host a provider accepts plain-HTTP redirects to. Each accepts
@@ -32,7 +32,7 @@ export type LoopbackHost = 'localhost' | '127.0.0.1';
  * in its stored config, and takes part in the authorization-code flow that
  * OAuthFlowService drives.
  *
- * The base owns what doesn't vary by provider — credential validation, the
+ * The base owns what doesn't vary by provider — parsing the stored config, the
  * redirect URI, persisting tokens, and the checks before connecting (no token
  * yet, or a grant missing a required scope). A subclass declares its scopes,
  * callback path and redirect host, and implements what its provider or SDK
@@ -48,6 +48,8 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
   /** The HTTP path the provider redirects back to, e.g. '/callback/twitch'. */
   protected abstract readonly callbackPath: string;
   protected abstract readonly redirectHost: LoopbackHost;
+  /** What this provider's stored config must look like. */
+  protected abstract readonly configSchema: z.ZodType<TConfig>;
 
   protected config: TConfig | null = null;
 
@@ -64,12 +66,8 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
     return this;
   }
 
-  initialize(config: Record<string, unknown>): Promise<void> {
-    const typed = config as unknown as TConfig;
-    if (!(typed.clientId && typed.clientSecret)) {
-      throw new Error('Missing clientId or clientSecret in configuration');
-    }
-    this.config = typed;
+  override initialize(stored: unknown): Promise<void> {
+    this.config = this.parseConfig(this.configSchema, stored);
     return Promise.resolve();
   }
 
@@ -128,8 +126,9 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
     return [...this.requiredScopes];
   }
 
+  /** Whether client credentials have been saved: the schema doesn't admit a config without them. */
   isConfigured(): boolean {
-    return Boolean(this.config?.clientId && this.config.clientSecret);
+    return this.config !== null;
   }
 
   getCallbackPath(): string {
@@ -180,7 +179,7 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
    */
   protected saveTokens(patch: Partial<TConfig>): void {
     this.config = { ...this.requireConfig(), ...patch };
-    this.stateRepo.upsert(this.name, this.config as unknown as Record<string, unknown>, true);
+    this.stateRepo.upsert(this.name, this.config, true);
   }
 
   /**

@@ -192,11 +192,6 @@ export class YouTubeChatIntegration extends BaseIntegration {
     return IntegrationGroup.YOUTUBE;
   }
 
-  initialize(_config: Record<string, unknown>): Promise<void> {
-    this.logger.info('YouTube Chat integration initialized (no config needed)');
-    return Promise.resolve();
-  }
-
   start(): Promise<void> {
     this.logger.debug('Starting YouTube Chat integration');
     this.setStatus(IntegrationStatus.CONNECTING);

@@ -1,19 +1,23 @@
 import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
+import { z } from 'zod';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
 import { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
-import { type OAuthConfigBase, OAuthIntegration, parseScopes } from '../../OAuthIntegration.js';
+import { OAuthConfigBaseSchema, OAuthIntegration, parseScopes } from '../../OAuthIntegration.js';
 
 /**
  * Spotify Auth Configuration
  */
-export interface SpotifyAuthConfig extends OAuthConfigBase {
-  accessToken?: string;
-  refreshToken?: string;
-  expiresIn?: number;
-  obtainmentTimestamp?: number;
-}
+export const SpotifyAuthConfigSchema = OAuthConfigBaseSchema.extend({
+  accessToken: z.string().exactOptional(),
+  refreshToken: z.string().exactOptional(),
+  /** Seconds the access token was issued for. */
+  expiresIn: z.number().exactOptional(),
+  obtainmentTimestamp: z.number().exactOptional(),
+});
+
+export type SpotifyAuthConfig = z.infer<typeof SpotifyAuthConfigSchema>;
 
 /**
  * Required OAuth scopes for the Spotify integration.
@@ -57,6 +61,7 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
   protected readonly callbackPath = '/callback/spotify';
   /** Spotify accepts plain-HTTP redirects only to the literal loopback IP, not `localhost`. */
   protected readonly redirectHost = '127.0.0.1';
+  protected readonly configSchema = SpotifyAuthConfigSchema;
 
   /** The refresh in flight, shared by every caller that needs one meanwhile. */
   private refreshing: Promise<string> | null = null;

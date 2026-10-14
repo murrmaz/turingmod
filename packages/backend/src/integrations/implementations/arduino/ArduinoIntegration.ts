@@ -20,12 +20,6 @@ export class ArduinoIntegration extends BaseIntegration {
     super(logger, { component: 'ArduinoIntegration' });
   }
 
-  initialize(_config: Record<string, unknown>): Promise<void> {
-    this.logger.debug('Arduino integration initialized (placeholder)');
-    // TODO: Initialize serial port connection
-    return Promise.resolve();
-  }
-
   start(): Promise<void> {
     // Not implemented yet, so it stays DISCONNECTED rather than claiming a connection.
     this.logger.info('Arduino integration is not implemented yet');

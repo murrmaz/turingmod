@@ -6,11 +6,6 @@ import { BaseIntegration } from '../../BaseIntegration.js';
 import { DependencyFailurePolicy, type IIntegration } from '../../interfaces/IIntegration.js';
 import { SpotifyAuthIntegration } from './SpotifyAuthIntegration.js';
 
-/**
- * Spotify API Configuration
- */
-export type SpotifyApiConfig = Record<string, unknown>;
-
 /** A Spotify Web API call answered with a non-2xx status. */
 export class SpotifyHttpError extends Error {
   constructor(
@@ -69,11 +64,6 @@ export class SpotifyApiIntegration extends BaseIntegration {
 
   getGroup(): IntegrationGroup {
     return IntegrationGroup.SPOTIFY;
-  }
-
-  initialize(_config: Record<string, unknown>): Promise<void> {
-    this.logger.debug('Spotify API integration initialized (no config needed)');
-    return Promise.resolve();
   }
 
   start(): Promise<void> {

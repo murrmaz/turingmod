@@ -1,14 +1,16 @@
 import 'reflect-metadata';
 import { IntegrationStatus } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import type { TuringModConfig } from '../utils/Config.js';
 import { Logger } from '../utils/Logger.js';
-import { type OAuthConfigBase, OAuthIntegration, parseScopes } from './OAuthIntegration.js';
+import { OAuthConfigBaseSchema, OAuthIntegration, parseScopes } from './OAuthIntegration.js';
 
-interface TestConfig extends OAuthConfigBase {
-  accessToken?: string;
-}
+const TestConfigSchema = OAuthConfigBaseSchema.extend({
+  accessToken: z.string().exactOptional(),
+});
+type TestConfig = z.infer<typeof TestConfigSchema>;
 
 /** A provider whose connect() and re-auth classification the test controls. */
 class TestOAuthIntegration extends OAuthIntegration<TestConfig> {
@@ -16,6 +18,7 @@ class TestOAuthIntegration extends OAuthIntegration<TestConfig> {
   protected readonly requiredScopes = ['read', 'write'];
   protected readonly callbackPath = '/callback/test';
   protected readonly redirectHost = '127.0.0.1';
+  protected readonly configSchema = TestConfigSchema;
 
   connectImpl = vi.fn((_config: TestConfig) => Promise.resolve());
   reauthErrors = new Set<unknown>();
@@ -63,6 +66,15 @@ describe('OAuthIntegration', () => {
     const integration = new TestOAuthIntegration();
 
     expect(() => integration.initialize({ clientId: 'id' })).toThrow(/clientSecret/);
+    expect(integration.isConfigured()).toBe(false);
+  });
+
+  it('rejects a config carrying a field its schema does not declare', () => {
+    const integration = new TestOAuthIntegration();
+
+    expect(() =>
+      integration.initialize({ ...CREDENTIALS, redirectUri: 'http://localhost:8080/callback' })
+    ).toThrow(/redirectUri/);
     expect(integration.isConfigured()).toBe(false);
   });
 

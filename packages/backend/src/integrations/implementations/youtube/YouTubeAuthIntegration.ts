@@ -1,20 +1,23 @@
 import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
 import { google } from 'googleapis';
 import { injectable, singleton } from 'tsyringe';
+import { z } from 'zod';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
 import { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
-import { type OAuthConfigBase, OAuthIntegration, parseScopes } from '../../OAuthIntegration.js';
+import { OAuthConfigBaseSchema, OAuthIntegration, parseScopes } from '../../OAuthIntegration.js';
 
 /**
  * YouTube Auth Configuration
  */
-export interface YouTubeAuthConfig extends OAuthConfigBase {
-  accessToken?: string;
-  refreshToken?: string;
+export const YouTubeAuthConfigSchema = OAuthConfigBaseSchema.extend({
+  accessToken: z.string().exactOptional(),
+  refreshToken: z.string().exactOptional(),
   /** Absolute token expiry as a Unix ms timestamp (Google's expiry_date). */
-  expiryDate?: number;
-}
+  expiryDate: z.number().exactOptional(),
+});
+
+export type YouTubeAuthConfig = z.infer<typeof YouTubeAuthConfigSchema>;
 
 /**
  * Required OAuth scopes for the YouTube integration.
@@ -54,6 +57,7 @@ export class YouTubeAuthIntegration extends OAuthIntegration<YouTubeAuthConfig> 
   // which can trigger client-firewall issues. This matches Spotify, and differs from Twitch (which
   // requires `localhost`).
   protected readonly redirectHost = '127.0.0.1';
+  protected readonly configSchema = YouTubeAuthConfigSchema;
 
   private oauth2Client: YouTubeOAuth2Client | null = null;
 

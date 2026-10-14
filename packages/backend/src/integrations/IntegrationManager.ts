@@ -88,13 +88,6 @@ export class IntegrationManager {
         status,
       });
 
-      // The integration owns its status; this is the one place it gets
-      // persisted. Writing it from startIntegration()/stopIntegration()
-      // instead let the stored row disagree with getStatus() — notably by
-      // recording CONNECTED for an integration that had set something else
-      // during start().
-      this.persistStatus(integration);
-
       void this.onDependencyStatusChange(integration.name, status);
     });
 
@@ -221,8 +214,7 @@ export class IntegrationManager {
     const blockedReason = this.getBlockedReason(integration);
     if (blockedReason) {
       // Not an error: nothing about this integration is broken, a
-      // prerequisite simply isn't connected. reportBlocked() persists via the
-      // status listener, so no error row is written for a healthy integration.
+      // prerequisite simply isn't connected.
       integration.reportBlocked(blockedReason);
       throw new DependencyBlockedError(blockedReason);
     }
@@ -238,15 +230,13 @@ export class IntegrationManager {
     try {
       await this.withStartTimeout(name, integration.start());
 
-      // No status is written here: the integration set its own during
-      // start(), and the status listener persisted it.
+      // No status is set here: the integration set its own during start().
       this.cascadeStopped.delete(name);
       this.logger.info(`Integration started: ${name}`);
     } catch (error) {
       this.logger.error(`Failed to start integration: ${name}`, error);
-      // reportError() persists through the status listener. Integrations
-      // normally set ERROR themselves; this covers a start() that threw
-      // before doing so, and keeps the stored status consistent either way.
+      // Integrations normally set ERROR themselves; this covers a start()
+      // that threw before doing so.
       integration.reportError(messageOf(error));
       throw error;
     }
@@ -363,7 +353,7 @@ export class IntegrationManager {
 
     try {
       await integration.stop();
-      // The integration sets DISCONNECTED itself; the status listener persists it.
+      // The integration sets DISCONNECTED itself.
       this.logger.info(`Integration stopped: ${name}`);
     } catch (error) {
       this.logger.error(`Failed to stop integration: ${name}`, error);
@@ -528,22 +518,6 @@ export class IntegrationManager {
     } catch (error) {
       this.logger.error(`Could not read enabled state for ${name}`, error);
       return false;
-    }
-  }
-
-  /**
-   * Persist an integration's current status. Single writer, driven by the
-   * integration's own 'status' event.
-   */
-  private persistStatus(integration: IIntegration): void {
-    try {
-      this.stateRepository.updateStatus(
-        integration.name,
-        integration.getStatus(),
-        integration.getErrorMessage()
-      );
-    } catch (error) {
-      this.logger.error(`Failed to persist status for ${integration.name}`, error);
     }
   }
 

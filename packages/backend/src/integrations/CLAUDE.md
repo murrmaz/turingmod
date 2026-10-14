@@ -58,9 +58,9 @@ dependencies being CONNECTED, and beyond that the manager reacts to status chang
 - An unmet dependency is reported as `IntegrationStatus.BLOCKED`, not ERROR — nothing is broken, a
   prerequisite is off — via `reportBlocked()`.
 
-**Status is persisted in one place**: the `'status'` listener in `register()`. Integrations own their
-own status; `startIntegration`/`stopIntegration` never write it, so the stored row can't disagree with
-`getStatus()`. (Nothing reads the stored status back yet; the console gets it live.)
+**Integrations own their status**; `startIntegration`/`stopIntegration` never set it, except
+`reportError()` for a `start()` that threw before setting ERROR itself. Status isn't stored: the
+console gets it live, and boot starts what is `enabled`, whatever it last reported.
 
 Startup and shutdown both work in dependency *levels* (`DependencyGraph.levels()`), concurrent within
 a level and reversed for shutdown, with a per-integration start timeout

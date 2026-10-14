@@ -95,7 +95,6 @@ function makeStateRepo(enabled: string[] = []): FakeRepo {
   const enabledSet = new Set(enabled);
   return {
     enabled: enabledSet,
-    updateStatus: vi.fn(),
     saveConfig: vi.fn(),
     setEnabled: vi.fn((name: string, on: boolean) => {
       if (on) enabledSet.add(name);

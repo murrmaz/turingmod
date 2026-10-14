@@ -6,7 +6,7 @@ import { SettingsRepository } from '../database/repositories/SettingsRepository.
 import { SoundIntegration } from '../integrations/implementations/sound/SoundIntegration.js';
 import { Logger } from '../utils/Logger.js';
 import { DATA_DIRECTORY } from '../utils/paths.js';
-import { parseSoundSettings, SOUND_SETTINGS_KEY } from './soundSettings.js';
+import { SOUND_SETTINGS } from './soundSettings.js';
 
 /**
  * Plays sound clips by name. Names are looked up in the library directory (the `sounds`
@@ -69,6 +69,6 @@ export class SoundLibrary {
   }
 
   private settings() {
-    return parseSoundSettings(this.settingsRepo.getJson(SOUND_SETTINGS_KEY));
+    return this.settingsRepo.get(SOUND_SETTINGS);
   }
 }

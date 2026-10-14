@@ -3,6 +3,7 @@ import { container, instanceCachingFactory } from 'tsyringe';
 import { ActivityForwarder } from './activity/ActivityForwarder.js';
 import { AdWarningScheduler } from './breaks/AdWarningScheduler.js';
 import { BreakService } from './breaks/BreakService.js';
+import { BREAK_SETTINGS } from './breaks/breakSettings.js';
 import { IntervalAnnouncer } from './chat/announcements/IntervalAnnouncer.js';
 import { ChatRouter } from './chat/ChatRouter.js';
 import { ClipCollector } from './chat/clips/ClipCollector.js';
@@ -14,6 +15,11 @@ import { EventBus } from './core/EventBus.js';
 import { ServiceLifecycle } from './core/ServiceLifecycle.js';
 import { DatabaseManager } from './database/DatabaseManager.js';
 import { MigrationRunner } from './database/migrations/MigrationRunner.js';
+import {
+  type SettingsDefinition,
+  SettingsRepository,
+} from './database/repositories/SettingsRepository.js';
+import { EFFECT_SETTINGS } from './effects/effectSettings.js';
 import { FacecamEffectRunner } from './effects/FacecamEffectRunner.js';
 import { IntegrationManager } from './integrations/IntegrationManager.js';
 import { ArduinoIntegration } from './integrations/implementations/arduino/ArduinoIntegration.js';
@@ -46,6 +52,7 @@ import { OAuthHandler } from './server/handlers/OAuthHandler.js';
 import { YouTubeHandler } from './server/handlers/YouTubeHandler.js';
 import { MessageRouter } from './server/MessageRouter.js';
 import { WebSocketServer } from './server/WebSocketServer.js';
+import { SOUND_SETTINGS } from './sounds/soundSettings.js';
 import { TuringModConfig } from './utils/Config.js';
 import { Encryption } from './utils/Encryption.js';
 import { Logger } from './utils/Logger.js';
@@ -128,7 +135,21 @@ export async function initializeDatabase(): Promise<void> {
   logger.info('Running database migrations');
   const { ALL_MIGRATIONS } = await import('./database/migrations/index.js');
   container.resolve(MigrationRunner).runMigrations([...ALL_MIGRATIONS]);
+
+  // Read every settings group once, so stored settings that don't fit their schema stop startup
+  // with the bad fields named, instead of failing the first time a feature reads them.
+  const settings = container.resolve(SettingsRepository);
+  for (const definition of ALL_SETTINGS) {
+    settings.get(definition);
+  }
 }
+
+/** Every settings group TuringMod reads. */
+const ALL_SETTINGS: readonly SettingsDefinition<unknown>[] = [
+  BREAK_SETTINGS,
+  SOUND_SETTINGS,
+  EFFECT_SETTINGS,
+];
 
 /**
  * Initialize application components

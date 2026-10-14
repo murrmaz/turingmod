@@ -1,7 +1,10 @@
 import 'reflect-metadata';
 import { IntegrationStatus } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SettingsRepository } from '../database/repositories/SettingsRepository.js';
+import type {
+  SettingsDefinition,
+  SettingsRepository,
+} from '../database/repositories/SettingsRepository.js';
 import type {
   ObsCanvas,
   ObsIntegration,
@@ -108,7 +111,9 @@ describe('FacecamEffectRunner', () => {
     logger = makeLogger();
     runner = new FacecamEffectRunner(
       obs as unknown as ObsIntegration,
-      { getJson: () => settings } as unknown as SettingsRepository,
+      {
+        get: (definition: SettingsDefinition<unknown>) => definition.schema.parse(settings ?? {}),
+      } as unknown as SettingsRepository,
       logger
     );
   });

@@ -8,7 +8,7 @@ import {
 } from '../integrations/implementations/obs/ObsIntegration.js';
 import { listScenesByCanvas } from '../integrations/implementations/obs/scenesByCanvas.js';
 import { Logger } from '../utils/Logger.js';
-import { EFFECT_SETTINGS_KEY, parseEffectSettings } from './effectSettings.js';
+import { EFFECT_SETTINGS } from './effectSettings.js';
 import type { EffectContext, FacecamEffect, FacecamTarget } from './FacecamEffect.js';
 import { restorableTransform } from './transformMath.js';
 
@@ -66,7 +66,7 @@ export class FacecamEffectRunner implements IService {
       throw new Error('OBS is not connected');
     }
 
-    const { facecamSource } = parseEffectSettings(this.settingsRepo.getJson(EFFECT_SETTINGS_KEY));
+    const { facecamSource } = this.settingsRepo.get(EFFECT_SETTINGS);
     const targets = await this.findFacecam(facecamSource, effect.mainCanvasOnly === true);
     if (targets.length === 0) {
       throw new Error(`No "${facecamSource}" source in the current scene`);

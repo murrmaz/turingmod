@@ -1,27 +1,17 @@
-/** `settings` table key the sound settings are stored under. */
-export const SOUND_SETTINGS_KEY = 'sounds';
+import { z } from 'zod';
+import type { SettingsDefinition } from '../database/repositories/SettingsRepository.js';
 
-export interface SoundSettings {
+const SoundSettingsSchema = z.strictObject({
   /** Directory clip names are looked up in; null for the bundled `packages/backend/data`. */
-  directory: string | null;
+  directory: z.string().min(1).nullable().default(null),
   /** Playback volume, 0–1. */
-  volume: number;
-}
+  volume: z.number().min(0).max(1).default(0.5),
+});
 
-export const DEFAULT_SOUND_SETTINGS: SoundSettings = { directory: null, volume: 0.5 };
+export type SoundSettings = z.infer<typeof SoundSettingsSchema>;
 
-/** Read stored settings, keeping valid fields and defaulting the rest. */
-export function parseSoundSettings(raw: unknown): SoundSettings {
-  const record = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
-  const { directory, volume } = record;
-  return {
-    directory:
-      typeof directory === 'string' && directory.trim() !== ''
-        ? directory
-        : DEFAULT_SOUND_SETTINGS.directory,
-    volume:
-      typeof volume === 'number' && volume >= 0 && volume <= 1
-        ? volume
-        : DEFAULT_SOUND_SETTINGS.volume,
-  };
-}
+/** The sound settings, stored under the `sounds` key. */
+export const SOUND_SETTINGS: SettingsDefinition<SoundSettings> = {
+  key: 'sounds',
+  schema: SoundSettingsSchema,
+};

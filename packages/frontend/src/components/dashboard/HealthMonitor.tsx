@@ -25,10 +25,7 @@ function IntegrationLight({ integration }: { integration: IntegrationInfo }) {
   }
 
   return (
-    <Badge
-      color={getStatusColor(integration.status)}
-      nativeAttributes={title ? { title } : undefined}
-    >
+    <Badge color={getStatusColor(integration.status)} nativeAttributes={{ title }}>
       {integration.name}
     </Badge>
   );

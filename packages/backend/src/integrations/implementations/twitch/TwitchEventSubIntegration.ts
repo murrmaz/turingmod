@@ -17,22 +17,44 @@ import type { IIntegration } from '../../interfaces/IIntegration.js';
 import { TwitchApiIntegration } from './TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
+/** The EventSub topics TuringMod can subscribe to. */
+export type EventSubTopic =
+  | 'channelChatMessage'
+  | 'channelFollow'
+  | 'channelSubscribe'
+  | 'channelRaid'
+  | 'channelCheer'
+  | 'streamOnline'
+  | 'streamOffline'
+  | 'adBreakBegin'
+  | 'channelPointRedemption';
+
+/**
+ * Which topics are on when the saved config doesn't say. A topic is on when something uses it
+ * or nearly every streamer wants it: chat, raids (raid shoutouts), ad breaks (stream breaks),
+ * redemptions (reward handlers), stream.online (ad warnings re-read the schedule), and follows
+ * and subs, which every streamer wants to see and thank. Cheers stay off because they also need
+ * `bits:read`, which TWITCH_REQUIRED_SCOPES doesn't request.
+ */
+export const DEFAULT_EVENTSUB_TOPICS: Readonly<Record<EventSubTopic, boolean>> = {
+  channelChatMessage: true,
+  channelFollow: true,
+  channelSubscribe: true,
+  channelRaid: true,
+  channelCheer: false,
+  streamOnline: true,
+  streamOffline: false,
+  adBreakBegin: true,
+  channelPointRedemption: true,
+};
+
 /**
  * Twitch EventSub Configuration
  */
 export interface TwitchEventSubConfig {
   broadcasterName: string;
-  subscriptions: {
-    channelChatMessage?: boolean;
-    channelFollow?: boolean;
-    channelSubscribe?: boolean;
-    channelRaid?: boolean;
-    channelCheer?: boolean;
-    streamOnline?: boolean;
-    streamOffline?: boolean;
-    adBreakBegin?: boolean;
-    channelPointRedemption?: boolean;
-  };
+  /** Overrides of DEFAULT_EVENTSUB_TOPICS; a topic left out keeps its default. */
+  subscriptions: Partial<Record<EventSubTopic, boolean>>;
 }
 
 /**
@@ -212,10 +234,10 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   ): Promise<void> {
     if (!this.eventSubListener) return;
 
-    const subscriptions = config.subscriptions || {};
+    const subscriptions = { ...DEFAULT_EVENTSUB_TOPICS, ...config.subscriptions };
 
     // Channel Chat Message (for commands and chat)
-    if (subscriptions.channelChatMessage !== false) {
+    if (subscriptions.channelChatMessage) {
       await this.eventSubListener.onChannelChatMessage(broadcasterId, broadcasterId, (event) => {
         this.handleChatMessage(event);
       });
@@ -249,8 +271,8 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info('Subscribed to channel.subscribe');
     }
 
-    // Channel Raid — on unless explicitly disabled, since raid shoutouts are driven by it
-    if (subscriptions.channelRaid !== false) {
+    // Channel Raid
+    if (subscriptions.channelRaid) {
       await this.eventSubListener.onChannelRaidTo(broadcasterId, (event) => {
         this.eventBus.emit('twitch.raid', {
           fromBroadcasterId: event.raidingBroadcasterId,
@@ -262,8 +284,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info('Subscribed to channel.raid');
     }
 
-    // Channel Cheer. Off by default; turning it on also needs `bits:read` added to
-    // TWITCH_REQUIRED_SCOPES, which isn't requested until then.
+    // Channel Cheer. Turning it on also needs `bits:read` added to TWITCH_REQUIRED_SCOPES.
     if (subscriptions.channelCheer) {
       await this.eventSubListener.onChannelCheer(broadcasterId, (event) => {
         this.eventBus.emit('twitch.cheer', {
@@ -302,8 +323,8 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info('Subscribed to stream.offline');
     }
 
-    // Ad Break Begin — on unless explicitly disabled, since stream breaks are driven by it
-    if (subscriptions.adBreakBegin !== false) {
+    // Ad Break Begin
+    if (subscriptions.adBreakBegin) {
       await this.eventSubListener.onChannelAdBreakBegin(broadcasterId, (event) => {
         this.eventBus.emit('twitch.ad.break', {
           durationSeconds: event.durationSeconds,
@@ -317,9 +338,8 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info('Subscribed to channel.ad_break.begin');
     }
 
-    // Channel Point Redemption — on unless explicitly disabled, since reward handlers are driven
-    // by it
-    if (subscriptions.channelPointRedemption !== false) {
+    // Channel Point Redemption
+    if (subscriptions.channelPointRedemption) {
       await this.eventSubListener.onChannelRedemptionAdd(broadcasterId, (event) => {
         this.eventBus.emit('twitch.channelPoint.redemption', {
           id: event.id,

@@ -48,33 +48,6 @@ export class EventBus {
   }
 
   /**
-   * Subscribe to an event for one-time execution
-   * Handler will be automatically unsubscribed after first invocation
-   */
-  once<K extends EventName>(event: K, handler: EventHandler<K>): () => void {
-    const wrappedHandler = (data: EventMap[K]) => {
-      unsubscribe();
-      return handler(data);
-    };
-
-    const unsubscribe = this.on(event, wrappedHandler);
-    return unsubscribe;
-  }
-
-  /**
-   * Unsubscribe from an event
-   */
-  off<K extends EventName>(event: K, handler: EventHandler<K>): void {
-    const handlers = this.handlers.get(event);
-    if (handlers) {
-      handlers.delete(handler as StoredHandler);
-      if (handlers.size === 0) {
-        this.handlers.delete(event);
-      }
-    }
-  }
-
-  /**
    * Emit an event to all subscribers, and resolve once every handler has settled.
    *
    * Handlers are called in subscription order, but each runs only until its first `await` before
@@ -134,20 +107,7 @@ export class EventBus {
     }
   }
 
-  /**
-   * Remove all handlers for a specific event
-   */
-  removeAllListeners(event?: EventName): void {
-    if (event) {
-      this.handlers.delete(event);
-    } else {
-      this.handlers.clear();
-    }
-  }
-
-  /**
-   * Get count of handlers for an event
-   */
+  /** How many handlers are subscribed to an event; tests use it to check for leaked subscriptions. */
   listenerCount(event: EventName): number {
     return this.handlers.get(event)?.size ?? 0;
   }

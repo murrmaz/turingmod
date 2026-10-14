@@ -32,16 +32,27 @@ describe('EventBus', () => {
     }
   });
 
-  it('awaits and catches a once() handler through emit', async () => {
+  it('awaits and catches an async handler rejection through emit', async () => {
     const logger = makeLogger();
     const bus = new EventBus(logger);
     const handler = vi.fn(() => Promise.reject(new Error('boom')));
-    bus.once('youtube.chat.state', handler);
+    bus.on('youtube.chat.state', handler);
 
-    await bus.emit('youtube.chat.state', { state: 'idle' });
-    await bus.emit('youtube.chat.state', { state: 'idle' });
+    await expect(bus.emit('youtube.chat.state', { state: 'idle' })).resolves.toBeUndefined();
 
     expect(handler).toHaveBeenCalledTimes(1);
     expect(logger.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops calling a handler once it unsubscribes', async () => {
+    const bus = new EventBus(makeLogger());
+    const handler = vi.fn();
+    const unsubscribe = bus.on('youtube.chat.state', handler);
+
+    unsubscribe();
+    await bus.emit('youtube.chat.state', { state: 'idle' });
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(bus.listenerCount('youtube.chat.state')).toBe(0);
   });
 });

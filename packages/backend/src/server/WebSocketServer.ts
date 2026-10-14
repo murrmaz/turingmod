@@ -1,12 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import type { IWebSocketMessage } from '@turingmod/shared';
-import {
-  createErrorMessage,
-  createPongMessage,
-  MessageType,
-  messageOf,
-  WebSocketMessageSchema,
-} from '@turingmod/shared';
+import { createErrorMessage, messageOf, WebSocketMessageSchema } from '@turingmod/shared';
 import { WebSocket, WebSocketServer as WSServer } from 'ws';
 import { z } from 'zod';
 import type { Logger } from '../utils/Logger.js';
@@ -117,13 +111,6 @@ export class WebSocketServer {
         id: message.id,
       });
 
-      // Handle ping
-      if (message.type === MessageType.PING) {
-        const pong = createPongMessage(message.id);
-        this.sendToClient(clientId, pong);
-        return;
-      }
-
       // Route message to appropriate handler
       const response = await this.messageRouter.route(message, clientId);
 
@@ -209,13 +196,6 @@ export class WebSocketServer {
       type: message.type,
       clients: this.clients.size,
     });
-  }
-
-  /**
-   * Get connected client count
-   */
-  getClientCount(): number {
-    return this.clients.size;
   }
 
   /**

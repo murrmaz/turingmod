@@ -57,7 +57,9 @@ describe('Encryption', () => {
     const b = new Encryption('password', salt);
     const c = new Encryption('different-password', salt);
 
-    expect(a.getKeyHash()).toBe(b.getKeyHash());
-    expect(a.getKeyHash()).not.toBe(c.getKeyHash());
+    const ciphertext = a.encrypt('secret');
+
+    expect(b.decrypt(ciphertext)).toBe('secret');
+    expect(() => c.decrypt(ciphertext)).toThrow();
   });
 });

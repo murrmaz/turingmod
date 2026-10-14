@@ -1,7 +1,14 @@
 import type { Server as HttpServer } from 'node:http';
 import type { IWebSocketMessage } from '@turingmod/shared';
-import { createErrorMessage, createPongMessage, MessageType, messageOf } from '@turingmod/shared';
+import {
+  createErrorMessage,
+  createPongMessage,
+  MessageType,
+  messageOf,
+  WebSocketMessageSchema,
+} from '@turingmod/shared';
 import { WebSocket, WebSocketServer as WSServer } from 'ws';
+import { z } from 'zod';
 import type { Logger } from '../utils/Logger.js';
 import type { MessageRouter } from './MessageRouter.js';
 
@@ -87,7 +94,22 @@ export class WebSocketServer {
    */
   private async handleMessage(clientId: string, data: Buffer): Promise<void> {
     try {
-      const message = JSON.parse(data.toString()) as IWebSocketMessage;
+      const envelope = WebSocketMessageSchema.safeParse(JSON.parse(data.toString()));
+      if (!envelope.success) {
+        this.logger.warn('Rejected a malformed message', {
+          clientId,
+          issues: envelope.error.issues,
+        });
+        this.sendToClient(
+          clientId,
+          createErrorMessage(
+            'MESSAGE_HANDLING_ERROR',
+            `Malformed message: ${z.prettifyError(envelope.error)}`
+          )
+        );
+        return;
+      }
+      const message = envelope.data;
 
       this.logger.debug('Received message', {
         clientId,

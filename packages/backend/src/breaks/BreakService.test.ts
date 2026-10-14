@@ -3,7 +3,10 @@ import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import type { TwitchAdBreakEvent } from '../core/events.js';
-import type { SettingsRepository } from '../database/repositories/SettingsRepository.js';
+import type {
+  SettingsDefinition,
+  SettingsRepository,
+} from '../database/repositories/SettingsRepository.js';
 import type { StreamControlService } from '../platforms/StreamControlService.js';
 import type { SoundLibrary } from '../sounds/SoundLibrary.js';
 import { Logger } from '../utils/Logger.js';
@@ -28,7 +31,9 @@ function setup(stored: unknown = null) {
       return Promise.resolve({ updated: [], failures: [] });
     }),
   };
-  const settingsRepo = { getJson: vi.fn(() => stored) };
+  const settingsRepo = {
+    get: (definition: SettingsDefinition<unknown>) => definition.schema.parse(stored ?? {}),
+  };
   const sounds = { tryPlay: vi.fn(() => Promise.resolve()) };
   const service = new BreakService(
     eventBus,

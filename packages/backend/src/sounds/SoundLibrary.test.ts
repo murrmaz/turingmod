@@ -4,7 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { IntegrationStatus } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SettingsRepository } from '../database/repositories/SettingsRepository.js';
+import type {
+  SettingsDefinition,
+  SettingsRepository,
+} from '../database/repositories/SettingsRepository.js';
 import type { SoundIntegration } from '../integrations/implementations/sound/SoundIntegration.js';
 import type { Logger } from '../utils/Logger.js';
 import { SoundLibrary } from './SoundLibrary.js';
@@ -40,7 +43,9 @@ describe('SoundLibrary', () => {
     logger = makeLogger();
     library = new SoundLibrary(
       sound as unknown as SoundIntegration,
-      { getJson: () => settings } as unknown as SettingsRepository,
+      {
+        get: (definition: SettingsDefinition<unknown>) => definition.schema.parse(settings ?? {}),
+      } as unknown as SettingsRepository,
       logger
     );
   });

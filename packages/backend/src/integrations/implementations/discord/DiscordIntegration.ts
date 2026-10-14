@@ -20,12 +20,6 @@ export class DiscordIntegration extends BaseIntegration {
     super(logger, { component: 'DiscordIntegration' });
   }
 
-  initialize(_config: Record<string, unknown>): Promise<void> {
-    this.logger.debug('Discord integration initialized (placeholder)');
-    // TODO: Initialize Discord client
-    return Promise.resolve();
-  }
-
   start(): Promise<void> {
     // Not implemented yet, so it stays DISCONNECTED rather than claiming a connection.
     this.logger.info('Discord integration is not implemented yet');

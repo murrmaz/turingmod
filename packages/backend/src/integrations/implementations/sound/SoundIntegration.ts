@@ -38,11 +38,6 @@ export class SoundIntegration extends BaseIntegration {
     super(logger, { component: 'SoundIntegration' });
   }
 
-  initialize(_config: Record<string, unknown>): Promise<void> {
-    this.logger.info('Sound integration initialized');
-    return Promise.resolve();
-  }
-
   async start(): Promise<void> {
     if (process.platform === 'linux') {
       this.linuxPlayerCommand = await this.resolveLinuxPlayer();

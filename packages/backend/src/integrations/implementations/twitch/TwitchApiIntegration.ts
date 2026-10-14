@@ -10,11 +10,6 @@ import { DependencyFailurePolicy, type IIntegration } from '../../interfaces/IIn
 import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
 /**
- * Twitch API Configuration
- */
-export type TwitchApiConfig = Record<string, unknown>;
-
-/**
  * The Twitch Helix connection: a Twurple `ApiClient` kept in step with
  * TwitchAuthIntegration, and the integration status that says whether it can
  * be used.
@@ -62,11 +57,6 @@ export class TwitchApiIntegration extends BaseIntegration {
 
   getGroup(): IntegrationGroup {
     return IntegrationGroup.TWITCH;
-  }
-
-  initialize(_config: Record<string, unknown>): Promise<void> {
-    this.logger.info('Twitch API integration initialized (no config needed)');
-    return Promise.resolve();
   }
 
   start(): Promise<void> {

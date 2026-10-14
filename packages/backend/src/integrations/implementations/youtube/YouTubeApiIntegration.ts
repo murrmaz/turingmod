@@ -7,11 +7,6 @@ import { DependencyFailurePolicy, type IIntegration } from '../../interfaces/IIn
 import { YouTubeAuthIntegration, type YouTubeOAuth2Client } from './YouTubeAuthIntegration.js';
 
 /**
- * YouTube API Configuration
- */
-export type YouTubeApiConfig = Record<string, unknown>;
-
-/**
  * Normalized view of the broadcaster's currently active live broadcast. `liveChatId` and the
  * start times are only present while a broadcast is active/upcoming (see multi-platform-chat.md
  * §11), so the Chat integration must idle when this is null.
@@ -68,11 +63,6 @@ export class YouTubeApiIntegration extends BaseIntegration {
 
   getGroup(): IntegrationGroup {
     return IntegrationGroup.YOUTUBE;
-  }
-
-  initialize(_config: Record<string, unknown>): Promise<void> {
-    this.logger.info('YouTube API integration initialized (no config needed)');
-    return Promise.resolve();
   }
 
   start(): Promise<void> {

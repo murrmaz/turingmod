@@ -1,43 +1,47 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_BREAK_SETTINGS, parseBreakSettings, renderMessage } from './breakSettings.js';
+import { BREAK_SETTINGS, DEFAULT_BREAK_SETTINGS, renderMessage } from './breakSettings.js';
 
-describe('parseBreakSettings', () => {
-  it('returns the defaults when nothing is stored', () => {
-    const { settings, problems } = parseBreakSettings(null);
-    expect(settings).toEqual(DEFAULT_BREAK_SETTINGS);
-    expect(problems).toEqual([]);
+describe('BREAK_SETTINGS', () => {
+  const parse = (stored: unknown) => BREAK_SETTINGS.schema.safeParse(stored);
+
+  it('is the defaults when nothing is stored', () => {
+    expect(parse({}).data).toEqual(DEFAULT_BREAK_SETTINGS);
   });
 
-  it('keeps valid fields and defaults only the invalid ones', () => {
-    const { settings, problems } = parseBreakSettings({
-      obs: { hideSources: ['Cam'], muteInputs: 'Mic/Aux' },
+  it('fills fields left out with their defaults', () => {
+    const settings = parse({ obs: { hideSources: ['Cam'] } }).data;
+
+    expect(settings?.obs.hideSources).toEqual(['Cam']);
+    expect(settings?.obs.muteInputs).toEqual(DEFAULT_BREAK_SETTINGS.obs.muteInputs);
+    expect(settings?.messages).toEqual(DEFAULT_BREAK_SETTINGS.messages);
+  });
+
+  it('rejects an invalid field rather than defaulting it, naming each one', () => {
+    const result = parse({
+      obs: { muteInputs: 'Mic/Aux' },
       adWarnings: { pollIntervalSeconds: 5 },
     });
 
-    expect(settings.obs.hideSources).toEqual(['Cam']);
-    expect(settings.obs.muteInputs).toEqual(DEFAULT_BREAK_SETTINGS.obs.muteInputs);
-    expect(settings.adWarnings.pollIntervalSeconds).toBe(
-      DEFAULT_BREAK_SETTINGS.adWarnings.pollIntervalSeconds
-    );
-    expect(problems).toHaveLength(2);
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual([
+      'obs.muteInputs',
+      'adWarnings.pollIntervalSeconds',
+    ]);
+  });
+
+  it('rejects a key it does not know, such as a misspelt one', () => {
+    expect(parse({ enabeld: false }).success).toBe(false);
   });
 
   it('replaces a message wholesale, dropping built-in per-platform overrides', () => {
-    const { settings } = parseBreakSettings({
-      messages: { adBreakStarted: { default: 'BRB {duration}' } },
-    });
+    const settings = parse({ messages: { adBreakStarted: { default: 'BRB {duration}' } } }).data;
 
-    expect(settings.messages.adBreakStarted).toEqual({ default: 'BRB {duration}' });
+    expect(settings?.messages.adBreakStarted).toEqual({ default: 'BRB {duration}' });
   });
 
   it('rejects a message with no default', () => {
-    const { settings, problems } = parseBreakSettings({
-      messages: { breakEnded: { twitch: 'back' } },
-    });
-
-    expect(settings.messages.breakEnded).toEqual(DEFAULT_BREAK_SETTINGS.messages.breakEnded);
-    expect(problems).toHaveLength(1);
+    expect(parse({ messages: { breakEnded: { twitch: 'back' } } }).success).toBe(false);
   });
 });
 

@@ -7,21 +7,33 @@ import {
   RefreshingAuthProvider as TwurpleRefreshingAuthProvider,
 } from '@twurple/auth';
 import { injectable, singleton } from 'tsyringe';
+import { z } from 'zod';
 import { EventBus } from '../../../core/EventBus.js';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
 import { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
-import { type OAuthConfigBase, OAuthIntegration } from '../../OAuthIntegration.js';
+import { OAuthConfigBaseSchema, OAuthIntegration } from '../../OAuthIntegration.js';
 
 /**
  * Twitch Auth Configuration
  */
-export interface TwitchAuthConfig extends OAuthConfigBase {
-  accessToken?: string;
-  refreshToken?: string;
-  expiresIn?: number;
-  obtainmentTimestamp?: number;
-}
+export const TwitchAuthConfigSchema = OAuthConfigBaseSchema.extend({
+  accessToken: z.string().exactOptional(),
+  refreshToken: z.string().exactOptional(),
+  /** Seconds the access token was issued for. */
+  expiresIn: z.number().exactOptional(),
+  obtainmentTimestamp: z.number().exactOptional(),
+});
+
+export type TwitchAuthConfig = z.infer<typeof TwitchAuthConfigSchema>;
+
+/** A response from Twitch's token endpoint for a code exchange. */
+const TwitchTokenResponseSchema = z.object({
+  access_token: z.string().min(1),
+  refresh_token: z.string().min(1).exactOptional(),
+  expires_in: z.number().positive().exactOptional(),
+  scope: z.array(z.string()),
+});
 
 /**
  * Required OAuth scopes for the Twitch integration.
@@ -75,6 +87,7 @@ export class TwitchAuthIntegration extends OAuthIntegration<TwitchAuthConfig> {
   protected readonly callbackPath = '/callback/twitch';
   /** Twitch accepts plain-HTTP redirects only to `localhost`, not `127.0.0.1`. */
   protected readonly redirectHost = 'localhost';
+  protected readonly configSchema = TwitchAuthConfigSchema;
 
   private authProvider: RefreshingAuthProvider | null = null;
   private userId: string | null = null;
@@ -231,12 +244,7 @@ export class TwitchAuthIntegration extends OAuthIntegration<TwitchAuthConfig> {
       throw new Error(`Failed to exchange code: ${error}`);
     }
 
-    const data = (await response.json()) as {
-      access_token: string;
-      refresh_token?: string;
-      expires_in?: number;
-      scope: string[];
-    };
+    const data = await this.parseTokenResponse(TwitchTokenResponseSchema, response);
 
     this.saveTokens(
       toConfigPatch({

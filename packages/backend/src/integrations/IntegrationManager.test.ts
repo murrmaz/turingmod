@@ -29,10 +29,6 @@ class FakeIntegration extends BaseIntegration {
     return this.dependencies;
   }
 
-  initialize(): Promise<void> {
-    return Promise.resolve();
-  }
-
   start(): Promise<void> {
     this.startCount += 1;
     if (this.failOnStart) {
@@ -393,5 +389,36 @@ describe('IntegrationManager', () => {
       'twitch-auth',
       'twitch-api',
     ]);
+  });
+});
+
+describe('IntegrationManager configs', () => {
+  it('rejects a config that does not fit the schema without storing it', async () => {
+    const repo = makeStateRepo();
+    const upsert = vi.fn();
+    Object.assign(repo, { upsert });
+    const manager = makeManager(repo);
+    manager.register(new FakeIntegration('discord'));
+
+    await expect(manager.configureIntegration('discord', { token: 'abc' }, false)).rejects.toThrow(
+      /Invalid discord config/
+    );
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it('reports a stored config that does not fit the schema as the integration error', async () => {
+    const repo = makeStateRepo();
+    Object.assign(repo, {
+      findAll: vi.fn().mockReturnValue([{ name: 'discord', config: 'encrypted' }]),
+      getDecryptedConfig: vi.fn().mockReturnValue({ token: 'abc' }),
+    });
+    const manager = makeManager(repo);
+    const discord = new FakeIntegration('discord');
+    manager.register(discord);
+
+    await manager.loadIntegrations();
+
+    expect(discord.getStatus()).toBe(IntegrationStatus.ERROR);
+    expect(discord.getErrorMessage()).toMatch(/Invalid discord config[\s\S]*token/);
   });
 });

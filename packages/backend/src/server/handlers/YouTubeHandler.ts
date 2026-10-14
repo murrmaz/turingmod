@@ -1,9 +1,8 @@
-import type { IWebSocketMessage, YouTubeChatControlPayload } from '@turingmod/shared';
-import { createErrorMessage, createYouTubeChatStateMessage } from '@turingmod/shared';
+import type { EmptyPayload, IWebSocketMessage } from '@turingmod/shared';
+import { createYouTubeChatStateMessage } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { Logger } from '../../utils/Logger.js';
-import { isYouTubeChatControlPayload } from '../validation.js';
 
 /**
  * YouTube message handler
@@ -27,15 +26,7 @@ export class YouTubeHandler {
   /**
    * Handle a go-live request: start looking for an active broadcast and connect its chat.
    */
-  handleGoLive(
-    message: IWebSocketMessage<YouTubeChatControlPayload>
-  ): Promise<IWebSocketMessage | null> {
-    if (!isYouTubeChatControlPayload(message.payload)) {
-      return Promise.resolve(
-        createErrorMessage('INVALID_PAYLOAD', 'Malformed youtube.goLive payload', message.id)
-      );
-    }
-
+  handleGoLive(message: IWebSocketMessage<EmptyPayload>): Promise<IWebSocketMessage | null> {
     this.logger.info('Go-live requested from the console');
     this.chatIntegration.requestResolve('console');
 
@@ -47,15 +38,7 @@ export class YouTubeHandler {
   /**
    * Handle a go-offline request: disconnect from chat and return to idle.
    */
-  handleGoOffline(
-    message: IWebSocketMessage<YouTubeChatControlPayload>
-  ): Promise<IWebSocketMessage | null> {
-    if (!isYouTubeChatControlPayload(message.payload)) {
-      return Promise.resolve(
-        createErrorMessage('INVALID_PAYLOAD', 'Malformed youtube.goOffline payload', message.id)
-      );
-    }
-
+  handleGoOffline(message: IWebSocketMessage<EmptyPayload>): Promise<IWebSocketMessage | null> {
     this.logger.info('Go-offline requested from the console');
     this.chatIntegration.requestStop('console');
 
@@ -69,9 +52,7 @@ export class YouTubeHandler {
    * been open all along stays current on its own — but one that just loaded (or reconnected) has
    * missed every transition, and needs to ask.
    */
-  handleGetState(
-    message: IWebSocketMessage<YouTubeChatControlPayload>
-  ): Promise<IWebSocketMessage | null> {
+  handleGetState(message: IWebSocketMessage<EmptyPayload>): Promise<IWebSocketMessage | null> {
     return Promise.resolve(
       createYouTubeChatStateMessage(this.chatIntegration.getState(), message.id)
     );

@@ -202,15 +202,14 @@ describe('TwitchAuthIntegration', () => {
     expect(url.searchParams.get('scope')?.split(' ')).toEqual(TWITCH_REQUIRED_SCOPES);
   });
 
-  it('derives its redirect URI from the server port, ignoring one saved in an older config', async () => {
+  it('derives its redirect URI from the server port', async () => {
     const upsert = vi.fn();
     const integration = makeIntegration({ upsert }, undefined, 9123);
-    const staleConfig = { ...CONFIG, redirectUri: 'http://localhost:8080/callback/twitch' };
     successfulTokenExchange();
 
     expect(integration.getRedirectUri()).toBe('http://localhost:9123/callback/twitch');
 
-    await integration.initialize(staleConfig);
+    await integration.initialize(CONFIG);
     const url = new URL(integration.getAuthorizationUrl('state-123'));
     expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:9123/callback/twitch');
 

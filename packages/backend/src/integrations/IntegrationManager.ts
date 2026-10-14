@@ -146,7 +146,11 @@ export class IntegrationManager {
             this.logger.info(`Initialized integration: ${config.name}`);
           }
         } catch (error) {
+          // Most often a stored config that no longer fits the integration's schema. The
+          // error names the fields, and showing it as the integration's status puts it in
+          // front of the streamer rather than only in the log.
           this.logger.error(`Failed to initialize integration: ${config.name}`, error);
+          integration.reportError(messageOf(error));
         }
       }
     }
@@ -608,11 +612,10 @@ export class IntegrationManager {
 
     this.logger.info(`Configuring integration: ${name}`);
 
-    // Save configuration
-    this.stateRepository.upsert(name, config, enabled);
-
-    // Initialize with new configuration
+    // Applying it first checks it against the integration's schema, so a config that doesn't
+    // fit is rejected before anything is stored.
     await integration.initialize(config);
+    this.stateRepository.upsert(name, config, enabled);
 
     this.logger.info(`Integration configured: ${name}`);
   }

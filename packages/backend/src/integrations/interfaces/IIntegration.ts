@@ -68,9 +68,11 @@ export interface IIntegration {
   readonly oauth: IOAuthIntegration | null;
 
   /**
-   * Initialize the integration with configuration
+   * Apply the integration's stored config, as read from the database or sent by the console. The
+   * integration parses it against its own schema, so this is where the stored value stops being
+   * unknown; it throws, naming the fields that were wrong, when the config doesn't fit.
    */
-  initialize(config: Record<string, unknown>): Promise<void>;
+  initialize(stored: unknown): Promise<void>;
 
   /**
    * Start the integration

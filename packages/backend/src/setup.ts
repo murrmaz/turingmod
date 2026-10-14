@@ -1,22 +1,9 @@
-import {
-  type ActivityQueryPayload,
-  type CommandExecutePayload,
-  type CommandListRequestPayload,
-  type CommandSimulatePayload,
-  DEFAULT_FRONTEND_DEV_PORT,
-  type IntegrationConfigurePayload,
-  type IntegrationStartPayload,
-  type IntegrationStopPayload,
-  type IWebSocketMessage,
-  MessageType,
-  type OAuthExchangeCodePayload,
-  type OAuthGetAuthUrlPayload,
-  type YouTubeChatControlPayload,
-} from '@turingmod/shared';
+import { DEFAULT_FRONTEND_DEV_PORT, MessageType } from '@turingmod/shared';
 import { container, instanceCachingFactory } from 'tsyringe';
 import { ActivityForwarder } from './activity/ActivityForwarder.js';
 import { AdWarningScheduler } from './breaks/AdWarningScheduler.js';
 import { BreakService } from './breaks/BreakService.js';
+import { BREAK_SETTINGS } from './breaks/breakSettings.js';
 import { IntervalAnnouncer } from './chat/announcements/IntervalAnnouncer.js';
 import { ChatRouter } from './chat/ChatRouter.js';
 import { ClipCollector } from './chat/clips/ClipCollector.js';
@@ -28,6 +15,11 @@ import { EventBus } from './core/EventBus.js';
 import { ServiceLifecycle } from './core/ServiceLifecycle.js';
 import { DatabaseManager } from './database/DatabaseManager.js';
 import { MigrationRunner } from './database/migrations/MigrationRunner.js';
+import {
+  type SettingsDefinition,
+  SettingsRepository,
+} from './database/repositories/SettingsRepository.js';
+import { EFFECT_SETTINGS } from './effects/effectSettings.js';
 import { FacecamEffectRunner } from './effects/FacecamEffectRunner.js';
 import { IntegrationManager } from './integrations/IntegrationManager.js';
 import { ArduinoIntegration } from './integrations/implementations/arduino/ArduinoIntegration.js';
@@ -60,6 +52,7 @@ import { OAuthHandler } from './server/handlers/OAuthHandler.js';
 import { YouTubeHandler } from './server/handlers/YouTubeHandler.js';
 import { MessageRouter } from './server/MessageRouter.js';
 import { WebSocketServer } from './server/WebSocketServer.js';
+import { SOUND_SETTINGS } from './sounds/soundSettings.js';
 import { TuringModConfig } from './utils/Config.js';
 import { Encryption } from './utils/Encryption.js';
 import { Logger } from './utils/Logger.js';
@@ -142,7 +135,21 @@ export async function initializeDatabase(): Promise<void> {
   logger.info('Running database migrations');
   const { ALL_MIGRATIONS } = await import('./database/migrations/index.js');
   container.resolve(MigrationRunner).runMigrations([...ALL_MIGRATIONS]);
+
+  // Read every settings group once, so stored settings that don't fit their schema stop startup
+  // with the bad fields named, instead of failing the first time a feature reads them.
+  const settings = container.resolve(SettingsRepository);
+  for (const definition of ALL_SETTINGS) {
+    settings.get(definition);
+  }
 }
+
+/** Every settings group TuringMod reads. */
+const ALL_SETTINGS: readonly SettingsDefinition<unknown>[] = [
+  BREAK_SETTINGS,
+  SOUND_SETTINGS,
+  EFFECT_SETTINGS,
+];
 
 /**
  * Initialize application components
@@ -229,23 +236,21 @@ export async function initializeComponents(): Promise<void> {
   const youtubeHandler = container.resolve(YouTubeHandler);
 
   messageRouter.registerHandler(MessageType.COMMAND_EXECUTE, (msg) =>
-    commandHandler.handleExecute(msg as IWebSocketMessage<CommandExecutePayload>)
+    commandHandler.handleExecute(msg)
   );
 
   messageRouter.registerHandler(MessageType.COMMAND_SIMULATE, (msg) =>
-    commandHandler.handleSimulate(msg as IWebSocketMessage<CommandSimulatePayload>)
+    commandHandler.handleSimulate(msg)
   );
 
-  messageRouter.registerHandler(MessageType.COMMAND_LIST, (msg) =>
-    commandHandler.handleList(msg as IWebSocketMessage<CommandListRequestPayload>)
-  );
+  messageRouter.registerHandler(MessageType.COMMAND_LIST, (msg) => commandHandler.handleList(msg));
 
   messageRouter.registerHandler(MessageType.INTEGRATION_START, (msg) =>
-    integrationHandler.handleStart(msg as IWebSocketMessage<IntegrationStartPayload>)
+    integrationHandler.handleStart(msg)
   );
 
   messageRouter.registerHandler(MessageType.INTEGRATION_STOP, (msg) =>
-    integrationHandler.handleStop(msg as IWebSocketMessage<IntegrationStopPayload>)
+    integrationHandler.handleStop(msg)
   );
 
   messageRouter.registerHandler(MessageType.INTEGRATION_LIST, (msg) =>
@@ -253,31 +258,31 @@ export async function initializeComponents(): Promise<void> {
   );
 
   messageRouter.registerHandler(MessageType.INTEGRATION_CONFIGURE, (msg) =>
-    integrationHandler.handleConfigure(msg as IWebSocketMessage<IntegrationConfigurePayload>)
+    integrationHandler.handleConfigure(msg)
   );
 
   messageRouter.registerHandler(MessageType.OAUTH_GET_AUTH_URL, (msg, clientId) =>
-    oauthHandler.handleGetAuthUrl(msg as IWebSocketMessage<OAuthGetAuthUrlPayload>, clientId)
+    oauthHandler.handleGetAuthUrl(msg, clientId)
   );
 
   messageRouter.registerHandler(MessageType.OAUTH_EXCHANGE_CODE, (msg) =>
-    oauthHandler.handleExchangeCode(msg as IWebSocketMessage<OAuthExchangeCodePayload>)
+    oauthHandler.handleExchangeCode(msg)
   );
 
   messageRouter.registerHandler(MessageType.ACTIVITY_QUERY, (msg) =>
-    activityHandler.handleQuery(msg as IWebSocketMessage<ActivityQueryPayload>)
+    activityHandler.handleQuery(msg)
   );
 
   messageRouter.registerHandler(MessageType.YOUTUBE_GO_LIVE, (msg) =>
-    youtubeHandler.handleGoLive(msg as IWebSocketMessage<YouTubeChatControlPayload>)
+    youtubeHandler.handleGoLive(msg)
   );
 
   messageRouter.registerHandler(MessageType.YOUTUBE_GO_OFFLINE, (msg) =>
-    youtubeHandler.handleGoOffline(msg as IWebSocketMessage<YouTubeChatControlPayload>)
+    youtubeHandler.handleGoOffline(msg)
   );
 
   messageRouter.registerHandler(MessageType.YOUTUBE_GET_CHAT_STATE, (msg) =>
-    youtubeHandler.handleGetState(msg as IWebSocketMessage<YouTubeChatControlPayload>)
+    youtubeHandler.handleGetState(msg)
   );
 
   logger.info('Components initialized');

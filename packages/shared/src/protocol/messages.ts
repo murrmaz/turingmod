@@ -1,8 +1,15 @@
-import type { StreamingPlatform } from '../constants/platform.js';
-import type { ActivityCategory, ActivityLogEntry } from '../types/activity.js';
-import type { CommandContext, CommandInfo, ExecutionResult } from '../types/command.js';
+import type { ActivityLogEntry } from '../types/activity.js';
+import type { CommandInfo, ExecutionResult } from '../types/command.js';
 import type { IntegrationInfo, IntegrationStatus } from '../types/integration.js';
-import type { SimulatedUser } from '../types/user.js';
+import type {
+  ActivityQueryPayload,
+  CommandExecutePayload,
+  CommandSimulatePayload,
+  IntegrationStartPayload,
+  IntegrationStopPayload,
+  OAuthExchangeCodePayload,
+  OAuthGetAuthUrlPayload,
+} from './requests.js';
 
 /**
  * Base WebSocket message structure
@@ -78,35 +85,10 @@ export enum MessageType {
 
 // ============================================================================
 // Payload Types
+//
+// What the server sends. Request payloads (client → server) are inferred from their schemas
+// in requests.ts.
 // ============================================================================
-
-/**
- * Command execution payload (real commands from integrations)
- */
-export interface CommandExecutePayload {
-  /** Command name (without !) */
-  command: string;
-
-  /** Command arguments */
-  args: string[];
-
-  /** Execution context */
-  context: Omit<CommandContext, 'args'>;
-}
-
-/**
- * Command simulation payload (test commands from UI)
- */
-export interface CommandSimulatePayload {
-  /** Full command text (e.g., "!bonk @username") */
-  commandText: string;
-
-  /** Simulated user information */
-  simulatedUser: SimulatedUser;
-
-  /** Platform to simulate */
-  platform: StreamingPlatform;
-}
 
 /**
  * Command result payload
@@ -120,33 +102,6 @@ export interface CommandResultPayload {
 
   /** Whether this was a simulation */
   isSimulation: boolean;
-}
-
-/**
- * Integration start payload
- */
-export interface IntegrationStartPayload {
-  /** Integration name to start */
-  integrationName: string;
-}
-
-/**
- * Integration stop payload
- */
-export interface IntegrationStopPayload {
-  /** Integration name to stop */
-  integrationName: string;
-}
-
-/**
- * Integration configure payload
- */
-export interface IntegrationConfigurePayload {
-  /** Integration name */
-  integrationName: string;
-
-  /** Configuration data (will be encrypted server-side) */
-  config: Record<string, unknown>;
 }
 
 /**
@@ -168,25 +123,10 @@ export interface IntegrationStatusPayload {
 export type YouTubeChatState = 'idle' | 'resolving' | 'streaming';
 
 /**
- * YouTube go-live / go-offline request payload (client → server). Empty — the message type is the
- * whole request — but named so the handler's runtime guard has something to check.
- */
-export type YouTubeChatControlPayload = Record<string, never>;
-
-/**
  * YouTube chat state payload (server → client).
  */
 export interface YouTubeChatStatePayload {
   state: YouTubeChatState;
-}
-
-/**
- * Command list request payload (client → server). Optionally scopes the returned commands to
- * those available on a specific platform.
- */
-export interface CommandListRequestPayload {
-  /** Platform to filter commands by. Omitted = all registered commands. */
-  platform?: StreamingPlatform;
 }
 
 /**
@@ -211,20 +151,6 @@ export interface IntegrationListPayload {
 export interface EventNotificationPayload {
   /** The activity log entry to append to the live feed */
   entry: ActivityLogEntry;
-}
-
-/**
- * Activity query payload (client → server)
- */
-export interface ActivityQueryPayload {
-  /** Max entries to return (default 100 server-side, capped at 500) */
-  limit?: number;
-
-  /** Filter to a single category. Omit = all categories */
-  category?: ActivityCategory;
-
-  /** Timestamp cursor for "load older"; omit = most recent */
-  before?: number;
 }
 
 /**
@@ -296,14 +222,6 @@ export interface ErrorPayload {
 export type PingPongPayload = Record<string, never>;
 
 /**
- * OAuth get auth URL payload
- */
-export interface OAuthGetAuthUrlPayload {
-  /** Integration name (e.g., 'twitch-auth') */
-  integrationName: string;
-}
-
-/**
  * OAuth auth URL response payload
  */
 export interface OAuthAuthUrlResponsePayload {
@@ -312,17 +230,6 @@ export interface OAuthAuthUrlResponsePayload {
 
   /** Authorization URL for the user to visit */
   authUrl: string;
-}
-
-/**
- * OAuth exchange code payload
- */
-export interface OAuthExchangeCodePayload {
-  /** Integration name (e.g., 'twitch-auth') */
-  integrationName: string;
-
-  /** Authorization code from OAuth callback */
-  code: string;
 }
 
 /**

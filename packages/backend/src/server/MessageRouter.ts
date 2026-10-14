@@ -1,28 +1,43 @@
 import {
   createErrorMessage,
   type IWebSocketMessage,
-  type MessageType,
   messageOf,
+  REQUEST_PAYLOAD_SCHEMAS,
+  type RequestPayload,
+  type RequestType,
 } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
+import { z } from 'zod';
 import { Logger } from '../utils/Logger.js';
 
+/** Handles one request type, given a payload that has already passed its schema. */
+export type RequestHandler<T extends RequestType> = (
+  message: IWebSocketMessage<RequestPayload<T>>,
+  clientId: string
+) => Promise<IWebSocketMessage | null>;
+
 /**
- * Message handler function type
+ * REQUEST_PAYLOAD_SCHEMAS seen as a mapped type, which is what lets TypeScript relate the schema
+ * at a generic `type` to that type's payload. The assignment checks every entry.
  */
-type MessageHandler = (
+const PAYLOAD_SCHEMAS: { [K in RequestType]: z.ZodType<RequestPayload<K>> } =
+  REQUEST_PAYLOAD_SCHEMAS;
+
+type RegisteredHandler = (
   message: IWebSocketMessage,
   clientId: string
 ) => Promise<IWebSocketMessage | null>;
 
 /**
  * Message router
- * Routes WebSocket messages to appropriate handlers
+ * Routes WebSocket messages to appropriate handlers, after checking each payload against its
+ * request type's schema (REQUEST_PAYLOAD_SCHEMAS). A handler only ever sees a valid payload; a
+ * malformed one is answered with INVALID_PAYLOAD naming the fields that were wrong.
  */
 @injectable()
 @singleton()
 export class MessageRouter {
-  private handlers = new Map<MessageType, MessageHandler>();
+  private handlers = new Map<RequestType, RegisteredHandler>();
   private logger: Logger;
 
   constructor(logger: Logger) {
@@ -32,12 +47,26 @@ export class MessageRouter {
   /**
    * Register a message handler
    */
-  registerHandler(type: MessageType, handler: MessageHandler): void {
+  registerHandler<T extends RequestType>(type: T, handler: RequestHandler<T>): void {
     if (this.handlers.has(type)) {
       throw new Error(`Handler already registered for type: ${type}`);
     }
 
-    this.handlers.set(type, handler);
+    const schema = PAYLOAD_SCHEMAS[type];
+    this.handlers.set(type, (message, clientId) => {
+      const parsed = schema.safeParse(message.payload);
+      if (!parsed.success) {
+        this.logger.warn(`Rejected a malformed ${type} payload`, { issues: parsed.error.issues });
+        return Promise.resolve(
+          createErrorMessage(
+            'INVALID_PAYLOAD',
+            `Malformed ${type} payload: ${z.prettifyError(parsed.error)}`,
+            message.id
+          )
+        );
+      }
+      return handler({ ...message, payload: parsed.data }, clientId);
+    });
     this.logger.debug(`Registered handler for: ${type}`);
   }
 
@@ -45,7 +74,7 @@ export class MessageRouter {
    * Route a message to its handler
    */
   async route(message: IWebSocketMessage, clientId: string): Promise<IWebSocketMessage | null> {
-    const handler = this.handlers.get(message.type);
+    const handler = this.isRequestType(message.type) ? this.handlers.get(message.type) : undefined;
 
     if (!handler) {
       this.logger.warn(`No handler registered for message type: ${message.type}`);
@@ -66,5 +95,9 @@ export class MessageRouter {
         message.id
       );
     }
+  }
+
+  private isRequestType(type: string): type is RequestType {
+    return Object.hasOwn(REQUEST_PAYLOAD_SCHEMAS, type);
   }
 }

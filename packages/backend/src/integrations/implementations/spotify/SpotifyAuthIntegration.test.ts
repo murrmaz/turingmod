@@ -70,6 +70,13 @@ describe('SpotifyAuthIntegration', () => {
     );
   });
 
+  it('rejects a token response without an access token, saving nothing', async () => {
+    vi.mocked(fetch).mockReturnValue(tokenResponse({ refresh_token: 'refresh', scope: SCOPES }));
+
+    await expect(integration.exchangeCode('code')).rejects.toThrow(/access_token/);
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
   describe('getAccessToken', () => {
     async function connect(expiresIn = 3600) {
       vi.mocked(fetch).mockReturnValueOnce(

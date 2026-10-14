@@ -8,11 +8,10 @@ import { SoundLibrary } from '../sounds/SoundLibrary.js';
 import { formatCountdown } from '../utils/FormatHelpers.js';
 import { Logger } from '../utils/Logger.js';
 import {
-  BREAK_SETTINGS_KEY,
+  BREAK_SETTINGS,
   type BreakSettings,
   DEFAULT_BREAK_SETTINGS,
   type PerPlatformMessage,
-  parseBreakSettings,
   renderMessage,
 } from './breakSettings.js';
 import { ObsBreakOverlay, type ObsBreakSnapshot } from './ObsBreakOverlay.js';
@@ -85,19 +84,9 @@ export class BreakService implements IService {
     await this.endBreak({ announce: false });
   }
 
-  /** Re-read settings from the database, keeping valid fields and defaulting the rest. */
+  /** Re-read settings from the database. Throws if the stored settings aren't valid. */
   reloadSettings(): void {
-    let raw: unknown = null;
-    try {
-      raw = this.settingsRepo.getJson(BREAK_SETTINGS_KEY);
-    } catch (error) {
-      this.logger.error('Could not read break settings; using defaults', error);
-    }
-    const { settings, problems } = parseBreakSettings(raw);
-    for (const problem of problems) {
-      this.logger.warn(problem);
-    }
-    this.settings = settings;
+    this.settings = this.settingsRepo.get(BREAK_SETTINGS);
   }
 
   getSettings(): BreakSettings {

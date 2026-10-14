@@ -10,6 +10,7 @@ import type { RefreshingAuthProvider } from '@twurple/auth';
 import type { EventSubChannelChatMessageEvent } from '@twurple/eventsub-base';
 import { EventSubWsListener } from '@twurple/eventsub-ws';
 import { injectable, singleton } from 'tsyringe';
+import { z } from 'zod';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
@@ -17,23 +18,51 @@ import type { IIntegration } from '../../interfaces/IIntegration.js';
 import { TwitchApiIntegration } from './TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
+/** The EventSub topics TuringMod can subscribe to. */
+export const EventSubTopicSchema = z.enum([
+  'channelChatMessage',
+  'channelFollow',
+  'channelSubscribe',
+  'channelRaid',
+  'channelCheer',
+  'streamOnline',
+  'streamOffline',
+  'adBreakBegin',
+  'channelPointRedemption',
+]);
+
+export type EventSubTopic = z.infer<typeof EventSubTopicSchema>;
+
+/**
+ * Which topics are on when the saved config doesn't say. A topic is on when something uses it
+ * or nearly every streamer wants it: chat, raids (raid shoutouts), ad breaks (stream breaks),
+ * redemptions (reward handlers), stream.online (ad warnings re-read the schedule), and follows
+ * and subs, which every streamer wants to see and thank. Cheers stay off because they also need
+ * `bits:read`, which TWITCH_REQUIRED_SCOPES doesn't request.
+ */
+export const DEFAULT_EVENTSUB_TOPICS: Readonly<Record<EventSubTopic, boolean>> = {
+  channelChatMessage: true,
+  channelFollow: true,
+  channelSubscribe: true,
+  channelRaid: true,
+  channelCheer: false,
+  streamOnline: true,
+  streamOffline: false,
+  adBreakBegin: true,
+  channelPointRedemption: true,
+};
+
 /**
  * Twitch EventSub Configuration
  */
-export interface TwitchEventSubConfig {
-  broadcasterName: string;
-  subscriptions: {
-    channelChatMessage?: boolean;
-    channelFollow?: boolean;
-    channelSubscribe?: boolean;
-    channelRaid?: boolean;
-    channelCheer?: boolean;
-    streamOnline?: boolean;
-    streamOffline?: boolean;
-    adBreakBegin?: boolean;
-    channelPointRedemption?: boolean;
-  };
-}
+export const TwitchEventSubConfigSchema = z.strictObject({
+  /** The channel to listen to. Omitted = the authenticated user's own channel. */
+  broadcasterName: z.string().min(1).exactOptional(),
+  /** Overrides of DEFAULT_EVENTSUB_TOPICS; a topic left out keeps its default. */
+  subscriptions: z.partialRecord(EventSubTopicSchema, z.boolean()).exactOptional(),
+});
+
+export type TwitchEventSubConfig = z.infer<typeof TwitchEventSubConfigSchema>;
 
 /**
  * Twitch EventSub Integration
@@ -53,7 +82,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   readonly name = 'twitch-eventsub';
 
   private eventSubListener: EventSubWsListener | null = null;
-  private config: TwitchEventSubConfig | null = null;
+  private config: TwitchEventSubConfig = {};
   private broadcasterId: string | null = null;
   private authProvider: RefreshingAuthProvider | null = null;
   private apiClient: ApiClient | null = null;
@@ -78,17 +107,8 @@ export class TwitchEventSubIntegration extends BaseIntegration {
     return IntegrationGroup.TWITCH;
   }
 
-  initialize(config: Record<string, unknown>): Promise<void> {
-    this.logger.info('Initializing Twitch EventSub integration');
-
-    this.config = config as unknown as TwitchEventSubConfig;
-
-    // Validate config
-    if (!this.config.broadcasterName) {
-      throw new Error('broadcasterName is required');
-    }
-
-    this.logger.info('Twitch EventSub integration initialized');
+  override initialize(stored: unknown): Promise<void> {
+    this.config = this.parseConfig(TwitchEventSubConfigSchema, stored);
     return Promise.resolve();
   }
 
@@ -110,7 +130,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
 
       // Get broadcaster user - use config if available, otherwise resolve from authenticated user
       let broadcaster: HelixUser;
-      if (this.config?.broadcasterName) {
+      if (this.config.broadcasterName) {
         const broadcasterName = this.config.broadcasterName;
         const result = await this.apiIntegration.request((c) =>
           c.users.getUserByName(broadcasterName)
@@ -162,14 +182,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       // Start listening
       await this.eventSubListener.start();
 
-      // Build subscription config from saved config or use defaults
-      const subscriptionConfig: TwitchEventSubConfig = this.config ?? {
-        broadcasterName: broadcaster.name,
-        subscriptions: {},
-      };
-
-      // Subscribe to configured events
-      await this.subscribeToEvents(subscriptionConfig, broadcaster.id);
+      await this.subscribeToEvents(this.config.subscriptions ?? {}, broadcaster.id);
 
       this.setStatus(IntegrationStatus.CONNECTED);
       this.logger.info('Twitch EventSub integration started successfully');
@@ -204,18 +217,18 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   }
 
   /**
-   * Subscribe to EventSub events based on configuration
+   * Subscribe to the default topics, as overridden by the stored config
    */
   private async subscribeToEvents(
-    config: TwitchEventSubConfig,
+    overrides: Partial<Record<EventSubTopic, boolean>>,
     broadcasterId: string
   ): Promise<void> {
     if (!this.eventSubListener) return;
 
-    const subscriptions = config.subscriptions || {};
+    const subscriptions = { ...DEFAULT_EVENTSUB_TOPICS, ...overrides };
 
     // Channel Chat Message (for commands and chat)
-    if (subscriptions.channelChatMessage !== false) {
+    if (subscriptions.channelChatMessage) {
       await this.eventSubListener.onChannelChatMessage(broadcasterId, broadcasterId, (event) => {
         this.handleChatMessage(event);
       });
@@ -249,8 +262,8 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info('Subscribed to channel.subscribe');
     }
 
-    // Channel Raid — on unless explicitly disabled, since raid shoutouts are driven by it
-    if (subscriptions.channelRaid !== false) {
+    // Channel Raid
+    if (subscriptions.channelRaid) {
       await this.eventSubListener.onChannelRaidTo(broadcasterId, (event) => {
         this.eventBus.emit('twitch.raid', {
           fromBroadcasterId: event.raidingBroadcasterId,
@@ -262,8 +275,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info('Subscribed to channel.raid');
     }
 
-    // Channel Cheer. Off by default; turning it on also needs `bits:read` added to
-    // TWITCH_REQUIRED_SCOPES, which isn't requested until then.
+    // Channel Cheer. Turning it on also needs `bits:read` added to TWITCH_REQUIRED_SCOPES.
     if (subscriptions.channelCheer) {
       await this.eventSubListener.onChannelCheer(broadcasterId, (event) => {
         this.eventBus.emit('twitch.cheer', {
@@ -302,8 +314,8 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info('Subscribed to stream.offline');
     }
 
-    // Ad Break Begin — on unless explicitly disabled, since stream breaks are driven by it
-    if (subscriptions.adBreakBegin !== false) {
+    // Ad Break Begin
+    if (subscriptions.adBreakBegin) {
       await this.eventSubListener.onChannelAdBreakBegin(broadcasterId, (event) => {
         this.eventBus.emit('twitch.ad.break', {
           durationSeconds: event.durationSeconds,
@@ -317,9 +329,8 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info('Subscribed to channel.ad_break.begin');
     }
 
-    // Channel Point Redemption — on unless explicitly disabled, since reward handlers are driven
-    // by it
-    if (subscriptions.channelPointRedemption !== false) {
+    // Channel Point Redemption
+    if (subscriptions.channelPointRedemption) {
       await this.eventSubListener.onChannelRedemptionAdd(broadcasterId, (event) => {
         this.eventBus.emit('twitch.channelPoint.redemption', {
           id: event.id,

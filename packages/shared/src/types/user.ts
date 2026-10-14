@@ -1,15 +1,18 @@
-import type { PermissionLevel } from '../constants/permissions.js';
+import { z } from 'zod';
+import { PermissionLevel } from '../constants/permissions.js';
 
 /**
  * Simulated user for command testing
  */
-export interface SimulatedUser {
+export const SimulatedUserSchema = z.strictObject({
   /** Display username for simulation */
-  username: string;
+  username: z.string().min(1),
 
   /** Simulated permission level */
-  permissionLevel: PermissionLevel;
+  permissionLevel: z.enum(PermissionLevel),
 
   /** Platform-specific user ID (optional for simulations) */
-  userId?: string;
-}
+  userId: z.string().min(1).exactOptional(),
+});
+
+export type SimulatedUser = z.infer<typeof SimulatedUserSchema>;

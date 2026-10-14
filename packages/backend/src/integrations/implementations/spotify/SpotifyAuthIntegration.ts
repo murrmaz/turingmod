@@ -1,19 +1,23 @@
 import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
+import { z } from 'zod';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
 import { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
-import { type OAuthConfigBase, OAuthIntegration, parseScopes } from '../../OAuthIntegration.js';
+import { OAuthConfigBaseSchema, OAuthIntegration, parseScopes } from '../../OAuthIntegration.js';
 
 /**
  * Spotify Auth Configuration
  */
-export interface SpotifyAuthConfig extends OAuthConfigBase {
-  accessToken?: string;
-  refreshToken?: string;
-  expiresIn?: number;
-  obtainmentTimestamp?: number;
-}
+export const SpotifyAuthConfigSchema = OAuthConfigBaseSchema.extend({
+  accessToken: z.string().exactOptional(),
+  refreshToken: z.string().exactOptional(),
+  /** Seconds the access token was issued for. */
+  expiresIn: z.number().exactOptional(),
+  obtainmentTimestamp: z.number().exactOptional(),
+});
+
+export type SpotifyAuthConfig = z.infer<typeof SpotifyAuthConfigSchema>;
 
 /**
  * Required OAuth scopes for the Spotify integration.
@@ -30,14 +34,15 @@ const SPOTIFY_REQUIRED_SCOPES = [
 const REFRESH_MARGIN_MS = 60 * 1000;
 
 /** A response from Spotify's token endpoint, for both a code exchange and a refresh. */
-interface SpotifyTokenResponse {
-  access_token: string;
-  token_type: string;
-  scope: string;
-  expires_in: number;
+const SpotifyTokenResponseSchema = z.object({
+  access_token: z.string().min(1),
+  scope: z.string(),
+  expires_in: z.number().positive(),
   /** Always sent for a code exchange; a refresh may omit it, keeping the old one valid. */
-  refresh_token?: string;
-}
+  refresh_token: z.string().min(1).exactOptional(),
+});
+
+type SpotifyTokenResponse = z.infer<typeof SpotifyTokenResponseSchema>;
 
 /**
  * Spotify's OAuth grant: the authorization code flow, the stored tokens, and
@@ -57,6 +62,7 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
   protected readonly callbackPath = '/callback/spotify';
   /** Spotify accepts plain-HTTP redirects only to the literal loopback IP, not `localhost`. */
   protected readonly redirectHost = '127.0.0.1';
+  protected readonly configSchema = SpotifyAuthConfigSchema;
 
   /** The refresh in flight, shared by every caller that needs one meanwhile. */
   private refreshing: Promise<string> | null = null;
@@ -123,7 +129,9 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
       throw new Error(`Failed to exchange code: ${error}`);
     }
 
-    this.saveTokens(toConfigPatch((await response.json()) as SpotifyTokenResponse));
+    this.saveTokens(
+      toConfigPatch(await this.parseTokenResponse(SpotifyTokenResponseSchema, response))
+    );
 
     this.logger.info('Successfully exchanged code for tokens');
   }
@@ -179,7 +187,7 @@ export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> 
       throw new Error(`Token refresh failed: ${error}`);
     }
 
-    const data = (await response.json()) as SpotifyTokenResponse;
+    const data = await this.parseTokenResponse(SpotifyTokenResponseSchema, response);
     this.saveTokens(toConfigPatch(data));
 
     this.logger.info('Access token refreshed');

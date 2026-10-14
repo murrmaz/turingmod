@@ -1,23 +1,15 @@
-/** `settings` table key the facecam effect settings are stored under. */
-export const EFFECT_SETTINGS_KEY = 'effects';
+import { z } from 'zod';
+import type { SettingsDefinition } from '../database/repositories/SettingsRepository.js';
 
-export interface EffectSettings {
+const EffectSettingsSchema = z.strictObject({
   /** Name of the OBS source the facecam effects animate. */
-  facecamSource: string;
-}
+  facecamSource: z.string().min(1).default('Facecam'),
+});
 
-export const DEFAULT_EFFECT_SETTINGS: EffectSettings = { facecamSource: 'Facecam' };
+export type EffectSettings = z.infer<typeof EffectSettingsSchema>;
 
-/** Read stored settings, keeping valid fields and defaulting the rest. */
-export function parseEffectSettings(raw: unknown): EffectSettings {
-  const source =
-    typeof raw === 'object' && raw !== null
-      ? (raw as Record<string, unknown>).facecamSource
-      : undefined;
-  return {
-    facecamSource:
-      typeof source === 'string' && source.trim() !== ''
-        ? source
-        : DEFAULT_EFFECT_SETTINGS.facecamSource,
-  };
-}
+/** The facecam effect settings, stored under the `effects` key. */
+export const EFFECT_SETTINGS: SettingsDefinition<EffectSettings> = {
+  key: 'effects',
+  schema: EffectSettingsSchema,
+};

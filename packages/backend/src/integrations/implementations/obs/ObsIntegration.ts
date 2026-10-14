@@ -1,14 +1,10 @@
 import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import OBSWebSocket from 'obs-websocket-js';
 import { injectable, singleton } from 'tsyringe';
+import { z } from 'zod';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
-
-interface ObsConfig {
-  url: string | undefined;
-  password: string | undefined;
-}
 
 /**
  * Scene item transform properties as returned by OBS WebSocket v5.
@@ -56,6 +52,15 @@ export interface ObsSceneItem {
 
 const DEFAULT_OBS_URL = 'ws://127.0.0.1:4455';
 
+const ObsConfigSchema = z.strictObject({
+  /** obs-websocket's address. Omitted = OBS's default on this machine. */
+  url: z.url({ protocol: /^wss?$/ }).default(DEFAULT_OBS_URL),
+  /** obs-websocket's server password. Omitted = authentication is off in OBS. */
+  password: z.string().min(1).exactOptional(),
+});
+
+type ObsConfig = z.infer<typeof ObsConfigSchema>;
+
 /** obs-websocket RequestStatus.UnknownRequestType: the connected OBS predates the request. */
 const OBS_UNKNOWN_REQUEST_TYPE = 204;
 
@@ -65,7 +70,7 @@ export class ObsIntegration extends BaseIntegration {
   readonly name = 'obs';
 
   private obs: OBSWebSocket = new OBSWebSocket();
-  private config: ObsConfig = { url: undefined, password: undefined };
+  private config: ObsConfig = ObsConfigSchema.parse({});
 
   constructor(
     private eventBus: EventBus,
@@ -74,11 +79,8 @@ export class ObsIntegration extends BaseIntegration {
     super(logger, { component: 'ObsIntegration' });
   }
 
-  initialize(config: Record<string, unknown>): Promise<void> {
-    this.config = {
-      url: (config.url as string | undefined) ?? DEFAULT_OBS_URL,
-      password: config.password as string | undefined,
-    };
+  override initialize(stored: unknown): Promise<void> {
+    this.config = this.parseConfig(ObsConfigSchema, stored);
 
     this.logger.debug('OBS integration initialized', { url: this.config.url });
     return Promise.resolve();

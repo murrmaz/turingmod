@@ -1,4 +1,5 @@
 import type {
+  EmptyPayload,
   IntegrationConfigurePayload,
   IntegrationListPayload,
   IntegrationStartPayload,
@@ -9,11 +10,6 @@ import { createErrorMessage, MessageType, messageOf } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import { Logger } from '../../utils/Logger.js';
-import {
-  isIntegrationConfigurePayload,
-  isIntegrationStartPayload,
-  isIntegrationStopPayload,
-} from '../validation.js';
 
 /**
  * Integration message handler
@@ -37,14 +33,6 @@ export class IntegrationHandler {
   async handleStart(
     message: IWebSocketMessage<IntegrationStartPayload>
   ): Promise<IWebSocketMessage | null> {
-    if (!isIntegrationStartPayload(message.payload)) {
-      return createErrorMessage(
-        'INVALID_PAYLOAD',
-        'Malformed integration.start payload',
-        message.id
-      );
-    }
-
     const { integrationName } = message.payload;
 
     this.logger.info(`Starting integration: ${integrationName}`);
@@ -83,14 +71,6 @@ export class IntegrationHandler {
   async handleStop(
     message: IWebSocketMessage<IntegrationStopPayload>
   ): Promise<IWebSocketMessage | null> {
-    if (!isIntegrationStopPayload(message.payload)) {
-      return createErrorMessage(
-        'INVALID_PAYLOAD',
-        'Malformed integration.stop payload',
-        message.id
-      );
-    }
-
     const { integrationName } = message.payload;
 
     this.logger.info(`Stopping integration: ${integrationName}`);
@@ -126,7 +106,9 @@ export class IntegrationHandler {
   /**
    * Handle integration list request
    */
-  handleList(message: IWebSocketMessage): Promise<IWebSocketMessage<IntegrationListPayload>> {
+  handleList(
+    message: IWebSocketMessage<EmptyPayload>
+  ): Promise<IWebSocketMessage<IntegrationListPayload>> {
     this.logger.debug('Getting integration list');
 
     const integrations = this.integrationManager.getAllStatuses();
@@ -147,14 +129,6 @@ export class IntegrationHandler {
   async handleConfigure(
     message: IWebSocketMessage<IntegrationConfigurePayload>
   ): Promise<IWebSocketMessage | null> {
-    if (!isIntegrationConfigurePayload(message.payload)) {
-      return createErrorMessage(
-        'INVALID_PAYLOAD',
-        'Malformed integration.configure payload',
-        message.id
-      );
-    }
-
     const { integrationName, config } = message.payload;
 
     this.logger.info(`Configuring integration: ${integrationName}`);

@@ -1,5 +1,4 @@
 import type {
-  ErrorPayload,
   IWebSocketMessage,
   OAuthAuthUrlResponsePayload,
   OAuthExchangeCodePayload,
@@ -7,7 +6,6 @@ import type {
   OAuthGetAuthUrlPayload,
 } from '@turingmod/shared';
 import {
-  createErrorMessage,
   createOAuthAuthUrlResponseMessage,
   createOAuthExchangeResultMessage,
   messageOf,
@@ -15,7 +13,6 @@ import {
 import { injectable, singleton } from 'tsyringe';
 import { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
 import { Logger } from '../../utils/Logger.js';
-import { isOAuthExchangeCodePayload, isOAuthGetAuthUrlPayload } from '../validation.js';
 
 /**
  * OAuth message handler
@@ -41,13 +38,7 @@ export class OAuthHandler {
   handleGetAuthUrl(
     message: IWebSocketMessage<OAuthGetAuthUrlPayload>,
     clientId: string
-  ): Promise<IWebSocketMessage<OAuthAuthUrlResponsePayload | ErrorPayload>> {
-    if (!isOAuthGetAuthUrlPayload(message.payload)) {
-      return Promise.resolve(
-        createErrorMessage('INVALID_PAYLOAD', 'Malformed oauth.getAuthUrl payload', message.id)
-      );
-    }
-
+  ): Promise<IWebSocketMessage<OAuthAuthUrlResponsePayload>> {
     const { integrationName } = message.payload;
 
     this.logger.info(`Getting auth URL for: ${integrationName}`);
@@ -72,16 +63,6 @@ export class OAuthHandler {
   async handleExchangeCode(
     message: IWebSocketMessage<OAuthExchangeCodePayload>
   ): Promise<IWebSocketMessage<OAuthExchangeResultPayload>> {
-    if (!isOAuthExchangeCodePayload(message.payload)) {
-      const { integrationName } = (message.payload ?? {}) as { integrationName?: unknown };
-      return createOAuthExchangeResultMessage(
-        typeof integrationName === 'string' ? integrationName : 'unknown',
-        false,
-        'Malformed oauth.exchangeCode payload',
-        message.id
-      );
-    }
-
     const { integrationName, code } = message.payload;
 
     this.logger.info(`Exchanging code for: ${integrationName}`);

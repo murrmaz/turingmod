@@ -1,18 +1,4 @@
-import {
-  type ActivityQueryPayload,
-  type CommandExecutePayload,
-  type CommandListRequestPayload,
-  type CommandSimulatePayload,
-  DEFAULT_FRONTEND_DEV_PORT,
-  type IntegrationConfigurePayload,
-  type IntegrationStartPayload,
-  type IntegrationStopPayload,
-  type IWebSocketMessage,
-  MessageType,
-  type OAuthExchangeCodePayload,
-  type OAuthGetAuthUrlPayload,
-  type YouTubeChatControlPayload,
-} from '@turingmod/shared';
+import { DEFAULT_FRONTEND_DEV_PORT, MessageType } from '@turingmod/shared';
 import { container, instanceCachingFactory } from 'tsyringe';
 import { ActivityForwarder } from './activity/ActivityForwarder.js';
 import { AdWarningScheduler } from './breaks/AdWarningScheduler.js';
@@ -229,23 +215,21 @@ export async function initializeComponents(): Promise<void> {
   const youtubeHandler = container.resolve(YouTubeHandler);
 
   messageRouter.registerHandler(MessageType.COMMAND_EXECUTE, (msg) =>
-    commandHandler.handleExecute(msg as IWebSocketMessage<CommandExecutePayload>)
+    commandHandler.handleExecute(msg)
   );
 
   messageRouter.registerHandler(MessageType.COMMAND_SIMULATE, (msg) =>
-    commandHandler.handleSimulate(msg as IWebSocketMessage<CommandSimulatePayload>)
+    commandHandler.handleSimulate(msg)
   );
 
-  messageRouter.registerHandler(MessageType.COMMAND_LIST, (msg) =>
-    commandHandler.handleList(msg as IWebSocketMessage<CommandListRequestPayload>)
-  );
+  messageRouter.registerHandler(MessageType.COMMAND_LIST, (msg) => commandHandler.handleList(msg));
 
   messageRouter.registerHandler(MessageType.INTEGRATION_START, (msg) =>
-    integrationHandler.handleStart(msg as IWebSocketMessage<IntegrationStartPayload>)
+    integrationHandler.handleStart(msg)
   );
 
   messageRouter.registerHandler(MessageType.INTEGRATION_STOP, (msg) =>
-    integrationHandler.handleStop(msg as IWebSocketMessage<IntegrationStopPayload>)
+    integrationHandler.handleStop(msg)
   );
 
   messageRouter.registerHandler(MessageType.INTEGRATION_LIST, (msg) =>
@@ -253,31 +237,31 @@ export async function initializeComponents(): Promise<void> {
   );
 
   messageRouter.registerHandler(MessageType.INTEGRATION_CONFIGURE, (msg) =>
-    integrationHandler.handleConfigure(msg as IWebSocketMessage<IntegrationConfigurePayload>)
+    integrationHandler.handleConfigure(msg)
   );
 
   messageRouter.registerHandler(MessageType.OAUTH_GET_AUTH_URL, (msg, clientId) =>
-    oauthHandler.handleGetAuthUrl(msg as IWebSocketMessage<OAuthGetAuthUrlPayload>, clientId)
+    oauthHandler.handleGetAuthUrl(msg, clientId)
   );
 
   messageRouter.registerHandler(MessageType.OAUTH_EXCHANGE_CODE, (msg) =>
-    oauthHandler.handleExchangeCode(msg as IWebSocketMessage<OAuthExchangeCodePayload>)
+    oauthHandler.handleExchangeCode(msg)
   );
 
   messageRouter.registerHandler(MessageType.ACTIVITY_QUERY, (msg) =>
-    activityHandler.handleQuery(msg as IWebSocketMessage<ActivityQueryPayload>)
+    activityHandler.handleQuery(msg)
   );
 
   messageRouter.registerHandler(MessageType.YOUTUBE_GO_LIVE, (msg) =>
-    youtubeHandler.handleGoLive(msg as IWebSocketMessage<YouTubeChatControlPayload>)
+    youtubeHandler.handleGoLive(msg)
   );
 
   messageRouter.registerHandler(MessageType.YOUTUBE_GO_OFFLINE, (msg) =>
-    youtubeHandler.handleGoOffline(msg as IWebSocketMessage<YouTubeChatControlPayload>)
+    youtubeHandler.handleGoOffline(msg)
   );
 
   messageRouter.registerHandler(MessageType.YOUTUBE_GET_CHAT_STATE, (msg) =>
-    youtubeHandler.handleGetState(msg as IWebSocketMessage<YouTubeChatControlPayload>)
+    youtubeHandler.handleGetState(msg)
   );
 
   logger.info('Components initialized');

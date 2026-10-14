@@ -7,7 +7,6 @@ import { createActivityListMessage, createErrorMessage, messageOf } from '@turin
 import { injectable, singleton } from 'tsyringe';
 import { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
 import { Logger } from '../../utils/Logger.js';
-import { isActivityQueryPayload } from '../validation.js';
 
 /**
  * Activity message handler
@@ -28,16 +27,8 @@ export class ActivityHandler {
   handleQuery(
     message: IWebSocketMessage<ActivityQueryPayload>
   ): Promise<IWebSocketMessage<ActivityListPayload> | IWebSocketMessage> {
-    if (!isActivityQueryPayload(message.payload)) {
-      return Promise.resolve(
-        createErrorMessage('INVALID_PAYLOAD', 'Malformed activity.query payload', message.id)
-      );
-    }
-
-    const payload = message.payload ?? {};
-
     try {
-      const entries = this.repo.findRecent(payload);
+      const entries = this.repo.findRecent(message.payload);
       return Promise.resolve(createActivityListMessage(entries, message.id));
     } catch (error) {
       this.logger.error('Failed to query activity log', error);

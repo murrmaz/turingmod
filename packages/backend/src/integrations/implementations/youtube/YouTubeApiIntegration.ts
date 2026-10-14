@@ -22,6 +22,12 @@ export interface ActiveBroadcast {
 }
 
 /**
+ * The fields of a broadcast that don't change while it's live, so they can be held for its
+ * lifetime. The title is left out: it can be changed mid-stream, in YouTube Studio or by `!title`.
+ */
+export type BroadcastIdentity = Omit<ActiveBroadcast, 'title'>;
+
+/**
  * The YouTube Data API connection: a googleapis client kept in step with
  * YouTubeAuthIntegration, and the integration status that says whether it can
  * be used.

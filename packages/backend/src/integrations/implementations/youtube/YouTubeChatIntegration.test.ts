@@ -179,6 +179,17 @@ describe('YouTubeChatIntegration', () => {
       expect(streamMock.stream).toHaveBeenCalledWith('chat-1', authClient, undefined);
     });
 
+    it('reports the streamed broadcast, without its title, until it disconnects', async () => {
+      expect(integration.getBroadcast()).toBeNull();
+
+      await connect();
+      const { title: _title, ...identity } = LIVE_BROADCAST;
+      expect(integration.getBroadcast()).toEqual(identity);
+
+      integration.disconnectChat('console');
+      expect(integration.getBroadcast()).toBeNull();
+    });
+
     it('ignores a second request to connect while already streaming', async () => {
       await connect();
 

@@ -1,9 +1,9 @@
-import type { CommandContext, CommandResult } from '@turingmod/shared';
+import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { CLIPS } from '../../sounds/clips.js';
 import { SoundLibrary } from '../../sounds/SoundLibrary.js';
-import type { ICommand } from '../interfaces/ICommand.js';
+import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 
 /** How often a bonk of someone else lands on the bonker instead. */
 export const BONK_REVOLT_CHANCE = 0.1;
@@ -30,7 +30,7 @@ export class BonkCommand implements ICommand {
     const { user, args } = context;
 
     // Parse target from args (e.g., "!bonk @username")
-    const requested = args[1]?.replace(/^@/, '') || user.username;
+    const requested = args[0]?.replace(/^@/, '') || user.username;
     // One time in ten the bot turns on whoever asked, as the original did.
     const revolt = requested !== user.username && Math.random() < BONK_REVOLT_CHANCE;
     const target = revolt ? user.username : requested;

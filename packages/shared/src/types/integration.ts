@@ -32,6 +32,13 @@ export interface IntegrationInfo {
   /** Current connection status */
   status: IntegrationStatus;
 
+  /**
+   * Whether the streamer wants it running: set by starting it from the console (or authorizing
+   * it), cleared by stopping it. An enabled integration starts at boot and comes back after a
+   * dependency recovers; it may still be BLOCKED while it waits for one.
+   */
+  enabled: boolean;
+
   /** Timestamp of last successful connection */
   lastConnected?: number;
 
@@ -64,36 +71,4 @@ export interface IntegrationInfo {
 
   /** Logical group this integration belongs to, for grouping related integrations in the UI. Absent for standalone integrations (Discord, OBS, Arduino, Sound). */
   group?: IntegrationGroup;
-}
-
-/**
- * Integration configuration stored in database
- */
-export interface IntegrationConfig {
-  /** Unique identifier */
-  id: string;
-
-  /** Integration name */
-  name: string;
-
-  /** Whether integration is enabled */
-  enabled: boolean;
-
-  /** Encrypted configuration data (JSON string) */
-  config: string;
-
-  /** Last known status */
-  lastStatus: IntegrationStatus;
-
-  /** Last error message */
-  lastError?: string;
-
-  /** Timestamp of last connection */
-  lastConnectedAt?: number;
-
-  /** Timestamp when config was created */
-  createdAt: number;
-
-  /** Timestamp when config was last updated */
-  updatedAt: number;
 }

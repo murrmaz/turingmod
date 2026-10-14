@@ -1,10 +1,10 @@
-import type { CommandContext, CommandResult } from '@turingmod/shared';
+import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { raidShoutoutMessage } from '../../raids/RaidShoutout.js';
 import { Logger } from '../../utils/Logger.js';
-import type { ICommand } from '../interfaces/ICommand.js';
+import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 
 /**
  * !so command
@@ -30,7 +30,7 @@ export class SoCommand implements ICommand {
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {
-    const channel = context.args[1]?.replace(/^@/, '').trim();
+    const channel = context.args[0]?.replace(/^@/, '');
     if (!channel) {
       return {
         success: false,

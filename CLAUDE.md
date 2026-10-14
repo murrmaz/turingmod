@@ -50,6 +50,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Interface**: `packages/backend/src/commands/interfaces/ICommand.ts`
 - **Implementations**: `packages/backend/src/commands/implementations/*.ts`
 - **Loader**: `packages/backend/src/commands/loadCommands.ts`
+- **Parser**: `packages/backend/src/commands/parseCommand.ts` — the one place command text becomes a name and arguments, for chat and the simulator alike
 - **WebSocket Handler**: `packages/backend/src/server/handlers/CommandHandler.ts`
 
 ### Platform Provider Layer
@@ -83,7 +84,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 
 ### Chat
 Everything that consumes or produces chat lives under `packages/backend/src/chat/`: the pipeline at the top level, and the chat features in a folder each.
-- **Message shape**: `chat/chatMessage.ts` — `ChatMessageEvent`, `parseCommand`, and `toSafeChatText` (applied by every façade to outgoing chat)
+- **Message shape**: `chat/chatMessage.ts` — `ChatMessageEvent` and `toSafeChatText` (applied by every façade to outgoing chat)
 - **Own-message gate**: `chat/OwnChatMessages.ts` — records sent message ids; republishes `chat.received` as `chat.message` minus TuringMod's own
 - **Chat routing**: `chat/ChatRouter.ts` (moderate → parse → execute → reply)
 - **Moderation**: `chat/moderation/ChatModerator.ts` (banned words, quiet mode) + `bannedWords.ts` (matching, 30-day expiry)
@@ -159,7 +160,9 @@ break or an effect while those are being restored. Each service keeps its bus su
 
 All integrations extend `BaseIntegration` (`integrations/BaseIntegration.ts`), which implements the `IIntegration` interface (`integrations/interfaces/IIntegration.ts`) and provides shared status/error/event-emitter plumbing. Concrete integrations implement `start()` → `stop()` and call `setStatus()` to report lifecycle transitions; `getStatus()` returns `IntegrationStatus` enum values.
 
-**An integration's stored config is parsed against its own Zod schema.** `initialize(stored)` receives the decrypted value as read, and an integration with a config overrides it to call `parseConfig(schema, stored)`, which throws naming every field that was wrong; its config type is `z.infer` of that schema (OAuth providers declare `configSchema`, extending `OAuthConfigBaseSchema`). An integration without a config keeps the base `initialize()`, which rejects anything stored for it. `IntegrationManager.configureIntegration()` applies a config before storing it, so a bad one is never saved, and one that fails at load is shown as the integration's ERROR status.
+**An integration's stored config is parsed against its own Zod schema.** `initialize(stored)` receives the decrypted value as read, and an integration with a config overrides it to call `parseConfig(schema, stored)`, which throws naming every field that was wrong; its config type is `z.infer` of that schema (OAuth providers declare `configSchema`, extending `OAuthConfigBaseSchema`). An integration without a config keeps the base `initialize()`, which rejects anything stored for it. A stored config is applied once, at load (`loadIntegrations()`); after that the integration holds it. `IntegrationManager.configureIntegration()` applies a new config before storing it, so a bad one is never saved, and restarts the integration on it if it is enabled. One that fails at load is shown as the integration's ERROR status, and the integration refuses to start until it is given a config that fits, rather than running on its defaults.
+
+**`enabled` is what the streamer wants running, and only the streamer changes it.** Starting an integration from the console (`enableIntegration()`) or completing its OAuth sets it; stopping it from the console (`disableIntegration()`) clears it (`IntegrationStateRepository.setEnabled()`, which creates the row for an integration with no config). Cascades, `BLOCKED` and shutdown never touch it. Boot starts every enabled integration, and `reconcile()` brings an enabled one back when its dependency recovers, so enabling one whose dependency is down isn't an error: it reports `BLOCKED` and starts once the dependency connects. `IntegrationInfo.enabled` tells the console which to offer, Start or Stop.
 
 `IntegrationManager` resolves dependencies through `DependencyGraph`, a pure module over the live
 registry (`sort`, `levels`, `stopOrder`, `transitiveDependentsOf`, `validate`). Integrations declare
@@ -426,9 +429,20 @@ the channel. Every `IStreamPlatform` passes outgoing chat and announcements thro
 characters and `!`/`/` prefixes. There is deliberately no `!echo`-style command that repeats
 viewer input.
 
+**Commands receive their arguments already parsed.** `parseCommand()` (`commands/parseCommand.ts`)
+lowercases the name, so `!Lurk` runs `lurk` (command names are registered lowercase, which
+`CommandRegistry` enforces), and gives the command two views of what follows it: `args`, the words
+split on any whitespace with no empty entries, for a command that takes a word (`!so <channel>`),
+and `argText`, the trimmed text with its spacing kept, for one that takes free text (`!title`,
+`!tags`). A command with a read and a write mode writes only when `argText` isn't empty, so a stray
+trailing space reads rather than clearing anything. Commands never re-split or re-join arguments
+themselves.
+
 The command simulator deliberately runs commands for real, side effects included: it lets the
-streamer act as a viewer to integration-test a command without asking someone to type it. It is
-only reachable from the localhost console.
+streamer act as a viewer to integration-test a command without asking someone to type it. It parses
+its text with the same `parseCommand()` as chat, so a command behaves identically in both, and text
+chat wouldn't run is answered as not a command. It is only reachable from the localhost console;
+there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 
@@ -436,7 +450,7 @@ React Context for state management: `WebSocketContext` (connection + send/subscr
 
 ### HTTP Server
 
-Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which also hosts the WebSocket endpoint (`/ws`) — the backend has one port. The console connects to `/ws` on its own origin; in development Vite proxies that to the backend. Serves static frontend build in production. OAuth callback routes (`/callback/twitch`, `/callback/spotify`, `/callback/youtube`) are built from each `IOAuthIntegration.getCallbackPath()` via `OAuthFlowService.getCallbackRoutes()`, not hardcoded. Redirect URIs are derived, never stored or sent by the console: `getRedirectUri()` combines the callback path, `SERVER_PORT`, and the one loopback host each provider accepts for plain HTTP (Twitch `localhost`; Spotify and Google `127.0.0.1`). Health check at `/health`. Localhost-only binding enforced.
+Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which also hosts the WebSocket endpoint (`/ws`) — the backend has one port. The console connects to `/ws` on its own origin; in development Vite proxies that to the backend. Serves static frontend build in production. OAuth callback routes (`/callback/twitch`, `/callback/spotify`, `/callback/youtube`) are built from each `IOAuthIntegration.getCallbackPath()` via `OAuthFlowService.getCallbackRoutes()`, not hardcoded; it refuses two integrations claiming one path. Redirect URIs are derived, never stored or sent by the console: `getRedirectUri()` combines the callback path, `SERVER_PORT`, and the one loopback host each provider accepts for plain HTTP (Twitch `localhost`; Spotify and Google `127.0.0.1`). Health check at `/health`. Localhost-only binding enforced.
 
 ## Code Style
 
@@ -476,7 +490,7 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 - **Accessors a dependent caches against must return a stable instance** (`getAuthProvider()`,
   `getAuthClient()`) — the API layers compare the reference to decide whether to rebuild, so
   returning a fresh object per call makes them rebuild on every access.
-- **Integration lifecycle** — always call `initialize(config)` before `start()`. An integration with a config declares a Zod schema for it and parses it in `initialize()` with `parseConfig()`.
+- **Integration lifecycle** — `IntegrationManager` calls `initialize(config)` before `start()`: at load, and again only when the config is replaced. An integration with a config declares a Zod schema for it and parses it in `initialize()` with `parseConfig()`. Saving its own config (OAuth tokens) goes through `IntegrationStateRepository.saveConfig()`, which never changes `enabled`.
 - **New feature services** implement `IService` and get one `services.add(...)` line in `setup.ts`, placed by what they depend on at shutdown — never start or stop them anywhere else.
 - **New commands** go in `packages/backend/src/commands/implementations/` and implement `ICommand`. They're auto-discovered by `loadCommands()`.
 - **New channel point reward handlers** go in `packages/backend/src/rewards/implementations/` and implement `IRewardHandler`, matched by exact `rewardTitle`. They're auto-discovered by `loadRewardHandlers()`.

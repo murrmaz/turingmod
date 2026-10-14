@@ -1,8 +1,8 @@
-import type { CommandContext, CommandResult } from '@turingmod/shared';
+import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { SuggestionRepository } from '../../database/repositories/SuggestionRepository.js';
-import type { ICommand } from '../interfaces/ICommand.js';
+import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 
 const MAX_SUGGESTION_LENGTH = 300;
 
@@ -24,7 +24,7 @@ export class SgCommand implements ICommand {
 
   execute(context: CommandContext): Promise<CommandResult> {
     const user = context.user.username;
-    const suggestion = context.args.slice(1).join(' ').trim();
+    const suggestion = context.argText;
     if (suggestion === '') {
       return Promise.resolve({
         success: false,

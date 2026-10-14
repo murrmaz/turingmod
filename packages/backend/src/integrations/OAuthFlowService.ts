@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { injectable, singleton } from 'tsyringe';
-import { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import { IntegrationManager } from './IntegrationManager.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 
@@ -26,27 +25,27 @@ export class OAuthFlowService {
     { integrationName: string; clientId: string; expiresAt: number }
   >();
 
-  constructor(
-    private integrationManager: IntegrationManager,
-    private stateRepository: IntegrationStateRepository
-  ) {}
+  constructor(private integrationManager: IntegrationManager) {}
 
   /**
    * Get the OAuth callback path for every OAuth-capable registered
-   * integration. IntegrationManager.register() already guarantees paths are
-   * unique, so callers (e.g. HttpServer) get plain routing data instead of
-   * live integration instances they have no business holding onto.
+   * integration, so callers (e.g. HttpServer) get plain routing data instead of
+   * live integration instances they have no business holding onto. Throws if
+   * two integrations claim one path, since only one of them could be reached.
    */
   getCallbackRoutes(): Array<{ path: string; integrationName: string }> {
     const routes: Array<{ path: string; integrationName: string }> = [];
 
     for (const integration of this.integrationManager.getAllIntegrations()) {
-      if (integration.oauth) {
-        routes.push({
-          path: integration.oauth.getCallbackPath(),
-          integrationName: integration.name,
-        });
+      if (!integration.oauth) continue;
+      const path = integration.oauth.getCallbackPath();
+      const conflict = routes.find((route) => route.path === path);
+      if (conflict) {
+        throw new Error(
+          `OAuth callback path conflict: '${path}' is claimed by both '${conflict.integrationName}' and '${integration.name}'`
+        );
       }
+      routes.push({ path, integrationName: integration.name });
     }
 
     return routes;
@@ -90,13 +89,12 @@ export class OAuthFlowService {
 
   /**
    * Exchange an OAuth authorization code for tokens, then enable and start
-   * the integration.
+   * the integration: authorizing it is the streamer asking for it to run.
    */
   async completeExchange(name: string, code: string): Promise<void> {
     const integration = this.getOAuthIntegration(name);
     await integration.exchangeCode(code);
-    this.stateRepository.updateEnabled(name, true);
-    await this.integrationManager.startIntegration(name);
+    await this.integrationManager.enableIntegration(name);
   }
 
   /**

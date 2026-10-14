@@ -8,6 +8,12 @@ import { DependencyGraph } from './DependencyGraph.js';
 import { DependencyFailurePolicy, type IIntegration } from './interfaces/IIntegration.js';
 
 /**
+ * A start refused because a dependency isn't connected. Not a failure: the integration reports
+ * BLOCKED, and reconcile() starts it once the dependency connects, if it is still enabled.
+ */
+class DependencyBlockedError extends Error {}
+
+/**
  * Integration manager
  * Manages lifecycle and state of all integrations
  */
@@ -41,6 +47,12 @@ export class IntegrationManager {
    */
   private readonly lifecycleLocks = new Map<string, Promise<void>>();
 
+  /**
+   * Why each integration's stored config failed to load. Such an integration refuses to start
+   * until it is given a config that fits, rather than running on its defaults.
+   */
+  private readonly configErrors = new Map<string, string>();
+
   private logger: Logger;
 
   /**
@@ -65,18 +77,6 @@ export class IntegrationManager {
   register(integration: IIntegration): void {
     if (this.integrations.has(integration.name)) {
       throw new Error(`Integration already registered: ${integration.name}`);
-    }
-
-    if (integration.oauth) {
-      const path = integration.oauth.getCallbackPath();
-      const conflict = Array.from(this.integrations.values()).find(
-        (existing) => existing.oauth?.getCallbackPath() === path
-      );
-      if (conflict) {
-        throw new Error(
-          `OAuth callback path conflict: '${path}' is claimed by both '${conflict.name}' and '${integration.name}'`
-        );
-      }
     }
 
     this.integrations.set(integration.name, integration);
@@ -123,7 +123,8 @@ export class IntegrationManager {
   }
 
   /**
-   * Load integrations from database
+   * Apply each integration's stored config. This is the one time a stored config is read: after
+   * it, the integration holds its config, and configureIntegration() replaces it.
    */
   async loadIntegrations(): Promise<void> {
     this.logger.info('Loading integrations from database');
@@ -150,6 +151,7 @@ export class IntegrationManager {
           // error names the fields, and showing it as the integration's status puts it in
           // front of the streamer rather than only in the log.
           this.logger.error(`Failed to initialize integration: ${config.name}`, error);
+          this.configErrors.set(config.name, messageOf(error));
           integration.reportError(messageOf(error));
         }
       }
@@ -179,6 +181,10 @@ export class IntegrationManager {
       await Promise.allSettled(
         level.map((name) =>
           this.startIntegration(name).catch((error) => {
+            if (error instanceof DependencyBlockedError) {
+              this.logger.info(`${name} waits for its dependencies: ${error.message}`);
+              return;
+            }
             this.logger.error(`Failed to start integration ${name}, continuing with others`, error);
           })
         )
@@ -219,19 +225,18 @@ export class IntegrationManager {
       // prerequisite simply isn't connected. reportBlocked() persists via the
       // status listener, so no error row is written for a healthy integration.
       integration.reportBlocked(blockedReason);
-      throw new Error(blockedReason);
+      throw new DependencyBlockedError(blockedReason);
+    }
+
+    const configError = this.configErrors.get(name);
+    if (configError) {
+      integration.reportError(configError);
+      throw new Error(configError);
     }
 
     this.logger.info(`Starting integration: ${name}`);
 
     try {
-      // Ensure integration is initialized before starting (it may not have been
-      // initialized during loadIntegrations if no config existed at that time)
-      const savedConfig = this.stateRepository.getDecryptedConfig(name);
-      if (savedConfig) {
-        await integration.initialize(savedConfig);
-      }
-
       await this.withStartTimeout(name, integration.start());
 
       // No status is written here: the integration set its own during
@@ -307,6 +312,38 @@ export class IntegrationManager {
       }
     }
     return null;
+  }
+
+  /**
+   * The streamer turning an integration on: remember that, so boot and dependency recovery bring
+   * it back, and start it. An unmet dependency isn't an error here: it reports BLOCKED and starts
+   * once the dependency connects.
+   */
+  async enableIntegration(name: string): Promise<void> {
+    if (!this.integrations.has(name)) {
+      throw new Error(`Integration not found: ${name}`);
+    }
+    this.stateRepository.setEnabled(name, true);
+    try {
+      await this.startIntegration(name);
+    } catch (error) {
+      if (!(error instanceof DependencyBlockedError)) {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * The streamer turning an integration off: remember that, so nothing brings it back on its own,
+   * and stop it.
+   */
+  async disableIntegration(name: string): Promise<void> {
+    if (!this.integrations.has(name)) {
+      throw new Error(`Integration not found: ${name}`);
+    }
+    this.stateRepository.setEnabled(name, false);
+    this.cascadeStopped.delete(name);
+    await this.stopIntegration(name);
   }
 
   /**
@@ -580,6 +617,7 @@ export class IntegrationManager {
     return {
       name: integration.name,
       status: integration.getStatus(),
+      enabled: this.isEnabled(integration.name),
       ...(errorMessage ? { errorMessage } : {}),
       metadata: {
         dependencies,
@@ -598,25 +636,35 @@ export class IntegrationManager {
   }
 
   /**
-   * Configure an integration
+   * Replace an integration's config. It is applied first, which checks it against the
+   * integration's schema, so a config that doesn't fit is rejected before anything is stored.
+   * An enabled integration is restarted on it, so the change takes effect now; whether it is
+   * enabled doesn't change.
    */
-  async configureIntegration(
-    name: string,
-    config: Record<string, unknown>,
-    enabled: boolean
-  ): Promise<void> {
+  configureIntegration(name: string, config: Record<string, unknown>): Promise<void> {
     const integration = this.integrations.get(name);
     if (!integration) {
-      throw new Error(`Integration not found: ${name}`);
+      return Promise.reject(new Error(`Integration not found: ${name}`));
     }
 
-    this.logger.info(`Configuring integration: ${name}`);
+    return this.withLifecycleLock(name, async () => {
+      this.logger.info(`Configuring integration: ${name}`);
+      await integration.initialize(config);
+      this.stateRepository.saveConfig(name, config);
+      this.configErrors.delete(name);
+      this.logger.info(`Integration configured: ${name}`);
 
-    // Applying it first checks it against the integration's schema, so a config that doesn't
-    // fit is rejected before anything is stored.
-    await integration.initialize(config);
-    this.stateRepository.upsert(name, config, enabled);
-
-    this.logger.info(`Integration configured: ${name}`);
+      if (!this.isEnabled(name)) {
+        return;
+      }
+      await this.doStop(integration);
+      try {
+        await this.doStart(integration);
+      } catch (error) {
+        if (!(error instanceof DependencyBlockedError)) {
+          throw error;
+        }
+      }
+    });
   }
 }

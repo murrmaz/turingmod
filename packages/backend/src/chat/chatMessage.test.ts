@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseCommand, toSafeChatText } from './chatMessage.js';
+import { parseCommand } from '../commands/parseCommand.js';
+import { toSafeChatText } from './chatMessage.js';
 
 describe('toSafeChatText', () => {
   it('leaves ordinary messages alone', () => {

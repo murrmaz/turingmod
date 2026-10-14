@@ -2,10 +2,11 @@ import 'reflect-metadata';
 import {
   type CommandListPayload,
   MessageType,
+  PermissionLevel,
   PlatformCapability,
   StreamingPlatform,
 } from '@turingmod/shared';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { OwnChatMessages } from '../../chat/OwnChatMessages.js';
 import type { CommandExecutor } from '../../commands/CommandExecutor.js';
 import { CommandRegistry } from '../../commands/CommandRegistry.js';
@@ -68,5 +69,45 @@ describe('CommandHandler.handleList', () => {
       uptime: [StreamingPlatform.TWITCH, StreamingPlatform.YOUTUBE],
       ad: [StreamingPlatform.TWITCH],
     });
+  });
+});
+
+describe('CommandHandler.handleSimulate', () => {
+  const simulate = (commandText: string) => {
+    const execute = vi.fn(() => Promise.resolve({ success: true, message: 'ok' }));
+    const logger = new Logger({ level: 'silent' });
+    const handler = new CommandHandler(
+      { execute } as unknown as CommandExecutor,
+      new CommandRegistry(logger),
+      new PlatformRegistry(),
+      logger
+    );
+    const response = handler.handleSimulate({
+      id: '1',
+      type: MessageType.COMMAND_SIMULATE,
+      timestamp: 0,
+      payload: {
+        commandText,
+        simulatedUser: { username: 'someone', permissionLevel: PermissionLevel.VIEWER },
+        platform: StreamingPlatform.TWITCH,
+      },
+    });
+    return { execute, response };
+  };
+
+  it('parses the text exactly as chat would', async () => {
+    const { execute } = simulate('!So  @coolraider');
+    await vi.waitFor(() => expect(execute).toHaveBeenCalled());
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'so', args: ['@coolraider'], isSimulation: true })
+    );
+  });
+
+  it('runs nothing for text chat would not treat as a command', async () => {
+    const { execute, response } = simulate('so @coolraider');
+
+    expect((await response).payload.result.error?.code).toBe('INVALID_INPUT');
+    expect(execute).not.toHaveBeenCalled();
   });
 });

@@ -88,6 +88,7 @@ export function IntegrationPanel() {
           const {
             isLoading,
             isConnected,
+            isEnabled,
             isStartable,
             isOAuthIntegration,
             needsReauth,
@@ -97,7 +98,7 @@ export function IntegrationPanel() {
 
           return (
             <SpaceBetween size="xs" direction="horizontal">
-              {isConnected ? (
+              {isConnected || (isEnabled && !isOAuthIntegration) ? (
                 <Button
                   variant="normal"
                   iconName="status-negative"
@@ -126,9 +127,9 @@ export function IntegrationPanel() {
                   content={
                     <Box padding="s">
                       <SpaceBetween size="xs">
-                        <Box variant="strong">Dependencies Required</Box>
+                        <Box variant="strong">Waits for dependencies</Box>
                         <Box variant="p">
-                          This integration requires the following to be connected first:
+                          Once started, this integration runs as soon as these connect:
                         </Box>
                         <ul style={{ margin: 0, paddingLeft: '20px' }}>
                           {missingDependencies.map((dep) => (
@@ -141,7 +142,12 @@ export function IntegrationPanel() {
                     </Box>
                   }
                 >
-                  <Button variant="primary" iconName="status-positive" disabled={true}>
+                  <Button
+                    variant="primary"
+                    iconName="status-positive"
+                    onClick={() => handleStart(item.name)}
+                    loading={isLoading}
+                  >
                     Start
                   </Button>
                 </Popover>

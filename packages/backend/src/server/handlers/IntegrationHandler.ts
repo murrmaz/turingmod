@@ -38,7 +38,7 @@ export class IntegrationHandler {
     this.logger.info(`Starting integration: ${integrationName}`);
 
     try {
-      await this.integrationManager.startIntegration(integrationName);
+      await this.integrationManager.enableIntegration(integrationName);
 
       // Get updated status and return with request ID so frontend can match response
       const status = this.integrationManager.getStatus(integrationName);
@@ -76,7 +76,7 @@ export class IntegrationHandler {
     this.logger.info(`Stopping integration: ${integrationName}`);
 
     try {
-      await this.integrationManager.stopIntegration(integrationName);
+      await this.integrationManager.disableIntegration(integrationName);
 
       // Get updated status and return with request ID so frontend can match response
       const status = this.integrationManager.getStatus(integrationName);
@@ -134,11 +134,7 @@ export class IntegrationHandler {
     this.logger.info(`Configuring integration: ${integrationName}`);
 
     try {
-      await this.integrationManager.configureIntegration(
-        integrationName,
-        config,
-        false // disabled until OAuth completes
-      );
+      await this.integrationManager.configureIntegration(integrationName, config);
 
       // Get updated status and return with correct message ID
       const status = this.integrationManager.getStatus(integrationName);

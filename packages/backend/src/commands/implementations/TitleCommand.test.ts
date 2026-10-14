@@ -1,9 +1,9 @@
 import 'reflect-metadata';
-import type { CommandContext } from '@turingmod/shared';
 import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MirrorResult, StreamControlService } from '../../platforms/StreamControlService.js';
 import type { Logger } from '../../utils/Logger.js';
+import { commandContext } from '../testing.js';
 import { TitleCommand } from './TitleCommand.js';
 
 const setTitle = vi.fn<(title: string) => Promise<MirrorResult>>();
@@ -19,20 +19,13 @@ const logger = {
 } as unknown as Logger;
 (logger.child as ReturnType<typeof vi.fn>).mockReturnValue(logger);
 
-/** `args[0]` is the command name, matching how CommandExecutor parses chat input. */
-const contextFor = (...args: string[]): CommandContext => ({
-  user: {
+const contextFor = (...words: string[]) =>
+  commandContext(['!title', ...words].join(' '), {
     id: 'u1',
-    platform: StreamingPlatform.TWITCH,
     platformUserId: '1',
     username: 'mod',
     permissionLevel: PermissionLevel.MODERATOR,
-  },
-  args: ['title', ...args],
-  platform: StreamingPlatform.TWITCH,
-  metadata: {},
-  isSimulation: false,
-});
+  });
 
 describe('TitleCommand', () => {
   let command: TitleCommand;

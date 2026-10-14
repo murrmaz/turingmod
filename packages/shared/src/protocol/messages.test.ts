@@ -1,27 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { PermissionLevel } from '../constants/permissions.js';
-import { StreamingPlatform } from '../constants/platform.js';
-import type { CommandContext } from '../types/command.js';
 import {
-  createCommandExecuteMessage,
   createCommandResultMessage,
   createIntegrationStartMessage,
   createMessage,
   MessageType,
 } from './messages.js';
-
-const context: Omit<CommandContext, 'args'> = {
-  user: {
-    id: 'u1',
-    platform: StreamingPlatform.TWITCH,
-    platformUserId: '123',
-    username: 'someone',
-    permissionLevel: PermissionLevel.VIEWER,
-  },
-  platform: StreamingPlatform.TWITCH,
-  metadata: {},
-  isSimulation: false,
-};
 
 describe('createMessage', () => {
   it('stamps a generated id, type, and payload', () => {
@@ -36,16 +19,6 @@ describe('createMessage', () => {
   it('uses the provided id instead of generating one', () => {
     const message = createMessage(MessageType.PING, {}, 'fixed-id');
     expect(message.id).toBe('fixed-id');
-  });
-});
-
-describe('createCommandExecuteMessage', () => {
-  it('wraps the payload with COMMAND_EXECUTE type', () => {
-    const payload = { command: 'ping', args: [], context };
-    const message = createCommandExecuteMessage(payload);
-
-    expect(message.type).toBe(MessageType.COMMAND_EXECUTE);
-    expect(message.payload).toEqual(payload);
   });
 });
 

@@ -1,10 +1,10 @@
-import type { CommandContext, CommandResult } from '@turingmod/shared';
+import type { CommandResult } from '@turingmod/shared';
 import { messageOf, PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { formatPlatformList } from '../../platforms/platformNames.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
-import type { ICommand } from '../interfaces/ICommand.js';
+import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { checkPermission } from '../utils/permissionChecks.js';
 
 /**
@@ -32,11 +32,11 @@ export class TagsCommand implements ICommand {
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {
-    const { user, args } = context;
+    const { user, argText } = context;
 
     try {
       // Write mode: set new tags (mirrors to all live platforms that support SET_TAGS)
-      if (args.length > 1) {
+      if (argText !== '') {
         const permissionError = checkPermission(
           user.permissionLevel,
           PermissionLevel.MODERATOR,
@@ -46,8 +46,7 @@ export class TagsCommand implements ICommand {
           return permissionError;
         }
 
-        const tagsInput = args.slice(1).join(' ').trim();
-        const tags = tagsInput
+        const tags = argText
           .split(',')
           .map((tag) => tag.trim())
           .filter((tag) => tag !== '');

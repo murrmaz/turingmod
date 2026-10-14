@@ -1,11 +1,13 @@
-import { type CommandContext, isExecutorErrorCode } from '@turingmod/shared';
+import { isExecutorErrorCode } from '@turingmod/shared';
 import { injectable, singleton } from 'tsyringe';
 import { CommandExecutor } from '../commands/CommandExecutor.js';
+import type { CommandContext } from '../commands/interfaces/ICommand.js';
+import { parseCommand } from '../commands/parseCommand.js';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { Logger } from '../utils/Logger.js';
-import { type ChatMessageEvent, parseCommand } from './chatMessage.js';
+import type { ChatMessageEvent } from './chatMessage.js';
 import { ChatModerator } from './moderation/ChatModerator.js';
 
 /**
@@ -65,9 +67,8 @@ export class ChatRouter implements IService {
         username: event.username,
         permissionLevel: event.permissionLevel,
       },
-      args: parsed.args,
+      ...parsed,
       platform: event.platform,
-      metadata: { badges: event.badges, channelId: event.channelId },
       isSimulation: false,
     };
 

@@ -1,5 +1,4 @@
 import 'reflect-metadata';
-import type { CommandContext } from '@turingmod/shared';
 import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatModerator } from '../../chat/moderation/ChatModerator.js';
@@ -12,7 +11,9 @@ import type { StreamControlService } from '../../platforms/StreamControlService.
 import { raidShoutoutMessage } from '../../raids/RaidShoutout.js';
 import type { SoundLibrary } from '../../sounds/SoundLibrary.js';
 import { Logger } from '../../utils/Logger.js';
+import { commandContext } from '../testing.js';
 import { BonkCommand } from './BonkCommand.js';
+import { ContentWarningCommand } from './ContentWarningCommand.js';
 import { DelvodCommand } from './DelvodCommand.js';
 import { DiedCommand } from './DiedCommand.js';
 import { FollowageCommand } from './FollowageCommand.js';
@@ -23,6 +24,7 @@ import { SgCommand } from './SgCommand.js';
 import { SnoozeCommand } from './SnoozeCommand.js';
 import { SoCommand } from './SoCommand.js';
 import { SuggestionlistCommand } from './SuggestionlistCommand.js';
+import { TagsCommand } from './TagsCommand.js';
 import { streamerTime } from './TimeCommand.js';
 import { VoiceCommand } from './VoiceCommand.js';
 
@@ -31,28 +33,6 @@ const logger = new Logger({ level: 'silent' });
 /** A StreamControlService whose Twitch has only `apis`. */
 const fakeStreamControl = (apis: Parameters<typeof fakeRequire>[1]) =>
   ({ require: fakeRequire(StreamingPlatform.TWITCH, apis) }) as unknown as StreamControlService;
-
-/** `args[0]` is the command name, matching how CommandExecutor parses chat input. */
-const contextFor = (
-  args: string[],
-  overrides: Partial<CommandContext['user']> & { isSimulation?: boolean } = {}
-): CommandContext => {
-  const { isSimulation = false, ...user } = overrides;
-  return {
-    user: {
-      id: 'viewer-id',
-      platform: StreamingPlatform.TWITCH,
-      platformUserId: 'viewer-id',
-      username: 'Viewer',
-      permissionLevel: PermissionLevel.VIEWER,
-      ...user,
-    },
-    args,
-    platform: StreamingPlatform.TWITCH,
-    metadata: {},
-    isSimulation,
-  };
-};
 
 describe('counter commands', () => {
   let db: DatabaseManager;
@@ -71,15 +51,15 @@ describe('counter commands', () => {
   it('!died counts up from the stored count and !rdeaths resets it', async () => {
     counters.set(COUNTERS.deaths, 12);
 
-    expect((await new DiedCommand(counters).execute(contextFor(['died']))).message).toBe(
+    expect((await new DiedCommand(counters).execute(commandContext('!died'))).message).toBe(
       'Death count: 13'
     );
-    await new RdeathsCommand(counters).execute(contextFor(['rdeaths']));
+    await new RdeathsCommand(counters).execute(commandContext('!rdeaths'));
     expect(counters.get(COUNTERS.deaths)).toBe(0);
   });
 
   it('!voice counts voice cracks', async () => {
-    const result = await new VoiceCommand(counters).execute(contextFor(['voice']));
+    const result = await new VoiceCommand(counters).execute(commandContext('!voice'));
 
     expect(result.message).toBe("Streamer's voice has cracked 1 times");
   });
@@ -88,12 +68,12 @@ describe('counter commands', () => {
     const suggestions = new SuggestionRepository(db);
     const sg = new SgCommand(suggestions);
 
-    expect((await sg.execute(contextFor(['sg']))).success).toBe(false);
-    await sg.execute(contextFor(['sg', 'a', 'quote', 'command']));
-    await sg.execute(contextFor(['sg', 'more', 'bonk']));
+    expect((await sg.execute(commandContext('!sg'))).success).toBe(false);
+    await sg.execute(commandContext('!sg a quote command'));
+    await sg.execute(commandContext('!sg more bonk'));
 
     const list = await new SuggestionlistCommand(suggestions).execute(
-      contextFor(['suggestionlist'])
+      commandContext('!suggestionlist')
     );
     expect(list.message).toBe('Latest suggestions for the bot: more bonk; a quote command');
   });
@@ -104,7 +84,7 @@ describe('!so', () => {
     const shoutout = vi.fn(() => Promise.reject(new Error('not live')));
     const command = new SoCommand(fakeStreamControl({ shoutout: { shoutout } }), logger);
 
-    const result = await command.execute(contextFor(['so', '@coolraider']));
+    const result = await command.execute(commandContext('!so @coolraider'));
 
     expect(shoutout).toHaveBeenCalledWith('coolraider');
     expect(result.message).toBe(raidShoutoutMessage('coolraider'));
@@ -113,7 +93,47 @@ describe('!so', () => {
   it('asks for a channel', async () => {
     const command = new SoCommand({} as StreamControlService, logger);
 
-    expect((await command.execute(contextFor(['so']))).message).toBe('Usage: !so <channel>');
+    expect((await command.execute(commandContext('!so'))).message).toBe('Usage: !so <channel>');
+  });
+
+  it('finds the channel past extra spaces', async () => {
+    const shoutout = vi.fn(() => Promise.resolve({ sent: true }));
+    const command = new SoCommand(fakeStreamControl({ shoutout: { shoutout } }), logger);
+
+    await command.execute(commandContext('!so  @coolraider'));
+
+    expect(shoutout).toHaveBeenCalledWith('coolraider');
+  });
+});
+
+describe('reading with a trailing space', () => {
+  const moderator = { permissionLevel: PermissionLevel.MODERATOR };
+
+  it('!tags shows the tags rather than clearing them', async () => {
+    const setTags = vi.fn();
+    const streamControl = {
+      setTags,
+      getStreamInfo: () => Promise.resolve({ tags: ['English'] }),
+    } as unknown as StreamControlService;
+    const command = new TagsCommand(streamControl, logger);
+
+    const result = await command.execute(commandContext('!tags ', moderator));
+
+    expect(setTags).not.toHaveBeenCalled();
+    expect(result.message).toBe('Tags: [English]');
+  });
+
+  it('!cw shows the labels rather than clearing them', async () => {
+    const setContentLabels = vi.fn();
+    const contentLabels = {
+      setContentLabels,
+      getContentLabels: () => Promise.resolve(['ViolentGraphic']),
+    };
+    const command = new ContentWarningCommand(fakeStreamControl({ contentLabels }), logger);
+
+    await command.execute(commandContext('!cw ', moderator));
+
+    expect(setContentLabels).not.toHaveBeenCalled();
   });
 });
 
@@ -128,9 +148,9 @@ describe('!quiet', () => {
     } as unknown as ChatModerator;
     const command = new QuietCommand(moderator);
 
-    expect((await command.execute(contextFor(['quiet']))).message).toContain('enabled');
+    expect((await command.execute(commandContext('!quiet'))).message).toContain('enabled');
     expect(quiet).toBe(true);
-    expect((await command.execute(contextFor(['quiet']))).message).toContain('disabled');
+    expect((await command.execute(commandContext('!quiet'))).message).toContain('disabled');
     expect(quiet).toBe(false);
   });
 });
@@ -143,10 +163,10 @@ describe('!snooze', () => {
       .mockResolvedValueOnce({ snoozed: false, snoozesLeft: 0, nextAdDate: null });
     const command = new SnoozeCommand(fakeStreamControl({ ads: { snoozeNextAd } }), logger);
 
-    expect((await command.execute(contextFor(['snooze']))).message).toBe(
+    expect((await command.execute(commandContext('!snooze'))).message).toBe(
       '@Viewer: Ads snoozed! There are 2 left.'
     );
-    expect((await command.execute(contextFor(['snooze']))).message).toBe(
+    expect((await command.execute(commandContext('!snooze'))).message).toBe(
       '@Viewer: There are no more snoozes left. Try again in a bit'
     );
   });
@@ -166,14 +186,14 @@ describe('!followage', () => {
     expect(
       (
         await command.execute(
-          contextFor(['followage'], { permissionLevel: PermissionLevel.BROADCASTER })
+          commandContext('!followage', { permissionLevel: PermissionLevel.BROADCASTER })
         )
       ).message
     ).toContain("You're literally the streamer");
-    expect((await command.execute(contextFor(['followage']))).message).toBe(
+    expect((await command.execute(commandContext('!followage'))).message).toBe(
       '@Viewer: You are currently not following this channel'
     );
-    expect((await command.execute(contextFor(['followage']))).message).toBe(
+    expect((await command.execute(commandContext('!followage'))).message).toBe(
       '@Viewer has been following for 3 days'
     );
   });
@@ -184,7 +204,7 @@ describe('!delvod', () => {
     const deleteLatestVod = vi.fn();
     const command = new DelvodCommand(fakeStreamControl({ vods: { deleteLatestVod } }), logger);
 
-    const result = await command.execute(contextFor(['delvod'], { isSimulation: true }));
+    const result = await command.execute(commandContext('!delvod', { isSimulation: true }));
 
     expect(result.success).toBe(false);
     expect(deleteLatestVod).not.toHaveBeenCalled();
@@ -196,7 +216,7 @@ describe('!delvod', () => {
     );
     const command = new DelvodCommand(fakeStreamControl({ vods: { deleteLatestVod } }), logger);
 
-    expect((await command.execute(contextFor(['delvod']))).message).toBe(
+    expect((await command.execute(commandContext('!delvod'))).message).toBe(
       'VOD successfully deleted'
     );
   });
@@ -213,13 +233,13 @@ describe('!roll', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0);
     const command = new RollCommand();
 
-    expect((await command.execute(contextFor(['roll', '2d6']))).message).toBe(
+    expect((await command.execute(commandContext('!roll 2d6'))).message).toBe(
       '@Viewer: You rolled 2 d6 and got 2'
     );
-    expect((await command.execute(contextFor(['roll', '2d6r7']))).message).toBe(
+    expect((await command.execute(commandContext('!roll 2d6r7'))).message).toBe(
       '@Viewer: You rolled 2 d6 and got 7'
     );
-    expect((await command.execute(contextFor(['roll', '2d6r13']))).success).toBe(false);
+    expect((await command.execute(commandContext('!roll 2d6r13'))).success).toBe(false);
     vi.restoreAllMocks();
   });
 });
@@ -229,11 +249,11 @@ describe('!bonk', () => {
     const command = new BonkCommand({ tryPlay: vi.fn() } as unknown as SoundLibrary);
 
     vi.spyOn(Math, 'random').mockReturnValue(0.05);
-    expect((await command.execute(contextFor(['bonk', '@friend']))).message).toBe(
+    expect((await command.execute(commandContext('!bonk @friend'))).message).toBe(
       'The bot got tired of doing whatever the meatbags want and bonked Viewer instead (Total: 1)'
     );
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    expect((await command.execute(contextFor(['bonk', '@friend']))).message).toBe(
+    expect((await command.execute(commandContext('!bonk @friend'))).message).toBe(
       'Viewer bonked friend! (Total: 1)'
     );
     vi.restoreAllMocks();

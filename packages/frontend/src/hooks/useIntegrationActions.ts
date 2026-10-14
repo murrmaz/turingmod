@@ -12,6 +12,8 @@ export type IntegrationBadgeColor = 'blue' | 'green' | 'red' | 'grey';
 export interface IntegrationActionState {
   isLoading: boolean;
   isConnected: boolean;
+  /** Turned on by the streamer, so Stop applies even while it waits on a dependency. */
+  isEnabled: boolean;
   isStartable: boolean;
   isOAuthIntegration: boolean;
   needsReauth: boolean;
@@ -104,6 +106,7 @@ export function useIntegrationActions() {
     (item: IntegrationInfo): IntegrationActionState => ({
       isLoading: loadingIntegration === item.name,
       isConnected: item.status === IntegrationStatus.CONNECTED,
+      isEnabled: item.enabled,
       isStartable:
         item.status === IntegrationStatus.DISCONNECTED ||
         item.status === IntegrationStatus.ERROR ||

@@ -235,10 +235,6 @@ export async function initializeComponents(): Promise<void> {
   const activityHandler = container.resolve(ActivityHandler);
   const youtubeHandler = container.resolve(YouTubeHandler);
 
-  messageRouter.registerHandler(MessageType.COMMAND_EXECUTE, (msg) =>
-    commandHandler.handleExecute(msg)
-  );
-
   messageRouter.registerHandler(MessageType.COMMAND_SIMULATE, (msg) =>
     commandHandler.handleSimulate(msg)
   );

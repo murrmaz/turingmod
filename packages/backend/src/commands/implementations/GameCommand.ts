@@ -1,10 +1,10 @@
-import type { CommandContext, CommandResult } from '@turingmod/shared';
+import type { CommandResult } from '@turingmod/shared';
 import { messageOf, PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { formatPlatformList } from '../../platforms/platformNames.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
-import type { ICommand } from '../interfaces/ICommand.js';
+import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { checkPermission } from '../utils/permissionChecks.js';
 
 /**
@@ -33,11 +33,11 @@ export class GameCommand implements ICommand {
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {
-    const { user, args } = context;
+    const { user, argText: gameName } = context;
 
     try {
       // Write mode: set new game (mirrors to all live platforms that support SET_GAME)
-      if (args.length > 1) {
+      if (gameName !== '') {
         const permissionError = checkPermission(
           user.permissionLevel,
           PermissionLevel.MODERATOR,
@@ -45,19 +45,6 @@ export class GameCommand implements ICommand {
         );
         if (permissionError) {
           return permissionError;
-        }
-
-        const gameName = args.slice(1).join(' ').trim();
-
-        if (gameName === '') {
-          return {
-            success: false,
-            message: 'Game name cannot be empty',
-            error: {
-              code: 'INVALID_INPUT',
-              message: 'Game name must not be empty',
-            },
-          };
         }
 
         const mirror = await this.streamControl.setGame(gameName);

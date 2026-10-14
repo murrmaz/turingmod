@@ -1,9 +1,9 @@
-import type { CommandContext, CommandResult } from '@turingmod/shared';
+import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
-import type { ICommand } from '../interfaces/ICommand.js';
+import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
 import { checkPermission } from '../utils/permissionChecks.js';
 
@@ -32,11 +32,11 @@ export class ContentWarningCommand implements ICommand {
   }
 
   async execute(context: CommandContext): Promise<CommandResult> {
-    const { user, args, platform } = context;
+    const { user, argText, platform } = context;
 
     try {
       // Write mode: set new labels
-      if (args.length > 1) {
+      if (argText !== '') {
         const permissionError = checkPermission(
           user.permissionLevel,
           PermissionLevel.MODERATOR,
@@ -46,9 +46,7 @@ export class ContentWarningCommand implements ICommand {
           return permissionError;
         }
 
-        const labels = args
-          .slice(1)
-          .join(' ')
+        const labels = argText
           .split(',')
           .map((label) => label.trim())
           .filter((label) => label !== '');

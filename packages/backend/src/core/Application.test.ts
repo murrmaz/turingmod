@@ -17,6 +17,7 @@ describe('Application', () => {
     const info: IntegrationInfo = {
       name: 'obs',
       status: IntegrationStatus.CONNECTED,
+      enabled: true,
       metadata: { dependencies: [] },
     };
     const integrationManager = {

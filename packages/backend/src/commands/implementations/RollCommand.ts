@@ -1,7 +1,7 @@
-import type { CommandContext, CommandResult } from '@turingmod/shared';
+import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
-import type { ICommand } from '../interfaces/ICommand.js';
+import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 
 const MAX_DICE = 1000;
 const MAX_SIDES = 1_000_000;
@@ -33,7 +33,7 @@ export class RollCommand implements ICommand {
 
   execute(context: CommandContext): Promise<CommandResult> {
     const user = context.user.username;
-    const roll = parseRoll(context.args[1] ?? '');
+    const roll = parseRoll(context.args[0] ?? '');
     if (!roll || roll.count < 1 || roll.sides < 1) {
       return Promise.resolve({
         success: false,

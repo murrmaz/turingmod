@@ -1,10 +1,10 @@
 import type { PlaybackState } from '@spotify/web-api-ts-sdk';
-import type { CommandContext, CommandResult } from '@turingmod/shared';
+import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { SpotifyApiIntegration } from '../../integrations/implementations/spotify/SpotifyApiIntegration.js';
 import { Logger } from '../../utils/Logger.js';
-import type { ICommand } from '../interfaces/ICommand.js';
+import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
 
 /**

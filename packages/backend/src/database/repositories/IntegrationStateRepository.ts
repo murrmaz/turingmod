@@ -1,4 +1,4 @@
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { Encryption } from '../../utils/Encryption.js';
 import { DatabaseManager } from '../DatabaseManager.js';
@@ -164,7 +164,14 @@ export class IntegrationStateRepository {
     try {
       return this.encryption.decryptObject<Record<string, unknown>>(config.config);
     } catch (error) {
-      throw new Error(`Failed to decrypt configuration for ${name}: ${error}`);
+      // AES-GCM fails authentication rather than decrypting to garbage, so this is almost always
+      // a different key from the one the config was saved with.
+      throw new Error(
+        `Could not decrypt the stored configuration for ${name} (${messageOf(error)}). ` +
+          'It was most likely saved with a different MASTER_PASSWORD; until MASTER_PASSWORD was ' +
+          'required, TuringMod used a built-in default. Set it up again from the console, or ' +
+          'restore the MASTER_PASSWORD it was saved with.'
+      );
     }
   }
 }

@@ -36,7 +36,16 @@ breaks, music, and more, all wired into one local control panel.
 npm install
 ```
 
-### 2. Start Development Server
+### 2. Create `.env`
+
+```bash
+cp .env.example .env
+```
+
+Then set `MASTER_PASSWORD` in it. TuringMod won't start without one (see
+[Configuration](#configuration)).
+
+### 3. Start Development Server
 
 ```bash
 npm run dev
@@ -98,17 +107,22 @@ cp .env.example .env
 ```
 
 The backend and the Vite dev server both load it at startup. Variables already set in your shell
-take precedence over the file, and everything is optional in development. `.env.example`
-documents each variable; the main ones:
+take precedence over the file. Only `MASTER_PASSWORD` is required; everything else has a default.
+`.env.example` documents each variable; the main ones:
 
 ```env
 SERVER_PORT=8080                 # console, WebSocket and OAuth redirect URIs
 MASTER_PASSWORD=your-password    # encrypts stored credentials; set it before configuring anything
 ```
 
-Set `MASTER_PASSWORD` even in development: without it, credentials are encrypted with a fixed
-default password, which protects them no better than plain text. (TuringMod refuses to start
-without it only when `NODE_ENV=production`.)
+TuringMod refuses to start without `MASTER_PASSWORD` and says what's missing: there's no default
+password, since one written in the source would protect the stored credentials no better than plain
+text.
+
+If you used TuringMod before `MASTER_PASSWORD` was required and never set one, your stored
+credentials were encrypted with that old built-in default. Once you set a password, those
+integrations show an error saying their configuration can't be decrypted: set each one up again
+from the console.
 
 OAuth client credentials aren't environment variables: the console asks for them the first time
 an integration is connected.

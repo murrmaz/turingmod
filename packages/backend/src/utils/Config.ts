@@ -1,13 +1,60 @@
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_HOST, DEFAULT_SERVER_PORT } from '@turingmod/shared';
 import type { LevelWithSilentOrString } from 'pino';
 import { singleton } from 'tsyringe';
+import { ENV_FILE } from './paths.js';
 
 /**
- * Application configuration
- * Loads from environment variables with sensible defaults
+ * A configuration problem the streamer has to fix before TuringMod can start. Its message is the
+ * whole explanation, so the entry point prints it without a stack trace.
  */
+export class ConfigurationError extends Error {}
+
+/**
+ * The master password, which the stored integration credentials are encrypted with. Required, with
+ * no default: a default password is in the source for anyone to read, so credentials encrypted with
+ * it are as good as plain text to whoever gets a copy of the database.
+ *
+ * @param envFile Where `.env` is expected, and whether it exists, for the message when it's missing.
+ */
+export function requireMasterPassword(
+  value: string | undefined,
+  envFile: { path: string; exists: boolean }
+): string {
+  if (value !== undefined && value.trim() !== '') {
+    return value;
+  }
+
+  const why =
+    'MASTER_PASSWORD encrypts the credentials TuringMod stores for its integrations. Choose it ' +
+    'before connecting any of them: changing it later makes the stored credentials unreadable, ' +
+    'and each integration then has to be set up again.';
+
+  if (!envFile.exists) {
+    throw new ConfigurationError(
+      [
+        `TuringMod needs a .env file, and there is none at ${envFile.path}.`,
+        '',
+        'Create it from the template in the repository root, then set MASTER_PASSWORD in it:',
+        '',
+        '  cp .env.example .env',
+        '',
+        why,
+      ].join('\n')
+    );
+  }
+  throw new ConfigurationError(
+    [
+      `MASTER_PASSWORD is ${value === undefined ? 'not set' : 'empty'}. Set it in ${envFile.path}`,
+      '(see .env.example for every setting).',
+      '',
+      why,
+    ].join('\n')
+  );
+}
+
 /**
  * Where the database lives: DB_PATH, or `turingmod.db` in the working directory. Standalone so
  * tools can find the app's database without the rest of the configuration.
@@ -33,11 +80,8 @@ export class TuringModConfig {
   /** Log level */
   readonly logLevel: LevelWithSilentOrString;
 
-  /** Master password for encryption (should be set in production) */
+  /** Master password the stored integration credentials are encrypted with (required) */
   readonly masterPassword: string;
-
-  /** Node environment */
-  readonly nodeEnv: string;
 
   /** Frontend static files directory (for production) */
   readonly frontendDistPath: string;
@@ -52,8 +96,10 @@ export class TuringModConfig {
     this.host = process.env.HOST ?? DEFAULT_HOST;
     this.dbPath = resolveDbPath();
     this.logLevel = this.parseLogLevel(process.env.LOG_LEVEL);
-    this.masterPassword = process.env.MASTER_PASSWORD ?? this.generateDefaultPassword();
-    this.nodeEnv = process.env.NODE_ENV ?? 'development';
+    this.masterPassword = requireMasterPassword(process.env.MASTER_PASSWORD, {
+      path: ENV_FILE,
+      exists: existsSync(ENV_FILE),
+    });
     const dirname = fileURLToPath(new URL('.', import.meta.url));
     this.frontendDistPath =
       process.env.FRONTEND_DIST_PATH ?? join(dirname, '..', '..', '..', 'frontend', 'dist');
@@ -82,16 +128,6 @@ export class TuringModConfig {
   }
 
   /**
-   * Generate a default password (should be replaced in production)
-   */
-  private generateDefaultPassword(): string {
-    console.warn(
-      'WARNING: Using default master password. Set MASTER_PASSWORD environment variable in production!'
-    );
-    return 'default-insecure-password-change-me';
-  }
-
-  /**
    * Validate configuration
    */
   private validate(): void {
@@ -104,13 +140,6 @@ export class TuringModConfig {
     if (this.serverPort < 1 || this.serverPort > 65535) {
       throw new Error(`Invalid port: ${this.serverPort}. Must be between 1 and 65535.`);
     }
-
-    if (
-      this.nodeEnv === 'production' &&
-      this.masterPassword === 'default-insecure-password-change-me'
-    ) {
-      throw new Error('MASTER_PASSWORD must be set in production environment for security!');
-    }
   }
 
   /**
@@ -122,7 +151,6 @@ export class TuringModConfig {
       host: this.host,
       dbPath: this.dbPath,
       logLevel: this.logLevel,
-      nodeEnv: this.nodeEnv,
       frontendDistPath: this.frontendDistPath,
       // Exclude masterPassword from logging
     };

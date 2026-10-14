@@ -128,7 +128,6 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Manager**: `packages/backend/src/database/DatabaseManager.ts`
 - **Repositories**: `packages/backend/src/database/repositories/*.ts`
 - **Migrations**: `packages/backend/src/database/migrations/*.ts`, listed in `migrations/index.ts` (`ALL_MIGRATIONS`), run automatically on startup
-- **Import from the original bot**: `packages/backend/src/tools/importOriginal.ts` (`npm run import:original -w @turingmod/backend`) + `originalData.ts`
 
 ### Core Infrastructure
 - **DI**: [tsyringe](https://github.com/microsoft/tsyringe) — `@singleton()` on app-lifetime classes, `@injectable()` on commands and reward handlers; `registerRootFactories()` in `setup.ts` for the handful of classes tsyringe can't auto-construct
@@ -137,7 +136,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Feature service lifecycle**: `packages/backend/src/core/ServiceLifecycle.ts` (`IService`, `Subscriptions`); the ordered service list is in `setup.ts`
 - **Setup/Bootstrap**: `packages/backend/src/setup.ts`
 - **Entry Point**: `packages/backend/src/index.ts`
-- **Environment**: `packages/backend/src/utils/loadEnv.ts` loads the repository-root `.env` (template: `.env.example`); it's the first import of each entry point (`index.ts`, `tools/importOriginal.ts`). Shell variables win over the file. `TuringModConfig` (`utils/Config.ts`) is what reads them; only `MASTER_PASSWORD` is required. The file's location is `ENV_FILE` (`utils/paths.ts`).
+- **Environment**: `packages/backend/src/utils/loadEnv.ts` loads the repository-root `.env` (template: `.env.example`); it's the first import of the entry point (`index.ts`). Shell variables win over the file. `TuringModConfig` (`utils/Config.ts`) is what reads them; only `MASTER_PASSWORD` is required. The file's location is `ENV_FILE` (`utils/paths.ts`).
 
 ### Frontend State
 - **App State Context**: `packages/frontend/src/context/AppStateContext.tsx`

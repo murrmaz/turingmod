@@ -58,15 +58,6 @@ export class BannedWordRepository {
     );
   }
 
-  /** Ban a word. Returns false, changing nothing, if it was already banned. */
-  add(word: string, bannedBy: string | null, bannedAt = Date.now()): boolean {
-    const { changes } = this.db.run(
-      'INSERT OR IGNORE INTO banned_words (word, banned_by, banned_at) VALUES (?, ?, ?)',
-      [word.toLowerCase(), bannedBy, bannedAt]
-    );
-    return changes > 0;
-  }
-
   /** Unban a word. Returns false if it wasn't banned. */
   remove(word: string): boolean {
     const { changes } = this.db.run('DELETE FROM banned_words WHERE word = ?', [word]);

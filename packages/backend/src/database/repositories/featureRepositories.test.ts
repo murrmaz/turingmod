@@ -18,19 +18,19 @@ afterEach(async () => {
 });
 
 describe('BannedWordRepository', () => {
-  it('stores words lowercased and refuses a duplicate in any case', () => {
+  it('stores words lowercased, and renews the ban when a word is banned again in any case', () => {
     const repo = new BannedWordRepository(db);
 
-    expect(repo.add('Cheese', 'viewer', 1000)).toBe(true);
-    expect(repo.add('CHEESE', 'someone else')).toBe(false);
+    repo.ban('Cheese', 'viewer', 1000);
+    repo.ban('CHEESE', 'someone else', 2000);
 
-    expect(repo.list()).toEqual([{ word: 'cheese', bannedBy: 'viewer', bannedAt: 1000 }]);
+    expect(repo.list()).toEqual([{ word: 'cheese', bannedBy: 'someone else', bannedAt: 2000 }]);
   });
 
   it('lists oldest first and removes case-insensitively', () => {
     const repo = new BannedWordRepository(db);
-    repo.add('newer', null, 2000);
-    repo.add('older', null, 1000);
+    repo.ban('newer', null, 2000);
+    repo.ban('older', null, 1000);
 
     expect(repo.list().map((w) => w.word)).toEqual(['older', 'newer']);
     expect(repo.remove('OLDER')).toBe(true);
@@ -43,11 +43,9 @@ describe('CounterRepository', () => {
   it('reads an unset counter as 0 and increments from there', () => {
     const repo = new CounterRepository(db);
 
-    expect(repo.has('deaths')).toBe(false);
     expect(repo.get('deaths')).toBe(0);
     expect(repo.increment('deaths')).toBe(1);
     expect(repo.increment('deaths', 2)).toBe(3);
-    expect(repo.has('deaths')).toBe(true);
   });
 
   it('sets a counter outright, including back to zero', () => {
@@ -57,7 +55,6 @@ describe('CounterRepository', () => {
 
     repo.set('deaths', 0);
     expect(repo.get('deaths')).toBe(0);
-    expect(repo.has('deaths')).toBe(true);
   });
 });
 

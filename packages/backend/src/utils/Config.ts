@@ -55,14 +55,6 @@ export function requireMasterPassword(
   );
 }
 
-/**
- * Where the database lives: DB_PATH, or `turingmod.db` in the working directory. Standalone so
- * tools can find the app's database without the rest of the configuration.
- */
-export function resolveDbPath(): string {
-  return process.env.DB_PATH ?? join(process.cwd(), 'turingmod.db');
-}
-
 @singleton()
 export class TuringModConfig {
   /**
@@ -74,7 +66,7 @@ export class TuringModConfig {
   /** Server host (should always be localhost) */
   readonly host: string;
 
-  /** Database file path */
+  /** Database file: DB_PATH, or `turingmod.db` in the working directory */
   readonly dbPath: string;
 
   /** Log level */
@@ -94,7 +86,7 @@ export class TuringModConfig {
     }
     this.serverPort = this.parseNumber(process.env.SERVER_PORT, DEFAULT_SERVER_PORT);
     this.host = process.env.HOST ?? DEFAULT_HOST;
-    this.dbPath = resolveDbPath();
+    this.dbPath = process.env.DB_PATH ?? join(process.cwd(), 'turingmod.db');
     this.logLevel = this.parseLogLevel(process.env.LOG_LEVEL);
     this.masterPassword = requireMasterPassword(process.env.MASTER_PASSWORD, {
       path: ENV_FILE,

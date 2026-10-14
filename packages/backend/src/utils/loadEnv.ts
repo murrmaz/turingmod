@@ -2,7 +2,7 @@ import { ENV_FILE } from './paths.js';
 
 /**
  * Load `.env` into `process.env`, if there is one. Variables already set in the environment take
- * precedence over the file. Imported for its side effect, first, by each entry point, so it runs
+ * precedence over the file. Imported for its side effect, first, by the entry point (`index.ts`), so it runs
  * before anything reads configuration.
  */
 function loadEnv(): void {

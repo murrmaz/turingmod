@@ -95,24 +95,22 @@ export class CommandExecutor {
         await this.logExecution(commandName, context, result);
         return result;
       }
+
+      // Started before the command runs, not after it finishes: chat is handled concurrently, so
+      // a burst of the same command arrives while the first is still waiting on its API call, and
+      // would otherwise all pass the check above. It stays set if the command fails or crashes,
+      // since retrying a failing call costs the same request.
+      this.cleanupCooldowns();
+      this.cooldowns.set(cooldownKey, {
+        userId: user.id,
+        commandName,
+        expiresAt: Date.now() + command.cooldown * 1000,
+      });
     }
 
     // Execute command
     try {
       const result = await command.execute(context);
-
-      // Set cooldown
-      if (this.cooldownApplies(command, context)) {
-        const cooldownKey = `${user.id}:${commandName}`;
-        this.cooldowns.set(cooldownKey, {
-          userId: user.id,
-          commandName,
-          expiresAt: Date.now() + command.cooldown * 1000,
-        });
-
-        // Clean up expired cooldowns periodically
-        this.cleanupCooldowns();
-      }
 
       // Log successful execution
       await this.logExecution(commandName, context, result);
@@ -166,8 +164,7 @@ export class CommandExecutor {
    *
    * Moderators and above are exempt. Cooldowns exist to stop a viewer spamming the API-backed
    * read commands, and several of those expose a moderator-only write branch under the same
-   * name (!game, !tags, !cw) — a shared cooldown would block a mod correcting a typo. Checked
-   * at both the read and the write of the cooldown map so the two can't diverge.
+   * name (!game, !tags, !cw) — a shared cooldown would block a mod correcting a typo.
    */
   private cooldownApplies(command: ICommand, context: CommandContext): boolean {
     if (context.isSimulation || command.cooldown <= 0) {

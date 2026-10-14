@@ -12,26 +12,29 @@ npm run dev                # Backend on :8080 (SERVER_PORT), Frontend on :3000 (
 npm run dev:backend        # Backend only (tsc --watch + node --watch)
 npm run dev:frontend       # Frontend only (Vite dev server)
 
-# Building (prebuild runs check + type-check automatically)
+# Building (prebuild runs `npm run check` automatically)
 npm run build              # Builds shared → backend → frontend (order matters)
 npm run build:shared       # Build shared package only
 
 # Code quality
 npm run check              # Biome lint + format check
 npm run check:fix          # Biome lint + format with auto-fix
-npm run type-check         # TypeScript type checking across all workspaces
+npm run type-check         # TypeScript type checking across all workspaces (build shared first)
 
+# Tests
+npm test                   # Vitest in every workspace
+npm test -w @turingmod/backend   # one workspace (also @turingmod/frontend, @turingmod/shared)
 ```
 
-Vitest is configured in both the backend and frontend workspaces (`npm test --workspace @turingmod/backend`, `npm test --workspace @turingmod/frontend`); tests live beside their subjects as `*.test.ts`. Type checking (`npm run type-check`) remains the primary verification step, since coverage is partial.
+Vitest is configured in all three workspaces; tests live beside their subjects as `*.test.ts`. On a fresh checkout, run `npm run build:shared` before `type-check` or the frontend/backend tests, since both import `@turingmod/shared` from its `dist/` (if `dist/` was deleted but `tsconfig.tsbuildinfo` wasn't, `tsc --build` thinks it's up to date and does nothing: `npm run clean` first). There is no CI: run `check`, `type-check` and `test` before considering work done.
 
 ## Quick Reference: File Locations
 
 Use this to quickly locate files without searching. Organized by system/feature.
 
 ### Integration System
-- **UI (Table View)**: `packages/frontend/src/components/dashboard/IntegrationStatus.tsx`
-- **UI (Card View)**: `packages/frontend/src/components/integrations/IntegrationPanel.tsx`
+- **UI**: `packages/frontend/src/components/integrations/IntegrationPanel.tsx` (the Integrations page: cards with Start/Stop and OAuth setup) + `dashboard/HealthMonitor.tsx` (read-only status lights on the dashboard)
+- **OAuth modal wiring**: `packages/frontend/src/components/integrations/IntegrationOAuthModals.tsx` — the setup → authorize handoff, looked up from the registry below
 - **Setup Modal**: `packages/frontend/src/components/integrations/SetupModal.tsx` — generic, parameterized by `OAuthProviderConfig`
 - **OAuth Modal**: `packages/frontend/src/components/integrations/OAuthModal.tsx` — generic, parameterized by `OAuthProviderConfig`
 - **OAuth Provider Configs**: `packages/frontend/src/components/integrations/oauthProviders.tsx` (per-provider content) + `oauthIntegrationRegistry.tsx` (name → modal/config lookup)
@@ -41,9 +44,9 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Base Class**: `packages/backend/src/integrations/BaseIntegration.ts` — shared status/error/event-emitter plumbing; all integrations extend this
 - **OAuth base class**: `packages/backend/src/integrations/OAuthIntegration.ts` — `OAuthIntegration<TConfig>` (extends `BaseIntegration`): credentials, redirect URI, token persistence, and the no-token / missing-scope checks before connecting
 - **Interfaces**: `packages/backend/src/integrations/interfaces/IIntegration.ts`, `IOAuthIntegration.ts` (extends `IIntegration` for OAuth-capable integrations)
-- **Implementations**: `packages/backend/src/integrations/implementations/*.ts` (Twitch, YouTube, Spotify, Discord, OBS, Arduino, Sound)
+- **Implementations**: `packages/backend/src/integrations/implementations/*/` (Twitch, YouTube, Spotify, OBS, Sound; Discord and Arduino are placeholders whose `start()` does nothing)
 - **YouTube chat stream client**: `packages/backend/src/integrations/implementations/youtube/YouTubeChatStream.ts` + the response frame splitter `parseJsonFrames.ts` beside it
-- **WebSocket Handler**: `packages/backend/src/server/handlers/IntegrationHandler.ts`, `OAuthHandler.ts`, `YouTubeHandler.ts`
+- **WebSocket Handlers**: `packages/backend/src/server/handlers/IntegrationHandler.ts`, `OAuthHandler.ts`, `YouTubeHandler.ts`
 - **Types & Enums**: `packages/shared/src/types/integration.ts`
 
 ### Commands System
@@ -105,13 +108,19 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Settings**: `packages/backend/src/breaks/breakSettings.ts` (schema and defaults, `BREAK_SETTINGS`), stored under the `breaks` key via `database/repositories/SettingsRepository.ts`
 - **Manual trigger**: `packages/backend/src/commands/implementations/BreakCommand.ts` (`!break`)
 
+### Activity Log
+- **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — maps EventBus events to activity categories (`EVENT_CATEGORIES`), broadcasts each to the console's live tail and persists all but chat
+- **Storage**: `packages/backend/src/database/repositories/ActivityLogRepository.ts` (capped at 5000 rows)
+- **Queries**: `packages/backend/src/server/handlers/ActivityHandler.ts` (`activity.query`, for the History page)
+- **Frontend**: `components/dashboard/LiveLog.tsx` + `hooks/useLiveLog.ts` (live tail), `components/history/History.tsx`
+
 ### WebSocket Protocol
 - **Server**: `packages/backend/src/server/WebSocketServer.ts`
 - **Router**: `packages/backend/src/server/MessageRouter.ts`
 - **Messages/Types**: `packages/shared/src/protocol/messages.ts`
 - **Request schemas**: `packages/shared/src/protocol/requests.ts` — Zod schema per client → server payload (`REQUEST_PAYLOAD_SCHEMAS`), types inferred from them
 - **Frontend Context**: `packages/frontend/src/context/WebSocketContext.tsx`
-- **Frontend Hooks**: `packages/frontend/src/hooks/useWebSocket.ts`
+- **Frontend Hooks**: `packages/frontend/src/hooks/useWebSocket.ts` (`useWebSocket()`, `useWebSocketMessage()`)
 
 ### Database
 - **Manager**: `packages/backend/src/database/DatabaseManager.ts`
@@ -131,7 +140,9 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 ### Frontend State
 - **App State Context**: `packages/frontend/src/context/AppStateContext.tsx`
 - **Integration Hooks**: `packages/frontend/src/hooks/useIntegrations.ts`
+- **Integration actions**: `packages/frontend/src/hooks/useIntegrationActions.ts` (Start/Stop/OAuth decisions and status colours, shared by the Integrations page and the dashboard)
 - **Command Hooks**: `packages/frontend/src/hooks/useCommands.ts`
+- **YouTube chat control**: `packages/frontend/src/hooks/useYouTubeChat.ts` + `components/dashboard/YouTubeChatControl.tsx`
 
 ## Architecture
 
@@ -139,17 +150,17 @@ npm workspaces monorepo with three packages:
 
 - **`packages/shared`** (`@turingmod/shared`) — WebSocket protocol types, message creators, shared enums (IntegrationStatus, PermissionLevel, MessageType). Must be built first since both other packages depend on it.
 - **`packages/backend`** (`@turingmod/backend`) — Node.js server with WebSocket + HTTP. Dev mode runs `tsc --build --watch` and `node --watch dist/index.js` concurrently (not `tsx`: esbuild's TS transform — what `tsx` uses — doesn't emit `emitDecoratorMetadata`, which tsyringe's constructor injection needs).
-- **`packages/frontend`** (`@turingmod/frontend`) — React 18 + Vite 6 + Cloudscape Design System. Dev server proxies `/ws` to backend.
+- **`packages/frontend`** (`@turingmod/frontend`) — React 19 + React Router 7 + Vite 8 + Cloudscape Design System. Dev server proxies `/ws` to backend.
 
 ### Backend Core Flow
 
-Entry point: `packages/backend/src/index.ts` → calls `registerRootFactories()` and `initializeComponents()` from `setup.ts` → resolves `Application` → `app.initialize()` → `app.start()`.
+Entry point: `packages/backend/src/index.ts` → calls `registerRootFactories()`, `initializeDatabase()` (open, migrate, validate every settings group) and `initializeComponents()` from `setup.ts` → resolves `Application` → `app.initialize()` (apply stored integration configs) → `app.start()`.
 
 **Dependency injection** uses [tsyringe](https://github.com/microsoft/tsyringe), Microsoft's lightweight constructor-injection container. App-lifetime classes (integrations, services, façades, handlers — effectively everything) are decorated `@singleton()` alone, which makes a class injectable and registers it as a singleton, so adding `@injectable()` beside it is redundant; commands and reward handlers, which their loaders resolve once each, are `@injectable()`; tsyringe resolves a class's dependencies by reading its constructor's typed parameters via `reflect-metadata` — no string tokens, and a typo'd dependency is a compile error, not a runtime "Service not registered" failure. This reflection-based inference requires TypeScript's real compiler (`emitDecoratorMetadata`) to emit `design:paramtypes` — esbuild does not support this, which is why dev mode runs through `tsc --watch` rather than `tsx` (see above).
 
-A handful of classes take primitives or derived values rather than other injectable classes (e.g. `Logger`'s log level, `DatabaseManager`'s file path, `Encryption`'s master password + DB-stored salt, `HttpServer`/`WebSocketServer`'s port/host/allowed-origins) — these can't be auto-constructed from decorated parameters, so they're registered via `container.register(Token, { useFactory: instanceCachingFactory(...) })` in `registerRootFactories()` (`setup.ts`) instead. `instanceCachingFactory` preserves the old container's lazy-singleton semantics, which matters for `Encryption`: its factory reads a salt from the database and must not run before `initializeDatabase()` has created the schema.
+A handful of classes take primitives or derived values rather than other injectable classes (e.g. `Logger`'s log level, `DatabaseManager`'s file path, `Encryption`'s master password + DB-stored salt, `HttpServer`/`WebSocketServer`'s port/host/allowed-origins) — these can't be auto-constructed from decorated parameters, so they're registered via `container.register(Token, { useFactory: instanceCachingFactory(...) })` in `registerRootFactories()` (`setup.ts`) instead. `instanceCachingFactory` makes each factory lazy and run-once, like a singleton, which matters for `Encryption`: its factory reads a salt from the database and must not run before `initializeDatabase()` has created the schema.
 
-Commands remain auto-discovered by directory scan (`loadCommands.ts`): each file's default-exported class is `@injectable()`, and the loader calls `container.resolve(mod.default)` instead of registering it anywhere — tsyringe can construct any `@injectable()` class on demand, so dropping a new command file in `commands/implementations/` still requires no other wiring.
+Commands are auto-discovered by directory scan (`loadCommands.ts`): each file's default-exported class is `@injectable()`, and the loader calls `container.resolve(mod.default)` instead of registering it anywhere — tsyringe can construct any `@injectable()` class on demand, so dropping a new command file in `commands/implementations/` requires no other wiring. Reward handlers are loaded the same way (`loadRewardHandlers.ts`).
 
 **Feature services** (chat routing, rewards, breaks, effects, announcers — anything that isn't an
 integration but subscribes to the bus or holds timers) implement `IService` and are added, in
@@ -160,13 +171,13 @@ Triggers (chat, redemptions, raids) go last in the list so they stop first: noth
 break or an effect while those are being restored. Each service keeps its bus subscriptions in a
 `Subscriptions` and clears them in `stop()`.
 
-**Message routing**: WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes (`CommandHandler`, `IntegrationHandler`, `OAuthHandler`) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
+**Message routing**: WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes (`CommandHandler`, `IntegrationHandler`, `OAuthHandler`, `ActivityHandler`, `YouTubeHandler`, registered in `setup.ts`) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
 
 ### Integration System
 
 All integrations extend `BaseIntegration` (`integrations/BaseIntegration.ts`), which implements the `IIntegration` interface (`integrations/interfaces/IIntegration.ts`) and provides shared status/error/event-emitter plumbing. Concrete integrations implement `start()` → `stop()` and call `setStatus()` to report lifecycle transitions; `getStatus()` returns `IntegrationStatus` enum values.
 
-**An integration's stored config is parsed against its own Zod schema.** `initialize(stored)` receives the decrypted value as read, and an integration with a config overrides it to call `parseConfig(schema, stored)`, which throws naming every field that was wrong; its config type is `z.infer` of that schema (OAuth providers declare `configSchema`, extending `OAuthConfigBaseSchema`). An integration without a config keeps the base `initialize()`, which rejects anything stored for it. A stored config is applied once, at load (`loadIntegrations()`); after that the integration holds it. `IntegrationManager.configureIntegration()` applies a new config before storing it, so a bad one is never saved, and restarts the integration on it if it is enabled. One that fails at load is shown as the integration's ERROR status, and the integration refuses to start until it is given a config that fits, rather than running on its defaults.
+**An integration's stored config is parsed against its own Zod schema.** `initialize(stored)` receives the decrypted value as read, and an integration with a config overrides it to call `parseConfig(schema, stored)`, which throws naming every field that was wrong; its config type is `z.infer` of that schema (OAuth providers declare `configSchema`, extending `OAuthConfigBaseSchema`). An integration without a config keeps the base `initialize()`, which rejects anything stored for it. A stored config is applied once, at load (`loadIntegrations()`); after that the integration holds it. `IntegrationManager.configureIntegration()` applies a new config before storing it, so a bad one is never saved, and restarts the integration on it if it is enabled. One that fails at load is shown as the integration's ERROR status, and the integration refuses to start until it is given a config that fits, rather than running on its defaults. The console only sends `integration.configure` from the OAuth setup dialog (client id and secret); other configs, such as OBS's URL and password or the EventSub topics, have no UI yet.
 
 **`enabled` is what the streamer wants running, and only the streamer changes it.** Starting an integration from the console (`enableIntegration()`) or completing its OAuth sets it; stopping it from the console (`disableIntegration()`) clears it (`IntegrationStateRepository.setEnabled()`, which creates the row for an integration with no config). Cascades, `BLOCKED` and shutdown never touch it. Boot starts every enabled integration, and `reconcile()` brings an enabled one back when its dependency recovers, so enabling one whose dependency is down isn't an error: it reports `BLOCKED` and starts once the dependency connects. `IntegrationInfo.enabled` tells the console which to offer, Start or Stop.
 
@@ -217,8 +228,8 @@ dependencies being CONNECTED, and beyond that the manager reacts to status chang
   prerequisite is off — via `reportBlocked()`.
 
 **Status is persisted in one place**: the `'status'` listener in `register()`. Integrations own their
-own status; `startIntegration`/`stopIntegration` no longer write it, which is what let the stored row
-disagree with `getStatus()`.
+own status; `startIntegration`/`stopIntegration` never write it, so the stored row can't disagree with
+`getStatus()`. (Nothing reads the stored status back yet; the console gets it live.)
 
 Startup and shutdown both work in dependency *levels* (`DependencyGraph.levels()`), concurrent within
 a level and reversed for shutdown, with a per-integration start timeout
@@ -234,9 +245,9 @@ instance rather than a new object per call. The cascade above still matters for 
 listeners — `TwitchEventSubIntegration`'s EventSub WebSocket and `YouTubeChatIntegration`'s stream
 own their provider for their lifetime and cannot be re-pointed.
 
-**Twitch** is split into three integrations following SRP: `TwitchAuthIntegration` (OAuth) → `TwitchApiIntegration` (Helix API) → `TwitchEventSubIntegration` (real-time events). **YouTube** follows the same three-part shape: `YouTubeAuthIntegration` → `YouTubeApiIntegration` → `YouTubeChatIntegration`. Spotify has an auth/api split only: `SpotifyAuthIntegration` → `SpotifyApiIntegration`. Discord, OBS, Arduino, and Sound are single-file integrations with no auth/api split.
+**Twitch** is split into three integrations following SRP: `TwitchAuthIntegration` (OAuth) → `TwitchApiIntegration` (Helix API) → `TwitchEventSubIntegration` (real-time events). **YouTube** follows the same three-part shape: `YouTubeAuthIntegration` → `YouTubeApiIntegration` → `YouTubeChatIntegration`. Spotify has an auth/api split only: `SpotifyAuthIntegration` → `SpotifyApiIntegration`. OBS and Sound are single-file integrations with no auth/api split; Discord and Arduino are single-file placeholders, not yet implemented.
 
-**YouTube chat streams over the official client, via a method that is easy to miss.** The server-streaming live chat RPC is exposed by `googleapis` as `client.youtube.v3.liveChat.messages.stream()` — note that it is named `stream`, not `streamList` (its gRPC name), and that it hangs off a separate nested resource rather than the top-level `client.liveChatMessages` that holds `list`/`insert`/`delete`. Searching for `streamList`, or looking only at `liveChatMessages`, finds nothing and produces the false conclusion that the method is gRPC-only and needs a hand-rolled client. It does not: this project carried a vendored `stream_list.proto` and a `@grpc/proto-loader` client on exactly that mistake until it was removed.
+**YouTube chat streams over the official client, via a method that is easy to miss.** The server-streaming live chat RPC is exposed by `googleapis` as `client.youtube.v3.liveChat.messages.stream()` — note that it is named `stream`, not `streamList` (its gRPC name), and that it hangs off a separate nested resource rather than the top-level `client.liveChatMessages` that holds `list`/`insert`/`delete`. Searching for `streamList`, or looking only at `liveChatMessages`, finds nothing and produces the false conclusion that the method is gRPC-only and needs a hand-rolled client (a vendored proto and `@grpc/proto-loader`). It does not; don't add one.
 
 `YouTubeChatStream` requests it with `responseType: 'stream'` and `timeout: 0`, then splits the body with `JsonFrameParser` (`parseJsonFrames.ts`). Both details are load-bearing. Awaiting the ordinary overload buffers the whole response, so messages would only arrive once the broadcast ended; any timeout would cut a multi-hour stream short. Discovery types the response as a single `LiveChatMessageListResponse` — a code-generator artifact, since the generator emits `response.$ref` identically for unary and streaming methods — so that type describes **one frame** and says nothing about how frames are delimited. `JsonFrameParser` therefore scans for balanced top-level objects instead of assuming a delimiter, which decodes a chunked JSON array, newline-delimited JSON, and bare concatenated objects alike.
 
@@ -262,11 +273,9 @@ segments, most general first (`twitch.channelPoint.redemption`, `integration.tok
 `'status'` listener in `IntegrationManager.register()` → `integration.status` on the bus →
 `Application.setupEventHandlers()` broadcasts `INTEGRATION_STATUS` → `AppStateContext`. A new status
 (like `BLOCKED`) reaches the console through that path with no extra wiring, carrying its reason in
-`errorMessage`. Don't add a per-provider `*.ready` event for this: eight such emits
-(`twitch.auth.ready`, `twitch.api.ready`, the Spotify/YouTube equivalents, and two
-`*.auth.token-refreshed`) were removed as redundant with it — and the `*.ready` ones published live
-auth providers and API clients onto the bus, which is exactly the stale-reference trap the
-resolve-on-access change above eliminates.
+`errorMessage`. Don't add per-provider `*.ready` events for this: they duplicate the status path,
+and publishing a live auth provider or API client on the bus reintroduces the stale-reference trap
+that resolving on access avoids.
 
 A token refresh is the one thing status *can't* express (the integration stays CONNECTED through
 it), so it has its own forward: `BaseIntegration.reportTokenRefreshed(expiresAt?)` →
@@ -287,7 +296,7 @@ All messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/me
 
 ### Database
 
-`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `IntegrationStateRepository`, `SettingsRepository`, `ActivityLogRepository` (the record of everything that happened, commands included), plus repositories for data owned by single features — `BannedWordRepository`, `CounterRepository`, `IntervalMessageRepository`, `SuggestionRepository`. Repositories are synchronous, because `node:sqlite` is: they return values, not promises. `DatabaseManager.transaction()` takes a synchronous callback and rejects an async one, since an `await` inside it would let other writes on the one shared connection join the transaction. A new migration goes in `migrations/` and must be added to `ALL_MIGRATIONS`. Tests get a migrated temp database from `repositories/testDatabase.ts`. Integration configs are encrypted with AES-256-GCM before storage; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there. Each settings group is a `SettingsDefinition` (its key plus a strict Zod schema whose defaults apply when nothing is stored, e.g. `BREAK_SETTINGS`), read and written through `SettingsRepository.get()`/`set()`, which throw on a value that doesn't fit. A new group is added to `ALL_SETTINGS` in `setup.ts`, which reads every group at startup so bad settings stop TuringMod there with the fields named.
+`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `IntegrationStateRepository`, `SettingsRepository`, `ActivityLogRepository` (the record of everything that happened, commands included), plus repositories for data owned by single features — `BannedWordRepository`, `CounterRepository`, `IntervalMessageRepository`, `SuggestionRepository`. Repositories are synchronous, because `node:sqlite` is: they return values, not promises. `DatabaseManager.transaction()` takes a synchronous callback and rejects an async one, since an `await` inside it would let other writes on the one shared connection join the transaction. A new migration goes in `migrations/` and must be added to `ALL_MIGRATIONS`. Tests get a migrated temp database from `repositories/testDatabase.ts`. Integration configs are encrypted with AES-256-GCM before storage, keyed from `MASTER_PASSWORD` and a per-install salt kept in the `settings` table (without `MASTER_PASSWORD`, a fixed default password is used; it's only refused when `NODE_ENV=production`); app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there. Each settings group is a `SettingsDefinition` (its key plus a strict Zod schema whose defaults apply when nothing is stored, e.g. `BREAK_SETTINGS`), read and written through `SettingsRepository.get()`/`set()`, which throw on a value that doesn't fit. A new group is added to `ALL_SETTINGS` in `setup.ts`, which reads every group at startup so bad settings stop TuringMod there with the fields named. The console has no settings UI yet: outside tests nothing calls `set()`, so stored settings are only ever the defaults or what was written to the database directly.
 
 ### Platform Provider Layer
 
@@ -477,7 +486,7 @@ there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 
-React Context for state management: `WebSocketContext` (connection + send/subscribe) and `AppStateContext` (commands, integrations, health). Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`.
+React Context for state management: `WebSocketContext` (connection + send/subscribe) and `AppStateContext` (commands, integrations). Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`. Pages (`App.tsx`): Dashboard, Commands (command table + simulator), Integrations, History.
 
 ### HTTP Server
 

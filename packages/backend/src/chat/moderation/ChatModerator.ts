@@ -1,5 +1,5 @@
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { parseCommand } from '../../commands/parseCommand.js';
 import { BannedWordRepository } from '../../database/repositories/BannedWordRepository.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
@@ -22,7 +22,6 @@ export type ModerationVerdict = 'allowed' | 'blocked';
  * The broadcaster is exempt from both. Only platforms with the MODERATION capability are
  * screened, since there'd be no way to act on what was found.
  */
-@injectable()
 @singleton()
 export class ChatModerator {
   private quietMode = false;

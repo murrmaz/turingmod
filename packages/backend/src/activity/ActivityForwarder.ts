@@ -3,7 +3,7 @@ import {
   type ActivityLogEntry,
   createEventNotificationMessage,
 } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { EventMap, EventName } from '../core/events.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
@@ -38,7 +38,6 @@ const EVENT_CATEGORIES: Partial<Record<EventName, ActivityCategory>> = {
  * Forwards EventBus activity to the live tail (broadcast) and, for non-chat categories, to the
  * persisted activity_log.
  */
-@injectable()
 @singleton()
 export class ActivityForwarder implements IService {
   private subscriptions = new Subscriptions();

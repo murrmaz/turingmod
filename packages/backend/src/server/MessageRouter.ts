@@ -6,7 +6,7 @@ import {
   type RequestPayload,
   type RequestType,
 } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { Logger } from '../utils/Logger.js';
 
@@ -34,7 +34,6 @@ type RegisteredHandler = (
  * request type's schema (REQUEST_PAYLOAD_SCHEMAS). A handler only ever sees a valid payload; a
  * malformed one is answered with INVALID_PAYLOAD naming the fields that were wrong.
  */
-@injectable()
 @singleton()
 export class MessageRouter {
   private handlers = new Map<RequestType, RegisteredHandler>();

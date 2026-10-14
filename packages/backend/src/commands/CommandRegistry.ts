@@ -1,5 +1,5 @@
 import type { PlatformCapability } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
 import type { ICommand } from './interfaces/ICommand.js';
 
@@ -7,7 +7,6 @@ import type { ICommand } from './interfaces/ICommand.js';
  * Command registry
  * Manages command registration and lookup
  */
-@injectable()
 @singleton()
 export class CommandRegistry {
   private commands = new Map<string, ICommand>();

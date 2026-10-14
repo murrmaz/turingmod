@@ -1,4 +1,4 @@
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
 import type { EventMap, EventName } from './events.js';
 
@@ -15,7 +15,6 @@ type StoredHandler = (data: unknown) => void | Promise<void>;
  * Event names and payloads are declared once, in `EventMap` (`events.ts`), so an emitter and its
  * subscribers are checked against the same declaration.
  */
-@injectable()
 @singleton()
 export class EventBus {
   private handlers = new Map<EventName, Set<StoredHandler>>();

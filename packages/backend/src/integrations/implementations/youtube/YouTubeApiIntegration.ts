@@ -1,6 +1,6 @@
 import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
 import { google, type youtube_v3 } from 'googleapis';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import { DependencyFailurePolicy, type IIntegration } from '../../interfaces/IIntegration.js';
@@ -39,7 +39,6 @@ export type BroadcastIdentity = Omit<ActiveBroadcast, 'title'>;
  *
  * Depends on: YouTubeAuthIntegration
  */
-@injectable()
 @singleton()
 export class YouTubeApiIntegration extends BaseIntegration {
   readonly name = 'youtube-api';

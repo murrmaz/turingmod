@@ -1,5 +1,5 @@
 import { isExecutorErrorCode } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { CommandExecutor } from '../commands/CommandExecutor.js';
 import type { CommandContext } from '../commands/interfaces/ICommand.js';
 import { parseCommand } from '../commands/parseCommand.js';
@@ -18,7 +18,6 @@ import { ChatModerator } from './moderation/ChatModerator.js';
  * so a command can't slip a banned word past it. Otherwise a `!command` is executed and its reply
  * posted back to the platform it came from.
  */
-@injectable()
 @singleton()
 export class ChatRouter implements IService {
   private subscriptions = new Subscriptions();

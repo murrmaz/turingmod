@@ -1,5 +1,5 @@
 import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
 import { TuringModConfig } from '../../../utils/Config.js';
@@ -53,7 +53,6 @@ type SpotifyTokenResponse = z.infer<typeof SpotifyTokenResponseSchema>;
  * or refreshes them — Spotify's SDK is never given a refresh token, since its
  * own refresh omits the client secret this confidential-client grant requires.
  */
-@injectable()
 @singleton()
 export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> {
   readonly name = 'spotify-auth';

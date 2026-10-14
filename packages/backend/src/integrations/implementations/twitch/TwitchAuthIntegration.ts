@@ -6,7 +6,7 @@ import {
   InvalidTokenTypeError,
   RefreshingAuthProvider as TwurpleRefreshingAuthProvider,
 } from '@twurple/auth';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { EventBus } from '../../../core/EventBus.js';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
@@ -78,7 +78,6 @@ export const TWITCH_REQUIRED_SCOPES = [
  * - Automatic token refresh
  * - Providing valid tokens to other Twitch integrations
  */
-@injectable()
 @singleton()
 export class TwitchAuthIntegration extends OAuthIntegration<TwitchAuthConfig> {
   readonly name = 'twitch-auth';

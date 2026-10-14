@@ -1,9 +1,8 @@
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
 import type { IRewardHandler } from './interfaces/IRewardHandler.js';
 
 /** Reward title → the handler that reacts to it. */
-@injectable()
 @singleton()
 export class RewardRegistry {
   private handlers = new Map<string, IRewardHandler>();

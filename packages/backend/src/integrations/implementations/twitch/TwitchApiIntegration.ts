@@ -2,7 +2,7 @@ import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/share
 import { ApiClient } from '@twurple/api';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import { CachedRefreshFailureError, type RefreshingAuthProvider } from '@twurple/auth';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
@@ -22,7 +22,6 @@ import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
  *
  * Depends on: TwitchAuthIntegration
  */
-@injectable()
 @singleton()
 export class TwitchApiIntegration extends BaseIntegration {
   readonly name = 'twitch-api';

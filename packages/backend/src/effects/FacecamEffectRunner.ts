@@ -1,5 +1,5 @@
 import { IntegrationStatus } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import type { IService } from '../core/ServiceLifecycle.js';
 import { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import {
@@ -30,7 +30,6 @@ import { restorableTransform } from './transformMath.js';
  * report another canvas's live scene, which is why that is a guess, and the same one the
  * original bot made.
  */
-@injectable()
 @singleton()
 export class FacecamEffectRunner implements IService {
   private queue: Promise<void> = Promise.resolve();

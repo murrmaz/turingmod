@@ -1,5 +1,5 @@
 import type { StreamingPlatform } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { Logger } from '../utils/Logger.js';
@@ -16,7 +16,6 @@ import { PlatformRegistry } from './PlatformRegistry.js';
  * Every integration status change triggers a re-check of every platform, since it's the only
  * moment availability can change; only transitions are published.
  */
-@injectable()
 @singleton()
 export class PlatformAvailability implements IService {
   private subscriptions = new Subscriptions();

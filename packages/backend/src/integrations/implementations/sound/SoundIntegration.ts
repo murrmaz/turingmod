@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { IntegrationStatus } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 
@@ -23,7 +23,6 @@ Start-Sleep -s $player.NaturalDuration.TimeSpan.TotalSeconds
 Exit
 `;
 
-@injectable()
 @singleton()
 export class SoundIntegration extends BaseIntegration {
   readonly name = 'sound';

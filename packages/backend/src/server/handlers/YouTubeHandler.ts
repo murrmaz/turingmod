@@ -1,6 +1,6 @@
 import type { EmptyPayload, IWebSocketMessage } from '@turingmod/shared';
 import { createYouTubeChatStateMessage } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { Logger } from '../../utils/Logger.js';
 
@@ -11,7 +11,6 @@ import { Logger } from '../../utils/Logger.js';
  * "a broadcast started" that reaches a localhost-only server, so the console needs a way to say
  * "I'm live, go find the chat" (and the reverse).
  */
-@injectable()
 @singleton()
 export class YouTubeHandler {
   private logger: Logger;

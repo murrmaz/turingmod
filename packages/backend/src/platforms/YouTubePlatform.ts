@@ -1,6 +1,6 @@
 import { PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import type { youtube_v3 } from 'googleapis';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { toSafeChatText } from '../chat/chatMessage.js';
 import { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import {
@@ -27,7 +27,6 @@ import type {
  * UPTIME and has no capability objects — commands requiring the other capabilities auto-hide on
  * YouTube.
  */
-@injectable()
 @singleton()
 export class YouTubePlatform implements IStreamPlatform {
   readonly platform = StreamingPlatform.YOUTUBE;

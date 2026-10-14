@@ -1,6 +1,6 @@
 import type { IntegrationInfo } from '@turingmod/shared';
 import { IntegrationStatus, messageOf } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import { Logger } from '../utils/Logger.js';
@@ -17,7 +17,6 @@ class DependencyBlockedError extends Error {}
  * Integration manager
  * Manages lifecycle and state of all integrations
  */
-@injectable()
 @singleton()
 export class IntegrationManager {
   private integrations = new Map<string, IIntegration>();

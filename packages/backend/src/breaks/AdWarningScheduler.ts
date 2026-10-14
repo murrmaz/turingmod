@@ -1,5 +1,5 @@
 import { messageOf, StreamingPlatform } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
@@ -24,7 +24,6 @@ const POST_BREAK_REPOLL_MS = 10_000;
  * only platform with an ad schedule, but every platform loses the streamer during the break,
  * so the warnings go everywhere, worded per platform.
  */
-@injectable()
 @singleton()
 export class AdWarningScheduler implements IService {
   private pollTimer: NodeJS.Timeout | null = null;

@@ -1,6 +1,6 @@
 import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
 import { google } from 'googleapis';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
 import { TuringModConfig } from '../../../utils/Config.js';
@@ -46,7 +46,6 @@ type YouTubeCredentials = NonNullable<Parameters<YouTubeOAuth2Client['setCredent
  * - Automatic token refresh (YouTubeOAuth2Client refreshes on demand and emits 'tokens')
  * - Providing an authenticated YouTubeOAuth2Client to the YouTube API + Chat integrations
  */
-@injectable()
 @singleton()
 export class YouTubeAuthIntegration extends OAuthIntegration<YouTubeAuthConfig> {
   readonly name = 'youtube-auth';

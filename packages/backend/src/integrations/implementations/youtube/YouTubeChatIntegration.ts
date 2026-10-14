@@ -6,7 +6,7 @@ import {
   StreamingPlatform,
 } from '@turingmod/shared';
 import type { youtube_v3 } from 'googleapis';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
@@ -133,7 +133,6 @@ function isTransportError(error: unknown): boolean {
  *
  * Depends on: YouTubeAuthIntegration, YouTubeApiIntegration
  */
-@injectable()
 @singleton()
 export class YouTubeChatIntegration extends BaseIntegration {
   readonly name = 'youtube-chat';

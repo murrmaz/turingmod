@@ -1,4 +1,4 @@
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { BreakReason } from '../core/events.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
@@ -39,7 +39,6 @@ export const MAX_BREAK_SECONDS = 60 * 60;
  * Every side effect is best-effort and independent: OBS being down still lets chat hear about
  * the break, and a chat failure never leaves OBS in break state.
  */
-@injectable()
 @singleton()
 export class BreakService implements IService {
   private settings: BreakSettings = DEFAULT_BREAK_SETTINGS;

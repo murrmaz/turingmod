@@ -1,4 +1,4 @@
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { DatabaseManager } from '../DatabaseManager.js';
 
 /** Names of the counters the original bot kept. */
@@ -8,7 +8,6 @@ export const COUNTERS = {
 } as const;
 
 /** Named running counts, such as the death counter. A counter that was never set reads as 0. */
-@injectable()
 @singleton()
 export class CounterRepository {
   constructor(private db: DatabaseManager) {}

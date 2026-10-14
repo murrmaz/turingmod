@@ -1,6 +1,6 @@
 import { type AccessToken, type IAuthStrategy, SpotifyApi } from '@spotify/web-api-ts-sdk';
 import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import { DependencyFailurePolicy, type IIntegration } from '../../interfaces/IIntegration.js';
@@ -29,7 +29,6 @@ export class SpotifyHttpError extends Error {
  *
  * Depends on: SpotifyAuthIntegration
  */
-@injectable()
 @singleton()
 export class SpotifyApiIntegration extends BaseIntegration {
   readonly name = 'spotify-api';

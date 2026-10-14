@@ -1,5 +1,5 @@
 import { IntegrationStatus } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
@@ -8,7 +8,6 @@ import { BaseIntegration } from '../../BaseIntegration.js';
  * Discord integration (placeholder)
  * TODO: Implement Discord webhook/bot integration
  */
-@injectable()
 @singleton()
 export class DiscordIntegration extends BaseIntegration {
   readonly name = 'discord';

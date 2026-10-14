@@ -1,5 +1,5 @@
 import { PermissionLevel, type StreamingPlatform } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { Logger } from '../utils/Logger.js';
@@ -20,7 +20,6 @@ import type { ChatMessageEvent } from './chatMessage.js';
  * message arriving while a send is in flight waits for it to settle before being judged. Other
  * people's messages can't be ours and pass straight through.
  */
-@injectable()
 @singleton()
 export class OwnChatMessages implements IService {
   private subscriptions = new Subscriptions();

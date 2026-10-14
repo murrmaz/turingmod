@@ -11,7 +11,7 @@ import { Logger } from './utils/Logger.js';
  */
 async function main(): Promise<void> {
   // Register the handful of classes tsyringe can't auto-construct (see setup.ts for why).
-  // Everything else wires itself up via @injectable()/@singleton() on the class definitions.
+  // Everything else wires itself up via @singleton() (or @injectable()) on the class definitions.
   registerRootFactories();
 
   // Get logger

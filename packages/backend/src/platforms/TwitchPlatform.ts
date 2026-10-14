@@ -4,7 +4,7 @@ import type {
   HelixCustomReward,
   HelixUpdateCustomRewardData,
 } from '@twurple/api';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { toSafeChatText } from '../chat/chatMessage.js';
 import { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
@@ -47,7 +47,6 @@ import { TwitchShoutoutCooldowns } from './TwitchShoutoutCooldowns.js';
  * Has every capability object; each method resolves the broadcaster id itself, so an object is
  * safe to hold while Twitch is disconnected and fails with NotAuthenticatedError when used.
  */
-@injectable()
 @singleton()
 export class TwitchPlatform implements IStreamPlatform {
   readonly platform = StreamingPlatform.TWITCH;

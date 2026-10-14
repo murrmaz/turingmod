@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_HOST, DEFAULT_SERVER_PORT } from '@turingmod/shared';
 import type { LevelWithSilentOrString } from 'pino';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 
 /**
  * Application configuration
@@ -16,7 +16,6 @@ export function resolveDbPath(): string {
   return process.env.DB_PATH ?? join(process.cwd(), 'turingmod.db');
 }
 
-@injectable()
 @singleton()
 export class TuringModConfig {
   /**

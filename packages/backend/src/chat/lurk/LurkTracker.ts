@@ -1,5 +1,5 @@
 import type { StreamingPlatform } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { parseCommand } from '../../commands/parseCommand.js';
 import { EventBus } from '../../core/EventBus.js';
 import { type IService, Subscriptions } from '../../core/ServiceLifecycle.js';
@@ -30,7 +30,6 @@ export function welcomeBackMessage(username: string, lurker: Lurker, now = Date.
  * Keeps the lurk list for `!lurk`, `!unlurk` and `!leave`, in memory as the original did. A
  * lurker who chats again (anything but a command) is welcomed back automatically.
  */
-@injectable()
 @singleton()
 export class LurkTracker implements IService {
   private subscriptions = new Subscriptions();

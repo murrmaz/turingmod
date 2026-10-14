@@ -1,4 +1,4 @@
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import type { IService } from '../../core/ServiceLifecycle.js';
 import { IntervalMessageRepository } from '../../database/repositories/IntervalMessageRepository.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
@@ -13,7 +13,6 @@ export const ANNOUNCEMENT_INTERVAL_MS = 30 * 60 * 1000;
  * as the original bot did. Messages go to every platform that's live; while none is, nothing
  * is posted and the rotation doesn't advance, so the next stream picks up where it left off.
  */
-@injectable()
 @singleton()
 export class IntervalAnnouncer implements IService {
   private timer: NodeJS.Timeout | null = null;

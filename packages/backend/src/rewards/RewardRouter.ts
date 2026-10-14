@@ -1,5 +1,5 @@
 import { StreamingPlatform } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import type { RedemptionOutcome } from '../platforms/interfaces/IStreamPlatform.js';
@@ -20,7 +20,6 @@ import { RewardSync } from './RewardSync.js';
  * it's then marked fulfilled if the handler succeeded or canceled — refunding the viewer — if it
  * threw. Rewards made elsewhere are left for the streamer to resolve.
  */
-@injectable()
 @singleton()
 export class RewardRouter implements IService {
   private subscriptions = new Subscriptions();

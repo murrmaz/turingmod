@@ -1,5 +1,5 @@
 import { StreamingPlatform } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { NotAuthenticatedError } from '../platforms/errors.js';
@@ -54,7 +54,6 @@ export function rewardSettingsFor(handler: IRewardHandler): ChannelRewardSetting
  * `isEnabled` is never changed on an existing reward, so the streamer can switch rewards off in
  * the dashboard without TuringMod turning them back on.
  */
-@injectable()
 @singleton()
 export class RewardSync implements IService {
   private subscriptions = new Subscriptions();

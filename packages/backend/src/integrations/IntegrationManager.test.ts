@@ -26,7 +26,7 @@ class FakeIntegration extends BaseIntegration {
     return this.policy;
   }
 
-  getDependencies(): IIntegration[] {
+  override getDependencies(): IIntegration[] {
     return this.dependencies;
   }
 

@@ -1,5 +1,5 @@
 import { IntegrationStatus, messageOf } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { ObsIntegration } from '../integrations/implementations/obs/ObsIntegration.js';
@@ -22,7 +22,6 @@ const OBS_OUTPUT_STOPPED = 'OBS_WEBSOCKET_OUTPUT_STOPPED';
  * While OBS is disconnected the last state it reported stands, so a platform that comes up then
  * still learns that a stream was going out.
  */
-@injectable()
 @singleton()
 export class ObsStreamState implements IService {
   private subscriptions = new Subscriptions();

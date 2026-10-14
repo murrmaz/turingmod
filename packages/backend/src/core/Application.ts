@@ -3,7 +3,7 @@ import {
   createOAuthCodeReceivedMessage,
   createYouTubeChatStateMessage,
 } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { DatabaseManager } from '../database/DatabaseManager.js';
 import { IntegrationManager } from '../integrations/IntegrationManager.js';
 import { HttpServer } from '../server/HttpServer.js';
@@ -16,7 +16,6 @@ import { ServiceLifecycle } from './ServiceLifecycle.js';
  * Main application class
  * Orchestrates initialization, startup, and shutdown of all components
  */
-@injectable()
 @singleton()
 export class Application {
   private logger: Logger;

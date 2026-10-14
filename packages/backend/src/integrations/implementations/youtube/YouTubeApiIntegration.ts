@@ -1,6 +1,6 @@
 import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
 import { google, type youtube_v3 } from 'googleapis';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import { DependencyFailurePolicy, type IIntegration } from '../../interfaces/IIntegration.js';
@@ -22,6 +22,12 @@ export interface ActiveBroadcast {
 }
 
 /**
+ * The fields of a broadcast that don't change while it's live, so they can be held for its
+ * lifetime. The title is left out: it can be changed mid-stream, in YouTube Studio or by `!title`.
+ */
+export type BroadcastIdentity = Omit<ActiveBroadcast, 'title'>;
+
+/**
  * The YouTube Data API connection: a googleapis client kept in step with
  * YouTubeAuthIntegration, and the integration status that says whether it can
  * be used.
@@ -33,7 +39,6 @@ export interface ActiveBroadcast {
  *
  * Depends on: YouTubeAuthIntegration
  */
-@injectable()
 @singleton()
 export class YouTubeApiIntegration extends BaseIntegration {
   readonly name = 'youtube-api';
@@ -49,7 +54,7 @@ export class YouTubeApiIntegration extends BaseIntegration {
     super(logger, { component: 'YouTubeAPI' });
   }
 
-  getDependencies(): IIntegration[] {
+  override getDependencies(): IIntegration[] {
     return [this.authIntegration];
   }
 
@@ -61,7 +66,7 @@ export class YouTubeApiIntegration extends BaseIntegration {
     return DependencyFailurePolicy.BLOCK;
   }
 
-  getGroup(): IntegrationGroup {
+  override getGroup(): IntegrationGroup {
     return IntegrationGroup.YOUTUBE;
   }
 

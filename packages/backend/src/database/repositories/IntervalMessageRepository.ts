@@ -1,4 +1,4 @@
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { DatabaseManager } from '../DatabaseManager.js';
 
 export interface IntervalMessage {
@@ -8,7 +8,6 @@ export interface IntervalMessage {
 }
 
 /** Announcements posted to chat on a rotation, in the order they were added. */
-@injectable()
 @singleton()
 export class IntervalMessageRepository {
   constructor(private db: DatabaseManager) {}

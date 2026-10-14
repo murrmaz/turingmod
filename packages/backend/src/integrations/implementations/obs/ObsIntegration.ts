@@ -1,6 +1,6 @@
 import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import OBSWebSocket, { type OBSResponseTypes } from 'obs-websocket-js';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
@@ -69,7 +69,6 @@ type ObsConfig = z.infer<typeof ObsConfigSchema>;
 /** obs-websocket RequestStatus.UnknownRequestType: the connected OBS predates the request. */
 const OBS_UNKNOWN_REQUEST_TYPE = 204;
 
-@injectable()
 @singleton()
 export class ObsIntegration extends BaseIntegration {
   readonly name = 'obs';

@@ -63,7 +63,7 @@ import { Logger } from './utils/Logger.js';
  * Register the handful of classes tsyringe can't auto-construct from decorated constructor
  * parameters alone, because their constructors take primitives/derived values (a log level, a
  * db path, a master password + salt, an allowed-origins list) rather than other injectable
- * classes. Everything else is wired implicitly via @injectable()/@singleton() on the class
+ * classes. Everything else is wired implicitly via @singleton() (or @injectable()) on the class
  * itself — this is deliberately the only "wiring" code left; it replaces what used to be a
  * 554-line registerSingleton call per service.
  *

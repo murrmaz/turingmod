@@ -10,7 +10,7 @@ import {
   createOAuthExchangeResultMessage,
   messageOf,
 } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
 import { Logger } from '../../utils/Logger.js';
 
@@ -20,7 +20,6 @@ import { Logger } from '../../utils/Logger.js';
  * a new OAuth-capable provider requires no changes here — only implementing
  * IOAuthIntegration.
  */
-@injectable()
 @singleton()
 export class OAuthHandler {
   private logger: Logger;

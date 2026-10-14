@@ -1,6 +1,6 @@
 import type { ExecutionResult, ExecutorErrorCode } from '@turingmod/shared';
 import { hasPermission, messageOf, PermissionLevel } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { Logger } from '../utils/Logger.js';
@@ -20,7 +20,6 @@ interface CooldownEntry {
  * Command executor
  * Handles command execution with permission checks and cooldowns
  */
-@injectable()
 @singleton()
 export class CommandExecutor {
   private cooldowns = new Map<string, CooldownEntry>();

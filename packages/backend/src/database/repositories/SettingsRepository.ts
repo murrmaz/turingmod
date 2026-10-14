@@ -1,4 +1,4 @@
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { DatabaseManager } from '../DatabaseManager.js';
 
@@ -20,7 +20,6 @@ export interface SettingsDefinition<T> {
  * every time it is read, and one that doesn't fit is an error rather than something to work
  * around: get() throws, naming every field that was wrong.
  */
-@injectable()
 @singleton()
 export class SettingsRepository {
   constructor(private db: DatabaseManager) {}

@@ -1,5 +1,5 @@
 import { StreamingPlatform } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { TwitchRaidEvent } from '../core/events.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
@@ -19,7 +19,6 @@ export function raidShoutoutMessage(channelName: string): string {
  * minutes, and once per hour per channel), so back-to-back raids still each get the chat
  * message even when the native shoutout is declined.
  */
-@injectable()
 @singleton()
 export class RaidShoutout implements IService {
   private subscriptions = new Subscriptions();

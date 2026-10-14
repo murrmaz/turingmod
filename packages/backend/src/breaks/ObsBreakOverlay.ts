@@ -1,5 +1,5 @@
 import { IntegrationStatus, messageOf } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { ObsIntegration } from '../integrations/implementations/obs/ObsIntegration.js';
 import {
   listPlacements,
@@ -34,7 +34,6 @@ export interface ObsBreakSnapshot {
  * already muted stays muted afterwards, and a partial failure can't leave things inverted. Each
  * change is attempted independently: one missing source doesn't stop the rest.
  */
-@injectable()
 @singleton()
 export class ObsBreakOverlay {
   private logger: Logger;

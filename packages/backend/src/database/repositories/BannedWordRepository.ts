@@ -1,4 +1,4 @@
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { DatabaseManager } from '../DatabaseManager.js';
 
 export interface BannedWord {
@@ -14,7 +14,6 @@ export interface BannedWord {
  * lapses after a month (see chat/moderation/bannedWords.ts): callers pass the cutoff, and a lapsed word
  * can be banned again.
  */
-@injectable()
 @singleton()
 export class BannedWordRepository {
   constructor(private db: DatabaseManager) {}

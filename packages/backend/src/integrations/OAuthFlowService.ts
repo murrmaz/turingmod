@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { IntegrationManager } from './IntegrationManager.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 
@@ -9,7 +9,6 @@ import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
  * client that started it, and exchanging the code. Which integrations take part is derived from
  * their `oauth` getter, so a new provider needs nothing here.
  */
-@injectable()
 @singleton()
 export class OAuthFlowService {
   private static readonly STATE_TTL_MS = 10 * 60 * 1000;

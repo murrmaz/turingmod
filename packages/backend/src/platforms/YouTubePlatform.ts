@@ -1,9 +1,12 @@
 import { PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import type { youtube_v3 } from 'googleapis';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { toSafeChatText } from '../chat/chatMessage.js';
 import { OwnChatMessages } from '../chat/OwnChatMessages.js';
-import { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
+import {
+  type BroadcastIdentity,
+  YouTubeApiIntegration,
+} from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
 import { YouTubeChatIntegration } from '../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { unavailableReason } from './availability.js';
 import type {
@@ -17,13 +20,13 @@ import type {
  *
  * Owns the YouTube endpoints it calls and the rules around them, and translates them into the
  * platform-agnostic types commands see. Connection health is not its concern: it makes every call
- * through YouTubeApiIntegration.request(), and asks it for the active broadcast.
+ * through YouTubeApiIntegration.request(). The live broadcast comes from YouTubeChatIntegration
+ * while chat is streaming, and from the API otherwise.
  *
  * YouTube has no game/category or tags model, so it declares only SEND_CHAT, SET_TITLE, and
  * UPTIME and has no capability objects — commands requiring the other capabilities auto-hide on
  * YouTube.
  */
-@injectable()
 @singleton()
 export class YouTubePlatform implements IStreamPlatform {
   readonly platform = StreamingPlatform.YOUTUBE;
@@ -43,21 +46,13 @@ export class YouTubePlatform implements IStreamPlatform {
     return unavailableReason(this.api, this.platform);
   }
 
-  // While chat is streaming, its live chat id already answers "are we live, and where does chat
-  // go", so the broadcast is only looked up (one API call each time) when it isn't: replies and
-  // announcements during a stream would otherwise cost an extra call per message.
-
   async isLive(): Promise<boolean> {
-    if (this.chat.getLiveChatId() !== null) {
-      return true;
-    }
-    return (await this.api.getActiveBroadcast()) !== null;
+    return (await this.liveBroadcast()) !== null;
   }
 
   async sendChatMessage(message: string): Promise<void> {
     const text = toSafeChatText(message);
-    const liveChatId =
-      this.chat.getLiveChatId() ?? (await this.api.getActiveBroadcast())?.liveChatId;
+    const liveChatId = (await this.liveBroadcast())?.liveChatId;
     if (!liveChatId) {
       throw new Error('No active YouTube live chat to post to');
     }
@@ -79,6 +74,7 @@ export class YouTubePlatform implements IStreamPlatform {
   }
 
   async getStreamInfo(): Promise<StreamInfo> {
+    // Looked up afresh: the title can change mid-stream, so chat's copy of the broadcast has none.
     const broadcast = await this.api.getActiveBroadcast();
     if (!broadcast) {
       throw new Error('No active YouTube broadcast');
@@ -92,7 +88,7 @@ export class YouTubePlatform implements IStreamPlatform {
     if (info.title === undefined) {
       return;
     }
-    const broadcast = await this.api.getActiveBroadcast();
+    const broadcast = await this.liveBroadcast();
     if (!broadcast) {
       throw new Error('No active YouTube broadcast to update');
     }
@@ -112,10 +108,20 @@ export class YouTubePlatform implements IStreamPlatform {
 
   /** Milliseconds the active broadcast has been live, or null if offline / no start time yet. */
   async getUptime(): Promise<number | null> {
-    const broadcast = await this.api.getActiveBroadcast();
+    const broadcast = await this.liveBroadcast();
     if (!broadcast?.actualStartTime) {
       return null;
     }
     return Date.now() - new Date(broadcast.actualStartTime).getTime();
+  }
+
+  /**
+   * The live broadcast, or null when there isn't one. While chat is streaming it already knows the
+   * broadcast, so this costs an API call only when it isn't: replies and announcements during a
+   * stream would otherwise cost an extra call per message. Only for the fields that don't change
+   * during a broadcast, which is why the title isn't in it.
+   */
+  private async liveBroadcast(): Promise<BroadcastIdentity | null> {
+    return this.chat.getBroadcast() ?? (await this.api.getActiveBroadcast());
   }
 }

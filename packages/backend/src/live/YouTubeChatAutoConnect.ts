@@ -1,5 +1,5 @@
 import { IntegrationStatus } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { YouTubeChatIntegration } from '../integrations/implementations/youtube/YouTubeChatIntegration.js';
@@ -16,7 +16,6 @@ import { ObsStreamState } from './ObsStreamState.js';
  * YouTube chat coming up while OBS is already streaming (TuringMod restarting mid-stream, or chat
  * restarting after its login recovered) connects too, since no transition will arrive for it.
  */
-@injectable()
 @singleton()
 export class YouTubeChatAutoConnect implements IService {
   private subscriptions = new Subscriptions();

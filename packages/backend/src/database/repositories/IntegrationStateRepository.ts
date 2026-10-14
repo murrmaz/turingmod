@@ -1,5 +1,5 @@
 import { IntegrationStatus } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { Encryption } from '../../utils/Encryption.js';
 import { DatabaseManager } from '../DatabaseManager.js';
 
@@ -37,7 +37,6 @@ export interface IntegrationState {
  * Integration state repository
  * Manages integration configurations with encrypted storage
  */
-@injectable()
 @singleton()
 export class IntegrationStateRepository {
   constructor(

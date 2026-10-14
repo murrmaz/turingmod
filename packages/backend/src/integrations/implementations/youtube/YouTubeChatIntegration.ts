@@ -6,12 +6,12 @@ import {
   StreamingPlatform,
 } from '@turingmod/shared';
 import type { youtube_v3 } from 'googleapis';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IIntegration } from '../../interfaces/IIntegration.js';
-import { YouTubeApiIntegration } from './YouTubeApiIntegration.js';
+import { type BroadcastIdentity, YouTubeApiIntegration } from './YouTubeApiIntegration.js';
 import { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
 import {
   type LiveChatMessageListResponse,
@@ -38,6 +38,9 @@ const RECONNECT_MAX_DELAY_MS = 30_000;
  * `streaming`. Any successful response resets the count.
  */
 const MAX_RECONNECT_ATTEMPTS = 8;
+
+/** The broadcast whose chat is being streamed. */
+export type StreamedBroadcast = BroadcastIdentity & { liveChatId: string };
 
 /** What asked chat to connect or disconnect, for the log. */
 export type ChatTrigger = 'OBS' | 'console';
@@ -130,13 +133,11 @@ function isTransportError(error: unknown): boolean {
  *
  * Depends on: YouTubeAuthIntegration, YouTubeApiIntegration
  */
-@injectable()
 @singleton()
 export class YouTubeChatIntegration extends BaseIntegration {
   readonly name = 'youtube-chat';
 
-  private liveChatId: string | null = null;
-  private broadcasterChannelId: string | null = null;
+  private broadcast: StreamedBroadcast | null = null;
   private nextPageToken: string | undefined;
 
   private state: YouTubeChatState = 'idle';
@@ -181,11 +182,11 @@ export class YouTubeChatIntegration extends BaseIntegration {
     super(logger, { component: 'YouTubeChat' });
   }
 
-  getDependencies(): IIntegration[] {
+  override getDependencies(): IIntegration[] {
     return [this.authIntegration, this.apiIntegration];
   }
 
-  getGroup(): IntegrationGroup {
+  override getGroup(): IntegrationGroup {
     return IntegrationGroup.YOUTUBE;
   }
 
@@ -222,11 +223,12 @@ export class YouTubeChatIntegration extends BaseIntegration {
   }
 
   /**
-   * The live chat being streamed, or null when not streaming. While it's set the broadcast is
-   * live and this is its chat, so posting to it needs no broadcast lookup of its own.
+   * The broadcast whose chat is being streamed, or null when not streaming. While it's set the
+   * broadcast is live, so its fixed fields (its id, chat and start times) need no lookup of their
+   * own.
    */
-  getLiveChatId(): string | null {
-    return this.state === 'streaming' ? this.liveChatId : null;
+  getBroadcast(): StreamedBroadcast | null {
+    return this.state === 'streaming' ? this.broadcast : null;
   }
 
   /**
@@ -280,8 +282,8 @@ export class YouTubeChatIntegration extends BaseIntegration {
       }
 
       if (broadcast?.liveChatId) {
-        this.liveChatId = broadcast.liveChatId;
-        this.broadcasterChannelId = broadcast.channelId;
+        const { title: _title, ...identity } = broadcast;
+        this.broadcast = { ...identity, liveChatId: broadcast.liveChatId };
         this.nextPageToken = undefined;
         this.primed = false;
         this.reconnectAttempts = 0;
@@ -314,7 +316,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
 
   /** Open (or reopen) the message stream for the resolved chat. */
   private openStream(): void {
-    const liveChatId = this.liveChatId;
+    const liveChatId = this.broadcast?.liveChatId;
     if (!(this.running && liveChatId)) {
       return;
     }
@@ -528,8 +530,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
     // Invalidate any async work still in flight (a broadcast lookup, a token fetch).
     this.epoch += 1;
 
-    this.liveChatId = null;
-    this.broadcasterChannelId = null;
+    this.broadcast = null;
     this.nextPageToken = undefined;
     this.primed = false;
     this.reconnectAttempts = 0;
@@ -580,7 +581,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
       badges,
       timestamp: Date.now(),
       messageId: item.id ?? '',
-      channelId: this.broadcasterChannelId ?? '',
+      channelId: this.broadcast?.channelId ?? '',
     });
   }
 

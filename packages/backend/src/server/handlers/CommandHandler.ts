@@ -6,7 +6,7 @@ import type {
   IWebSocketMessage,
 } from '@turingmod/shared';
 import { createCommandResultMessage, MessageType } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { CommandExecutor } from '../../commands/CommandExecutor.js';
 import { CommandRegistry } from '../../commands/CommandRegistry.js';
 import type { CommandContext, ICommand } from '../../commands/interfaces/ICommand.js';
@@ -20,7 +20,6 @@ import { Logger } from '../../utils/Logger.js';
  * Command message handler
  * Handles command simulation and list requests
  */
-@injectable()
 @singleton()
 export class CommandHandler {
   private logger: Logger;

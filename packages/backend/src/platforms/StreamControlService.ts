@@ -1,6 +1,6 @@
 import type { StreamingPlatform } from '@turingmod/shared';
 import { messageOf, PlatformCapability } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
 import { CAPABILITY_OF_API, capabilitiesOf } from './capabilities.js';
 import type {
@@ -29,7 +29,6 @@ export interface MirrorResult {
  * capability objects (`require()`). This is the seam the provider-backed commands depend on
  * instead of touching Twitch directly.
  */
-@injectable()
 @singleton()
 export class StreamControlService {
   private logger: Logger;

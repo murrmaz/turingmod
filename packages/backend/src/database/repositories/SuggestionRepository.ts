@@ -1,4 +1,4 @@
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { DatabaseManager } from '../DatabaseManager.js';
 
 export interface Suggestion {
@@ -9,7 +9,6 @@ export interface Suggestion {
 }
 
 /** Viewers' suggestions for the bot. */
-@injectable()
 @singleton()
 export class SuggestionRepository {
   constructor(private db: DatabaseManager) {}

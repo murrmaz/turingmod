@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StreamingPlatform } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
 import { type IService, Subscriptions } from '../../core/ServiceLifecycle.js';
 import type { ClipInfo } from '../../platforms/interfaces/IStreamPlatform.js';
@@ -24,7 +24,6 @@ export function clipIdsIn(message: string): string[] {
  * for the streamer when it's turned off. Each link is checked with Twitch, so only real clips
  * are kept, once each, in the order they were first linked.
  */
-@injectable()
 @singleton()
 export class ClipCollector implements IService {
   private subscriptions = new Subscriptions();

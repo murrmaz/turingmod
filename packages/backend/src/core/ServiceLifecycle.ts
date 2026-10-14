@@ -1,4 +1,4 @@
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
 
 /**
@@ -35,7 +35,6 @@ export class Subscriptions {
  * triggers actions (chat, redemptions) last: reversed, those stop first, so nothing new starts
  * while the services that undo things are shutting down.
  */
-@injectable()
 @singleton()
 export class ServiceLifecycle {
   private services: IService[] = [];

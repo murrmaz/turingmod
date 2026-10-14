@@ -1,7 +1,7 @@
 import { access } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { IntegrationStatus, messageOf } from '@turingmod/shared';
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import { SoundIntegration } from '../integrations/implementations/sound/SoundIntegration.js';
 import { Logger } from '../utils/Logger.js';
@@ -15,7 +15,6 @@ import { SOUND_SETTINGS } from './soundSettings.js';
  * `play()` checks up front that sound is running and the clip exists, and rejects if not, so a
  * reward whose whole point is the sound gets refunded. It doesn't wait for the clip to finish.
  */
-@injectable()
 @singleton()
 export class SoundLibrary {
   private logger: Logger;

@@ -1,4 +1,4 @@
-import { injectable, singleton } from 'tsyringe';
+import { singleton } from 'tsyringe';
 import { Logger } from '../../utils/Logger.js';
 import { DatabaseManager } from '../DatabaseManager.js';
 
@@ -23,7 +23,6 @@ export interface Migration {
  * Migration runner
  * Manages database schema migrations
  */
-@injectable()
 @singleton()
 export class MigrationRunner {
   constructor(

@@ -1,5 +1,9 @@
 import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
-import type { HelixCustomReward, HelixUpdateCustomRewardData } from '@twurple/api';
+import type {
+  HelixChannelUpdate,
+  HelixCustomReward,
+  HelixUpdateCustomRewardData,
+} from '@twurple/api';
 import { injectable, singleton } from 'tsyringe';
 import { toSafeChatText } from '../chat/chatMessage.js';
 import { OwnChatMessages } from '../chat/OwnChatMessages.js';
@@ -28,11 +32,17 @@ import type {
   StreamInfo,
   VodsApi,
 } from './interfaces/IStreamPlatform.js';
+import { TwitchShoutoutCooldowns } from './TwitchShoutoutCooldowns.js';
 
 /**
- * IStreamPlatform façade over the Twitch integration trio. Resolves the broadcaster id from
- * TwitchAuthIntegration and delegates reads/writes to TwitchApiIntegration's Helix methods.
- * Category search (name → id) stays Twitch-specific and lives here rather than in commands.
+ * IStreamPlatform façade over the Twitch integration trio: everything TuringMod does on Twitch.
+ *
+ * Owns the Twitch endpoints it calls and the Twitch rules around them (category name → id,
+ * checking for a snooze before snoozing, live-only markers, shoutout cooldowns), and translates
+ * Twurple's types into the platform-agnostic ones commands see. Connection health is not its
+ * concern: it makes every call through TwitchApiIntegration.request(), which supplies a client
+ * built on the current grant and reports a revoked one, and takes the broadcaster id from
+ * TwitchAuthIntegration.
  *
  * Has every capability object; each method resolves the broadcaster id itself, so an object is
  * safe to hold while Twitch is disconnected and fails with NotAuthenticatedError when used.
@@ -48,6 +58,9 @@ export class TwitchPlatform implements IStreamPlatform {
     PlatformCapability.SET_TAGS,
     PlatformCapability.UPTIME,
   ]);
+
+  /** Twitch's own shoutout limits, checked here so a refusal is an answer rather than an error. */
+  private readonly shoutoutCooldowns = new TwitchShoutoutCooldowns();
 
   constructor(
     private auth: TwitchAuthIntegration,
@@ -72,7 +85,7 @@ export class TwitchPlatform implements IStreamPlatform {
     if (!userId) {
       return false;
     }
-    const stream = await this.api.getStream(userId);
+    const stream = await this.liveStream(userId);
     return stream !== null;
   }
 
@@ -80,14 +93,14 @@ export class TwitchPlatform implements IStreamPlatform {
     const userId = this.requireUserId();
     const text = toSafeChatText(message);
     await this.ownMessages.record(this.platform, async () => {
-      const sent = await this.api.sendChatMessage(userId, text);
+      const sent = await this.api.request((c) => c.chat.sendChatMessage(userId, text));
       return sent.isSent ? sent.id : null;
     });
   }
 
   async getStreamInfo(): Promise<StreamInfo> {
     const userId = this.requireUserId();
-    const channel = await this.api.getChannel(userId);
+    const channel = await this.api.request((c) => c.channels.getChannelInfoById(userId));
     if (!channel) {
       throw new Error('Failed to retrieve channel information');
     }
@@ -105,20 +118,24 @@ export class TwitchPlatform implements IStreamPlatform {
   async setStreamInfo(info: Partial<StreamInfo>): Promise<void> {
     const userId = this.requireUserId();
 
+    const update: HelixChannelUpdate = {};
     if (info.title !== undefined) {
-      await this.api.setStreamTitle(userId, info.title);
+      update.title = info.title;
     }
-
     if (info.game !== undefined) {
-      const game = await this.api.searchGame(info.game);
+      // Twitch takes a category id; resolve the name first, so an unknown game changes nothing.
+      const gameName = info.game;
+      const game = await this.api.request((c) => c.games.getGameByName(gameName));
       if (!game) {
-        throw new Error(`Game not found: ${info.game}`);
+        throw new Error(`Game not found: ${gameName}`);
       }
-      await this.api.setStreamGame(userId, game.id);
+      update.gameId = game.id;
     }
-
     if (info.tags !== undefined) {
-      await this.api.setStreamTags(userId, info.tags);
+      update.tags = info.tags;
+    }
+    if (Object.keys(update).length > 0) {
+      await this.api.request((c) => c.channels.updateChannelInfo(userId, update));
     }
   }
 
@@ -128,7 +145,7 @@ export class TwitchPlatform implements IStreamPlatform {
     if (!userId) {
       return null;
     }
-    const stream = await this.api.getStream(userId);
+    const stream = await this.liveStream(userId);
     if (!stream) {
       return null;
     }
@@ -138,18 +155,18 @@ export class TwitchPlatform implements IStreamPlatform {
   readonly ads: AdsApi = {
     getNextAdBreak: async () => {
       const userId = this.requireUserId();
-      const stream = await this.api.getStream(userId);
+      const stream = await this.liveStream(userId);
       if (!stream) {
         return null;
       }
-      const adSchedule = await this.api.getAdSchedule(userId);
+      const adSchedule = await this.api.request((c) => c.channels.getAdSchedule(userId));
       return { nextAdDate: adSchedule?.nextAdDate ?? null };
     },
 
     snoozeNextAd: async () => {
       const userId = this.requireUserId();
       // Twitch rejects a snooze with none left; check first so that's an answer, not an error.
-      const schedule = await this.api.getAdSchedule(userId);
+      const schedule = await this.api.request((c) => c.channels.getAdSchedule(userId));
       if (!schedule || schedule.snoozeCount <= 0) {
         return {
           snoozed: false,
@@ -157,7 +174,7 @@ export class TwitchPlatform implements IStreamPlatform {
           nextAdDate: schedule?.nextAdDate ?? null,
         };
       }
-      const result = await this.api.snoozeNextAd(userId);
+      const result = await this.api.request((c) => c.channels.snoozeNextAd(userId));
       return { snoozed: true, snoozesLeft: result.snoozeCount, nextAdDate: result.nextAdDate };
     },
   };
@@ -165,7 +182,7 @@ export class TwitchPlatform implements IStreamPlatform {
   readonly schedule: ScheduleApi = {
     getSchedule: async () => {
       const userId = this.requireUserId();
-      const schedule = await this.api.getSchedule(userId);
+      const schedule = await this.api.request((c) => c.schedule.getSchedule(userId));
       const segments = schedule?.data?.segments ?? [];
 
       return segments.map((segment) => {
@@ -184,7 +201,7 @@ export class TwitchPlatform implements IStreamPlatform {
   readonly contentLabels: ContentLabelsApi = {
     getContentLabels: async () => {
       const userId = this.requireUserId();
-      const channel = await this.api.getChannel(userId);
+      const channel = await this.api.request((c) => c.channels.getChannelInfoById(userId));
       if (!channel) {
         throw new Error('Failed to retrieve channel information');
       }
@@ -193,14 +210,16 @@ export class TwitchPlatform implements IStreamPlatform {
 
     setContentLabels: async (labels) => {
       const userId = this.requireUserId();
-      await this.api.setContentClassificationLabels(userId, labels);
+      await this.api.request((c) =>
+        c.channels.updateChannelInfo(userId, { contentClassificationLabels: labels })
+      );
     },
   };
 
   readonly broadcasterAbout: BroadcasterAboutApi = {
     getBroadcasterAbout: async () => {
       const userId = this.requireUserId();
-      const user = await this.api.getUserById(userId);
+      const user = await this.api.request((c) => c.users.getUserById(userId));
       const description = user?.description?.trim();
       return description ? description : null;
     },
@@ -209,11 +228,17 @@ export class TwitchPlatform implements IStreamPlatform {
   readonly shoutout: ShoutoutApi = {
     shoutout: async (channelName) => {
       const userId = this.requireUserId();
-      const target = await this.api.getUserByName(channelName);
+      const target = await this.api.request((c) => c.users.getUserByName(channelName));
       if (!target) {
         throw new Error(`Twitch user not found: ${channelName}`);
       }
-      return await this.api.shoutoutUser(userId, target.id);
+      const refused = this.shoutoutCooldowns.check(target.id);
+      if (refused) {
+        return refused;
+      }
+      await this.api.request((c) => c.chat.shoutoutUser(userId, target.id));
+      this.shoutoutCooldowns.record(target.id);
+      return { sent: true };
     },
   };
 
@@ -223,8 +248,8 @@ export class TwitchPlatform implements IStreamPlatform {
       // Twitch answers "which rewards may this client edit" only as a filter on the list, so
       // ask for both and compare.
       const [all, manageable] = await Promise.all([
-        this.api.getCustomRewards(userId, false),
-        this.api.getCustomRewards(userId, true),
+        this.api.request((c) => c.channelPoints.getCustomRewards(userId, false)),
+        this.api.request((c) => c.channelPoints.getCustomRewards(userId, true)),
       ]);
       const manageableIds = new Set(manageable.map((reward) => reward.id));
       return all.map((reward) => toChannelReward(reward, manageableIds.has(reward.id)));
@@ -232,32 +257,34 @@ export class TwitchPlatform implements IStreamPlatform {
 
     createChannelReward: async (settings) => {
       const userId = this.requireUserId();
-      const created = await this.api.createCustomReward(userId, {
-        title: settings.title,
-        cost: settings.cost,
-        prompt: settings.prompt,
-        isEnabled: true,
-        userInputRequired: settings.userInputRequired,
-        globalCooldown: settings.globalCooldownSeconds,
-        maxRedemptionsPerStream: settings.maxPerStream,
-        maxRedemptionsPerUserPerStream: settings.maxPerUserPerStream,
-        autoFulfill: settings.autoFulfill,
-      });
+      const created = await this.api.request((c) =>
+        c.channelPoints.createCustomReward(userId, {
+          title: settings.title,
+          cost: settings.cost,
+          prompt: settings.prompt,
+          isEnabled: true,
+          userInputRequired: settings.userInputRequired,
+          globalCooldown: settings.globalCooldownSeconds,
+          maxRedemptionsPerStream: settings.maxPerStream,
+          maxRedemptionsPerUserPerStream: settings.maxPerUserPerStream,
+          autoFulfill: settings.autoFulfill,
+        })
+      );
       return toChannelReward(created, true);
     },
 
     updateChannelReward: async (rewardId, changes) => {
       const userId = this.requireUserId();
-      await this.api.updateCustomReward(userId, rewardId, toHelixRewardUpdate(changes));
+      await this.api.request((c) =>
+        c.channelPoints.updateCustomReward(userId, rewardId, toHelixRewardUpdate(changes))
+      );
     },
 
     resolveRedemption: async (rewardId, redemptionId, outcome) => {
       const userId = this.requireUserId();
-      await this.api.updateRedemptionStatus(
-        userId,
-        rewardId,
-        [redemptionId],
-        outcome === 'fulfilled' ? 'FULFILLED' : 'CANCELED'
+      const status = outcome === 'fulfilled' ? 'FULFILLED' : 'CANCELED';
+      await this.api.request((c) =>
+        c.channelPoints.updateRedemptionStatusByIds(userId, rewardId, [redemptionId], status)
       );
     },
   };
@@ -265,19 +292,21 @@ export class TwitchPlatform implements IStreamPlatform {
   readonly moderation: ModerationApi = {
     timeoutUser: async (userId, seconds, reason) => {
       const broadcasterId = this.requireUserId();
-      await this.api.timeoutUser(broadcasterId, userId, seconds, reason);
+      await this.api.request((c) =>
+        c.moderation.banUser(broadcasterId, { user: userId, duration: seconds, reason })
+      );
     },
 
     deleteChatMessage: async (messageId) => {
       const broadcasterId = this.requireUserId();
-      await this.api.deleteChatMessage(broadcasterId, messageId);
+      await this.api.request((c) => c.moderation.deleteChatMessages(broadcasterId, messageId));
     },
   };
 
   readonly clips: ClipsApi = {
     getClip: async (clipId) => {
       this.requireUserId();
-      const clip = await this.api.getClipById(clipId);
+      const clip = await this.api.request((c) => c.clips.getClipById(clipId));
       if (!clip) {
         return null;
       }
@@ -296,7 +325,9 @@ export class TwitchPlatform implements IStreamPlatform {
   readonly followInfo: FollowInfoApi = {
     getFollowDate: async (userId) => {
       const broadcasterId = this.requireUserId();
-      const { data } = await this.api.getChannelFollowers(broadcasterId, userId);
+      const { data } = await this.api.request((c) =>
+        c.channels.getChannelFollowers(broadcasterId, userId)
+      );
       return data[0]?.followDate ?? null;
     },
   };
@@ -304,7 +335,7 @@ export class TwitchPlatform implements IStreamPlatform {
   readonly accountAge: AccountAgeApi = {
     getAccountCreatedAt: async (userId) => {
       this.requireUserId();
-      const user = await this.api.getUserById(userId);
+      const user = await this.api.request((c) => c.users.getUserById(userId));
       return user?.creationDate ?? null;
     },
   };
@@ -313,10 +344,12 @@ export class TwitchPlatform implements IStreamPlatform {
     createStreamMarker: async (description) => {
       const userId = this.requireUserId();
       // Twitch only places markers in a live broadcast; say so rather than surface its error.
-      if (!(await this.api.getStream(userId))) {
+      if (!(await this.liveStream(userId))) {
         throw new Error('Stream markers can only be created while live');
       }
-      const marker = await this.api.createStreamMarker(userId, description);
+      const marker = await this.api.request((c) =>
+        c.streams.createStreamMarker(userId, description)
+      );
       return { positionSeconds: marker.positionInSeconds, description: marker.description };
     },
   };
@@ -324,12 +357,14 @@ export class TwitchPlatform implements IStreamPlatform {
   readonly vods: VodsApi = {
     deleteLatestVod: async () => {
       const userId = this.requireUserId();
-      const { data } = await this.api.getVideosByUser(userId, { type: 'archive', limit: 1 });
+      const { data } = await this.api.request((c) =>
+        c.videos.getVideosByUser(userId, { type: 'archive', limit: 1 })
+      );
       const video = data[0];
       if (!video) {
         return null;
       }
-      await this.api.deleteVideos(userId, [video.id]);
+      await this.api.request((c) => c.videos.deleteVideosByIds(userId, [video.id]));
       return { id: video.id, title: video.title, url: video.url, createdAt: video.creationDate };
     },
   };
@@ -337,9 +372,15 @@ export class TwitchPlatform implements IStreamPlatform {
   readonly announcements: AnnouncementsApi = {
     sendAnnouncement: async (message) => {
       const userId = this.requireUserId();
-      await this.api.sendAnnouncement(userId, toSafeChatText(message));
+      const text = toSafeChatText(message);
+      await this.api.request((c) => c.chat.sendAnnouncement(userId, { message: text }));
     },
   };
+
+  /** The broadcaster's current stream, or null when offline. */
+  private liveStream(userId: string) {
+    return this.api.request((c) => c.streams.getStreamByUserId(userId));
+  }
 
   /**
    * The broadcaster id, but only while auth is actually usable. Keyed on the integration's

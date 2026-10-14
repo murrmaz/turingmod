@@ -179,11 +179,10 @@ dependencies being CONNECTED, and beyond that the manager reacts to status chang
     established under the old conditions can't be assumed valid. Those reconnect and resubscribe
     from scratch.
   - `BLOCK` leaves it running and reports `BLOCKED`. Used by the three API layers, which hold
-    nothing bound to the grant. Stopping them is destructive rather than redundant: `stop()` also
-    discards unrelated state (`TwitchApiIntegration`'s shoutout cooldowns), so a brief auth blip
-    would forget Twitch's global shoutout cooldown.
+    nothing bound to the grant, so stopping them would tear down nothing; `BLOCKED` also says more
+    plainly than `DISCONNECTED` that they are waiting on something else.
   - A `BLOCK`-policy integration **must refuse to act while its dependency isn't CONNECTED**, which
-    its `resolve*()` gates on. Resolving a client on access protects against holding the *wrong*
+    its client resolution gates on (`request()`; Spotify's `resolveSdk()`). Resolving a client on access protects against holding the *wrong*
     object; it does nothing about holding the right object with dead credentials —
     `markAuthRequired()` sets NEEDS_REAUTH *without* discarding the provider/client.
 - A dependency returning to CONNECTED triggers a `reconcile()` pass that recovers both the stopped
@@ -274,7 +273,17 @@ All messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/me
 ### Platform Provider Layer
 
 `IStreamPlatform` is a platform-agnostic façade over one platform's integration group, registered
-in `PlatformRegistry` and consumed through `StreamControlService`. Commands depend on this seam, not
+in `PlatformRegistry` and consumed through `StreamControlService`.
+
+**An API integration owns the connection; the platform façade owns what is done with it.**
+`TwitchApiIntegration` and `YouTubeApiIntegration` keep a client built on the current grant,
+report status, and notice a revoked grant; they expose that as `request(fn)`, which runs one call
+through the live client. They hold no endpoint wrappers and no platform rules, only what another
+*integration* also needs (`YouTubeApiIntegration.getActiveBroadcast()`, used by chat). Every
+endpoint commands rely on, and every platform rule around one (Twitch category lookup, snooze
+checks, shoutout cooldowns in `TwitchShoutoutCooldowns`), lives in `TwitchPlatform` /
+`YouTubePlatform`, which call through `request()`. A new platform feature is therefore one change
+to the façade, not a wrapper in the integration plus a call to it. Commands depend on this seam, not
 on integrations — a command should never resolve `TwitchApiIntegration`/`TwitchAuthIntegration` from
 the container. Platform-specific logic (Twitch category name → id resolution) lives inside the
 façade, and the DTOs crossing it (`StreamInfo`, `ScheduleSegment`, `AdBreakInfo`) are agnostic, so no

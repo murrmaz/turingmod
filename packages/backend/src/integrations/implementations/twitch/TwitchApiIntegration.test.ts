@@ -66,7 +66,9 @@ describe('TwitchApiIntegration', () => {
       makeAuthIntegration(IntegrationStatus.NEEDS_REAUTH)
     );
     expect(reauthing.getApiClient()).toBeNull();
-    await expect(reauthing.getUserByName('someone')).rejects.toThrow(/client not initialized/);
+    await expect(reauthing.request((c) => c.users.getUserByName('someone'))).rejects.toThrow(
+      /client not initialized/
+    );
   });
 
   it('rebuilds its client when the auth provider is replaced', async () => {
@@ -131,7 +133,7 @@ describe('TwitchApiIntegration', () => {
       )
     );
 
-    await expect(integration.getUserByName('someone')).rejects.toThrow();
+    await expect(integration.request((c) => c.users.getUserByName('someone'))).rejects.toThrow();
 
     expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
     expect(revoked).toHaveBeenCalledWith({ reason: 'api-call-unauthorized' });
@@ -147,7 +149,7 @@ describe('TwitchApiIntegration', () => {
       new CachedRefreshFailureError('user-123')
     );
 
-    await expect(integration.getUserByName('someone')).rejects.toThrow();
+    await expect(integration.request((c) => c.users.getUserByName('someone'))).rejects.toThrow();
 
     expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
     expect(revoked).toHaveBeenCalledWith({ reason: 'api-call-unauthorized' });
@@ -170,7 +172,7 @@ describe('TwitchApiIntegration', () => {
       )
     );
 
-    await expect(integration.getUserByName('someone')).rejects.toThrow();
+    await expect(integration.request((c) => c.users.getUserByName('someone'))).rejects.toThrow();
 
     expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
     expect(revoked).not.toHaveBeenCalled();

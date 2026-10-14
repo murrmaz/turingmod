@@ -41,12 +41,11 @@ export enum DependencyFailurePolicy {
    *
    * For integrations that hold nothing bound to the dependency's credentials
    * and resolve them on access instead — the API layers. Stopping those is
-   * destructive rather than merely redundant: stop() also discards unrelated
-   * state (TwitchApiIntegration's shoutout cooldowns), so a brief auth blip
-   * would silently forget Twitch's global shoutout cooldown.
+   * redundant: there is nothing to tear down, and BLOCKED says more plainly
+   * than DISCONNECTED that they are waiting on something else.
    *
    * An integration taking this policy must refuse to act while its
-   * dependency isn't connected — see TwitchApiIntegration.resolveApiClient().
+   * dependency isn't connected — see TwitchApiIntegration.request().
    * Resolving a client on access protects against holding the *wrong* object;
    * it does nothing about holding the right object with dead credentials.
    */

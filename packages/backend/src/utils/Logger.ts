@@ -9,11 +9,8 @@ export interface LoggerOptions {
   /** Log level */
   level?: pino.LevelWithSilentOrString;
 
-  /** Whether to enable pretty printing (for development) */
+  /** Whether to format logs for reading in a terminal rather than as JSON lines */
   pretty?: boolean;
-
-  /** Optional log file path */
-  logFile?: string;
 }
 
 /**
@@ -33,7 +30,7 @@ export class Logger {
   private logger: PinoLogger;
 
   constructor(options: LoggerOptions = {}) {
-    const { level = 'info', pretty = process.env.NODE_ENV !== 'production' } = options;
+    const { level = 'info', pretty = false } = options;
 
     const config: pino.LoggerOptions = {
       level,

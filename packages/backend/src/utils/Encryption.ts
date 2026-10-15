@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto';
 import type { DatabaseManager } from '../database/DatabaseManager.js';
 
 /**
@@ -104,12 +104,5 @@ export class Encryption {
   decryptObject<T>(ciphertext: string): T {
     const json = this.decrypt(ciphertext);
     return JSON.parse(json) as T;
-  }
-
-  /**
-   * Generate a hash of the key for verification
-   */
-  getKeyHash(): string {
-    return createHash('sha256').update(this.key).digest('hex');
   }
 }

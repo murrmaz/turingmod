@@ -5,7 +5,7 @@ import {
   PermissionLevel,
   StreamingPlatform,
 } from '@turingmod/shared';
-import type { ApiClient, HelixEventSubSubscriptionStatus, HelixUser } from '@twurple/api';
+import type { ApiClient, HelixEventSubSubscriptionStatus } from '@twurple/api';
 import type { RefreshingAuthProvider } from '@twurple/auth';
 import type { EventSubChannelChatMessageEvent } from '@twurple/eventsub-base';
 import { EventSubWsListener } from '@twurple/eventsub-ws';
@@ -56,8 +56,6 @@ export const DEFAULT_EVENTSUB_TOPICS: Readonly<Record<EventSubTopic, boolean>> =
  * Twitch EventSub Configuration
  */
 export const TwitchEventSubConfigSchema = z.strictObject({
-  /** The channel to listen to. Omitted = the authenticated user's own channel. */
-  broadcasterName: z.string().min(1).exactOptional(),
   /** Overrides of DEFAULT_EVENTSUB_TOPICS; a topic left out keeps its default. */
   subscriptions: z.partialRecord(EventSubTopicSchema, z.boolean()).exactOptional(),
 });
@@ -127,28 +125,15 @@ export class TwitchEventSubIntegration extends BaseIntegration {
         throw new Error('TwitchApiIntegration must be started first');
       }
 
-      // Get broadcaster user - use config if available, otherwise resolve from authenticated user
-      let broadcaster: HelixUser;
-      if (this.config.broadcasterName) {
-        const broadcasterName = this.config.broadcasterName;
-        const result = await this.apiIntegration.request((c) =>
-          c.users.getUserByName(broadcasterName)
-        );
-        if (!result) {
-          throw new Error(`Broadcaster not found: ${this.config.broadcasterName}`);
-        }
-        broadcaster = result;
-      } else {
-        // Derive broadcaster from the authenticated user (the bot owner)
-        const userId = this.authIntegration.getAuthenticatedUserId();
-        if (!userId) {
-          throw new Error('Could not determine authenticated user from auth provider');
-        }
-        const result = await this.apiIntegration.request((c) => c.users.getUserById(userId));
-        if (!result) {
-          throw new Error('Could not resolve authenticated user');
-        }
-        broadcaster = result;
+      // Always the authenticated user's own channel: chat is subscribed to with the broadcaster's
+      // id as the reading user too, and TuringMod posts as the broadcaster.
+      const userId = this.authIntegration.getAuthenticatedUserId();
+      if (!userId) {
+        throw new Error('Could not determine authenticated user from auth provider');
+      }
+      const broadcaster = await this.apiIntegration.request((c) => c.users.getUserById(userId));
+      if (!broadcaster) {
+        throw new Error('Could not resolve authenticated user');
       }
 
       this.broadcasterId = broadcaster.id;

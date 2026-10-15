@@ -1,11 +1,8 @@
 import type { ActivityLogEntry } from '../types/activity.js';
 import type { CommandInfo, ExecutionResult } from '../types/command.js';
-import type { IntegrationInfo, IntegrationStatus } from '../types/integration.js';
+import type { IntegrationInfo } from '../types/integration.js';
 import type {
   ActivityQueryPayload,
-  CommandSimulatePayload,
-  IntegrationStartPayload,
-  IntegrationStopPayload,
   OAuthExchangeCodePayload,
   OAuthGetAuthUrlPayload,
 } from './requests.js';
@@ -56,9 +53,6 @@ export enum MessageType {
   // Server → Client: Activity log query response
   ACTIVITY_LIST = 'activity.list',
 
-  // Server → Client: Health updates
-  HEALTH_UPDATE = 'health.update',
-
   // Server → Client: Errors
   ERROR = 'error',
 
@@ -75,10 +69,6 @@ export enum MessageType {
   YOUTUBE_GO_OFFLINE = 'youtube.goOffline', // Client → Server: disconnect from chat
   YOUTUBE_GET_CHAT_STATE = 'youtube.getChatState', // Client → Server: read current state on load
   YOUTUBE_CHAT_STATE = 'youtube.chatState', // Server → Client: idle / resolving / streaming
-
-  // Bidirectional: Connection health
-  PING = 'ping',
-  PONG = 'pong',
 }
 
 // ============================================================================
@@ -159,28 +149,6 @@ export interface ActivityListPayload {
   entries: ActivityLogEntry[];
 }
 
-/**
- * Health update payload
- */
-export interface HealthUpdatePayload {
-  /** Overall system health */
-  healthy: boolean;
-
-  /** WebSocket connection status */
-  websocket: {
-    connected: boolean;
-    connectedClients: number;
-  };
-
-  /** Database status */
-  database: {
-    connected: boolean;
-  };
-
-  /** Integration statuses */
-  integrations: Record<string, IntegrationStatus>;
-}
-
 /** Why a request got an error message instead of its response. */
 export type ErrorCode =
   /** The payload didn't have the shape its message type requires. */
@@ -213,11 +181,6 @@ export interface ErrorPayload {
   /** Additional error details */
   details?: unknown;
 }
-
-/**
- * Ping/Pong payload (empty)
- */
-export type PingPongPayload = Record<string, never>;
 
 /**
  * OAuth auth URL response payload
@@ -272,15 +235,6 @@ export function createMessage<T>(type: MessageType, payload: T, id?: string): IW
 }
 
 /**
- * Create a command simulate message
- */
-export function createCommandSimulateMessage(
-  payload: CommandSimulatePayload
-): IWebSocketMessage<CommandSimulatePayload> {
-  return createMessage(MessageType.COMMAND_SIMULATE, payload);
-}
-
-/**
  * Create a command result message
  */
 export function createCommandResultMessage(
@@ -288,24 +242,6 @@ export function createCommandResultMessage(
   originalMessageId: string
 ): IWebSocketMessage<CommandResultPayload> {
   return createMessage(MessageType.COMMAND_RESULT, payload, originalMessageId);
-}
-
-/**
- * Create an integration start message
- */
-export function createIntegrationStartMessage(
-  integrationName: string
-): IWebSocketMessage<IntegrationStartPayload> {
-  return createMessage(MessageType.INTEGRATION_START, { integrationName });
-}
-
-/**
- * Create an integration stop message
- */
-export function createIntegrationStopMessage(
-  integrationName: string
-): IWebSocketMessage<IntegrationStopPayload> {
-  return createMessage(MessageType.INTEGRATION_STOP, { integrationName });
 }
 
 /**
@@ -346,15 +282,6 @@ export function createActivityListMessage(
 }
 
 /**
- * Create a health update message
- */
-export function createHealthUpdateMessage(
-  payload: HealthUpdatePayload
-): IWebSocketMessage<HealthUpdatePayload> {
-  return createMessage(MessageType.HEALTH_UPDATE, payload);
-}
-
-/**
  * Create an error message
  */
 export function createErrorMessage(
@@ -371,20 +298,6 @@ export function createErrorMessage(
     payload.details = details;
   }
   return createMessage(MessageType.ERROR, payload, originalMessageId);
-}
-
-/**
- * Create a ping message
- */
-export function createPingMessage(): IWebSocketMessage<PingPongPayload> {
-  return createMessage(MessageType.PING, {});
-}
-
-/**
- * Create a pong message
- */
-export function createPongMessage(originalMessageId: string): IWebSocketMessage<PingPongPayload> {
-  return createMessage(MessageType.PONG, {}, originalMessageId);
 }
 
 /**

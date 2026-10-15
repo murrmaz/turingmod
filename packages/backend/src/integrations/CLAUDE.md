@@ -58,9 +58,9 @@ dependencies being CONNECTED, and beyond that the manager reacts to status chang
 - An unmet dependency is reported as `IntegrationStatus.BLOCKED`, not ERROR — nothing is broken, a
   prerequisite is off — via `reportBlocked()`.
 
-**Status is persisted in one place**: the `'status'` listener in `register()`. Integrations own their
-own status; `startIntegration`/`stopIntegration` never write it, so the stored row can't disagree with
-`getStatus()`. (Nothing reads the stored status back yet; the console gets it live.)
+**Integrations own their status**; `startIntegration`/`stopIntegration` never set it, except
+`reportError()` for a `start()` that threw before setting ERROR itself. Status isn't stored: the
+console gets it live, and boot starts what is `enabled`, whatever it last reported.
 
 Startup and shutdown both work in dependency *levels* (`DependencyGraph.levels()`), concurrent within
 a level and reversed for shutdown, with a per-integration start timeout
@@ -79,6 +79,8 @@ own their provider for their lifetime and cannot be re-pointed.
 ## Platform groups
 
 **Twitch** is split into three integrations following SRP: `TwitchAuthIntegration` (OAuth) → `TwitchApiIntegration` (Helix API) → `TwitchEventSubIntegration` (real-time events). **YouTube** follows the same three-part shape: `YouTubeAuthIntegration` → `YouTubeApiIntegration` → `YouTubeChatIntegration`. Spotify has an auth/api split only: `SpotifyAuthIntegration` → `SpotifyApiIntegration`. OBS and Sound are single-file integrations with no auth/api split; Discord and Arduino are single-file placeholders, not yet implemented.
+
+**OBS reconnects itself.** Unlike the others, nothing upstream of OBS recovers it, and OBS is routinely opened after TuringMod or restarted under it. So while started, `ObsIntegration` retries with a backoff (2s doubling to 30s), reporting CONNECTING with the reason, and `start()` resolves once a retry is scheduled. A failure only the streamer can fix (obs-websocket close codes for a failed password, an unsupported RPC version, or a kicked session) is ERROR and not retried. Its obs-websocket listeners are subscribed once, in the constructor, since the client is reused across connections. What depends on OBS reacts to it reaching CONNECTED (`ObsStreamState`, `BreakService`).
 
 ## YouTube chat
 

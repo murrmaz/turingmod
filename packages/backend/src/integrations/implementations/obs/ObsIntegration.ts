@@ -69,18 +69,47 @@ type ObsConfig = z.infer<typeof ObsConfigSchema>;
 /** obs-websocket RequestStatus.UnknownRequestType: the connected OBS predates the request. */
 const OBS_UNKNOWN_REQUEST_TYPE = 204;
 
+/** obs-websocket WebSocketCloseCode values that retrying can't fix. */
+const OBS_CLOSE_AUTHENTICATION_FAILED = 4009;
+const OBS_CLOSE_UNSUPPORTED_RPC_VERSION = 4010;
+const OBS_CLOSE_SESSION_INVALIDATED = 4011;
+
+/** Wait before the first reconnection attempt, doubling after each failure up to the maximum. */
+const RECONNECT_INITIAL_DELAY_MS = 2_000;
+const RECONNECT_MAX_DELAY_MS = 30_000;
+
+/**
+ * The connection to OBS, over obs-websocket.
+ *
+ * While it is started, it keeps reconnecting: OBS is often opened after TuringMod, and closed or
+ * restarted while TuringMod runs, and nothing else would bring it back. A failure only the
+ * streamer can fix (a wrong password, an obs-websocket too old, being kicked from OBS's session
+ * list) is reported as ERROR instead, and isn't retried.
+ */
 @singleton()
 export class ObsIntegration extends BaseIntegration {
   readonly name = 'obs';
 
-  private obs: OBSWebSocket = new OBSWebSocket();
+  private readonly obs = new OBSWebSocket();
   private config: ObsConfig = ObsConfigSchema.parse({});
+  /**
+   * Whether the socket is up. A close while this is false was either asked for (`stop()`) or
+   * ended an attempt that reports its own failure, so it isn't treated as OBS going away.
+   */
+  private connected = false;
+  /** Bumped by `start()` and `stop()`, so an attempt or retry that outlives either is dropped. */
+  private generation = 0;
+  private retryTimer: NodeJS.Timeout | null = null;
+  private retryDelayMs = RECONNECT_INITIAL_DELAY_MS;
 
   constructor(
     private eventBus: EventBus,
     logger: Logger
   ) {
     super(logger, { component: 'ObsIntegration' });
+    // Subscribed once, for the client's lifetime: the client is reused across connections, and
+    // subscribing on each connect would leave every OBS event handled once per reconnection.
+    this.subscribeToObsEvents();
   }
 
   override initialize(stored: unknown): Promise<void> {
@@ -90,32 +119,103 @@ export class ObsIntegration extends BaseIntegration {
     return Promise.resolve();
   }
 
+  /**
+   * Connect to OBS. Resolves once connected, or once OBS has turned out to be unreachable and a
+   * retry is scheduled (status CONNECTING); rejects only for a failure retrying can't fix.
+   */
   async start(): Promise<void> {
     this.logger.debug('Starting OBS integration');
+    this.cancelRetry();
+    this.connected = false;
+    this.retryDelayMs = RECONNECT_INITIAL_DELAY_MS;
     this.setStatus(IntegrationStatus.CONNECTING);
-
-    try {
-      await this.obs.connect(this.config.url, this.config.password);
-
-      this.subscribeToObsEvents();
-
-      this.setStatus(IntegrationStatus.CONNECTED);
-      this.logger.debug('OBS integration started successfully');
-    } catch (error) {
-      this.logger.error('Failed to connect to OBS', error);
-      this.setStatus(IntegrationStatus.ERROR, messageOf(error, 'Failed to connect to OBS'));
-      throw error;
-    }
+    await this.connect(++this.generation);
   }
 
   async stop(): Promise<void> {
     this.logger.debug('Stopping OBS integration');
-
-    this.obs.removeAllListeners();
+    this.generation++;
+    this.cancelRetry();
+    this.connected = false;
     await this.obs.disconnect();
 
     this.setStatus(IntegrationStatus.DISCONNECTED);
     this.logger.debug('OBS integration stopped');
+  }
+
+  /**
+   * One connection attempt. A failure retrying can fix schedules the next attempt; one it can't
+   * is reported as ERROR and thrown.
+   */
+  private async connect(generation: number): Promise<void> {
+    try {
+      await this.obs.connect(this.config.url, this.config.password);
+    } catch (error) {
+      if (generation !== this.generation) {
+        return; // stopped or restarted meanwhile; that call reports its own state
+      }
+      const problem = this.unrecoverableReason(error);
+      if (problem) {
+        this.logger.error(`Could not connect to OBS: ${problem}`);
+        this.setStatus(IntegrationStatus.ERROR, problem);
+        throw new Error(problem);
+      }
+      this.scheduleRetry(error);
+      return;
+    }
+
+    if (generation !== this.generation) {
+      return;
+    }
+    this.connected = true;
+    this.retryDelayMs = RECONNECT_INITIAL_DELAY_MS;
+    this.setStatus(IntegrationStatus.CONNECTED);
+    this.logger.info('Connected to OBS');
+  }
+
+  /** Report OBS as unreachable and try again after a delay that doubles each time. */
+  private scheduleRetry(error: unknown): void {
+    const delayMs = this.retryDelayMs;
+    this.retryDelayMs = Math.min(delayMs * 2, RECONNECT_MAX_DELAY_MS);
+    const reason = messageOf(error, '');
+    const message =
+      `Can't reach OBS at ${this.config.url}${reason ? ` (${reason})` : ''}; ` +
+      `retrying in ${delayMs / 1000}s`;
+    this.logger.debug(message);
+    this.setStatus(IntegrationStatus.CONNECTING, message);
+
+    const generation = this.generation;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      // A failure here has already been reported as this integration's status.
+      this.connect(generation).catch(() => {});
+    }, delayMs);
+  }
+
+  private cancelRetry(): void {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+  }
+
+  /** Why a closed connection can't be fixed by trying again, or null if it can. */
+  private unrecoverableReason(error: unknown): string | null {
+    if (!this.isObsError(error)) {
+      return null;
+    }
+    switch (error.code) {
+      case OBS_CLOSE_AUTHENTICATION_FAILED:
+        return this.config.password === undefined
+          ? "OBS requires a password, and TuringMod's OBS settings have none"
+          : 'OBS rejected the password: check the obs-websocket password';
+      case OBS_CLOSE_UNSUPPORTED_RPC_VERSION:
+        return "OBS's obs-websocket is too old for TuringMod: update OBS";
+      case OBS_CLOSE_SESSION_INVALIDATED:
+        return 'OBS closed the connection from its WebSocket server settings';
+      default:
+        return null;
+    }
   }
 
   // ── Canvases, Scenes and Items ────────────────────────────────────────
@@ -365,14 +465,29 @@ export class ObsIntegration extends BaseIntegration {
       this.eventBus.emit('obs.sceneItem.stateChanged', data);
     });
 
-    this.obs.on('ConnectionClosed', () => {
-      this.logger.warn('OBS connection closed unexpectedly');
-      this.setStatus(IntegrationStatus.DISCONNECTED);
+    // Only a connection that was up is handled here: a failed attempt is handled by connect(),
+    // and a close asked for by stop() needs nothing.
+    this.obs.on('ConnectionClosed', (error) => {
+      if (!this.connected) {
+        return;
+      }
+      this.connected = false;
+      this.logger.warn('OBS connection closed unexpectedly', {
+        code: error.code,
+        reason: error.message,
+      });
+      const problem = this.unrecoverableReason(error);
+      if (problem) {
+        this.setStatus(IntegrationStatus.ERROR, problem);
+        return;
+      }
+      this.retryDelayMs = RECONNECT_INITIAL_DELAY_MS;
+      this.scheduleRetry(error);
     });
 
+    // Always followed by ConnectionClosed, which decides what to do.
     this.obs.on('ConnectionError', (error) => {
-      this.logger.error('OBS connection error', error);
-      this.setStatus(IntegrationStatus.ERROR, messageOf(error, 'Connection error'));
+      this.logger.debug('OBS connection error', { error: error.message });
     });
   }
 }

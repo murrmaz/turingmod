@@ -1,33 +1,24 @@
 import 'reflect-metadata';
 import { randomBytes } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { IntegrationStatus } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Encryption } from '../../utils/Encryption.js';
-import { Logger } from '../../utils/Logger.js';
-import { DatabaseManager } from '../DatabaseManager.js';
-import { initialSchema } from '../migrations/001_initial_schema.js';
+import type { DatabaseManager } from '../DatabaseManager.js';
 import { IntegrationStateRepository } from './IntegrationStateRepository.js';
+import { createTestDatabase } from './testDatabase.js';
 
 describe('IntegrationStateRepository', () => {
-  let dir: string;
   let db: DatabaseManager;
+  let cleanup: () => Promise<void>;
   let repo: IntegrationStateRepository;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'turingmod-integration-repo-test-'));
-    db = new DatabaseManager(join(dir, 'test.sqlite'), new Logger({ level: 'silent' }));
-    await db.initialize();
-    initialSchema.up(db);
+    ({ db, cleanup } = await createTestDatabase());
     const encryption = new Encryption('test-master-password', randomBytes(32));
     repo = new IntegrationStateRepository(db, encryption);
   });
 
   afterEach(async () => {
-    db.close();
-    await rm(dir, { recursive: true, force: true });
+    await cleanup();
   });
 
   it('stores a new config encrypted, and disabled', () => {
@@ -35,7 +26,6 @@ describe('IntegrationStateRepository', () => {
 
     const state = repo.findByName('twitch');
     expect(state?.enabled).toBe(false);
-    expect(state?.lastStatus).toBe(IntegrationStatus.DISCONNECTED);
     expect(state?.config).not.toContain('abc'); // stored encrypted
   });
 
@@ -82,22 +72,6 @@ describe('IntegrationStateRepository', () => {
 
     const enabled = repo.findAllEnabled();
     expect(enabled.map((c) => c.name)).toEqual(['twitch']);
-  });
-
-  it('updates status, setting lastConnectedAt only when CONNECTED', () => {
-    repo.setEnabled('twitch', true);
-
-    repo.updateStatus('twitch', IntegrationStatus.ERROR, 'boom');
-    let config = repo.findByName('twitch');
-    expect(config?.lastStatus).toBe(IntegrationStatus.ERROR);
-    expect(config?.lastError).toBe('boom');
-    expect(config?.lastConnectedAt).toBeUndefined();
-
-    repo.updateStatus('twitch', IntegrationStatus.CONNECTED);
-    config = repo.findByName('twitch');
-    expect(config?.lastStatus).toBe(IntegrationStatus.CONNECTED);
-    expect(config?.lastError).toBeUndefined();
-    expect(config?.lastConnectedAt).toBeTypeOf('number');
   });
 
   it('round-trips the decrypted config', () => {

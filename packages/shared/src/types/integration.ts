@@ -39,10 +39,7 @@ export interface IntegrationInfo {
    */
   enabled: boolean;
 
-  /** Timestamp of last successful connection */
-  lastConnected?: number;
-
-  /** Explanation if status is ERROR, NEEDS_REAUTH or BLOCKED */
+  /** Explanation if status is ERROR, NEEDS_REAUTH or BLOCKED, or why it is still CONNECTING */
   errorMessage?: string;
 
   /** Additional integration-specific metadata */

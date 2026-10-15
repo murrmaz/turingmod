@@ -1,23 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import {
-  createCommandResultMessage,
-  createIntegrationStartMessage,
-  createMessage,
-  MessageType,
-} from './messages.js';
+import { createCommandResultMessage, createMessage, MessageType } from './messages.js';
 
 describe('createMessage', () => {
   it('stamps a generated id, type, and payload', () => {
-    const message = createMessage(MessageType.PING, {});
+    const message = createMessage(MessageType.INTEGRATION_LIST, { integrations: [] });
 
-    expect(message.type).toBe(MessageType.PING);
-    expect(message.payload).toEqual({});
+    expect(message.type).toBe(MessageType.INTEGRATION_LIST);
+    expect(message.payload).toEqual({ integrations: [] });
     expect(message.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(typeof message.timestamp).toBe('number');
   });
 
   it('uses the provided id instead of generating one', () => {
-    const message = createMessage(MessageType.PING, {}, 'fixed-id');
+    const message = createMessage(MessageType.INTEGRATION_LIST, { integrations: [] }, 'fixed-id');
     expect(message.id).toBe('fixed-id');
   });
 });
@@ -31,12 +26,5 @@ describe('createCommandResultMessage', () => {
 
     expect(message.id).toBe('original-id');
     expect(message.type).toBe(MessageType.COMMAND_RESULT);
-  });
-});
-
-describe('createIntegrationStartMessage', () => {
-  it('builds a payload from the integration name', () => {
-    const message = createIntegrationStartMessage('twitch');
-    expect(message.payload).toEqual({ integrationName: 'twitch' });
   });
 });

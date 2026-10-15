@@ -11,7 +11,7 @@ export type InjectableClass<T> = new (...args: any[]) => T;
  * is returned — other exports from the same file (helpers, types) are ignored. The caller resolves
  * the classes; this only finds them.
  *
- * Every non-test file is imported, so a file without a default export is a hard startup
+ * Every non-test module is imported, so a file without a default export is a hard startup
  * failure, not a silently skipped file.
  *
  * @param dir - The directory as a file URL, with a trailing slash so files resolve inside it.
@@ -34,24 +34,13 @@ export async function importImplementations<T>(
     throw error;
   }
 
-  // Deduplicate: prefer .ts, fall back to .js (dev and production both run from dist/ now,
-  // but this keeps the loader correct if it's ever pointed at a raw src/ directory again)
-  const moduleFiles = new Map<string, string>();
-  for (const file of files) {
-    if (file.endsWith('.d.ts') || file.endsWith('.map')) continue;
-    // Tests live beside their subjects (repo convention), but these directories are imported
-    // wholesale at startup — importing a suite would run vitest outside the test runner and
-    // abort boot. Skip them rather than relocating the tests away from their subjects.
-    if (/\.test\.[cm]?[jt]s$/.test(file)) continue;
-    if (file.endsWith('.ts')) {
-      moduleFiles.set(file.slice(0, -3), file);
-    } else if (file.endsWith('.js') && !moduleFiles.has(file.slice(0, -3))) {
-      moduleFiles.set(file.slice(0, -3), file);
-    }
-  }
+  // Tests live beside their subjects (repo convention), but these directories are imported
+  // wholesale at startup — importing a suite would run vitest outside the test runner and abort
+  // boot. Skip them rather than relocating the tests away from their subjects.
+  const moduleFiles = files.filter((file) => file.endsWith('.js') && !file.endsWith('.test.js'));
 
   const classes: InjectableClass<T>[] = [];
-  for (const file of moduleFiles.values()) {
+  for (const file of moduleFiles) {
     const mod: { default?: InjectableClass<T> } = await import(new URL(file, dir).href);
 
     if (typeof mod.default !== 'function') {

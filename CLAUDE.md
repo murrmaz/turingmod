@@ -137,7 +137,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Feature service lifecycle**: `packages/backend/src/core/ServiceLifecycle.ts` (`IService`, `Subscriptions`); the ordered service list is in `setup.ts`
 - **Setup/Bootstrap**: `packages/backend/src/setup.ts`
 - **Entry Point**: `packages/backend/src/index.ts`
-- **Environment**: `packages/backend/src/utils/loadEnv.ts` loads the repository-root `.env` (template: `.env.example`); it's the first import of the entry point (`index.ts`). Shell variables win over the file. `TuringModConfig` (`utils/Config.ts`) is what reads them; only `MASTER_PASSWORD` is required. The file's location is `ENV_FILE` (`utils/paths.ts`).
+- **Environment**: `packages/backend/src/utils/loadEnv.ts` loads the repository-root `.env` (template: `.env.example`); it's the first import of the entry point (`index.ts`). Shell variables win over the file. `TuringModConfig` (`utils/Config.ts`) is what reads them, through one Zod schema (`parseEnvironment()`): a blank variable gets its default, an invalid one stops startup with a `ConfigurationError` naming it, and only `MASTER_PASSWORD` is required. The file's location is `ENV_FILE` (`utils/paths.ts`).
 
 ### Frontend State
 - **App State Context**: `packages/frontend/src/context/AppStateContext.tsx`

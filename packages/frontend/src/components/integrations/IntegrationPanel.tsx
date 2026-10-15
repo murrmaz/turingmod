@@ -67,12 +67,6 @@ export function IntegrationPanel() {
               <Box variant="awsui-key-label">Status</Box>
               <div>{item.status}</div>
             </div>
-            {item.lastConnected && (
-              <div>
-                <Box variant="awsui-key-label">Last Connected</Box>
-                <div>{new Date(item.lastConnected).toLocaleString()}</div>
-              </div>
-            )}
             {item.errorMessage &&
               (item.status === IntegrationStatus.ERROR ||
               item.status === IntegrationStatus.NEEDS_REAUTH ? (

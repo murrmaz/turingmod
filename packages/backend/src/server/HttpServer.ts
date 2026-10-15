@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { extname, join } from 'node:path';
+import { extname, isAbsolute, join, relative, sep } from 'node:path';
 import type { EventBus } from '../core/EventBus.js';
 import type { OAuthFlowService } from '../integrations/OAuthFlowService.js';
 import type { Logger } from '../utils/Logger.js';
@@ -236,8 +236,10 @@ export class HttpServer {
       // Construct full file path
       const fullPath = join(this.frontendDistPath, filePath);
 
-      // Security check: ensure path is within frontend dist
-      if (!fullPath.startsWith(this.frontendDistPath)) {
+      // Refuse anything outside the frontend build. Compared by folder, not by string prefix:
+      // a sibling such as `dist-old` starts with the same characters.
+      const fromDist = relative(this.frontendDistPath, fullPath);
+      if (fromDist === '..' || fromDist.startsWith(`..${sep}`) || isAbsolute(fromDist)) {
         res.writeHead(403, { 'Content-Type': 'text/plain' });
         res.end('Forbidden');
         return;

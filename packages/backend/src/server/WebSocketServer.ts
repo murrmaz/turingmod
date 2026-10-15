@@ -78,9 +78,6 @@ export class WebSocketServer {
     ws.on('error', (error: Error) => {
       this.logger.error('WebSocket error', error, { clientId });
     });
-
-    // Set up ping/pong for connection health
-    this.setupHeartbeat(clientId, ws);
   }
 
   /**
@@ -132,27 +129,6 @@ export class WebSocketServer {
   private handleDisconnection(clientId: string): void {
     this.clients.delete(clientId);
     this.logger.debug('Client disconnected', { clientId, total: this.clients.size });
-  }
-
-  /**
-   * Set up heartbeat (ping/pong) for connection health
-   */
-  private setupHeartbeat(clientId: string, ws: WebSocket): void {
-    const interval = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.ping();
-      } else {
-        clearInterval(interval);
-      }
-    }, 30000); // Ping every 30 seconds
-
-    ws.on('pong', () => {
-      this.logger.debug('Received pong', { clientId });
-    });
-
-    ws.on('close', () => {
-      clearInterval(interval);
-    });
   }
 
   /**

@@ -42,22 +42,19 @@ export class ActivityLogRepository {
   }
 
   /**
-   * Create an activity log entry
+   * Store an activity log entry under its own id, the one the console's live feed already has,
+   * so a live entry and its stored copy can be matched.
    */
-  create(entry: Omit<ActivityLogEntry, 'id'>): ActivityLogEntry {
-    const id = crypto.randomUUID();
-
+  create(entry: ActivityLogEntry): void {
     this.db.run(
       `INSERT INTO activity_log (id, category, event, data, timestamp) VALUES (?, ?, ?, ?, ?)`,
-      [id, entry.category, entry.event, JSON.stringify(entry.data), entry.timestamp]
+      [entry.id, entry.category, entry.event, JSON.stringify(entry.data), entry.timestamp]
     );
 
     if (++this.insertsSincePrune >= PRUNE_EVERY) {
       this.prune();
       this.insertsSincePrune = 0;
     }
-
-    return { id, ...entry };
   }
 
   /**

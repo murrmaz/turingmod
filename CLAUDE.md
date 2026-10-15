@@ -108,6 +108,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **OBS scene walking**: `packages/backend/src/integrations/implementations/obs/sceneGraph.ts` — every scene on every canvas, and every item in a scene including inside its groups (shared by breaks and effects)
 - **Ad pre-warnings**: `packages/backend/src/breaks/AdWarningScheduler.ts`
 - **Settings**: `packages/backend/src/breaks/breakSettings.ts` (schema and defaults, `BREAK_SETTINGS`), stored under the `breaks` key via `database/repositories/SettingsRepository.ts`
+- **Owed restore**: `packages/backend/src/database/repositories/ObsBreakRestoreRepository.ts` — what a break changed in OBS, kept until it has been put back
 - **Manual trigger**: `packages/backend/src/commands/implementations/BreakCommand.ts` (`!break`)
 
 ### Activity Log
@@ -205,7 +206,7 @@ All messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/me
 
 ### Database
 
-`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `IntegrationStateRepository`, `SettingsRepository`, `ActivityLogRepository` (the record of everything that happened, commands included), plus repositories for data owned by single features — `BannedWordRepository`, `CounterRepository`, `IntervalMessageRepository`, `SuggestionRepository`. Repositories are synchronous, because `node:sqlite` is: they return values, not promises. `DatabaseManager.transaction()` takes a synchronous callback and rejects an async one, since an `await` inside it would let other writes on the one shared connection join the transaction. A new migration goes in `migrations/` and must be added to `ALL_MIGRATIONS`. Tests get a migrated temp database from `repositories/testDatabase.ts`. Integration configs are encrypted with AES-256-GCM before storage, keyed from `MASTER_PASSWORD` (required: `TuringModConfig` throws a `ConfigurationError` without it, which `index.ts` prints without a stack trace) and a per-install salt kept in the `settings` table; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there. Each settings group is a `SettingsDefinition` (its key plus a strict Zod schema whose defaults apply when nothing is stored, e.g. `BREAK_SETTINGS`), read and written through `SettingsRepository.get()`/`set()`, which throw on a value that doesn't fit. A new group is added to `ALL_SETTINGS` in `setup.ts`, which reads every group at startup so bad settings stop TuringMod there with the fields named. The console has no settings UI yet: outside tests nothing calls `set()`, so stored settings are only ever the defaults or what was written to the database directly.
+`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `IntegrationStateRepository`, `SettingsRepository`, `ActivityLogRepository` (the record of everything that happened, commands included), plus repositories for data owned by single features — `BannedWordRepository`, `CounterRepository`, `IntervalMessageRepository`, `ObsBreakRestoreRepository`, `SuggestionRepository`. Repositories are synchronous, because `node:sqlite` is: they return values, not promises. `DatabaseManager.transaction()` takes a synchronous callback and rejects an async one, since an `await` inside it would let other writes on the one shared connection join the transaction. A new migration goes in `migrations/` and must be added to `ALL_MIGRATIONS`. Tests get a migrated temp database from `repositories/testDatabase.ts`. Integration configs are encrypted with AES-256-GCM before storage, keyed from `MASTER_PASSWORD` (required: `TuringModConfig` throws a `ConfigurationError` without it, which `index.ts` prints without a stack trace) and a per-install salt kept in the `settings` table; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there. Each settings group is a `SettingsDefinition` (its key plus a strict Zod schema whose defaults apply when nothing is stored, e.g. `BREAK_SETTINGS`), read and written through `SettingsRepository.get()`/`set()`, which throw on a value that doesn't fit. A new group is added to `ALL_SETTINGS` in `setup.ts`, which reads every group at startup so bad settings stop TuringMod there with the fields named. The console has no settings UI yet: outside tests nothing calls `set()`, so stored settings are only ever the defaults or what was written to the database directly.
 
 ### Platform Provider Layer
 
@@ -262,7 +263,14 @@ groups, which keeps the Aitum Vertical canvas in step and makes a mid-break scen
 A canvas or group that can't be read is skipped and logged, so the rest is still covered. `AdWarningScheduler` warns chat
 ahead of Twitch's scheduled ads, re-reading the schedule before each warning because snoozes and
 manual ads move it. Shutdown ends a running break before stopping integrations, so OBS is still
-connected to restore it, and `BreakService` refuses new breaks once stopped. Chat fan-out goes through `StreamControlService.announce()`, which
+connected to restore it, and `BreakService` refuses new breaks once stopped.
+What a break changed in OBS is stored (`ObsBreakRestoreRepository`) until it has been put back,
+and whenever OBS connects `BreakService` brings OBS in line: the overlay applied again if a break
+is running, the stored state restored if not. That covers a break that ends while OBS is down and
+one cut short by TuringMod crashing (a break doesn't survive a restart; what it owes OBS does).
+A new break started while a restore is still owed builds on that state, so its "before" is never
+the hidden facecam. `ObsIntegration` reconnects on its own while it is started, backing off to
+30s; only a failure the streamer must fix (wrong password, old obs-websocket) is an ERROR. Chat fan-out goes through `StreamControlService.announce()`, which
 shares the live-platform/auth-skip loop with the mirrored writes.
 
 ### Channel Point Rewards & Raids

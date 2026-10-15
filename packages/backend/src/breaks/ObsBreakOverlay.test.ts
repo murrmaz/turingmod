@@ -215,4 +215,42 @@ describe('ObsBreakOverlay', () => {
     expect(snapshot.items.size).toBe(0);
     expect(obs.visible('gameplay', 'Facecam')).toBe(true);
   });
+
+  it('applies again over what it recorded, keeping the pre-break state', async () => {
+    const first = await overlay.apply(settings);
+    // OBS restarted mid-break without having saved the hidden facecam.
+    obs.items.set('gameplay', [item(1, 'Facecam', true), item(2, 'Ads Text', true)]);
+    obs.muted.set('Mic/Aux', true);
+
+    const second = await overlay.apply(settings, first);
+
+    expect(obs.visible('gameplay', 'Facecam')).toBe(false);
+    expect(second.items.get('gameplay:1')?.enabled).toBe(true);
+    expect(second.items.get('gameplay:2')?.enabled).toBe(false);
+    expect(second.inputs.get('Mic/Aux')).toBe(false);
+    expect(first.items.get('gameplay:1')?.enabled).toBe(true); // not modified in place
+  });
+
+  it('reports a restore as done only when OBS is connected throughout', async () => {
+    const snapshot = await overlay.apply(settings);
+
+    obs.status = IntegrationStatus.DISCONNECTED;
+    expect(await overlay.restore(snapshot)).toBe(false);
+    expect(obs.visible('gameplay', 'Facecam')).toBe(false);
+
+    obs.status = IntegrationStatus.CONNECTED;
+    obs.setInputMuted = () => {
+      obs.status = IntegrationStatus.DISCONNECTED; // OBS goes away mid-restore
+      return Promise.reject(new Error('OBS is not connected'));
+    };
+    expect(await overlay.restore(snapshot)).toBe(false);
+  });
+
+  it('reports a restore as done when a source has gone, since retrying cannot bring it back', async () => {
+    const snapshot = await overlay.apply(settings);
+    obs.items.set('chatting', []);
+
+    expect(await overlay.restore(snapshot)).toBe(true);
+    expect(obs.visible('gameplay', 'Facecam')).toBe(true);
+  });
 });

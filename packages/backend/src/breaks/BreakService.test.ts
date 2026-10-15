@@ -1,26 +1,51 @@
 import 'reflect-metadata';
-import { StreamingPlatform } from '@turingmod/shared';
+import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import type { TwitchAdBreakEvent } from '../core/events.js';
+import type { ObsBreakRestoreRepository } from '../database/repositories/ObsBreakRestoreRepository.js';
 import type {
   SettingsDefinition,
   SettingsRepository,
 } from '../database/repositories/SettingsRepository.js';
+import type { ObsIntegration } from '../integrations/implementations/obs/ObsIntegration.js';
 import type { StreamControlService } from '../platforms/StreamControlService.js';
 import type { SoundLibrary } from '../sounds/SoundLibrary.js';
 import { Logger } from '../utils/Logger.js';
 import { BreakService } from './BreakService.js';
 import type { ObsBreakOverlay, ObsBreakSnapshot } from './ObsBreakOverlay.js';
 
-const emptySnapshot = (): ObsBreakSnapshot => ({ items: new Map(), inputs: new Map() });
+/** What applying the overlay records: the mic was live before the break. */
+const micSnapshot = (): ObsBreakSnapshot => ({
+  items: new Map(),
+  inputs: new Map([['Mic/Aux', false]]),
+});
 
-function setup(stored: unknown = null) {
+function setup(stored: unknown = null, { owed = null as unknown } = {}) {
   const eventBus = new EventBus(new Logger({ level: 'silent' }));
   const overlay = {
-    apply: vi.fn(() => Promise.resolve(emptySnapshot())),
-    restore: vi.fn(() => Promise.resolve()),
+    apply: vi.fn((_settings: unknown, recorded?: ObsBreakSnapshot) =>
+      Promise.resolve(recorded ?? micSnapshot())
+    ),
+    restore: vi.fn((_snapshot: ObsBreakSnapshot) => Promise.resolve(true)),
   };
+  /** The stored restore, as `ObsBreakRestoreRepository` would hold it. */
+  const restoreRepo = {
+    owed,
+    get: vi.fn(() => {
+      if (restoreRepo.owed instanceof Error) {
+        throw restoreRepo.owed;
+      }
+      return restoreRepo.owed as ObsBreakSnapshot | null;
+    }),
+    save: vi.fn((snapshot: ObsBreakSnapshot) => {
+      restoreRepo.owed = snapshot;
+    }),
+    clear: vi.fn(() => {
+      restoreRepo.owed = null;
+    }),
+  };
+  const obs = { name: 'obs', status: IntegrationStatus.CONNECTED, getStatus: () => obs.status };
   /** Messages posted, per platform, as rendered for Twitch and YouTube. */
   const posted: Record<string, string>[] = [];
   const streamControl = {
@@ -39,11 +64,28 @@ function setup(stored: unknown = null) {
     eventBus,
     settingsRepo as unknown as SettingsRepository,
     overlay as unknown as ObsBreakOverlay,
+    restoreRepo as unknown as ObsBreakRestoreRepository,
+    obs as unknown as ObsIntegration,
     streamControl as unknown as StreamControlService,
     sounds as unknown as SoundLibrary,
     new Logger({ level: 'silent' })
   );
-  return { eventBus, overlay, streamControl, posted, service, sounds };
+  /** OBS reconnecting, as IntegrationManager reports it. */
+  const obsConnects = () => {
+    obs.status = IntegrationStatus.CONNECTED;
+    return eventBus.emit('integration.status', { name: 'obs', status: obs.status });
+  };
+  return {
+    eventBus,
+    overlay,
+    restoreRepo,
+    obs,
+    obsConnects,
+    streamControl,
+    posted,
+    service,
+    sounds,
+  };
 }
 
 function adBreak(durationSeconds: number): TwitchAdBreakEvent {
@@ -150,7 +192,8 @@ describe('BreakService', () => {
 
     const first = service.startBreak('ad', 60);
     const second = await service.startBreak('ad', 60);
-    finishApply(emptySnapshot());
+    await vi.advanceTimersByTimeAsync(0); // let the queued apply begin
+    finishApply(micSnapshot());
     await first;
 
     expect(second.extended).toBe(true);
@@ -159,8 +202,7 @@ describe('BreakService', () => {
 
   it('restores with the snapshot taken at the start', async () => {
     const { overlay, service } = setup();
-    const snapshot = emptySnapshot();
-    snapshot.inputs.set('Mic/Aux', false);
+    const snapshot = micSnapshot();
     overlay.apply.mockResolvedValueOnce(snapshot);
     await service.start();
 
@@ -233,5 +275,106 @@ describe('BreakService', () => {
     await service.start();
 
     await expect(service.startBreak('manual', 0)).rejects.toThrow(/duration/);
+  });
+
+  describe('restoring OBS', () => {
+    it('stores what the break changed until it has been put back', async () => {
+      const { restoreRepo, service } = setup();
+      await service.start();
+
+      await service.startBreak('ad', 60);
+      expect(restoreRepo.owed).toEqual(micSnapshot());
+
+      await service.endBreak();
+      expect(restoreRepo.owed).toBeNull();
+    });
+
+    it('stores nothing for a break that changed nothing in OBS', async () => {
+      const { overlay, restoreRepo, service } = setup();
+      overlay.apply.mockResolvedValueOnce({ items: new Map(), inputs: new Map() });
+      await service.start();
+
+      await service.startBreak('ad', 60);
+      await service.endBreak();
+
+      expect(restoreRepo.save).not.toHaveBeenCalled();
+      expect(overlay.restore).not.toHaveBeenCalled();
+    });
+
+    it('restores once OBS is back when the break ended while it was down', async () => {
+      const { obs, obsConnects, overlay, restoreRepo, service } = setup();
+      await service.start();
+      await service.startBreak('ad', 60);
+
+      obs.status = IntegrationStatus.DISCONNECTED;
+      overlay.restore.mockResolvedValueOnce(false);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(service.getBreakEndsAt()).toBeNull();
+      expect(restoreRepo.owed).toEqual(micSnapshot());
+
+      await obsConnects();
+
+      expect(overlay.restore).toHaveBeenLastCalledWith(micSnapshot());
+      expect(restoreRepo.owed).toBeNull();
+    });
+
+    it('restores what an earlier run left once OBS connects', async () => {
+      const { obs, obsConnects, overlay, restoreRepo, service } = setup(null, {
+        owed: micSnapshot(),
+      });
+      obs.status = IntegrationStatus.DISCONNECTED;
+      await service.start();
+      expect(overlay.restore).not.toHaveBeenCalled();
+
+      await obsConnects();
+
+      expect(overlay.restore).toHaveBeenCalledWith(micSnapshot());
+      expect(restoreRepo.owed).toBeNull();
+    });
+
+    it('restores at start what an earlier run left when OBS is already connected', async () => {
+      const { overlay, service } = setup(null, { owed: micSnapshot() });
+
+      await service.start();
+      await service.stop();
+
+      expect(overlay.restore).toHaveBeenCalledWith(micSnapshot());
+    });
+
+    it('applies the overlay again when OBS reconnects mid-break, keeping the pre-break state', async () => {
+      const { obsConnects, overlay, service } = setup();
+      await service.start();
+      await service.startBreak('ad', 60);
+
+      await obsConnects();
+
+      expect(overlay.apply).toHaveBeenCalledTimes(2);
+      expect(overlay.apply).toHaveBeenLastCalledWith(expect.anything(), micSnapshot());
+      expect(overlay.restore).not.toHaveBeenCalled();
+    });
+
+    it('builds a new break on a restore still owed, so the hidden facecam is never the "before"', async () => {
+      const owed: ObsBreakSnapshot = {
+        items: new Map([['scene:1', { sceneUuid: 'scene', sceneItemId: 1, enabled: true }]]),
+        inputs: new Map(),
+      };
+      const { overlay, service } = setup(null, { owed });
+      overlay.restore.mockResolvedValueOnce(false); // OBS still unreachable at start
+      await service.start();
+
+      await service.startBreak('ad', 60);
+
+      expect(overlay.apply).toHaveBeenCalledWith(expect.anything(), owed);
+    });
+
+    it('drops an unreadable stored restore rather than failing to start', async () => {
+      const { overlay, restoreRepo, service } = setup(null, { owed: new Error('bad JSON') });
+
+      await service.start();
+      await service.stop();
+
+      expect(restoreRepo.clear).toHaveBeenCalled();
+      expect(overlay.restore).not.toHaveBeenCalled();
+    });
   });
 });

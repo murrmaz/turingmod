@@ -22,6 +22,7 @@ export abstract class BaseIntegration implements IIntegration {
 
   /** Statuses whose `errorMessage` carries an explanation worth keeping. */
   private static readonly STATUSES_WITH_MESSAGE: ReadonlySet<IntegrationStatus> = new Set([
+    IntegrationStatus.CONNECTING,
     IntegrationStatus.ERROR,
     IntegrationStatus.NEEDS_REAUTH,
     IntegrationStatus.BLOCKED,

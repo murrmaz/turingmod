@@ -21,6 +21,11 @@ export interface ObsBreakSnapshot {
   inputs: Map<string, boolean>;
 }
 
+/** Whether a snapshot records nothing, so there is nothing to put back. */
+export function isEmptySnapshot(snapshot: ObsBreakSnapshot): boolean {
+  return snapshot.items.size === 0 && snapshot.inputs.size === 0;
+}
+
 /**
  * Puts OBS into "break" state and back: hides the configured sources (facecam), shows the break
  * sources ("Ads Text") and mutes the configured inputs (mic).
@@ -32,7 +37,8 @@ export interface ObsBreakSnapshot {
  *
  * Both directions set absolute states from a snapshot rather than toggling, so a mic that was
  * already muted stays muted afterwards, and a partial failure can't leave things inverted. Each
- * change is attempted independently: one missing source doesn't stop the rest.
+ * change is attempted independently: one missing source doesn't stop the rest. Applying again
+ * over an existing snapshot is safe: what it already recorded keeps its pre-break value.
  */
 @singleton()
 export class ObsBreakOverlay {
@@ -45,23 +51,36 @@ export class ObsBreakOverlay {
     this.logger = logger.child({ component: 'ObsBreakOverlay' });
   }
 
-  /** Apply the break state and return what it changed. Never throws; failures are logged. */
-  async apply(settings: BreakSettings['obs']): Promise<ObsBreakSnapshot> {
-    const snapshot: ObsBreakSnapshot = { items: new Map(), inputs: new Map() };
+  /**
+   * Apply the break state and return what it changed, added to `recorded` (what an earlier apply
+   * recorded and hasn't been restored yet), so the result always holds the pre-break state.
+   * Never throws; failures are logged.
+   */
+  async apply(
+    settings: BreakSettings['obs'],
+    recorded?: ObsBreakSnapshot
+  ): Promise<ObsBreakSnapshot> {
+    const snapshot: ObsBreakSnapshot = {
+      items: new Map(recorded?.items),
+      inputs: new Map(recorded?.inputs),
+    };
 
     if (this.obs.getStatus() !== IntegrationStatus.CONNECTED) {
       this.logger.warn('OBS is not connected; skipping the break overlay');
       return snapshot;
     }
 
+    const seen = new Set<string>();
     for (const scene of await this.allScenes(settings.keepVisibleInScenes)) {
-      await this.applyToScene(scene.uuid, scene.keepVisible, settings, snapshot);
+      await this.applyToScene(scene.uuid, scene.keepVisible, settings, snapshot, seen);
     }
 
     for (const inputName of settings.muteInputs) {
       try {
         const wasMuted = await this.obs.getInputMuted(inputName);
-        snapshot.inputs.set(inputName, wasMuted);
+        if (!snapshot.inputs.has(inputName)) {
+          snapshot.inputs.set(inputName, wasMuted);
+        }
         if (!wasMuted) {
           await this.obs.setInputMuted(inputName, true);
         }
@@ -77,16 +96,20 @@ export class ObsBreakOverlay {
     return snapshot;
   }
 
-  /** Put back everything recorded in `snapshot`. Never throws; failures are logged. */
-  async restore(snapshot: ObsBreakSnapshot): Promise<void> {
-    if (snapshot.items.size === 0 && snapshot.inputs.size === 0) {
-      return;
+  /**
+   * Put back everything recorded in `snapshot`. Resolves to whether OBS was connected throughout,
+   * so the restore is done: false means it is still owed. A source that can't be restored while
+   * OBS is connected (most likely deleted) is logged and skipped. Never throws.
+   */
+  async restore(snapshot: ObsBreakSnapshot): Promise<boolean> {
+    if (isEmptySnapshot(snapshot)) {
+      return true;
     }
     if (this.obs.getStatus() !== IntegrationStatus.CONNECTED) {
-      this.logger.error(
-        'OBS is not connected; cannot restore the break overlay. Check the facecam and mic.'
+      this.logger.warn(
+        'OBS is not connected; the facecam and mic will be restored when it reconnects'
       );
-      return;
+      return false;
     }
 
     for (const { sceneUuid, sceneItemId, enabled } of snapshot.items.values()) {
@@ -110,7 +133,12 @@ export class ObsBreakOverlay {
       }
     }
 
+    if (this.obs.getStatus() !== IntegrationStatus.CONNECTED) {
+      this.logger.warn('OBS disconnected while restoring the break overlay; will retry');
+      return false;
+    }
     this.logger.info('Break overlay restored');
+    return true;
   }
 
   /** Every scene UUID across all canvases, flagged if its name is in `keepVisibleInScenes`. */
@@ -130,7 +158,8 @@ export class ObsBreakOverlay {
     sceneUuid: string,
     keepVisible: boolean,
     settings: BreakSettings['obs'],
-    snapshot: ObsBreakSnapshot
+    snapshot: ObsBreakSnapshot,
+    seen: Set<string>
   ): Promise<void> {
     let placements: Placement[];
     try {
@@ -150,16 +179,20 @@ export class ObsBreakOverlay {
         continue;
       }
 
-      // Recorded once: a second sighting would record the state this overlay just set.
+      // A group's items are listed once per scene holding the group; the first sighting decides.
       const key = `${containerUuid}:${item.sceneItemId}`;
-      if (snapshot.items.has(key)) {
+      if (seen.has(key)) {
         continue;
       }
-      snapshot.items.set(key, {
-        sceneUuid: containerUuid,
-        sceneItemId: item.sceneItemId,
-        enabled: item.sceneItemEnabled,
-      });
+      seen.add(key);
+      // Recorded once, ever: a later sighting would record the state an overlay already set.
+      if (!snapshot.items.has(key)) {
+        snapshot.items.set(key, {
+          sceneUuid: containerUuid,
+          sceneItemId: item.sceneItemId,
+          enabled: item.sceneItemEnabled,
+        });
+      }
       if (item.sceneItemEnabled === target) {
         continue;
       }

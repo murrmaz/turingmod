@@ -1,8 +1,11 @@
+import { IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { BreakReason } from '../core/events.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
+import { ObsBreakRestoreRepository } from '../database/repositories/ObsBreakRestoreRepository.js';
 import { SettingsRepository } from '../database/repositories/SettingsRepository.js';
+import { ObsIntegration } from '../integrations/implementations/obs/ObsIntegration.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
 import { SoundLibrary } from '../sounds/SoundLibrary.js';
 import { formatCountdown } from '../utils/FormatHelpers.js';
@@ -14,15 +17,13 @@ import {
   type PerPlatformMessage,
   renderMessage,
 } from './breakSettings.js';
-import { ObsBreakOverlay, type ObsBreakSnapshot } from './ObsBreakOverlay.js';
+import { isEmptySnapshot, ObsBreakOverlay, type ObsBreakSnapshot } from './ObsBreakOverlay.js';
 
 interface ActiveBreak {
   reason: BreakReason;
   startedAt: number;
   endsAt: number;
   timer: NodeJS.Timeout;
-  /** Pending until the overlay is applied; restore waits on it so it can't run first. */
-  snapshot: Promise<ObsBreakSnapshot>;
 }
 
 /** Longest break `startBreak` accepts; Twitch's longest ad break is 3 minutes. */
@@ -38,11 +39,21 @@ export const MAX_BREAK_SECONDS = 60 * 60;
  *
  * Every side effect is best-effort and independent: OBS being down still lets chat hear about
  * the break, and a chat failure never leaves OBS in break state.
+ *
+ * What a break changed in OBS is stored until it has been put back (`ObsBreakRestoreRepository`),
+ * and whenever OBS connects, OBS is brought in line: the overlay applied if a break is running,
+ * the stored state restored if not. So a break that ends while OBS is down is undone when OBS
+ * returns, and one interrupted by TuringMod crashing is undone the next time it starts. A break
+ * itself doesn't survive a restart: its timer and chat messages died with the process.
  */
 @singleton()
 export class BreakService implements IService {
   private settings: BreakSettings = DEFAULT_BREAK_SETTINGS;
   private active: ActiveBreak | null = null;
+  /** What breaks changed in OBS and haven't put back yet; mirrors the stored copy. */
+  private owed: ObsBreakSnapshot | null = null;
+  /** OBS changes run one at a time, in order, so a restore can't overtake the apply before it. */
+  private obsWork: Promise<void> = Promise.resolve();
   private subscriptions = new Subscriptions();
   /** Set by `stop()`; a break can't start after it, or it would outlive OBS's connection. */
   private stopped = false;
@@ -52,6 +63,8 @@ export class BreakService implements IService {
     private eventBus: EventBus,
     private settingsRepo: SettingsRepository,
     private overlay: ObsBreakOverlay,
+    private restoreRepo: ObsBreakRestoreRepository,
+    private obs: ObsIntegration,
     private streamControl: StreamControlService,
     private sounds: SoundLibrary,
     logger: Logger
@@ -61,6 +74,7 @@ export class BreakService implements IService {
 
   start(): void {
     this.reloadSettings();
+    this.owed = this.loadOwed();
 
     this.subscriptions.add(
       this.eventBus.on('twitch.ad.break', async (event) => {
@@ -69,8 +83,16 @@ export class BreakService implements IService {
           return;
         }
         await this.startBreak('ad', event.durationSeconds);
+      }),
+      this.eventBus.on('integration.status', ({ name, status }) => {
+        if (name === this.obs.name && status === IntegrationStatus.CONNECTED) {
+          return this.syncObs();
+        }
       })
     );
+    if (this.obs.getStatus() === IntegrationStatus.CONNECTED) {
+      void this.syncObs();
+    }
   }
 
   /**
@@ -81,6 +103,7 @@ export class BreakService implements IService {
     this.stopped = true;
     this.subscriptions.clear();
     await this.endBreak({ announce: false });
+    await this.obsWork;
   }
 
   /** Re-read settings from the database. Throws if the stored settings aren't valid. */
@@ -129,13 +152,12 @@ export class BreakService implements IService {
 
     // Claim the break synchronously, before any await, so a second trigger arriving while OBS
     // is being updated sees it and extends instead of snapshotting the half-applied state.
-    const snapshot = this.overlay.apply(this.settings.obs);
+    const applied = this.queueObs(() => this.applyOverlay());
     this.active = {
       reason,
       startedAt: Date.now(),
       endsAt,
       timer: this.scheduleEnd(endsAt),
-      snapshot,
     };
     this.logger.info('Break started', { reason, durationSeconds: durationMs / 1000 });
 
@@ -145,7 +167,7 @@ export class BreakService implements IService {
         ? this.settings.messages.adBreakStarted
         : this.settings.messages.manualBreakStarted;
     await Promise.all([
-      snapshot,
+      applied,
       this.announce(startedMessage, { duration: formatCountdown(durationMs) }),
     ]);
     await this.eventBus.emit('stream.break.started', {
@@ -170,7 +192,7 @@ export class BreakService implements IService {
     this.active = null;
     clearTimeout(active.timer);
 
-    await this.overlay.restore(await active.snapshot);
+    await this.queueObs(() => this.restoreOverlay());
     this.playSound(this.settings.sounds.breakEnded);
     if (options.announce !== false) {
       await this.announce(this.settings.messages.breakEnded, {});
@@ -183,6 +205,65 @@ export class BreakService implements IService {
       durationSeconds,
     });
     return true;
+  }
+
+  /** Bring OBS in line with whether a break is running, now that it has connected. */
+  private syncObs(): Promise<void> {
+    return this.queueObs(() => (this.active ? this.applyOverlay() : this.restoreOverlay()));
+  }
+
+  /** Run `work` after the OBS changes queued before it. Resolves when it's done; never rejects. */
+  private queueObs(work: () => Promise<void>): Promise<void> {
+    this.obsWork = this.obsWork.then(work).catch((error: unknown) => {
+      this.logger.error('Failed to update OBS for a break', error);
+    });
+    return this.obsWork;
+  }
+
+  /** Apply the overlay, adding what it changes to what is already owed. */
+  private async applyOverlay(): Promise<void> {
+    this.setOwed(await this.overlay.apply(this.settings.obs, this.owed ?? undefined));
+  }
+
+  /** Put back what breaks changed, and forget it once that has reached OBS. */
+  private async restoreOverlay(): Promise<void> {
+    if (this.owed && (await this.overlay.restore(this.owed))) {
+      this.setOwed(null);
+    }
+  }
+
+  private setOwed(snapshot: ObsBreakSnapshot | null): void {
+    this.owed = snapshot && !isEmptySnapshot(snapshot) ? snapshot : null;
+    try {
+      if (this.owed) {
+        this.restoreRepo.save(this.owed);
+      } else {
+        this.restoreRepo.clear();
+      }
+    } catch (error) {
+      // Still restored from memory; only a restart before then would lose it.
+      this.logger.error('Could not store the OBS state to restore after the break', error);
+    }
+  }
+
+  /** What an earlier run left to restore, if anything. Unreadable state is logged and dropped. */
+  private loadOwed(): ObsBreakSnapshot | null {
+    try {
+      const owed = this.restoreRepo.get();
+      if (owed) {
+        this.logger.warn(
+          'A break left OBS changed when TuringMod last stopped; restoring when OBS connects'
+        );
+      }
+      return owed;
+    } catch (error) {
+      this.logger.error(
+        'The stored OBS state to restore after a break is unreadable; check the facecam and mic',
+        error
+      );
+      this.setOwed(null);
+      return null;
+    }
   }
 
   private scheduleEnd(endsAt: number): NodeJS.Timeout {

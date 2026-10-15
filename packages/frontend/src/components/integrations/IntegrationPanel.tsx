@@ -6,7 +6,7 @@ import Container from '@cloudscape-design/components/container';
 import Header from '@cloudscape-design/components/header';
 import Popover from '@cloudscape-design/components/popover';
 import SpaceBetween from '@cloudscape-design/components/space-between';
-import { IntegrationGroup, type IntegrationInfo } from '@turingmod/shared';
+import { IntegrationGroup, type IntegrationInfo, IntegrationStatus } from '@turingmod/shared';
 import { useIntegrationActions } from '../../hooks/useIntegrationActions';
 import { useIntegrations } from '../../hooks/useIntegrations';
 import { IntegrationOAuthModals } from './IntegrationOAuthModals';
@@ -73,12 +73,19 @@ export function IntegrationPanel() {
                 <div>{new Date(item.lastConnected).toLocaleString()}</div>
               </div>
             )}
-            {item.errorMessage && (
-              <div>
-                <Box variant="awsui-key-label">Last Error</Box>
-                <Box color="text-status-error">{item.errorMessage}</Box>
-              </div>
-            )}
+            {item.errorMessage &&
+              (item.status === IntegrationStatus.ERROR ||
+              item.status === IntegrationStatus.NEEDS_REAUTH ? (
+                <div>
+                  <Box variant="awsui-key-label">Last Error</Box>
+                  <Box color="text-status-error">{item.errorMessage}</Box>
+                </div>
+              ) : (
+                <div>
+                  <Box variant="awsui-key-label">Details</Box>
+                  <div>{item.errorMessage}</div>
+                </div>
+              ))}
           </SpaceBetween>
         ),
       },

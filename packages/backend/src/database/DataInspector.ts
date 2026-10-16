@@ -8,6 +8,7 @@ import {
   type DataTableInfo,
 } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
+import type { IService } from '../core/ServiceLifecycle.js';
 import { TuringModConfig } from '../utils/Config.js';
 
 /** What the inspector may show of one table, beyond the columns SQLite reports. */
@@ -69,7 +70,7 @@ interface ColumnRow {
  * SQLite reports, and quoted; every value is bound as a parameter.
  */
 @singleton()
-export class DataInspector {
+export class DataInspector implements IService {
   private connection: DatabaseSync | null = null;
 
   constructor(private config: TuringModConfig) {}
@@ -125,9 +126,29 @@ export class DataInspector {
       params.push(request.since);
     }
 
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const sortColumn = request.sort?.column ?? table.defaultSort;
-    this.requireColumn(columns, table.name, sortColumn);
+    if (this.requireColumn(columns, table.name, sortColumn).masked) {
+      throw new Error(`Column ${sortColumn} can't be sorted`);
+    }
+
+    // Masking a secret row's output isn't enough: matching or ordering on its hidden values would
+    // still answer questions about them, one guess at a time. So a query that looks at any column
+    // but the row's key leaves secret rows out.
+    const secret = policy.maskedRows;
+    if (secret) {
+      const looksAtHidden =
+        Boolean(search) ||
+        Object.keys(request.filters ?? {}).some((name) => name !== secret.column) ||
+        sortColumn !== secret.column;
+      if (looksAtHidden) {
+        conditions.push(
+          `${quote(secret.column)} NOT IN (${secret.keys.map(() => '?').join(', ')})`
+        );
+        params.push(...secret.keys);
+      }
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const direction =
       request.sort?.direction ?? (policy.timestamps?.includes(sortColumn) ? 'desc' : 'asc');
 
@@ -152,6 +173,11 @@ export class DataInspector {
       .all(...params, request.pageSize, request.page * request.pageSize);
 
     return { rows: rows.map((row) => maskRow(row, table, policy)), total };
+  }
+
+  /** Close the read connection, so the main one can checkpoint the WAL cleanly at shutdown. */
+  stop(): void {
+    this.close();
   }
 
   close(): void {

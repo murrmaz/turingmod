@@ -48,7 +48,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Interfaces**: `packages/backend/src/integrations/interfaces/IIntegration.ts`, `IOAuthIntegration.ts` (extends `IIntegration` for OAuth-capable integrations)
 - **Implementations**: `packages/backend/src/integrations/implementations/*/` (Twitch, YouTube, Spotify, OBS, Sound; Discord and Arduino are placeholders whose `start()` does nothing, marked `placeholder` so the console shows them as planned)
 - **YouTube chat stream client**: `packages/backend/src/integrations/implementations/youtube/YouTubeChatStream.ts` + the response frame splitter `parseJsonFrames.ts` beside it
-- **WebSocket Handlers**: `packages/backend/src/server/handlers/IntegrationHandler.ts`, `OAuthHandler.ts`, `YouTubeHandler.ts`
+- **WebSocket Handlers**: `packages/backend/src/server/handlers/IntegrationHandler.ts`, `OAuthHandler.ts`, `YouTubeHandler.ts`, `PlatformHandler.ts` (live state)
 - **Types & Enums**: `packages/shared/src/types/integration.ts`
 
 ### Commands System
@@ -101,6 +101,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 ### Going Live
 - **OBS stream state**: `packages/backend/src/live/ObsStreamState.ts` — whether OBS is streaming; publishes `stream.output.changed`, platform-neutral
 - **YouTube chat auto-connect**: `packages/backend/src/live/YouTubeChatAutoConnect.ts` — connects YouTube chat while OBS streams
+- **Platform live state**: `packages/backend/src/live/PlatformLiveStatus.ts` — whether each platform is live and since when, pushed to the console as `platform.liveState`; event-driven, never polled
 
 ### Stream Breaks
 - **Lifecycle**: `packages/backend/src/breaks/BreakService.ts` — starts/extends/ends breaks; listens for `twitch.ad.break`; emits `stream.break.started`/`.ended`
@@ -175,7 +176,7 @@ Triggers (chat, redemptions, raids) go last in the list so they stop first: noth
 break or an effect while those are being restored. Each service keeps its bus subscriptions in a
 `Subscriptions` and clears them in `stop()`.
 
-**Message routing**: WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes (`CommandHandler`, `IntegrationHandler`, `OAuthHandler`, `ActivityHandler`, `YouTubeHandler`, registered in `setup.ts`) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
+**Message routing**: WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes (`CommandHandler`, `IntegrationHandler`, `OAuthHandler`, `ActivityHandler`, `YouTubeHandler`, `PlatformHandler`, `DataHandler`, registered in `setup.ts`) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
 
 **EventBus.** Integrations, services and the server communicate through `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
 `emit()` calls handlers in subscription order but runs async ones concurrently, and resolves once
@@ -408,7 +409,9 @@ The Data page reads the database through `DataInspector` (`database/DataInspecto
 column name against the schema SQLite reports, and binds every value; there is no free-form SQL.
 `integration_state.config` is never selected (only its length, shown as `encrypted · N B`) and the
 encryption salt row is hidden. A new table is invisible to it until it gets a `TABLES` entry;
-anything secret in it must be listed in `masked`.
+anything secret in it must be listed in `masked` (a column) or `maskedRows` (rows by key). A
+secret row also drops out of any query that searches, filters or sorts on its hidden values, so
+its value can't be guessed one query at a time.
 
 ### HTTP Server
 

@@ -14,6 +14,7 @@ import { loadCommands } from './commands/loadCommands.js';
 import { EventBus } from './core/EventBus.js';
 import { ServiceLifecycle } from './core/ServiceLifecycle.js';
 import { DatabaseManager } from './database/DatabaseManager.js';
+import { DataInspector } from './database/DataInspector.js';
 import { MigrationRunner } from './database/migrations/MigrationRunner.js';
 import {
   type SettingsDefinition,
@@ -231,6 +232,8 @@ export async function initializeComponents(): Promise<void> {
   services.add(container.resolve(YouTubeChatAutoConnect));
   // Whether each platform is live, for the console's header.
   services.add(container.resolve(PlatformLiveStatus));
+  // The Data page's read-only connection, which stopping closes before the database is.
+  services.add(container.resolve(DataInspector));
   // Triggers: raids, channel point redemptions, and chat (gated to drop TuringMod's own messages,
   // then moderated, parsed and executed).
   services.add(container.resolve(RaidShoutout));

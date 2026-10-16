@@ -75,6 +75,33 @@ describe('DataInspector', () => {
     expect(rows.find((row) => row.key === 'breaks')?.value).toBe('{}');
   });
 
+  it('leaves the salt out of any query that could test its value', () => {
+    const keys = (
+      request: Omit<Parameters<DataInspector['queryRows']>[0], 'table' | 'page' | 'pageSize'>
+    ) =>
+      inspector
+        .queryRows({ table: 'settings', page: 0, pageSize: 10, ...request })
+        .rows.map((row) => row.key);
+
+    expect(keys({ search: 'c2Fs' })).toEqual([]);
+    expect(keys({ search: 'salt' })).toEqual([]);
+    expect(keys({ filters: { value: ['c2FsdA=='] } })).toEqual([]);
+    expect(keys({ sort: { column: 'value', direction: 'asc' } })).toEqual(['breaks']);
+    // Looking only at keys still lists it, value hidden.
+    expect(keys({ filters: { key: ['encryption_salt'] } })).toEqual(['encryption_salt']);
+  });
+
+  it('refuses to sort by an encrypted column', () => {
+    expect(() =>
+      inspector.queryRows({
+        table: 'integration_state',
+        page: 0,
+        pageSize: 10,
+        sort: { column: 'config', direction: 'asc' },
+      })
+    ).toThrow("can't be sorted");
+  });
+
   it('sorts timestamped tables newest first and pages', () => {
     const page = inspector.queryRows({ table: 'activity_log', page: 1, pageSize: 2 });
 

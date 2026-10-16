@@ -45,6 +45,8 @@ export class PlatformLiveStatus implements IService {
         if (available) {
           return this.refresh(platform);
         }
+        // Bumped, so a refresh still in flight can't bring back a live answer from before.
+        this.bump(platform);
         this.set(offline(platform));
         return Promise.resolve();
       }),

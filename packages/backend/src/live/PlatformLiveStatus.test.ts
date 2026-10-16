@@ -139,6 +139,26 @@ describe('PlatformLiveStatus', () => {
     expect(twitchState()?.live).toBe(false);
   });
 
+  it('stays offline when a refresh started before the platform became unavailable', async () => {
+    let resolveSlow: (uptime: number | null) => void = () => {};
+    twitch.getUptime.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSlow = resolve;
+      })
+    );
+    const slow = service.refresh(StreamingPlatform.TWITCH);
+
+    await eventBus.emit('platform.availability', {
+      platform: StreamingPlatform.TWITCH,
+      available: false,
+      reason: 'needs reauth',
+    });
+    resolveSlow(1000);
+    await slow;
+
+    expect(twitchState()?.live).toBe(false);
+  });
+
   it('pushes only changes', async () => {
     await service.refresh(StreamingPlatform.TWITCH);
     await service.refresh(StreamingPlatform.TWITCH);

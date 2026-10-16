@@ -66,6 +66,9 @@ export interface IntegrationInfo {
     configured: boolean;
   };
 
+  /** Not implemented yet: listed so the console can show it as planned, but it does nothing. */
+  placeholder: boolean;
+
   /** Logical group this integration belongs to, for grouping related integrations in the UI. Absent for standalone integrations (Discord, OBS, Arduino, Sound). */
   group?: IntegrationGroup;
 }

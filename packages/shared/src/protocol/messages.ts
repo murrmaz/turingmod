@@ -1,3 +1,4 @@
+import type { StreamingPlatform } from '../constants/platform.js';
 import type { ActivityLogEntry } from '../types/activity.js';
 import type { CommandInfo, ExecutionResult } from '../types/command.js';
 import type { IntegrationInfo } from '../types/integration.js';
@@ -69,6 +70,16 @@ export enum MessageType {
   YOUTUBE_GO_OFFLINE = 'youtube.goOffline', // Client → Server: disconnect from chat
   YOUTUBE_GET_CHAT_STATE = 'youtube.getChatState', // Client → Server: read current state on load
   YOUTUBE_CHAT_STATE = 'youtube.chatState', // Server → Client: idle / resolving / streaming
+
+  // Whether each platform is broadcasting, and since when, for the console's header badges.
+  PLATFORM_GET_LIVE_STATE = 'platform.getLiveState', // Client → Server: read current state on load
+  PLATFORM_LIVE_STATE = 'platform.liveState', // Server → Client: pushed on every change
+
+  // Read-only database inspector (the console's Data page).
+  DATA_LIST_TABLES = 'data.listTables', // Client → Server
+  DATA_TABLES = 'data.tables', // Server → Client
+  DATA_QUERY_ROWS = 'data.queryRows', // Client → Server
+  DATA_ROWS = 'data.rows', // Server → Client
 }
 
 // ============================================================================
@@ -118,6 +129,60 @@ export interface YouTubeChatStatePayload {
 }
 
 /**
+ * Whether one platform is broadcasting. `startedAt` (epoch ms) is null when offline, or when the
+ * platform hasn't reported a start time yet.
+ */
+export interface PlatformLiveState {
+  platform: StreamingPlatform;
+  live: boolean;
+  startedAt: number | null;
+}
+
+/** Live state of every platform (server → client). */
+export interface PlatformLiveStatePayload {
+  platforms: PlatformLiveState[];
+}
+
+/** One column of an inspectable table. */
+export interface DataColumnInfo {
+  name: string;
+  /** SQLite declared type, e.g. TEXT or INTEGER */
+  type: string;
+  /** The value is never sent: a masked column reads as its size instead. */
+  masked: boolean;
+  /** The values this column can take, for columns the console offers as a filter. */
+  enumValues?: string[];
+  /** Holds epoch-millisecond timestamps. */
+  isTimestamp: boolean;
+  /** Holds JSON text. */
+  isJson: boolean;
+}
+
+/** One inspectable table. */
+export interface DataTableInfo {
+  name: string;
+  rowCount: number;
+  columns: DataColumnInfo[];
+  /** The column rows are ordered by when no sort is given (newest first if it's a timestamp). */
+  defaultSort: string;
+}
+
+/** Every inspectable table (server → client). */
+export interface DataTablesPayload {
+  tables: DataTableInfo[];
+}
+
+/** A cell as sent to the console: masked columns arrive as a description of their size. */
+export type DataCell = string | number | null;
+
+/** One page of a table's rows (server → client). */
+export interface DataRowsPayload {
+  rows: Record<string, DataCell>[];
+  /** Rows matching the filters, across all pages */
+  total: number;
+}
+
+/**
  * Command list payload
  */
 export interface CommandListPayload {
@@ -163,6 +228,8 @@ export type ErrorCode =
   | 'INTEGRATION_STOP_FAILED'
   | 'INTEGRATION_CONFIGURE_FAILED'
   | 'ACTIVITY_QUERY_FAILED'
+  /** The Data inspector couldn't read what was asked (unknown table or column, or a read error). */
+  | 'DATA_QUERY_FAILED'
   /** Client side: the connection closed before the response arrived. */
   | 'CONNECTION_CLOSED';
 
@@ -368,4 +435,14 @@ export function createYouTubeChatStateMessage(
   originalMessageId?: string
 ): IWebSocketMessage<YouTubeChatStatePayload> {
   return createMessage(MessageType.YOUTUBE_CHAT_STATE, { state }, originalMessageId);
+}
+
+/**
+ * Create a platform live state message, pushed on every change or answering a request
+ */
+export function createPlatformLiveStateMessage(
+  platforms: PlatformLiveState[],
+  originalMessageId?: string
+): IWebSocketMessage<PlatformLiveStatePayload> {
+  return createMessage(MessageType.PLATFORM_LIVE_STATE, { platforms }, originalMessageId);
 }

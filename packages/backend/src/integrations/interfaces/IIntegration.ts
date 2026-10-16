@@ -118,6 +118,9 @@ export interface IIntegration {
    */
   getGroup(): IntegrationGroup | null;
 
+  /** True for an integration that isn't implemented yet, which the console shows as planned. */
+  readonly placeholder: boolean;
+
   /**
    * Why the integration is in its current status, for ERROR, NEEDS_REAUTH and BLOCKED; undefined
    * for any other status.

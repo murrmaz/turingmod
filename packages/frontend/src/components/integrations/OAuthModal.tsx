@@ -1,9 +1,3 @@
-import Alert from '@cloudscape-design/components/alert';
-import Box from '@cloudscape-design/components/box';
-import Button from '@cloudscape-design/components/button';
-import Modal from '@cloudscape-design/components/modal';
-import SpaceBetween from '@cloudscape-design/components/space-between';
-import Spinner from '@cloudscape-design/components/spinner';
 import {
   createOAuthExchangeCodeMessage,
   createOAuthGetAuthUrlMessage,
@@ -13,7 +7,18 @@ import {
   type OAuthCodeReceivedPayload,
   type OAuthExchangeResultPayload,
 } from '@turingmod/shared';
+import { CircleAlert, Info, Loader2, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useWebSocketContext } from '../../context/WebSocketContext';
 import type { OAuthProviderConfig } from './oauthProviders';
 
@@ -187,93 +192,70 @@ export function OAuthModal({ visible, onDismiss, onSuccess, provider }: OAuthMod
   }, [closePopup]);
 
   return (
-    <Modal
-      visible={visible}
-      onDismiss={handleClose}
-      header={`Authorize ${provider.displayName}`}
-      footer={
-        <Box float="right">
-          <SpaceBetween direction="horizontal" size="xs">
-            <Button variant="link" onClick={handleClose}>
-              Cancel
-            </Button>
-            {step === 'error' && (
-              <Button variant="primary" onClick={fetchAuthUrl}>
-                Try Again
-              </Button>
-            )}
-          </SpaceBetween>
-        </Box>
-      }
-    >
-      <SpaceBetween size="m">
-        {step === 'loading' && (
-          <Box textAlign="center">
-            <SpaceBetween size="m">
-              <Spinner size="large" />
-              <Box variant="p">Loading authorization URL...</Box>
-            </SpaceBetween>
-          </Box>
-        )}
+    <Dialog open={visible} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Authorize {provider.displayName}</DialogTitle>
+          <DialogDescription>
+            Sign in to {provider.displayName} in the window that opens; TuringMod picks the code up
+            by itself.
+          </DialogDescription>
+        </DialogHeader>
 
-        {step === 'waiting' && (
-          <>
-            <Alert type="info">
-              <Box variant="p">
-                <strong>Waiting for Authorization</strong>
-                <br />A popup window has opened for you to authorize TuringMod on{' '}
-                {provider.displayName}.
-              </Box>
+        <div className="flex flex-col gap-4 text-sm">
+          {(step === 'loading' || step === 'exchanging') && (
+            <div className="flex items-center justify-center gap-3 py-6 text-muted-foreground">
+              <Loader2 className="size-5 animate-spin" />
+              {step === 'loading'
+                ? 'Loading authorization URL…'
+                : 'Exchanging authorization code for access tokens…'}
+            </div>
+          )}
+
+          {step === 'waiting' && (
+            <>
+              <Alert>
+                <Info />
+                <AlertTitle>Waiting for authorization</AlertTitle>
+                <AlertDescription>
+                  Complete the authorization in the popup window. The code will be captured
+                  automatically.
+                </AlertDescription>
+              </Alert>
+              <div className="flex items-center justify-center py-2">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                <strong>Popup blocked?</strong> Allow popups for this site and try again.
+              </p>
+            </>
+          )}
+
+          {step === 'error' && errorMessage && (
+            <Alert variant="destructive">
+              <CircleAlert />
+              <AlertTitle>Authorization failed</AlertTitle>
+              <AlertDescription>
+                <p>{errorMessage}</p>
+                <p>If it keeps failing, the backend logs have the details.</p>
+              </AlertDescription>
             </Alert>
+          )}
 
-            <Box textAlign="center">
-              <SpaceBetween size="m">
-                <Spinner size="large" />
-                <Box variant="p">
-                  Please complete the authorization in the popup window.
-                  <br />
-                  The code will be captured automatically.
-                </Box>
-              </SpaceBetween>
-            </Box>
+          <p className="flex gap-2 text-xs text-muted-foreground">
+            <ShieldCheck className="size-4 shrink-0" />
+            TuringMod only runs on this computer. Your tokens are encrypted in the local database
+            and only ever sent to {provider.displayName}'s official API.
+          </p>
+        </div>
 
-            <Box variant="p" fontSize="body-s" color="text-body-secondary">
-              <strong>Popup blocked?</strong> If the popup didn't open, please allow popups for this
-              site and try again.
-            </Box>
-          </>
-        )}
-
-        {step === 'exchanging' && (
-          <Box textAlign="center">
-            <SpaceBetween size="m">
-              <Spinner size="large" />
-              <Box variant="p">Exchanging authorization code for access tokens...</Box>
-            </SpaceBetween>
-          </Box>
-        )}
-
-        {step === 'error' && errorMessage && (
-          <>
-            <Alert type="error" header="Authorization Failed">
-              {errorMessage}
-            </Alert>
-
-            <Box variant="p">
-              Please try again. If the problem persists, check the backend logs for more details.
-            </Box>
-          </>
-        )}
-
-        <Alert type="warning">
-          <Box variant="p">
-            <strong>Security Note:</strong> TuringMod only runs locally on your computer (
-            <code>localhost</code>). Your tokens are encrypted and stored securely in a local
-            database. They are never sent to any external servers except {provider.displayName}'s
-            official API.
-          </Box>
-        </Alert>
-      </SpaceBetween>
-    </Modal>
+        <DialogFooter>
+          <Button variant="ghost" onClick={handleClose}>
+            Cancel
+          </Button>
+          {step === 'error' && <Button onClick={fetchAuthUrl}>Try again</Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -14,6 +14,7 @@ import { loadCommands } from './commands/loadCommands.js';
 import { EventBus } from './core/EventBus.js';
 import { ServiceLifecycle } from './core/ServiceLifecycle.js';
 import { DatabaseManager } from './database/DatabaseManager.js';
+import { DataInspector } from './database/DataInspector.js';
 import { MigrationRunner } from './database/migrations/MigrationRunner.js';
 import {
   type SettingsDefinition,
@@ -36,6 +37,7 @@ import { YouTubeAuthIntegration } from './integrations/implementations/youtube/Y
 import { YouTubeChatIntegration } from './integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { OAuthFlowService } from './integrations/OAuthFlowService.js';
 import { ObsStreamState } from './live/ObsStreamState.js';
+import { PlatformLiveStatus } from './live/PlatformLiveStatus.js';
 import { YouTubeChatAutoConnect } from './live/YouTubeChatAutoConnect.js';
 import { PlatformAvailability } from './platforms/PlatformAvailability.js';
 import { PlatformRegistry } from './platforms/PlatformRegistry.js';
@@ -49,8 +51,10 @@ import { RewardSync } from './rewards/RewardSync.js';
 import { HttpServer } from './server/HttpServer.js';
 import { ActivityHandler } from './server/handlers/ActivityHandler.js';
 import { CommandHandler } from './server/handlers/CommandHandler.js';
+import { DataHandler } from './server/handlers/DataHandler.js';
 import { IntegrationHandler } from './server/handlers/IntegrationHandler.js';
 import { OAuthHandler } from './server/handlers/OAuthHandler.js';
+import { PlatformHandler } from './server/handlers/PlatformHandler.js';
 import { YouTubeHandler } from './server/handlers/YouTubeHandler.js';
 import { MessageRouter } from './server/MessageRouter.js';
 import { WebSocketServer } from './server/WebSocketServer.js';
@@ -226,6 +230,10 @@ export async function initializeComponents(): Promise<void> {
   // while it is.
   services.add(container.resolve(ObsStreamState));
   services.add(container.resolve(YouTubeChatAutoConnect));
+  // Whether each platform is live, for the console's header.
+  services.add(container.resolve(PlatformLiveStatus));
+  // The Data page's read-only connection, which stopping closes before the database is.
+  services.add(container.resolve(DataInspector));
   // Triggers: raids, channel point redemptions, and chat (gated to drop TuringMod's own messages,
   // then moderated, parsed and executed).
   services.add(container.resolve(RaidShoutout));
@@ -240,6 +248,8 @@ export async function initializeComponents(): Promise<void> {
   const oauthHandler = container.resolve(OAuthHandler);
   const activityHandler = container.resolve(ActivityHandler);
   const youtubeHandler = container.resolve(YouTubeHandler);
+  const platformHandler = container.resolve(PlatformHandler);
+  const dataHandler = container.resolve(DataHandler);
 
   messageRouter.registerHandler(MessageType.COMMAND_SIMULATE, (msg) =>
     commandHandler.handleSimulate(msg)
@@ -285,6 +295,18 @@ export async function initializeComponents(): Promise<void> {
 
   messageRouter.registerHandler(MessageType.YOUTUBE_GET_CHAT_STATE, (msg) =>
     youtubeHandler.handleGetState(msg)
+  );
+
+  messageRouter.registerHandler(MessageType.PLATFORM_GET_LIVE_STATE, (msg) =>
+    platformHandler.handleGetLiveState(msg)
+  );
+
+  messageRouter.registerHandler(MessageType.DATA_LIST_TABLES, (msg) =>
+    dataHandler.handleListTables(msg)
+  );
+
+  messageRouter.registerHandler(MessageType.DATA_QUERY_ROWS, (msg) =>
+    dataHandler.handleQueryRows(msg)
   );
 
   logger.info('Components initialized');

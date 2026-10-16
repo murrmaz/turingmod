@@ -89,6 +89,33 @@ export const ActivityQueryPayloadSchema = z.strictObject({
 });
 export type ActivityQueryPayload = z.infer<typeof ActivityQueryPayloadSchema>;
 
+/** Most rows one data page may return. */
+export const MAX_DATA_PAGE_SIZE = 200;
+
+/**
+ * Read a page of one table for the Data inspector. Table and column names are checked against the
+ * tables the backend allows inspecting; values are only ever bound as parameters.
+ */
+export const DataQueryRowsPayloadSchema = z.strictObject({
+  table: z.string().min(1),
+  /** Zero-based page number */
+  page: z.int().nonnegative(),
+  pageSize: z.int().positive().max(MAX_DATA_PAGE_SIZE),
+  sort: z
+    .strictObject({
+      column: z.string().min(1),
+      direction: z.enum(['asc', 'desc']),
+    })
+    .exactOptional(),
+  /** Keep rows whose column equals one of the listed values, per column */
+  filters: z.record(z.string(), z.array(z.string()).min(1)).exactOptional(),
+  /** Text matched anywhere in the table's unmasked text columns */
+  search: z.string().exactOptional(),
+  /** Only rows at or after this epoch-ms time, on the table's timestamp column */
+  since: z.number().exactOptional(),
+});
+export type DataQueryRowsPayload = z.infer<typeof DataQueryRowsPayloadSchema>;
+
 /** Every request the backend accepts, and the schema its payload must match. */
 export const REQUEST_PAYLOAD_SCHEMAS = {
   [MessageType.COMMAND_SIMULATE]: CommandSimulatePayloadSchema,
@@ -103,6 +130,9 @@ export const REQUEST_PAYLOAD_SCHEMAS = {
   [MessageType.YOUTUBE_GO_LIVE]: EmptyPayloadSchema,
   [MessageType.YOUTUBE_GO_OFFLINE]: EmptyPayloadSchema,
   [MessageType.YOUTUBE_GET_CHAT_STATE]: EmptyPayloadSchema,
+  [MessageType.PLATFORM_GET_LIVE_STATE]: EmptyPayloadSchema,
+  [MessageType.DATA_LIST_TABLES]: EmptyPayloadSchema,
+  [MessageType.DATA_QUERY_ROWS]: DataQueryRowsPayloadSchema,
 } as const satisfies Partial<Record<MessageType, z.ZodType>>;
 
 /** A message type the backend accepts as a request. */

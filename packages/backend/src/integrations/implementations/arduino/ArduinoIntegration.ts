@@ -11,6 +11,7 @@ import { BaseIntegration } from '../../BaseIntegration.js';
 @singleton()
 export class ArduinoIntegration extends BaseIntegration {
   readonly name = 'arduino';
+  override readonly placeholder = true;
 
   constructor(
     _eventBus: EventBus, // Reserved for future use

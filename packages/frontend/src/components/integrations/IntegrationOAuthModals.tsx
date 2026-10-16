@@ -16,8 +16,8 @@ export interface IntegrationOAuthModalsProps {
 /**
  * Wires up the SetupModal/OAuthModal pair for whichever OAuth-capable
  * integration is currently active, looked up from OAUTH_INTEGRATION_REGISTRY.
- * Kept apart from IntegrationPanel (today the only view that starts integrations)
- * so the setup <-> authorize handoff is defined once if another view needs it.
+ * Rendered by each view that can start an OAuth flow (the Integrations page and the
+ * dashboard's Needs attention cards), so the setup <-> authorize handoff is defined once.
  */
 export function IntegrationOAuthModals({
   activeIntegration,

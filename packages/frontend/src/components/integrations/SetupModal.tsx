@@ -1,18 +1,23 @@
-import Alert from '@cloudscape-design/components/alert';
-import Box from '@cloudscape-design/components/box';
-import Button from '@cloudscape-design/components/button';
-import FormField from '@cloudscape-design/components/form-field';
-import Input from '@cloudscape-design/components/input';
-import Link from '@cloudscape-design/components/link';
-import Modal from '@cloudscape-design/components/modal';
-import SpaceBetween from '@cloudscape-design/components/space-between';
 import {
   createMessage,
   type IntegrationConfigurePayload,
   MessageType,
   messageOf,
 } from '@turingmod/shared';
-import { Fragment, useState } from 'react';
+import { CircleAlert, ExternalLink, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useAppState } from '../../context/AppStateContext';
 import { useWebSocketContext } from '../../context/WebSocketContext';
 import type { OAuthProviderConfig } from './oauthProviders';
@@ -79,104 +84,117 @@ export function SetupModal({ visible, onDismiss, onSuccess, provider }: SetupMod
     onDismiss();
   };
 
+  const ready = Boolean(clientId.trim() && clientSecret.trim());
+
   return (
-    <Modal
-      visible={visible}
-      onDismiss={handleClose}
-      header={`${provider.displayName} Application Setup`}
-      footer={
-        <Box float="right">
-          <SpaceBetween direction="horizontal" size="xs">
-            <Button variant="link" onClick={handleClose}>
+    <Dialog open={visible} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{provider.displayName} application setup</DialogTitle>
+          <DialogDescription>
+            {provider.displayName} needs an application of your own to sign in with. Registering one
+            is free and takes about two minutes.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          className="flex flex-col gap-5 text-sm"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleSave();
+          }}
+        >
+          <section className="flex flex-col gap-2">
+            <h3 className="font-medium">1. Register an application</h3>
+            <ol className="ml-5 list-decimal space-y-1.5 text-muted-foreground marker:text-subtle-foreground">
+              <li>
+                Go to{' '}
+                <a
+                  href={provider.registrationUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-foreground underline underline-offset-4"
+                >
+                  {provider.registrationLinkText}
+                  <ExternalLink className="size-3" />
+                </a>
+              </li>
+              <li>
+                Click <strong className="text-foreground">“{provider.createButtonLabel}”</strong>
+              </li>
+              <li>
+                Fill in:
+                <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md border bg-muted/40 p-3 [&_code]:font-mono [&_code]:text-foreground">
+                  {provider.fields(redirectUri).map((field) => (
+                    <div key={field.label} className="contents">
+                      <dt className="text-subtle-foreground">{field.label}</dt>
+                      <dd className="text-foreground">{field.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </li>
+              <li>
+                Click <strong className="text-foreground">“{provider.saveButtonLabel}”</strong>
+              </li>
+              {provider.finalSteps.map((step) => (
+                <li key={step.id} className="[&_strong]:text-foreground">
+                  {step.content}
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <h3 className="font-medium">2. Enter its credentials</h3>
+            <div className="grid gap-2">
+              <Label htmlFor="setup-client-id">Client ID</Label>
+              <Input
+                id="setup-client-id"
+                className="font-mono"
+                value={clientId}
+                onChange={(event) => setClientId(event.target.value)}
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">{provider.clientIdHint}</p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="setup-client-secret">Client Secret</Label>
+              <Input
+                id="setup-client-secret"
+                className="font-mono"
+                type="password"
+                value={clientSecret}
+                onChange={(event) => setClientSecret(event.target.value)}
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">{provider.clientSecretHint}</p>
+            </div>
+          </section>
+
+          {errorMessage && (
+            <Alert variant="destructive">
+              <CircleAlert />
+              <AlertTitle>Configuration error</AlertTitle>
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          )}
+
+          <p className="flex gap-2 text-xs text-muted-foreground">
+            <ShieldCheck className="size-4 shrink-0" />
+            Credentials are encrypted with AES-256-GCM and stored on this computer, and only ever
+            sent to {provider.displayName}'s official API.
+          </p>
+
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={handleClose}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              loading={isLoading}
-              disabled={!(clientId.trim() && clientSecret.trim())}
-            >
-              Save & Continue
+            <Button type="submit" disabled={!ready || isLoading}>
+              {isLoading ? 'Saving…' : 'Save & continue'}
             </Button>
-          </SpaceBetween>
-        </Box>
-      }
-    >
-      <SpaceBetween size="m">
-        <Alert type="info">
-          <Box variant="p">
-            <strong>First Time Setup</strong>
-            <br />
-            You need to register a {provider.displayName} application to use {provider.displayName}{' '}
-            integration. This is free and takes about 2 minutes.
-          </Box>
-        </Alert>
-
-        <Box variant="p">
-          <strong>Step 1:</strong> Register your application on {provider.displayName}
-        </Box>
-
-        <Box>
-          1. Go to{' '}
-          <Link external href={provider.registrationUrl}>
-            {provider.registrationLinkText}
-          </Link>
-          <br />
-          2. Click <strong>&quot;{provider.createButtonLabel}&quot;</strong>
-          <br />
-          3. Fill in:
-          <ul>
-            {provider.fields(redirectUri).map((field) => (
-              <li key={field.label}>
-                <strong>{field.label}:</strong> {field.value}
-              </li>
-            ))}
-          </ul>
-          4. Click <strong>&quot;{provider.saveButtonLabel}&quot;</strong>
-          <br />
-          {provider.finalSteps.map((step, index) => (
-            <Fragment key={step.id}>
-              {index + 5}. {step.content}
-              <br />
-            </Fragment>
-          ))}
-        </Box>
-
-        <Box variant="p">
-          <strong>Step 2:</strong> Enter your credentials below
-        </Box>
-
-        <FormField label="Client ID" description={provider.clientIdHint}>
-          <Input
-            value={clientId}
-            onChange={(e) => setClientId(e.detail.value)}
-            placeholder="Enter Client ID"
-          />
-        </FormField>
-
-        <FormField label="Client Secret" description={provider.clientSecretHint}>
-          <Input
-            value={clientSecret}
-            onChange={(e) => setClientSecret(e.detail.value)}
-            type="password"
-            placeholder="Enter Client Secret"
-          />
-        </FormField>
-
-        {errorMessage && (
-          <Alert type="error" header="Configuration Error">
-            {errorMessage}
-          </Alert>
-        )}
-
-        <Alert type="info">
-          <Box variant="p">
-            <strong>Security Note:</strong> Your credentials are encrypted using AES-256-GCM and
-            stored locally on your machine. They are never sent to any external servers except{' '}
-            {provider.displayName}'s official API.
-          </Box>
-        </Alert>
-      </SpaceBetween>
-    </Modal>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

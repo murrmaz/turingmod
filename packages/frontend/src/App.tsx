@@ -1,27 +1,51 @@
-import Spinner from '@cloudscape-design/components/spinner';
-import { lazy, Suspense } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { AppLayout } from './components/layout/AppLayout';
-import { AppStateProvider } from './context/AppStateContext';
-import { WebSocketProvider } from './context/WebSocketContext';
+import { lazy, Suspense, useState } from 'react';
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { AppSidebar } from '@/components/app-sidebar';
+import { CommandPalette } from '@/components/command-palette';
+import { IntegrationToasts } from '@/components/integration-toasts';
+import { SiteHeader } from '@/components/site-header';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { AppStateProvider } from '@/context/AppStateContext';
+import { WebSocketProvider } from '@/context/WebSocketContext';
+import { SimulatorProvider } from '@/features/commands/simulator';
 
-const Dashboard = lazy(() =>
-  import('./components/dashboard/Dashboard').then((m) => ({ default: m.Dashboard }))
+const DashboardPage = lazy(() =>
+  import('@/features/dashboard/dashboard-page').then((m) => ({ default: m.DashboardPage }))
 );
-const CommandList = lazy(() =>
-  import('./components/commands/CommandList').then((m) => ({ default: m.CommandList }))
+const CommandsPage = lazy(() =>
+  import('@/features/commands/commands-page').then((m) => ({ default: m.CommandsPage }))
 );
-const IntegrationPanel = lazy(() =>
-  import('./components/integrations/IntegrationPanel').then((m) => ({
-    default: m.IntegrationPanel,
+const IntegrationsPage = lazy(() =>
+  import('@/features/integrations/integrations-page').then((m) => ({
+    default: m.IntegrationsPage,
   }))
 );
-const History = lazy(() =>
-  import('./components/history/History').then((m) => ({ default: m.History }))
+const HistoryPage = lazy(() =>
+  import('@/features/history/history-page').then((m) => ({ default: m.HistoryPage }))
+);
+const DataPage = lazy(() =>
+  import('@/features/data/data-page').then((m) => ({ default: m.DataPage }))
 );
 
-function RouteFallback() {
-  return <Spinner size="large" />;
+function Shell() {
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  return (
+    <SidebarProvider className="h-svh">
+      <AppSidebar />
+      <SidebarInset className="min-w-0 overflow-hidden">
+        <SiteHeader onOpenPalette={() => setPaletteOpen(true)} />
+        <main className="flex min-h-0 flex-1 flex-col overflow-auto">
+          <Suspense fallback={null}>
+            <Outlet />
+          </Suspense>
+        </main>
+      </SidebarInset>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <IntegrationToasts />
+    </SidebarProvider>
+  );
 }
 
 /**
@@ -32,18 +56,23 @@ export function App() {
     <BrowserRouter>
       <WebSocketProvider>
         <AppStateProvider>
-          <Suspense fallback={<RouteFallback />}>
-            <Routes>
-              <Route path="/" element={<AppLayout />}>
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="commands" element={<CommandList />} />
-                <Route path="integrations" element={<IntegrationPanel />} />
-                <Route path="history" element={<History />} />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Route>
-            </Routes>
-          </Suspense>
+          <TooltipProvider delayDuration={300}>
+            <SimulatorProvider>
+              <Routes>
+                <Route path="/" element={<Shell />}>
+                  <Route index element={<Navigate to="/dashboard" replace />} />
+                  <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="commands" element={<CommandsPage />} />
+                  <Route path="integrations" element={<IntegrationsPage />} />
+                  <Route path="history" element={<HistoryPage />} />
+                  <Route path="data" element={<DataPage />} />
+                  <Route path="data/:table" element={<DataPage />} />
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </Route>
+              </Routes>
+              <Toaster position="bottom-right" />
+            </SimulatorProvider>
+          </TooltipProvider>
         </AppStateProvider>
       </WebSocketProvider>
     </BrowserRouter>

@@ -1,3 +1,4 @@
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { DEFAULT_FRONTEND_DEV_PORT, DEFAULT_HOST, DEFAULT_SERVER_PORT, WS_PATH } from '@turingmod/shared';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +20,10 @@ const backendPort = process.env.SERVER_PORT ?? String(DEFAULT_SERVER_PORT);
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+  },
   server: {
     host: '127.0.0.1',
     port: DEFAULT_FRONTEND_DEV_PORT,
@@ -38,10 +42,5 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-    // React + React Router + Cloudscape's AppLayout shell (icons, theming, nav)
-    // are needed on every route and land in one chunk around 800 kB raw.
-    // Route-level code splitting (see App.tsx) already keeps page-specific
-    // code out of this chunk; there's no further split available for the shell.
-    chunkSizeWarningLimit: 1000,
   },
 });

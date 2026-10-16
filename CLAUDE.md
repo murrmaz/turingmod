@@ -35,7 +35,7 @@ Vitest is configured in all three workspaces; tests live beside their subjects a
 Use this to quickly locate files without searching. Organized by system/feature.
 
 ### Integration System
-- **UI**: `packages/frontend/src/components/integrations/IntegrationPanel.tsx` (the Integrations page: cards with Start/Stop and OAuth setup) + `dashboard/HealthMonitor.tsx` (read-only status lights on the dashboard)
+- **UI**: `packages/frontend/src/features/integrations/integrations-page.tsx` (dependency chains + detail panel with Start/Stop/Authorize) + `features/dashboard/health-rail.tsx` (the dashboard's Needs attention cards and status list); status wording in `src/lib/integrationStatus.ts`
 - **OAuth modal wiring**: `packages/frontend/src/components/integrations/IntegrationOAuthModals.tsx` — the setup → authorize handoff, looked up from the registry below
 - **Setup Modal**: `packages/frontend/src/components/integrations/SetupModal.tsx` — generic, parameterized by `OAuthProviderConfig`
 - **OAuth Modal**: `packages/frontend/src/components/integrations/OAuthModal.tsx` — generic, parameterized by `OAuthProviderConfig`
@@ -46,7 +46,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Base Class**: `packages/backend/src/integrations/BaseIntegration.ts` — shared status/error/event-emitter plumbing; all integrations extend this
 - **OAuth base class**: `packages/backend/src/integrations/OAuthIntegration.ts` — `OAuthIntegration<TConfig>` (extends `BaseIntegration`): credentials, redirect URI, token persistence, and the no-token / missing-scope checks before connecting
 - **Interfaces**: `packages/backend/src/integrations/interfaces/IIntegration.ts`, `IOAuthIntegration.ts` (extends `IIntegration` for OAuth-capable integrations)
-- **Implementations**: `packages/backend/src/integrations/implementations/*/` (Twitch, YouTube, Spotify, OBS, Sound; Discord and Arduino are placeholders whose `start()` does nothing)
+- **Implementations**: `packages/backend/src/integrations/implementations/*/` (Twitch, YouTube, Spotify, OBS, Sound; Discord and Arduino are placeholders whose `start()` does nothing, marked `placeholder` so the console shows them as planned)
 - **YouTube chat stream client**: `packages/backend/src/integrations/implementations/youtube/YouTubeChatStream.ts` + the response frame splitter `parseJsonFrames.ts` beside it
 - **WebSocket Handlers**: `packages/backend/src/server/handlers/IntegrationHandler.ts`, `OAuthHandler.ts`, `YouTubeHandler.ts`
 - **Types & Enums**: `packages/shared/src/types/integration.ts`
@@ -115,7 +115,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — maps EventBus events to activity categories (`EVENT_CATEGORIES`), broadcasts each to the console's live tail and persists all but chat
 - **Storage**: `packages/backend/src/database/repositories/ActivityLogRepository.ts` (capped at 5000 rows)
 - **Queries**: `packages/backend/src/server/handlers/ActivityHandler.ts` (`activity.query`, for the History page)
-- **Frontend**: `components/dashboard/LiveLog.tsx` + `hooks/useLiveLog.ts` (live tail), `components/history/History.tsx`
+- **Frontend**: `features/dashboard/dashboard-page.tsx` + `hooks/useLiveLog.ts` (live feed, newest first), `features/history/history-page.tsx`; how an entry reads (feed category, badge, title, detail) is `constants/activityFormat.ts` (`toFeedRow`)
 
 ### WebSocket Protocol
 - **Server**: `packages/backend/src/server/WebSocketServer.ts`
@@ -129,6 +129,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Manager**: `packages/backend/src/database/DatabaseManager.ts`
 - **Repositories**: `packages/backend/src/database/repositories/*.ts`
 - **Migrations**: `packages/backend/src/database/migrations/*.ts`, listed in `migrations/index.ts` (`ALL_MIGRATIONS`), run automatically on startup
+- **Read-only inspector**: `packages/backend/src/database/DataInspector.ts` (allow-listed tables, masked secrets) + `server/handlers/DataHandler.ts`; console side `packages/frontend/src/features/data/`
 
 ### Core Infrastructure
 - **DI**: [tsyringe](https://github.com/microsoft/tsyringe) — `@singleton()` on app-lifetime classes, `@injectable()` on commands and reward handlers; `registerRootFactories()` in `setup.ts` for the handful of classes tsyringe can't auto-construct
@@ -142,9 +143,10 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 ### Frontend State
 - **App State Context**: `packages/frontend/src/context/AppStateContext.tsx`
 - **Integration Hooks**: `packages/frontend/src/hooks/useIntegrations.ts`
-- **Integration actions**: `packages/frontend/src/hooks/useIntegrationActions.ts` (Start/Stop/OAuth decisions and status colours, shared by the Integrations page and the dashboard)
+- **Integration actions**: `packages/frontend/src/hooks/useIntegrationActions.ts` (Start/Stop/OAuth/Reconnect decisions, shared by the Integrations page and the dashboard)
 - **Command Hooks**: `packages/frontend/src/hooks/useCommands.ts`
-- **YouTube chat control**: `packages/frontend/src/hooks/useYouTubeChat.ts` + `components/dashboard/YouTubeChatControl.tsx`
+- **YouTube chat control**: `packages/frontend/src/hooks/useYouTubeChat.ts`, in the YouTube badge's menu in `components/site-header.tsx`
+- **Platform live badges**: `packages/frontend/src/hooks/usePlatformLiveState.ts`; backend `live/PlatformLiveStatus.ts` (pushes `platform.liveState`) + `server/handlers/PlatformHandler.ts`
 
 ## Architecture
 
@@ -152,7 +154,7 @@ npm workspaces monorepo with three packages:
 
 - **`packages/shared`** (`@turingmod/shared`) — WebSocket protocol types, message creators, shared enums (IntegrationStatus, PermissionLevel, MessageType). Must be built first since both other packages depend on it.
 - **`packages/backend`** (`@turingmod/backend`) — Node.js server with WebSocket + HTTP. Dev mode runs `tsc --build --watch` and `node --watch dist/index.js` concurrently (not `tsx`: esbuild's TS transform — what `tsx` uses — doesn't emit `emitDecoratorMetadata`, which tsyringe's constructor injection needs).
-- **`packages/frontend`** (`@turingmod/frontend`) — React 19 + React Router 7 + Vite 8 + Cloudscape Design System. Dev server proxies `/ws` to backend.
+- **`packages/frontend`** (`@turingmod/frontend`) — React 19 + React Router 7 + Vite 8 + shadcn/ui on Tailwind CSS v4 + TanStack Table. Dev server proxies `/ws` to backend.
 
 ### Backend Core Flow
 
@@ -383,7 +385,30 @@ there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 
-React Context for state management: `WebSocketContext` (connection + send/subscribe) and `AppStateContext` (commands, integrations). Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`. Pages (`App.tsx`): Dashboard, Commands (command table + simulator), Integrations, History.
+React Context for state management: `WebSocketContext` (connection + send/subscribe) and `AppStateContext` (commands, integrations). Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (`App.tsx`, under `src/features/<page>/`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
+
+### Console UI
+
+The console is dark-only and runs on the streamer's second monitor, so the live feed is the most
+prominent thing on the Dashboard and integration health stays quiet until something breaks.
+Components are [shadcn/ui](https://ui.shadcn.com) (new-york, zinc), vendored in
+`src/components/ui/` from the shadcn repository; edit them there like any other source. Theme
+tokens, including the category/status accents (`--cat-*`), are CSS variables in `src/index.css`;
+use the tokens, not hex values. `@/` is `src/`. Every table is `components/data-table/data-table.tsx`
+over a TanStack table instance the page owns (sorting, filters and paging stay the page's, so the
+same component serves client-side lists and server-paged queries), with optional row
+virtualization for the live feed. History and the Data page read through the backend's read-only
+data inspector (below), paged and filtered on the server.
+
+### Data Inspector
+
+The Data page reads the database through `DataInspector` (`database/DataInspector.ts`) over
+`data.listTables` / `data.queryRows`, served by `server/handlers/DataHandler.ts`. It opens its own
+`readOnly` connection, reads only the tables in its `TABLES` allow-list, checks every table and
+column name against the schema SQLite reports, and binds every value; there is no free-form SQL.
+`integration_state.config` is never selected (only its length, shown as `encrypted · N B`) and the
+encryption salt row is hidden. A new table is invisible to it until it gets a `TABLES` entry;
+anything secret in it must be listed in `masked`.
 
 ### HTTP Server
 

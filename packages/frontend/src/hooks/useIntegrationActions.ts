@@ -2,9 +2,8 @@ import type { IntegrationInfo } from '@turingmod/shared';
 import { IntegrationStatus } from '@turingmod/shared';
 import { useCallback, useState } from 'react';
 import { OAUTH_INTEGRATION_REGISTRY } from '../components/integrations/oauthIntegrationRegistry';
+import { reconnectTarget } from '../lib/reconnect';
 import { useIntegrations } from './useIntegrations';
-
-export type IntegrationBadgeColor = 'blue' | 'green' | 'red' | 'grey';
 
 /**
  * Derived per-item flags a view needs to decide which action buttons to show.
@@ -22,14 +21,13 @@ export interface IntegrationActionState {
 }
 
 /**
- * Shared state and handlers for the "start/stop/authorize an integration"
- * flow, used by both the dashboard's table view (IntegrationStatus) and the
- * integrations page's card view (IntegrationPanel). Each view is still
- * responsible for its own layout (Table vs Cards) and copy — this hook only
- * owns the parts that were previously duplicated verbatim between them.
+ * Shared state and handlers for the "start/stop/authorize an integration" flow, used by the
+ * dashboard's Needs attention cards and the Integrations page. Each view renders
+ * `IntegrationOAuthModals` with the state this returns.
  */
 export function useIntegrationActions() {
   const {
+    integrations,
     startIntegration,
     stopIntegration,
     refreshIntegrations,
@@ -120,23 +118,19 @@ export function useIntegrationActions() {
     [loadingIntegration, areDependenciesMet, getMissingDependencies]
   );
 
-  const getStatusColor = useCallback((status: IntegrationStatus): IntegrationBadgeColor => {
-    switch (status) {
-      case IntegrationStatus.CONNECTED:
-        return 'green';
-      case IntegrationStatus.CONNECTING:
-        return 'blue';
-      case IntegrationStatus.ERROR:
-      case IntegrationStatus.NEEDS_REAUTH:
-        return 'red';
-      // Not a failure of this integration — a prerequisite is off — so it
-      // reads as inactive rather than broken.
-      case IntegrationStatus.BLOCKED:
-        return 'grey';
-      default:
-        return 'grey';
-    }
-  }, []);
+  // Fix a broken integration the one way that can: authorize again where OAuth is involved
+  // (on its auth integration, for an API integration that lost its grant), otherwise start it.
+  const handleReconnect = useCallback(
+    (integration: IntegrationInfo) => {
+      const target = reconnectTarget(integration, integrations);
+      if (target.oauth) {
+        handleAuthorize(target);
+      } else {
+        void handleStart(target.name);
+      }
+    },
+    [integrations, handleAuthorize, handleStart]
+  );
 
   return {
     activeOAuthIntegration,
@@ -150,6 +144,6 @@ export function useIntegrationActions() {
     closeSetupModal,
     handleSetupSuccess,
     getActionState,
-    getStatusColor,
+    handleReconnect,
   };
 }

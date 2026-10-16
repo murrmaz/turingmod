@@ -19,7 +19,7 @@ breaks, music, and more, all wired into one local control panel.
 ## Tech Stack
 
 - **Backend**: Node.js + TypeScript + WebSocket
-- **Frontend**: React + Cloudscape Design System + Vite
+- **Frontend**: React + shadcn/ui (Tailwind CSS) + TanStack Table + Vite
 - **Database**: SQLite via Node's built-in `node:sqlite` (no native compilation)
 - **Architecture**: SOLID principles with dependency injection
 
@@ -156,7 +156,7 @@ and the setup dialog walks through registering an application and shows the redi
 
 ### Frontend
 - **Context API + hooks**: WebSocket connection and app state
-- **Cloudscape Design System** components
+- **shadcn/ui** components on Tailwind CSS v4, dark-only, with TanStack Table for every table
 
 ### Communication
 - **WebSocket only**: no REST API; the HTTP server serves the console and OAuth callbacks

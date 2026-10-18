@@ -10,6 +10,7 @@ import {
 import { YouTubeChatIntegration } from '../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { unavailableReason } from './availability.js';
 import type {
+  ChannelPage,
   DeclaredCapability,
   IStreamPlatform,
   StreamInfo,
@@ -113,6 +114,27 @@ export class YouTubePlatform implements IStreamPlatform {
       return null;
     }
     return Date.now() - new Date(broadcast.actualStartTime).getTime();
+  }
+
+  async getChannelPage(): Promise<ChannelPage> {
+    const response = await this.api.request((youtube) =>
+      youtube.channels.list({ part: ['snippet'], mine: true })
+    );
+    const channel = response.data.items?.[0];
+    if (!channel?.id) {
+      throw new Error('Failed to retrieve the YouTube channel');
+    }
+    const displayName = channel.snippet?.title ?? 'YouTube';
+
+    const broadcast = await this.liveBroadcast();
+    if (!broadcast) {
+      return { displayName, url: `https://www.youtube.com/channel/${channel.id}` };
+    }
+    return {
+      displayName,
+      url: `https://www.youtube.com/watch?v=${broadcast.id}`,
+      previewImageUrl: `https://i.ytimg.com/vi/${broadcast.id}/hqdefault_live.jpg`,
+    };
   }
 
   /**

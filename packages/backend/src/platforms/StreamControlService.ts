@@ -1,11 +1,13 @@
 import type { StreamingPlatform } from '@turingmod/shared';
 import { messageOf, PlatformCapability } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
+import { EventBus } from '../core/EventBus.js';
 import { Logger } from '../utils/Logger.js';
 import { CAPABILITY_OF_API, capabilitiesOf } from './capabilities.js';
 import type {
   CapabilityApiName,
   CapabilityApis,
+  ChannelPage,
   IStreamPlatform,
   StreamInfo,
 } from './interfaces/IStreamPlatform.js';
@@ -35,6 +37,7 @@ export class StreamControlService {
 
   constructor(
     private registry: PlatformRegistry,
+    private eventBus: EventBus,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'StreamControlService' });
@@ -102,6 +105,30 @@ export class StreamControlService {
     return this.target(platform).getUptime();
   }
 
+  /** Every registered platform, in registry order. */
+  platforms(): StreamingPlatform[] {
+    return this.registry.getAll().map((facade) => facade.platform);
+  }
+
+  /**
+   * Why a platform can't be acted on (not connected, authorization lost), or null if it can. A
+   * platform that isn't registered can't be, and says so.
+   */
+  getUnavailableReason(platform: StreamingPlatform): string | null {
+    const target = this.registry.get(platform);
+    return target ? target.getUnavailableReason() : `Platform not available: ${platform}`;
+  }
+
+  /** Whether a platform is connected and broadcasting. */
+  isLive(platform: StreamingPlatform): Promise<boolean> {
+    return this.target(platform).isLive();
+  }
+
+  /** A platform's channel name and where to watch it. */
+  getChannelPage(platform: StreamingPlatform): Promise<ChannelPage> {
+    return this.target(platform).getChannelPage();
+  }
+
   /**
    * A platform's capability object, e.g. `require(TWITCH, 'channelPoints')`. Throws if the
    * platform isn't registered or doesn't have that capability. Commands are capability-filtered
@@ -131,11 +158,18 @@ export class StreamControlService {
   }
 
   /** Fan a metadata write out to every live platform that supports `capability`. */
-  private mirror(capability: PlatformCapability, info: Partial<StreamInfo>): Promise<MirrorResult> {
-    return this.forEachLivePlatform(capability, async (platform) => {
+  private async mirror(
+    capability: PlatformCapability,
+    info: Partial<StreamInfo>
+  ): Promise<MirrorResult> {
+    const result = await this.forEachLivePlatform(capability, async (platform) => {
       await platform.setStreamInfo(info);
       return true;
     });
+    if (result.updated.length > 0) {
+      void this.eventBus.emit('stream.info.changed', { platforms: result.updated });
+    }
+    return result;
   }
 
   /**

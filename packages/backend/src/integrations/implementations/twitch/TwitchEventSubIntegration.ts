@@ -27,6 +27,7 @@ export const EventSubTopicSchema = z.enum([
   'channelCheer',
   'streamOnline',
   'streamOffline',
+  'channelUpdate',
   'adBreakBegin',
   'channelPointRedemption',
 ]);
@@ -36,7 +37,9 @@ export type EventSubTopic = z.infer<typeof EventSubTopicSchema>;
 /**
  * Which topics are on when the saved config doesn't say. A topic is on when something uses it
  * or nearly every streamer wants it: chat, raids (raid shoutouts), ad breaks (stream breaks),
- * redemptions (reward handlers), stream.online (ad warnings re-read the schedule), and follows
+ * redemptions (reward handlers), stream.online and stream.offline (live state, the Discord go-live
+ * post, and ad warnings re-reading the schedule), channel.update (a title or category change made
+ * anywhere, for the Discord go-live post), and follows
  * and subs, which every streamer wants to see and thank. Cheers stay off because they also need
  * `bits:read`, which TWITCH_REQUIRED_SCOPES doesn't request.
  */
@@ -47,7 +50,8 @@ export const DEFAULT_EVENTSUB_TOPICS: Readonly<Record<EventSubTopic, boolean>> =
   channelRaid: true,
   channelCheer: false,
   streamOnline: true,
-  streamOffline: false,
+  streamOffline: true,
+  channelUpdate: true,
   adBreakBegin: true,
   channelPointRedemption: true,
 };
@@ -296,6 +300,14 @@ export class TwitchEventSubIntegration extends BaseIntegration {
         });
       });
       this.logger.info('Subscribed to stream.offline');
+    }
+
+    // Channel Update: a title or category change, from TuringMod or anywhere else (the dashboard).
+    if (subscriptions.channelUpdate) {
+      await this.eventSubListener.onChannelUpdate(broadcasterId, () => {
+        this.eventBus.emit('stream.info.changed', { platforms: [StreamingPlatform.TWITCH] });
+      });
+      this.logger.info('Subscribed to channel.update');
     }
 
     // Ad Break Begin

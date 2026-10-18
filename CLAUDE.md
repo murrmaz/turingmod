@@ -40,13 +40,14 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Setup Modal**: `packages/frontend/src/components/integrations/SetupModal.tsx` — generic, parameterized by `OAuthProviderConfig`
 - **OAuth Modal**: `packages/frontend/src/components/integrations/OAuthModal.tsx` — generic, parameterized by `OAuthProviderConfig`
 - **OAuth Provider Configs**: `packages/frontend/src/components/integrations/oauthProviders.tsx` (per-provider content) + `oauthIntegrationRegistry.tsx` (name → modal/config lookup)
+- **Non-OAuth setup dialogs**: `packages/frontend/src/components/integrations/configIntegrationRegistry.tsx` (name → dialog, shown as Set up on the Integrations page), e.g. `DiscordSetupModal.tsx`
 - **Backend Manager**: `packages/backend/src/integrations/IntegrationManager.ts`
 - **OAuth flow**: `packages/backend/src/integrations/OAuthFlowService.ts` — authorization URL, single-use `state`, callback routes, code exchange. Client credentials come only from the console's setup dialog (stored encrypted), never from `.env`; `IntegrationInfo.oauth.configured` tells the console whether to open setup or authorization
 - **Dependency graph**: `packages/backend/src/integrations/DependencyGraph.ts` — pure sort/levels/dependents/validate queries over the registered integrations
 - **Base Class**: `packages/backend/src/integrations/BaseIntegration.ts` — shared status/error/event-emitter plumbing; all integrations extend this
 - **OAuth base class**: `packages/backend/src/integrations/OAuthIntegration.ts` — `OAuthIntegration<TConfig>` (extends `BaseIntegration`): credentials, redirect URI, token persistence, and the no-token / missing-scope checks before connecting
 - **Interfaces**: `packages/backend/src/integrations/interfaces/IIntegration.ts`, `IOAuthIntegration.ts` (extends `IIntegration` for OAuth-capable integrations)
-- **Implementations**: `packages/backend/src/integrations/implementations/*/` (Twitch, YouTube, Spotify, OBS, Sound; Discord and Arduino are placeholders whose `start()` does nothing, marked `placeholder` so the console shows them as planned)
+- **Implementations**: `packages/backend/src/integrations/implementations/*/` (Twitch, YouTube, Spotify, OBS, Sound, Discord; Arduino is a placeholder whose `start()` does nothing, marked `placeholder` so the console shows it as planned)
 - **YouTube chat stream client**: `packages/backend/src/integrations/implementations/youtube/YouTubeChatStream.ts` + the response frame splitter `parseJsonFrames.ts` beside it
 - **WebSocket Handlers**: `packages/backend/src/server/handlers/IntegrationHandler.ts`, `OAuthHandler.ts`, `YouTubeHandler.ts`, `PlatformHandler.ts` (live state)
 - **Types & Enums**: `packages/shared/src/types/integration.ts`
@@ -101,7 +102,8 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 ### Going Live
 - **OBS stream state**: `packages/backend/src/live/ObsStreamState.ts` — whether OBS is streaming; publishes `stream.output.changed`, platform-neutral
 - **YouTube chat auto-connect**: `packages/backend/src/live/YouTubeChatAutoConnect.ts` — connects YouTube chat while OBS streams
-- **Platform live state**: `packages/backend/src/live/PlatformLiveStatus.ts` — whether each platform is live and since when, pushed to the console as `platform.liveState`; event-driven, never polled
+- **Platform live state**: `packages/backend/src/live/PlatformLiveStatus.ts` — whether each platform is live and since when, pushed to the console as `platform.liveState` and published on the bus as `platform.liveState` on going live/offline; event-driven, never polled
+- **Discord go-live post**: `packages/backend/src/live/GoLiveAnnouncer.ts` (when to post, edit and end) + `goLivePost.ts` (what it says, and the stored shape); the open post is kept by `database/repositories/GoLivePostRepository.ts`; sent through `integrations/implementations/discord/DiscordIntegration.ts` (bot token over REST)
 
 ### Stream Breaks
 - **Lifecycle**: `packages/backend/src/breaks/BreakService.ts` — starts/extends/ends breaks; listens for `twitch.ad.break`; emits `stream.break.started`/`.ended`
@@ -193,7 +195,7 @@ All integrations extend `BaseIntegration` (OAuth providers extend `OAuthIntegrat
 `IntegrationManager`, which starts them in dependency order, cascades a dependency's failure to its
 dependents and brings them back when it recovers. **Twitch** and **YouTube** are each split into auth
 → API → real-time (`TwitchEventSubIntegration`, `YouTubeChatIntegration`), Spotify into auth → API;
-OBS and Sound are single integrations, and Discord and Arduino are placeholders. The status an
+OBS, Sound and Discord are single integrations, and Arduino is a placeholder. The status an
 integration sets is what the console shows (`integration.status` → `INTEGRATION_STATUS`).
 
 How all of this works (stored configs and their schemas, `enabled`, dependency cascades and
@@ -209,7 +211,7 @@ All messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/me
 
 ### Database
 
-`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `IntegrationStateRepository`, `SettingsRepository`, `ActivityLogRepository` (the record of everything that happened, commands included), plus repositories for data owned by single features — `BannedWordRepository`, `CounterRepository`, `IntervalMessageRepository`, `ObsBreakRestoreRepository`, `SuggestionRepository`. Repositories are synchronous, because `node:sqlite` is: they return values, not promises. `DatabaseManager.transaction()` takes a synchronous callback and rejects an async one, since an `await` inside it would let other writes on the one shared connection join the transaction. A new migration goes in `migrations/` and must be added to `ALL_MIGRATIONS`. Tests get a migrated temp database from `repositories/testDatabase.ts`. Integration configs are encrypted with AES-256-GCM before storage, keyed from `MASTER_PASSWORD` (required: `TuringModConfig` throws a `ConfigurationError` without it, which `index.ts` prints without a stack trace) and a per-install salt kept in the `settings` table; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there. Each settings group is a `SettingsDefinition` (its key plus a strict Zod schema whose defaults apply when nothing is stored, e.g. `BREAK_SETTINGS`), read and written through `SettingsRepository.get()`/`set()`, which throw on a value that doesn't fit. A new group is added to `ALL_SETTINGS` in `setup.ts`, which reads every group at startup so bad settings stop TuringMod there with the fields named. The console has no settings UI yet: outside tests nothing calls `set()`, so stored settings are only ever the defaults or what was written to the database directly.
+`node:sqlite` (`DatabaseSync`, file-backed, WAL mode) — chosen over `better-sqlite3` to avoid reintroducing a native-compilation dependency. Every write commits durably as it happens; there is no in-memory buffering or periodic flush to lose writes or corrupt the file on crash. Access via repository pattern: `IntegrationStateRepository`, `SettingsRepository`, `ActivityLogRepository` (the record of everything that happened, commands included), plus repositories for data owned by single features — `BannedWordRepository`, `CounterRepository`, `IntervalMessageRepository`, `ObsBreakRestoreRepository`, `GoLivePostRepository`, `SuggestionRepository`. Repositories are synchronous, because `node:sqlite` is: they return values, not promises. `DatabaseManager.transaction()` takes a synchronous callback and rejects an async one, since an `await` inside it would let other writes on the one shared connection join the transaction. A new migration goes in `migrations/` and must be added to `ALL_MIGRATIONS`. Tests get a migrated temp database from `repositories/testDatabase.ts`. Integration configs are encrypted with AES-256-GCM before storage, keyed from `MASTER_PASSWORD` (required: `TuringModConfig` throws a `ConfigurationError` without it, which `index.ts` prints without a stack trace) and a per-install salt kept in the `settings` table; app-level settings in the `settings` table (`SettingsRepository`) are plain JSON, so nothing secret belongs there. Each settings group is a `SettingsDefinition` (its key plus a strict Zod schema whose defaults apply when nothing is stored, e.g. `BREAK_SETTINGS`), read and written through `SettingsRepository.get()`/`set()`, which throw on a value that doesn't fit. A new group is added to `ALL_SETTINGS` in `setup.ts`, which reads every group at startup so bad settings stop TuringMod there with the fields named. The console has no settings UI yet: outside tests nothing calls `set()`, so stored settings are only ever the defaults or what was written to the database directly.
 
 ### Platform Provider Layer
 
@@ -253,6 +255,21 @@ starting mid-stream) produces no event. Each platform that needs it reacts in it
 while OBS is already streaming (after a restart, or a login recovering mid-stream). OBS streaming
 doesn't mean every platform is live, so a platform treats the signal as a reason to look for its
 broadcast, bounded in time, not as proof of one.
+
+**The Discord go-live post** (`GoLiveAnnouncer`) follows `platform.liveState`, not OBS: one post
+pinging `@everyone` when the first platform goes live, edited as other platforms join and leave
+and on `stream.info.changed` (a mirrored title/game write, or any change on Twitch via EventSub
+`channel.update`), and rewritten as "was live for …" only on evidence that the stream is over:
+every platform it covered offline for a 10-minute grace period, and each of them connected and
+answering `isLive()` false. A disconnected platform (TuringMod just started, a lapsed login) is
+unknown, not offline, so a crashed or restarted stream, or an auth outage, carries on in the same
+post without a second ping. Going live continues the post only if the broadcast started within
+the grace period of the post's last heartbeat; a later start ends the old post and announces anew.
+The open post is stored (`GoLivePostRepository`) with a once-a-minute "still live" time. Only the
+first post pings: `DiscordIntegration` allows `@everyone` and no other mention, and never on an
+edit. A post someone deletes stays deleted for the rest of the stream. Twitch's `stream.offline`
+and `channel.update` topics are on by default for this; YouTube Studio title changes reach the
+post only on its next edit.
 
 ### Stream Breaks
 

@@ -13,7 +13,8 @@ import { Logger } from '../utils/Logger.js';
 
 /**
  * Whether each platform is broadcasting and since when, for the console's header badges. Pushed
- * to the console on every change, and read by it on connect.
+ * to the console on every change, and read by it on connect; going live or offline is also
+ * published as `platform.liveState`.
  *
  * Event-driven, never polled: a platform is asked when it becomes usable, and again whenever it
  * signals a change (Twitch's stream.online/offline, YouTube chat finding or losing a broadcast).
@@ -119,6 +120,9 @@ export class PlatformLiveStatus implements IService {
     }
     this.states.set(state.platform, state);
     this.webSocketServer.broadcast(createPlatformLiveStateMessage(this.getStates()));
+    if (current?.live !== state.live) {
+      void this.eventBus.emit('platform.liveState', state);
+    }
   }
 }
 

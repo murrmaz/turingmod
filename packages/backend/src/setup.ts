@@ -36,6 +36,7 @@ import { YouTubeApiIntegration } from './integrations/implementations/youtube/Yo
 import { YouTubeAuthIntegration } from './integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import { YouTubeChatIntegration } from './integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { OAuthFlowService } from './integrations/OAuthFlowService.js';
+import { GoLiveAnnouncer } from './live/GoLiveAnnouncer.js';
 import { ObsStreamState } from './live/ObsStreamState.js';
 import { PlatformLiveStatus } from './live/PlatformLiveStatus.js';
 import { YouTubeChatAutoConnect } from './live/YouTubeChatAutoConnect.js';
@@ -232,6 +233,8 @@ export async function initializeComponents(): Promise<void> {
   services.add(container.resolve(YouTubeChatAutoConnect));
   // Whether each platform is live, for the console's header.
   services.add(container.resolve(PlatformLiveStatus));
+  // The Discord go-live post, driven by PlatformLiveStatus.
+  services.add(container.resolve(GoLiveAnnouncer));
   // The Data page's read-only connection, which stopping closes before the database is.
   services.add(container.resolve(DataInspector));
   // Triggers: raids, channel point redemptions, and chat (gated to drop TuringMod's own messages,

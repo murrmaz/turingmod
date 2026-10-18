@@ -1,7 +1,8 @@
 import { type IntegrationInfo, IntegrationStatus } from '@turingmod/shared';
-import { CircleAlert, Copy, KeyRound, Play, Square, X } from 'lucide-react';
-import { Fragment, type ReactNode } from 'react';
+import { CircleAlert, Copy, KeyRound, Play, Settings, Square, X } from 'lucide-react';
+import { Fragment, type ReactNode, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { CONFIG_SETUP_REGISTRY } from '@/components/integrations/configIntegrationRegistry';
 import { IntegrationOAuthModals } from '@/components/integrations/IntegrationOAuthModals';
 import { StatusDot, TONE_TEXT } from '@/components/status';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -172,6 +173,8 @@ function IntegrationDetail({
 
   // Stop applies to anything running or waiting to run; OAuth integrations start by authorizing.
   const canStop = state.isConnected || state.isEnabled;
+  const SetupModal = CONFIG_SETUP_REGISTRY[integration.name];
+  const [setupOpen, setSetupOpen] = useState(false);
 
   return (
     <aside className="flex w-[380px] shrink-0 flex-col gap-5 overflow-y-auto border-l p-6">
@@ -244,7 +247,26 @@ function IntegrationDetail({
               Stop
             </Button>
           )}
+          {SetupModal && (
+            <Button variant="outline" onClick={() => setSetupOpen(true)}>
+              <Settings />
+              Set up
+            </Button>
+          )}
         </div>
+      )}
+
+      {SetupModal && (
+        <SetupModal
+          visible={setupOpen}
+          onDismiss={() => setSetupOpen(false)}
+          // A running integration restarts on its new config; one that isn't is started on it.
+          onSuccess={() => {
+            if (!integration.enabled) {
+              void actions.handleStart(integration.name);
+            }
+          }}
+        />
       )}
 
       {state.hasUnmetDependencies && !integration.placeholder && (

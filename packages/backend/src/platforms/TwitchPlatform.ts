@@ -16,6 +16,7 @@ import type {
   AdsApi,
   AnnouncementsApi,
   BroadcasterAboutApi,
+  ChannelPage,
   ChannelPointsApi,
   ChannelReward,
   ChannelRewardChanges,
@@ -149,6 +150,21 @@ export class TwitchPlatform implements IStreamPlatform {
       return null;
     }
     return Date.now() - stream.startDate.getTime();
+  }
+
+  async getChannelPage(): Promise<ChannelPage> {
+    const userId = this.requireUserId();
+    const user = await this.api.request((c) => c.users.getUserById(userId));
+    if (!user) {
+      throw new Error('Failed to retrieve the broadcaster');
+    }
+    return {
+      displayName: user.displayName,
+      url: `https://www.twitch.tv/${user.name}`,
+      // Served for the channel rather than a stream, so it needs no lookup and exists as soon as
+      // Twitch has a frame; until then it's Twitch's offline placeholder.
+      previewImageUrl: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${user.name}-1280x720.jpg`,
+    };
   }
 
   readonly ads: AdsApi = {

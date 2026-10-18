@@ -1,8 +1,10 @@
 import 'reflect-metadata';
 import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Logger } from '../utils/Logger.js';
+import { EventBus } from '../core/EventBus.js';
+import { Logger } from '../utils/Logger.js';
 import type {
+  ChannelPage,
   DeclaredCapability,
   IStreamPlatform,
   StreamInfo,
@@ -37,6 +39,9 @@ class FakePlatform implements IStreamPlatform {
   getUptime(): Promise<number | null> {
     return Promise.resolve(null);
   }
+  getChannelPage(): Promise<ChannelPage> {
+    return Promise.resolve({ displayName: 'x', url: 'https://example.com/x' });
+  }
 }
 
 const makeLogger = () => {
@@ -51,6 +56,9 @@ const makeLogger = () => {
   return logger as unknown as Logger & typeof logger;
 };
 
+const makeService = (registry: PlatformRegistry, logger: Logger = makeLogger()) =>
+  new StreamControlService(registry, new EventBus(new Logger({ level: 'silent' })), logger);
+
 describe('StreamControlService mirroring', () => {
   let logger: ReturnType<typeof makeLogger>;
   let registry: PlatformRegistry;
@@ -63,7 +71,7 @@ describe('StreamControlService mirroring', () => {
   it('logs a warning and skips a platform whose auth is broken, without reporting a failure', async () => {
     const twitch = new FakePlatform(StreamingPlatform.TWITCH, 'Token refresh failed', true);
     registry.register(twitch);
-    const service = new StreamControlService(registry, logger);
+    const service = makeService(registry, logger);
 
     const result = await service.setTitle('New title');
 
@@ -75,7 +83,7 @@ describe('StreamControlService mirroring', () => {
 
   it('logs an offline skip at debug, not as a warning', async () => {
     registry.register(new FakePlatform(StreamingPlatform.TWITCH, null, false));
-    const service = new StreamControlService(registry, logger);
+    const service = makeService(registry, logger);
 
     await service.setTitle('New title');
 
@@ -88,7 +96,7 @@ describe('StreamControlService mirroring', () => {
     const youtube = new FakePlatform(StreamingPlatform.YOUTUBE, null, true);
     registry.register(twitch);
     registry.register(youtube);
-    const service = new StreamControlService(registry, logger);
+    const service = makeService(registry, logger);
 
     const result = await service.setTitle('New title');
 
@@ -97,9 +105,24 @@ describe('StreamControlService mirroring', () => {
     expect(twitch.setStreamInfo).not.toHaveBeenCalled();
   });
 
+  it('publishes which platforms a change was applied to, and nothing when none took it', async () => {
+    registry.register(new FakePlatform(StreamingPlatform.TWITCH, null, true));
+    registry.register(new FakePlatform(StreamingPlatform.YOUTUBE, null, false));
+    const eventBus = new EventBus(new Logger({ level: 'silent' }));
+    const changed = vi.fn();
+    eventBus.on('stream.info.changed', changed);
+    const service = new StreamControlService(registry, eventBus, logger);
+
+    await service.setTitle('New title');
+    await service.setGame('Celeste');
+
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(changed).toHaveBeenCalledWith({ platforms: [StreamingPlatform.TWITCH] });
+  });
+
   it('refuses a capability the platform does not have', () => {
     registry.register(new FakePlatform(StreamingPlatform.TWITCH, null, true));
-    const service = new StreamControlService(registry, logger);
+    const service = makeService(registry, logger);
 
     expect(() => service.require(StreamingPlatform.TWITCH, 'schedule')).toThrow(
       'Twitch does not support schedule'
@@ -110,7 +133,7 @@ describe('StreamControlService mirroring', () => {
     const twitch = new FakePlatform(StreamingPlatform.TWITCH, null, true);
     const schedule = { getSchedule: () => Promise.resolve([]) };
     registry.register(Object.assign(twitch, { schedule }));
-    const service = new StreamControlService(registry, logger);
+    const service = makeService(registry, logger);
 
     expect(service.require(StreamingPlatform.TWITCH, 'schedule')).toBe(schedule);
     expect(service.supports(StreamingPlatform.TWITCH, PlatformCapability.SCHEDULE)).toBe(true);
@@ -131,7 +154,7 @@ describe('StreamControlService.announce', () => {
     const youtube = new FakePlatform(StreamingPlatform.YOUTUBE, null, false);
     registry.register(twitch);
     registry.register(youtube);
-    const service = new StreamControlService(registry, logger);
+    const service = makeService(registry, logger);
 
     const result = await service.announce((platform) => `hello ${platform}`);
 
@@ -143,7 +166,7 @@ describe('StreamControlService.announce', () => {
   it('skips a platform whose message is null without counting it', async () => {
     const twitch = new FakePlatform(StreamingPlatform.TWITCH, null, true);
     registry.register(twitch);
-    const service = new StreamControlService(registry, logger);
+    const service = makeService(registry, logger);
 
     const result = await service.announce(() => null);
 
@@ -157,7 +180,7 @@ describe('StreamControlService.announce', () => {
     twitch.sendChatMessage.mockRejectedValueOnce(new Error('rate limited'));
     registry.register(twitch);
     registry.register(youtube);
-    const service = new StreamControlService(registry, logger);
+    const service = makeService(registry, logger);
 
     const result = await service.announce(() => 'hi');
 
@@ -219,7 +242,7 @@ describe('StreamControlService announcements', () => {
     const youtube = new FakePlatform(StreamingPlatform.YOUTUBE, null, true);
     registry.register(twitch);
     registry.register(youtube);
-    const service = new StreamControlService(registry, makeLogger());
+    const service = makeService(registry);
 
     await service.announce(() => 'Follow me', { highlight: true });
 
@@ -233,7 +256,7 @@ describe('StreamControlService announcements', () => {
     const twitch = new AnnouncingPlatform(StreamingPlatform.TWITCH, null, true);
     registry.register(twitch);
 
-    await new StreamControlService(registry, makeLogger()).announce(() => 'Hello');
+    await makeService(registry).announce(() => 'Hello');
 
     expect(twitch.sendChatMessage).toHaveBeenCalledWith('Hello');
     expect(twitch.announcements.sendAnnouncement).not.toHaveBeenCalled();

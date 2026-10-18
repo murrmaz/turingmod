@@ -2,6 +2,7 @@ import type {
   CommandErrorCode,
   ExecutorErrorCode,
   IntegrationStatus,
+  PlatformLiveState,
   StreamingPlatform,
   YouTubeChatState,
 } from '@turingmod/shared';
@@ -33,11 +34,18 @@ export interface EventMap {
 
   /** A platform became usable or stopped being usable (see PlatformAvailability). */
   'platform.availability': PlatformAvailabilityEvent;
+  /** A platform started or stopped broadcasting (see PlatformLiveStatus). */
+  'platform.liveState': PlatformLiveState;
 
   'stream.break.started': StreamBreakEvent;
   'stream.break.ended': StreamBreakEvent;
   /** The streaming software started or stopped sending the stream out (see ObsStreamState). */
   'stream.output.changed': StreamOutputEvent;
+  /**
+   * A platform's title, game or tags changed: a mirrored write (StreamControlService) or, for
+   * Twitch, any change at all (EventSub channel.update). It may be published twice for one change.
+   */
+  'stream.info.changed': StreamInfoChangedEvent;
 
   'twitch.follow': TwitchFollowEvent;
   'twitch.subscribe': TwitchSubscribeEvent;
@@ -189,6 +197,10 @@ export interface RewardRedemption {
 export interface TwitchAuthorizationRevokedEvent {
   /** The EventSub revocation status, or `api-call-unauthorized` for a 401 from Helix. */
   reason: string;
+}
+
+export interface StreamInfoChangedEvent {
+  platforms: StreamingPlatform[];
 }
 
 export interface StreamOutputEvent {

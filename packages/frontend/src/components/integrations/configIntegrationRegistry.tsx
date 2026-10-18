@@ -1,0 +1,11 @@
+import type { ComponentType } from 'react';
+import { type ConfigSetupModalProps, DiscordSetupModal } from './DiscordSetupModal';
+
+/**
+ * Maps a non-OAuth integration whose config the console can enter to its setup dialog, so the
+ * Integrations page offers Set up without branching on integration names. OAuth providers' setup
+ * is in OAUTH_INTEGRATION_REGISTRY instead.
+ */
+export const CONFIG_SETUP_REGISTRY: Record<string, ComponentType<ConfigSetupModalProps>> = {
+  discord: DiscordSetupModal,
+};

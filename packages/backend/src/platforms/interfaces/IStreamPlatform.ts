@@ -9,6 +9,16 @@ export interface StreamInfo {
   tags?: string[];
 }
 
+/** Where viewers find the broadcaster on a platform. */
+export interface ChannelPage {
+  /** The channel's name as viewers see it. */
+  displayName: string;
+  /** Where to watch: the live broadcast while there is one, otherwise the channel. */
+  url: string;
+  /** A preview image of the live broadcast, where the platform has one. */
+  previewImageUrl?: string;
+}
+
 /**
  * Ad-break state for a live broadcast. A null `nextAdDate` means the platform is live but has
  * no ad scheduled (or won't say), which is distinct from the stream being offline entirely —
@@ -280,4 +290,7 @@ export interface IStreamPlatform extends Partial<Readonly<CapabilityApis>> {
 
   /** Milliseconds the current broadcast has been live, or null if offline. */
   getUptime(): Promise<number | null>;
+
+  /** The broadcaster's channel and where to watch it. Throws if not connected. */
+  getChannelPage(): Promise<ChannelPage>;
 }

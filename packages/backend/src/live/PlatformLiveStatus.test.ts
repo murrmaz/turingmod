@@ -159,6 +159,28 @@ describe('PlatformLiveStatus', () => {
     expect(twitchState()?.live).toBe(false);
   });
 
+  it('publishes going live and going offline, but not a changed start time', async () => {
+    const published = vi.fn();
+    eventBus.on('platform.liveState', published);
+    const online = (startedAt: Date) =>
+      eventBus.emit('twitch.stream.online', {
+        broadcasterId: '1',
+        broadcasterName: 'b',
+        broadcasterDisplayName: 'B',
+        startedAt,
+      });
+
+    await online(new Date(Date.now() - 60_000));
+    await online(new Date());
+    await eventBus.emit('twitch.stream.offline', {
+      broadcasterId: '1',
+      broadcasterName: 'b',
+      broadcasterDisplayName: 'B',
+    });
+
+    expect(published.mock.calls.map(([state]) => state.live)).toEqual([true, false]);
+  });
+
   it('pushes only changes', async () => {
     await service.refresh(StreamingPlatform.TWITCH);
     await service.refresh(StreamingPlatform.TWITCH);

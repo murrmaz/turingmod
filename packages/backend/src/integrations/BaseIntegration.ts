@@ -71,6 +71,11 @@ export abstract class BaseIntegration implements IIntegration {
     return [];
   }
 
+  /** No address the console sets; an integration that has one overrides this. */
+  getAddress(): string | null {
+    return null;
+  }
+
   /** Implemented; a placeholder overrides this. */
   readonly placeholder: boolean = false;
 

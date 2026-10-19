@@ -8,6 +8,7 @@ import type {
 } from '@turingmod/shared';
 import type { OBSEventTypes } from 'obs-websocket-js';
 import type { ChatMessageEvent } from '../chat/chatMessage.js';
+import type { DeviceMessage } from '../integrations/implementations/arduino/arduinoProtocol.js';
 
 /**
  * Every EventBus event, by name, with the payload it carries. `EventBus` is typed against this
@@ -64,6 +65,9 @@ export interface EventMap {
   'obs.stream.stateChanged': OBSEventTypes['StreamStateChanged'];
   'obs.record.stateChanged': OBSEventTypes['RecordStateChanged'];
   'obs.sceneItem.stateChanged': OBSEventTypes['SceneItemEnableStateChanged'];
+
+  /** Anything a connected Arduino sent after its `hello` (see ArduinoIntegration). */
+  'arduino.message': DeviceMessage;
 }
 
 export type EventName = keyof EventMap;

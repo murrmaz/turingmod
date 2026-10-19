@@ -112,6 +112,27 @@ describe('formatUptime', () => {
   });
 });
 
+describe('toFeedRow for a device message', () => {
+  it("shows a message's text", () => {
+    expect(
+      toFeedRow(entry('arduino.message', { type: 'log', text: 'servo 2 homed' }))
+    ).toMatchObject({
+      category: 'system',
+      label: 'Arduino',
+      title: 'log',
+      detail: 'servo 2 homed',
+    });
+  });
+
+  it("shows the fields of a type the console doesn't know", () => {
+    const row = toFeedRow(
+      entry('arduino.message', { type: 'rejected', id: 7, reason: 'busy', at: [0, 10] })
+    );
+
+    expect(row).toMatchObject({ title: 'rejected', detail: 'id 7 · reason busy · at [0,10]' });
+  });
+});
+
 describe('FEED_CATEGORY_EVENTS', () => {
   it('lists each event under the category toFeedRow gives it', () => {
     for (const [category, events] of Object.entries(FEED_CATEGORY_EVENTS)) {

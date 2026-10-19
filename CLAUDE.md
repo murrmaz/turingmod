@@ -47,7 +47,8 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Base Class**: `packages/backend/src/integrations/BaseIntegration.ts` — shared status/error/event-emitter plumbing; all integrations extend this
 - **OAuth base class**: `packages/backend/src/integrations/OAuthIntegration.ts` — `OAuthIntegration<TConfig>` (extends `BaseIntegration`): credentials, redirect URI, token persistence, and the no-token / missing-scope checks before connecting
 - **Interfaces**: `packages/backend/src/integrations/interfaces/IIntegration.ts`, `IOAuthIntegration.ts` (extends `IIntegration` for OAuth-capable integrations)
-- **Implementations**: `packages/backend/src/integrations/implementations/*/` (Twitch, YouTube, Spotify, OBS, Sound, Discord; Arduino is a placeholder whose `start()` does nothing, marked `placeholder` so the console shows it as planned)
+- **Implementations**: `packages/backend/src/integrations/implementations/*/` (Twitch, YouTube, Spotify, OBS, Sound, Discord, Arduino)
+- **Arduino**: `packages/backend/src/integrations/implementations/arduino/ArduinoIntegration.ts` (WebSocket client to a Wi-Fi board) + `arduinoProtocol.ts` (message schemas); the protocol spec and a reference ESP32 sketch for the firmware side are in `firmware/` (`firmware/README.md`)
 - **YouTube chat stream client**: `packages/backend/src/integrations/implementations/youtube/YouTubeChatStream.ts` + the response frame splitter `parseJsonFrames.ts` beside it
 - **WebSocket Handlers**: `packages/backend/src/server/handlers/IntegrationHandler.ts`, `OAuthHandler.ts`, `YouTubeHandler.ts`, `PlatformHandler.ts` (live state)
 - **Types & Enums**: `packages/shared/src/types/integration.ts`
@@ -115,7 +116,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Manual trigger**: `packages/backend/src/commands/implementations/BreakCommand.ts` (`!break`)
 
 ### Activity Log
-- **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — maps EventBus events to activity categories (`EVENT_CATEGORIES`), broadcasts each to the console's live tail and persists all but chat
+- **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — maps EventBus events to activity categories (`EVENT_CATEGORIES`), broadcasts each to the console's live tail and persists all but chat and `LIVE_ONLY_EVENTS` (device messages)
 - **Storage**: `packages/backend/src/database/repositories/ActivityLogRepository.ts` (capped at 5000 rows)
 - **Queries**: `packages/backend/src/server/handlers/ActivityHandler.ts` (`activity.query`, for the History page)
 - **Frontend**: `features/dashboard/dashboard-page.tsx` + `hooks/useLiveLog.ts` (live feed, newest first), `features/history/history-page.tsx`; how an entry reads (feed category, badge, title, detail) is `constants/activityFormat.ts` (`toFeedRow`)
@@ -195,7 +196,7 @@ All integrations extend `BaseIntegration` (OAuth providers extend `OAuthIntegrat
 `IntegrationManager`, which starts them in dependency order, cascades a dependency's failure to its
 dependents and brings them back when it recovers. **Twitch** and **YouTube** are each split into auth
 → API → real-time (`TwitchEventSubIntegration`, `YouTubeChatIntegration`), Spotify into auth → API;
-OBS, Sound and Discord are single integrations, and Arduino is a placeholder. The status an
+OBS, Sound, Discord and Arduino are single integrations. The status an
 integration sets is what the console shows (`integration.status` → `INTEGRATION_STATUS`).
 
 How all of this works (stored configs and their schemas, `enabled`, dependency cascades and

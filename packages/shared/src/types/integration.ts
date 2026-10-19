@@ -66,6 +66,12 @@ export interface IntegrationInfo {
     configured: boolean;
   };
 
+  /**
+   * Where it connects, for an integration whose address is a setting (the Arduino's), so its
+   * setup dialog can show the one in use. Absent for the others.
+   */
+  address?: string;
+
   /** Not implemented yet: listed so the console can show it as planned, but it does nothing. */
   placeholder: boolean;
 

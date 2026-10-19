@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import { ArduinoSetupModal } from './ArduinoSetupModal';
 import { type ConfigSetupModalProps, DiscordSetupModal } from './DiscordSetupModal';
 
 /**
@@ -7,5 +8,6 @@ import { type ConfigSetupModalProps, DiscordSetupModal } from './DiscordSetupMod
  * is in OAUTH_INTEGRATION_REGISTRY instead.
  */
 export const CONFIG_SETUP_REGISTRY: Record<string, ComponentType<ConfigSetupModalProps>> = {
+  arduino: ArduinoSetupModal,
   discord: DiscordSetupModal,
 };

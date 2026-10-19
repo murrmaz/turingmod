@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
+import { ReconnectBackoff } from '../../ReconnectBackoff.js';
 
 /**
  * Scene item transform properties as returned by OBS WebSocket v5.
@@ -74,10 +75,6 @@ const OBS_CLOSE_AUTHENTICATION_FAILED = 4009;
 const OBS_CLOSE_UNSUPPORTED_RPC_VERSION = 4010;
 const OBS_CLOSE_SESSION_INVALIDATED = 4011;
 
-/** Wait before the first reconnection attempt, doubling after each failure up to the maximum. */
-const RECONNECT_INITIAL_DELAY_MS = 2_000;
-const RECONNECT_MAX_DELAY_MS = 30_000;
-
 /**
  * The connection to OBS, over obs-websocket.
  *
@@ -99,8 +96,7 @@ export class ObsIntegration extends BaseIntegration {
   private connected = false;
   /** Bumped by `start()` and `stop()`, so an attempt or retry that outlives either is dropped. */
   private generation = 0;
-  private retryTimer: NodeJS.Timeout | null = null;
-  private retryDelayMs = RECONNECT_INITIAL_DELAY_MS;
+  private readonly backoff = new ReconnectBackoff();
 
   constructor(
     private eventBus: EventBus,
@@ -125,9 +121,8 @@ export class ObsIntegration extends BaseIntegration {
    */
   async start(): Promise<void> {
     this.logger.debug('Starting OBS integration');
-    this.cancelRetry();
+    this.backoff.reset();
     this.connected = false;
-    this.retryDelayMs = RECONNECT_INITIAL_DELAY_MS;
     this.setStatus(IntegrationStatus.CONNECTING);
     await this.connect(++this.generation);
   }
@@ -135,7 +130,7 @@ export class ObsIntegration extends BaseIntegration {
   async stop(): Promise<void> {
     this.logger.debug('Stopping OBS integration');
     this.generation++;
-    this.cancelRetry();
+    this.backoff.cancel();
     this.connected = false;
     await this.obs.disconnect();
 
@@ -168,35 +163,24 @@ export class ObsIntegration extends BaseIntegration {
       return;
     }
     this.connected = true;
-    this.retryDelayMs = RECONNECT_INITIAL_DELAY_MS;
+    this.backoff.connected();
     this.setStatus(IntegrationStatus.CONNECTED);
     this.logger.info('Connected to OBS');
   }
 
   /** Report OBS as unreachable and try again after a delay that doubles each time. */
   private scheduleRetry(error: unknown): void {
-    const delayMs = this.retryDelayMs;
-    this.retryDelayMs = Math.min(delayMs * 2, RECONNECT_MAX_DELAY_MS);
+    const generation = this.generation;
+    const delayMs = this.backoff.schedule(() => {
+      // A failure here has already been reported as this integration's status.
+      this.connect(generation).catch(() => {});
+    });
     const reason = messageOf(error, '');
     const message =
       `Can't reach OBS at ${this.config.url}${reason ? ` (${reason})` : ''}; ` +
       `retrying in ${delayMs / 1000}s`;
     this.logger.debug(message);
     this.setStatus(IntegrationStatus.CONNECTING, message);
-
-    const generation = this.generation;
-    this.retryTimer = setTimeout(() => {
-      this.retryTimer = null;
-      // A failure here has already been reported as this integration's status.
-      this.connect(generation).catch(() => {});
-    }, delayMs);
-  }
-
-  private cancelRetry(): void {
-    if (this.retryTimer) {
-      clearTimeout(this.retryTimer);
-      this.retryTimer = null;
-    }
   }
 
   /** Why a closed connection can't be fixed by trying again, or null if it can. */
@@ -481,7 +465,7 @@ export class ObsIntegration extends BaseIntegration {
         this.setStatus(IntegrationStatus.ERROR, problem);
         return;
       }
-      this.retryDelayMs = RECONNECT_INITIAL_DELAY_MS;
+      this.backoff.disconnected();
       this.scheduleRetry(error);
     });
 

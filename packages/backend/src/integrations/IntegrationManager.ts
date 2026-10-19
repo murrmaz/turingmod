@@ -586,6 +586,7 @@ export class IntegrationManager {
     const dependencies = integration.getDependencies().map((dep) => dep.name);
     const errorMessage = integration.getErrorMessage();
     const group = integration.getGroup();
+    const address = integration.getAddress();
 
     return {
       name: integration.name,
@@ -606,6 +607,7 @@ export class IntegrationManager {
           }
         : {}),
       ...(group ? { group } : {}),
+      ...(address === null ? {} : { address }),
     };
   }
 

@@ -93,6 +93,24 @@ function seconds(value: number | null): string | null {
   return value >= 60 && value % 60 === 0 ? `${value / 60} min` : `${value}s`;
 }
 
+/**
+ * What a device message carries besides its type: a `text` field as it is, and any others as
+ * `name value`, so a type the console doesn't know (`{"type":"button","id":2}`) still shows them.
+ */
+function deviceFields(data: Record<string, unknown>): string {
+  return join(
+    ...Object.entries(data).map(([name, value]) => {
+      if (name === 'type') {
+        return null;
+      }
+      if (name === 'text' && typeof value === 'string') {
+        return value;
+      }
+      return `${name} ${typeof value === 'string' ? value : JSON.stringify(value)}`;
+    })
+  );
+}
+
 type Described = Omit<FeedRow, 'id' | 'timestamp' | 'entry'>;
 
 function describe(event: string, data: Record<string, unknown>): Described {
@@ -251,6 +269,9 @@ function describe(event: string, data: Record<string, unknown>): Described {
         data.sceneItemEnabled === true ? 'Source shown' : 'Source hidden',
         text(data, 'sceneName')
       );
+
+    case 'arduino.message':
+      return system('Arduino', text(data, 'type'), deviceFields(data));
 
     case 'integration.status': {
       const status = text(data, 'status');

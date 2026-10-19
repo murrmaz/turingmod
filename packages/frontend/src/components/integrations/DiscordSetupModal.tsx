@@ -2,6 +2,7 @@ import {
   createMessage,
   DiscordSnowflakeSchema,
   type IntegrationConfigurePayload,
+  type IntegrationInfo,
   MessageType,
   messageOf,
 } from '@turingmod/shared';
@@ -22,6 +23,8 @@ import { Label } from '@/components/ui/label';
 import { useWebSocketContext } from '../../context/WebSocketContext';
 
 export interface ConfigSetupModalProps {
+  /** The integration being set up, as the backend last reported it. */
+  integration: IntegrationInfo;
   visible: boolean;
   onDismiss: () => void;
   /** The config was saved (and, if the integration was running, it restarted on it). */

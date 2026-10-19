@@ -29,10 +29,18 @@ const EVENT_CATEGORIES: Partial<Record<EventName, ActivityCategory>> = {
   'obs.stream.stateChanged': ActivityCategory.EVENT,
   'obs.record.stateChanged': ActivityCategory.EVENT,
   'obs.sceneItem.stateChanged': ActivityCategory.EVENT,
+  'arduino.message': ActivityCategory.EVENT,
   'integration.status': ActivityCategory.STATUS,
   'platform.availability': ActivityCategory.STATUS,
   'integration.error': ActivityCategory.ERROR,
 };
+
+/**
+ * Events shown in the live tail but not stored, besides chat: what a device sends is only worth
+ * seeing as it happens, and a chatty one would otherwise push the stream's real history out of
+ * the capped log.
+ */
+const LIVE_ONLY_EVENTS: ReadonlySet<EventName> = new Set(['arduino.message']);
 
 /**
  * Forwards EventBus activity to the live tail (broadcast) and, for non-chat categories, to the
@@ -78,7 +86,7 @@ export class ActivityForwarder implements IService {
 
     this.webSocketServer.broadcast(createEventNotificationMessage(entry));
 
-    if (category === ActivityCategory.CHAT) {
+    if (category === ActivityCategory.CHAT || LIVE_ONLY_EVENTS.has(event)) {
       return;
     }
     if (category === ActivityCategory.COMMAND && entry.data.isSimulation === true) {

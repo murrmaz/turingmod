@@ -258,6 +258,7 @@ function IntegrationDetail({
 
       {SetupModal && (
         <SetupModal
+          integration={integration}
           visible={setupOpen}
           onDismiss={() => setSetupOpen(false)}
           // A running integration restarts on its new config; one that isn't is started on it.

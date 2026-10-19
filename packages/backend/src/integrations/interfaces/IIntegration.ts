@@ -118,6 +118,12 @@ export interface IIntegration {
    */
   getGroup(): IntegrationGroup | null;
 
+  /**
+   * Where the integration connects, for one whose address is a setting the console can change
+   * (the Arduino's), so its setup dialog can show the one in use; null otherwise.
+   */
+  getAddress(): string | null;
+
   /** True for an integration that isn't implemented yet, which the console shows as planned. */
   readonly placeholder: boolean;
 

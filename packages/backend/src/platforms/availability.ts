@@ -1,5 +1,4 @@
-import { IntegrationStatus, type StreamingPlatform } from '@turingmod/shared';
-import { platformDisplayName } from './platformNames.js';
+import { IntegrationStatus, platformDisplayName, type StreamingPlatform } from '@turingmod/shared';
 
 /** The slice of BaseIntegration a platform façade needs to explain its own availability. */
 interface StatusReporting {

@@ -1,4 +1,11 @@
-import { DiscordSnowflakeSchema, IntegrationStatus, messageOf } from '@turingmod/shared';
+import {
+  type DiscordConfig,
+  DiscordConfigSchema,
+  DiscordSnowflakeSchema,
+  IntegrationName,
+  IntegrationStatus,
+  messageOf,
+} from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { Logger } from '../../../utils/Logger.js';
@@ -9,15 +16,6 @@ const DISCORD_API = 'https://discord.com/api/v10';
 const USER_AGENT = 'DiscordBot (https://github.com/murrmaz/turingmod, 1.0)';
 /** The longest rate-limit wait worth sitting out; anything longer fails the request instead. */
 const MAX_RATE_LIMIT_WAIT_MS = 10_000;
-
-const DiscordConfigSchema = z.strictObject({
-  /** The bot's token, from the Discord developer portal's Bot page. */
-  botToken: z.string().trim().min(1),
-  /** The channel go-live notifications are posted in. */
-  notificationChannelId: DiscordSnowflakeSchema,
-});
-
-type DiscordConfig = z.infer<typeof DiscordConfigSchema>;
 
 /** The parts of a Discord embed TuringMod uses. */
 export interface DiscordEmbed {
@@ -85,7 +83,7 @@ export class DiscordMessageDeletedError extends Error {
  */
 @singleton()
 export class DiscordIntegration extends BaseIntegration {
-  readonly name = 'discord';
+  readonly name = IntegrationName.DISCORD;
 
   private config: DiscordConfig | null = null;
   private started = false;

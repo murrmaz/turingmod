@@ -1,4 +1,4 @@
-import type { YouTubeChatState, YouTubeChatStatePayload } from '@turingmod/shared';
+import type { YouTubeChatState } from '@turingmod/shared';
 import { MessageType } from '@turingmod/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { useWebSocketContext } from '../context/WebSocketContext';
@@ -15,14 +15,14 @@ import { useWebSocketMessage } from './useWebSocket';
  * connected rather than just whether the request was accepted.
  */
 export function useYouTubeChat() {
-  const { sendAndWaitForResponse, isConnected } = useWebSocketContext();
+  const { request, isConnected } = useWebSocketContext();
   const [state, setState] = useState<YouTubeChatState>('idle');
   const [pending, setPending] = useState(false);
 
-  useWebSocketMessage<YouTubeChatStatePayload>(
+  useWebSocketMessage(
     MessageType.YOUTUBE_CHAT_STATE,
-    useCallback((message) => {
-      setState(message.payload.state);
+    useCallback((payload) => {
+      setState(payload.state);
     }, [])
   );
 
@@ -36,15 +36,10 @@ export function useYouTubeChat() {
 
     let cancelled = false;
 
-    void sendAndWaitForResponse<YouTubeChatStatePayload>({
-      id: crypto.randomUUID(),
-      type: MessageType.YOUTUBE_GET_CHAT_STATE,
-      timestamp: Date.now(),
-      payload: {},
-    })
-      .then((response) => {
+    void request(MessageType.YOUTUBE_GET_CHAT_STATE, {})
+      .then((payload) => {
         if (!cancelled) {
-          setState(response.payload.state);
+          setState(payload.state);
         }
       })
       .catch((error: unknown) => {
@@ -54,18 +49,13 @@ export function useYouTubeChat() {
     return () => {
       cancelled = true;
     };
-  }, [isConnected, sendAndWaitForResponse]);
+  }, [isConnected, request]);
 
   const send = useCallback(
-    async (type: MessageType): Promise<void> => {
+    async (type: MessageType.YOUTUBE_GO_LIVE | MessageType.YOUTUBE_GO_OFFLINE): Promise<void> => {
       setPending(true);
       try {
-        await sendAndWaitForResponse({
-          id: crypto.randomUUID(),
-          type,
-          timestamp: Date.now(),
-          payload: {},
-        });
+        await request(type, {});
       } catch (error) {
         console.error(`[useYouTubeChat] Request ${type} failed`, error);
         throw error;
@@ -73,7 +63,7 @@ export function useYouTubeChat() {
         setPending(false);
       }
     },
-    [sendAndWaitForResponse]
+    [request]
   );
 
   const goLive = useCallback(() => send(MessageType.YOUTUBE_GO_LIVE), [send]);

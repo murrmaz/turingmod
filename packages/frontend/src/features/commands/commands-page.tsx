@@ -10,8 +10,10 @@ import {
 } from '@tanstack/react-table';
 import {
   type CommandInfo,
+  formatPlatformList,
   PERMISSION_HIERARCHY,
   PermissionLevel,
+  platformDisplayName,
   StreamingPlatform,
 } from '@turingmod/shared';
 import { Ellipsis } from 'lucide-react';
@@ -30,7 +32,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { PLATFORM_LABELS } from '@/constants/activityFormat';
+
 import { useAppState } from '@/context/AppStateContext';
 import { PERMISSION_LABELS, useSimulator } from './simulator';
 
@@ -115,8 +117,7 @@ export function CommandsPage() {
           value.every((platform) => row.original.availableOn.some((p) => p === platform)),
         cell: ({ row }) => (
           <span className="text-[12.5px] text-muted-foreground">
-            {row.original.availableOn.map((platform) => PLATFORM_LABELS[platform]).join(', ') ||
-              '—'}
+            {formatPlatformList(row.original.availableOn) || '—'}
           </span>
         ),
       },
@@ -216,7 +217,7 @@ export function CommandsPage() {
           title="Platform"
           options={Object.values(StreamingPlatform).map((platform) => ({
             value: platform,
-            label: PLATFORM_LABELS[platform],
+            label: platformDisplayName(platform),
           }))}
           selected={facet('platforms')}
           onChange={setFacet('platforms')}

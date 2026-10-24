@@ -2,11 +2,6 @@ import type { StreamingPlatform } from '../constants/platform.js';
 import type { ActivityLogEntry } from '../types/activity.js';
 import type { CommandInfo, ExecutionResult } from '../types/command.js';
 import type { IntegrationInfo } from '../types/integration.js';
-import type {
-  ActivityQueryPayload,
-  OAuthExchangeCodePayload,
-  OAuthGetAuthUrlPayload,
-} from './requests.js';
 
 /**
  * Base WebSocket message structure
@@ -330,15 +325,6 @@ export function createEventNotificationMessage(
 }
 
 /**
- * Create an activity query message
- */
-export function createActivityQueryMessage(
-  payload: ActivityQueryPayload
-): IWebSocketMessage<ActivityQueryPayload> {
-  return createMessage(MessageType.ACTIVITY_QUERY, payload);
-}
-
-/**
  * Create an activity list message
  */
 export function createActivityListMessage(
@@ -368,15 +354,6 @@ export function createErrorMessage(
 }
 
 /**
- * Create an OAuth get auth URL message
- */
-export function createOAuthGetAuthUrlMessage(
-  integrationName: string
-): IWebSocketMessage<OAuthGetAuthUrlPayload> {
-  return createMessage(MessageType.OAUTH_GET_AUTH_URL, { integrationName });
-}
-
-/**
  * Create an OAuth auth URL response message
  */
 export function createOAuthAuthUrlResponseMessage(
@@ -389,16 +366,6 @@ export function createOAuthAuthUrlResponseMessage(
     { integrationName, authUrl },
     originalMessageId
   );
-}
-
-/**
- * Create an OAuth exchange code message
- */
-export function createOAuthExchangeCodeMessage(
-  integrationName: string,
-  code: string
-): IWebSocketMessage<OAuthExchangeCodePayload> {
-  return createMessage(MessageType.OAUTH_EXCHANGE_CODE, { integrationName, code });
 }
 
 /**

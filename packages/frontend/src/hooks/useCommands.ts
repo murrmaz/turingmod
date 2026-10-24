@@ -1,23 +1,14 @@
-import type { CommandResultPayload, PermissionLevel } from '@turingmod/shared';
+import type { CommandResultPayload, SimulatedUser } from '@turingmod/shared';
 import { MessageType, StreamingPlatform } from '@turingmod/shared';
 import { useCallback } from 'react';
 import { useAppState } from '../context/AppStateContext';
 import { useWebSocketContext } from '../context/WebSocketContext';
 
 /**
- * Simulated user for command testing
- */
-export interface SimulatedUser {
-  username: string;
-  permissionLevel: PermissionLevel;
-  userId?: string;
-}
-
-/**
  * Hook to interact with commands
  */
 export function useCommands() {
-  const { sendAndWaitForResponse } = useWebSocketContext();
+  const { request } = useWebSocketContext();
   const { commands, refreshCommands } = useAppState();
 
   /**
@@ -30,28 +21,17 @@ export function useCommands() {
       platform: StreamingPlatform = StreamingPlatform.TWITCH
     ): Promise<CommandResultPayload> => {
       try {
-        const response = await sendAndWaitForResponse<CommandResultPayload>({
-          id: crypto.randomUUID(),
-          type: MessageType.COMMAND_SIMULATE,
-          timestamp: Date.now(),
-          payload: {
-            commandText,
-            simulatedUser: {
-              username: simulatedUser.username,
-              permissionLevel: simulatedUser.permissionLevel,
-              userId: simulatedUser.userId,
-            },
-            platform,
-          },
+        return await request(MessageType.COMMAND_SIMULATE, {
+          commandText,
+          simulatedUser,
+          platform,
         });
-
-        return response.payload;
       } catch (error) {
         console.error('[useCommands] Failed to simulate command', error);
         throw error;
       }
     },
-    [sendAndWaitForResponse]
+    [request]
   );
 
   /**

@@ -135,8 +135,8 @@ export const REQUEST_PAYLOAD_SCHEMAS = {
   [MessageType.DATA_QUERY_ROWS]: DataQueryRowsPayloadSchema,
 } as const satisfies Partial<Record<MessageType, z.ZodType>>;
 
-/** A message type the backend accepts as a request. */
-export type RequestType = keyof typeof REQUEST_PAYLOAD_SCHEMAS;
+/** A message type the backend accepts as a request, as its MessageType member. */
+export type RequestType = Extract<MessageType, keyof typeof REQUEST_PAYLOAD_SCHEMAS>;
 
 /** The payload a request of type `T` carries, once parsed. */
 export type RequestPayload<T extends RequestType> = z.infer<(typeof REQUEST_PAYLOAD_SCHEMAS)[T]>;

@@ -1,5 +1,5 @@
 import { type AccessToken, type IAuthStrategy, SpotifyApi } from '@spotify/web-api-ts-sdk';
-import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationName, IntegrationStatus, messageOf } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
@@ -31,7 +31,7 @@ export class SpotifyHttpError extends Error {
  */
 @singleton()
 export class SpotifyApiIntegration extends BaseIntegration {
-  readonly name = 'spotify-api';
+  readonly name = IntegrationName.SPOTIFY_API;
 
   private readonly sdk: SpotifyApi;
 

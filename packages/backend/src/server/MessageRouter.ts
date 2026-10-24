@@ -1,20 +1,25 @@
 import {
   createErrorMessage,
+  type ErrorPayload,
   type IWebSocketMessage,
   messageOf,
   REQUEST_PAYLOAD_SCHEMAS,
   type RequestPayload,
   type RequestType,
+  type ResponsePayload,
 } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { Logger } from '../utils/Logger.js';
 
-/** Handles one request type, given a payload that has already passed its schema. */
+/**
+ * Handles one request type, given a payload that has already passed its schema. It answers with
+ * that request's response (ResponseTypes in shared), an error, or nothing.
+ */
 export type RequestHandler<T extends RequestType> = (
   message: IWebSocketMessage<RequestPayload<T>>,
   clientId: string
-) => Promise<IWebSocketMessage | null>;
+) => Promise<IWebSocketMessage<ResponsePayload<T> | ErrorPayload> | null>;
 
 /**
  * REQUEST_PAYLOAD_SCHEMAS seen as a mapped type, which is what lets TypeScript relate the schema

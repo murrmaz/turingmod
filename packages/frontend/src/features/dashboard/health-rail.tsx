@@ -1,4 +1,5 @@
 import type { IntegrationInfo } from '@turingmod/shared';
+import { IntegrationStatus } from '@turingmod/shared';
 import { CircleAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { IntegrationOAuthModals } from '@/components/integrations/IntegrationOAuthModals';
@@ -19,7 +20,7 @@ export function HealthRail() {
   const navigate = useNavigate();
   const broken = integrations.filter((i) => describeIntegration(i).needsAttention);
   const live = integrations.filter((i) => !i.placeholder);
-  const up = live.filter((i) => describeIntegration(i).label === 'connected').length;
+  const up = live.filter((i) => i.status === IntegrationStatus.CONNECTED).length;
   const planned = integrations.length - live.length;
 
   return (

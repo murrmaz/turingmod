@@ -1,4 +1,4 @@
-import { IntegrationStatus, messageOf } from '@turingmod/shared';
+import { IntegrationName, IntegrationStatus, messageOf } from '@turingmod/shared';
 import OBSWebSocket, { type OBSResponseTypes } from 'obs-websocket-js';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
@@ -85,7 +85,7 @@ const OBS_CLOSE_SESSION_INVALIDATED = 4011;
  */
 @singleton()
 export class ObsIntegration extends BaseIntegration {
-  readonly name = 'obs';
+  readonly name = IntegrationName.OBS;
 
   private readonly obs = new OBSWebSocket();
   private config: ObsConfig = ObsConfigSchema.parse({});

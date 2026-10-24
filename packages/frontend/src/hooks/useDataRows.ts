@@ -1,7 +1,10 @@
 import type { DataQueryRowsPayload, DataRowsPayload } from '@turingmod/shared';
-import { createMessage, MessageType, messageOf } from '@turingmod/shared';
+import { MAX_DATA_PAGE_SIZE, MessageType, messageOf } from '@turingmod/shared';
 import { useEffect, useRef, useState } from 'react';
 import { useWebSocketContext } from '@/context/WebSocketContext';
+
+/** The page sizes a paged data view offers, up to the most the backend returns in one page. */
+export const DATA_PAGE_SIZES = [25, 50, 100, MAX_DATA_PAGE_SIZE];
 
 /**
  * One page of a table, read through the backend's read-only data inspector. Re-reads whenever
@@ -9,7 +12,7 @@ import { useWebSocketContext } from '@/context/WebSocketContext';
  * request is dropped. `null` reads nothing.
  */
 export function useDataRows(request: DataQueryRowsPayload | null, refreshKey = 0) {
-  const { sendAndWaitForResponse, isConnected } = useWebSocketContext();
+  const { request: send, isConnected } = useWebSocketContext();
   const [result, setResult] = useState<DataRowsPayload>({ rows: [], total: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,10 +29,10 @@ export function useDataRows(request: DataQueryRowsPayload | null, refreshKey = 0
     }
     let cancelled = false;
     setLoading(true);
-    sendAndWaitForResponse<DataRowsPayload>(createMessage(MessageType.DATA_QUERY_ROWS, current))
-      .then((response) => {
+    send(MessageType.DATA_QUERY_ROWS, current)
+      .then((payload) => {
         if (!cancelled) {
-          setResult(response.payload);
+          setResult(payload);
           setError(null);
         }
       })
@@ -47,7 +50,7 @@ export function useDataRows(request: DataQueryRowsPayload | null, refreshKey = 0
     return () => {
       cancelled = true;
     };
-  }, [key, isConnected, sendAndWaitForResponse, refreshKey]);
+  }, [key, isConnected, send, refreshKey]);
 
   return { ...result, loading, error };
 }

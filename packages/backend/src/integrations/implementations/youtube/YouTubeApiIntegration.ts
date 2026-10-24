@@ -1,4 +1,4 @@
-import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationName, IntegrationStatus, messageOf } from '@turingmod/shared';
 import { google, type youtube_v3 } from 'googleapis';
 import { singleton } from 'tsyringe';
 import { Logger } from '../../../utils/Logger.js';
@@ -41,7 +41,7 @@ export type BroadcastIdentity = Omit<ActiveBroadcast, 'title'>;
  */
 @singleton()
 export class YouTubeApiIntegration extends BaseIntegration {
-  readonly name = 'youtube-api';
+  readonly name = IntegrationName.YOUTUBE_API;
 
   private youtube: youtube_v3.Youtube | null = null;
   /** The auth client `youtube` was built on, to detect it being replaced. */

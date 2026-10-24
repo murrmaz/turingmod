@@ -1,4 +1,4 @@
-import { IntegrationStatus, messageOf } from '@turingmod/shared';
+import { IntegrationStatus, messageOf, OAuthClientCredentialsSchema } from '@turingmod/shared';
 import { z } from 'zod';
 import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import type { TuringModConfig } from '../utils/Config.js';
@@ -11,9 +11,7 @@ import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
  * its own token fields (e.g. expiresIn vs Google's expiryDate). Requested scopes aren't stored:
  * they're always the integration's required set.
  */
-export const OAuthConfigBaseSchema = z.strictObject({
-  clientId: z.string().min(1),
-  clientSecret: z.string().min(1),
+export const OAuthConfigBaseSchema = OAuthClientCredentialsSchema.extend({
   /** What the provider actually granted with the current token. Absent until the first grant. */
   grantedScopes: z.array(z.string()).exactOptional(),
 });

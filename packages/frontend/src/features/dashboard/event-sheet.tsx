@@ -1,3 +1,4 @@
+import { platformDisplayName } from '@turingmod/shared';
 import { Copy } from 'lucide-react';
 import { useEffect } from 'react';
 import { DotBadge } from '@/components/status';
@@ -10,7 +11,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { type FeedRow, formatDateTime, PLATFORM_LABELS } from '@/constants/activityFormat';
+import { type FeedRow, formatDateTime } from '@/constants/activityFormat';
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined || value === '') {
@@ -67,7 +68,7 @@ export function EventSheet({
               <SheetDescription>
                 {[
                   row.user,
-                  row.platform ? PLATFORM_LABELS[row.platform] : null,
+                  row.platform ? platformDisplayName(row.platform) : null,
                   formatDateTime(row.timestamp),
                 ]
                   .filter(Boolean)

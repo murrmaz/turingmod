@@ -1,4 +1,4 @@
-import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationName, IntegrationStatus } from '@turingmod/shared';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import type { AccessToken, RefreshingAuthProvider } from '@twurple/auth';
 import {
@@ -80,7 +80,7 @@ export const TWITCH_REQUIRED_SCOPES = [
  */
 @singleton()
 export class TwitchAuthIntegration extends OAuthIntegration<TwitchAuthConfig> {
-  readonly name = 'twitch-auth';
+  readonly name = IntegrationName.TWITCH_AUTH;
 
   protected readonly requiredScopes = TWITCH_REQUIRED_SCOPES;
   protected readonly callbackPath = '/callback/twitch';

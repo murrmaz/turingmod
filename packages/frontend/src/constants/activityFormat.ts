@@ -1,5 +1,5 @@
-import type { ActivityLogEntry } from '@turingmod/shared';
-import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
+import type { ActivityEventName, ActivityLogEntry } from '@turingmod/shared';
+import { IntegrationStatus, isActivityEventName, StreamingPlatform } from '@turingmod/shared';
 
 /**
  * The feed's own categories, which the console filters by. Finer than the backend's
@@ -42,7 +42,7 @@ export const FEED_CATEGORY_LABELS: Record<FeedCategory, string> = {
  * The stored events in each category, for filtering the stored log by category on the server.
  * Chat isn't stored. Kept in step with `toFeedRow` by a test.
  */
-export const FEED_CATEGORY_EVENTS: Record<Exclude<FeedCategory, 'chat'>, string[]> = {
+export const FEED_CATEGORY_EVENTS: Record<Exclude<FeedCategory, 'chat'>, ActivityEventName[]> = {
   command: ['command.executed'],
   reward: ['twitch.channelPoint.redemption'],
   viewer: ['twitch.follow', 'twitch.subscribe', 'twitch.raid', 'twitch.cheer'],
@@ -60,11 +60,6 @@ export const FEED_CATEGORY_EVENTS: Record<Exclude<FeedCategory, 'chat'>, string[
     'platform.availability',
     'integration.error',
   ],
-};
-
-export const PLATFORM_LABELS: Record<StreamingPlatform, string> = {
-  [StreamingPlatform.TWITCH]: 'Twitch',
-  [StreamingPlatform.YOUTUBE]: 'YouTube',
 };
 
 function text(data: Record<string, unknown>, key: string): string {
@@ -113,17 +108,24 @@ function deviceFields(data: Record<string, unknown>): string {
 
 type Described = Omit<FeedRow, 'id' | 'timestamp' | 'entry'>;
 
+function system(label: string, title: string, detail = '', tone: FeedTone = 'system'): Described {
+  return { category: 'system', tone, label, title, detail, user: '', platform: null };
+}
+
+/**
+ * How each recorded event reads. Every name in ACTIVITY_EVENTS needs a case, which the compiler
+ * enforces (the switch must return on every path); anything else, such as an event stored before
+ * it was renamed, shows as its bare name.
+ */
 function describe(event: string, data: Record<string, unknown>): Described {
+  if (!isActivityEventName(event)) {
+    return system('Event', event);
+  }
+  return describeEvent(event, data);
+}
+
+function describeEvent(event: ActivityEventName, data: Record<string, unknown>): Described {
   const twitch = StreamingPlatform.TWITCH;
-  const system = (label: string, title: string, detail = '', tone: FeedTone = 'system') => ({
-    category: 'system' as const,
-    tone,
-    label,
-    title,
-    detail,
-    user: '',
-    platform: null,
-  });
 
   switch (event) {
     case 'chat.message':
@@ -301,9 +303,6 @@ function describe(event: string, data: Record<string, unknown>): Described {
 
     case 'integration.error':
       return system('Error', text(data, 'name'), text(data, 'message'), 'error');
-
-    default:
-      return system('Event', event);
   }
 }
 

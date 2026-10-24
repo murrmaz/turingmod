@@ -1,8 +1,10 @@
 import type {
   EmptyPayload,
+  ErrorPayload,
   IntegrationConfigurePayload,
   IntegrationListPayload,
   IntegrationStartPayload,
+  IntegrationStatusPayload,
   IntegrationStopPayload,
   IWebSocketMessage,
 } from '@turingmod/shared';
@@ -31,7 +33,7 @@ export class IntegrationHandler {
    */
   async handleStart(
     message: IWebSocketMessage<IntegrationStartPayload>
-  ): Promise<IWebSocketMessage | null> {
+  ): Promise<IWebSocketMessage<IntegrationStatusPayload | ErrorPayload> | null> {
     const { integrationName } = message.payload;
 
     this.logger.info(`Starting integration: ${integrationName}`);
@@ -69,7 +71,7 @@ export class IntegrationHandler {
    */
   async handleStop(
     message: IWebSocketMessage<IntegrationStopPayload>
-  ): Promise<IWebSocketMessage | null> {
+  ): Promise<IWebSocketMessage<IntegrationStatusPayload | ErrorPayload> | null> {
     const { integrationName } = message.payload;
 
     this.logger.info(`Stopping integration: ${integrationName}`);
@@ -127,7 +129,7 @@ export class IntegrationHandler {
    */
   async handleConfigure(
     message: IWebSocketMessage<IntegrationConfigurePayload>
-  ): Promise<IWebSocketMessage | null> {
+  ): Promise<IWebSocketMessage<IntegrationStatusPayload | ErrorPayload> | null> {
     const { integrationName, config } = message.payload;
 
     this.logger.info(`Configuring integration: ${integrationName}`);

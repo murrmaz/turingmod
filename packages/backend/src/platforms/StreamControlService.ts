@@ -1,5 +1,5 @@
 import type { StreamingPlatform } from '@turingmod/shared';
-import { messageOf, PlatformCapability } from '@turingmod/shared';
+import { messageOf, PlatformCapability, platformDisplayName } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { Logger } from '../utils/Logger.js';
@@ -12,7 +12,6 @@ import type {
   StreamInfo,
 } from './interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from './PlatformRegistry.js';
-import { platformDisplayName } from './platformNames.js';
 
 /**
  * Outcome of a mirrored write. Records which platforms accepted the change and any that failed,

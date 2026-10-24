@@ -1,3 +1,4 @@
+import { IntegrationName } from '@turingmod/shared';
 import type { ReactNode } from 'react';
 
 /**
@@ -8,7 +9,7 @@ import type { ReactNode } from 'react';
  * integration's `oauth` info, so `fields` receives it.
  */
 export interface OAuthProviderConfig {
-  integrationName: string;
+  integrationName: IntegrationName;
   displayName: string;
   popupWindowName: string;
   registrationUrl: string;
@@ -23,7 +24,7 @@ export interface OAuthProviderConfig {
 }
 
 export const TWITCH_OAUTH_PROVIDER: OAuthProviderConfig = {
-  integrationName: 'twitch-auth',
+  integrationName: IntegrationName.TWITCH_AUTH,
   displayName: 'Twitch',
   popupWindowName: 'TwitchAuth',
   registrationUrl: 'https://dev.twitch.tv/console/apps',
@@ -58,7 +59,7 @@ export const TWITCH_OAUTH_PROVIDER: OAuthProviderConfig = {
 };
 
 export const YOUTUBE_OAUTH_PROVIDER: OAuthProviderConfig = {
-  integrationName: 'youtube-auth',
+  integrationName: IntegrationName.YOUTUBE_AUTH,
   displayName: 'YouTube',
   popupWindowName: 'YouTubeAuth',
   registrationUrl: 'https://console.cloud.google.com/apis/credentials',
@@ -102,7 +103,7 @@ export const YOUTUBE_OAUTH_PROVIDER: OAuthProviderConfig = {
 };
 
 export const SPOTIFY_OAUTH_PROVIDER: OAuthProviderConfig = {
-  integrationName: 'spotify-auth',
+  integrationName: IntegrationName.SPOTIFY_AUTH,
   displayName: 'Spotify',
   popupWindowName: 'SpotifyAuth',
   registrationUrl: 'https://developer.spotify.com/dashboard',

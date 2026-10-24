@@ -1,4 +1,4 @@
-import type { EmptyPayload, IWebSocketMessage } from '@turingmod/shared';
+import type { EmptyPayload, IWebSocketMessage, PlatformLiveStatePayload } from '@turingmod/shared';
 import { createPlatformLiveStateMessage } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { PlatformLiveStatus } from '../../live/PlatformLiveStatus.js';
@@ -12,7 +12,9 @@ import { PlatformLiveStatus } from '../../live/PlatformLiveStatus.js';
 export class PlatformHandler {
   constructor(private liveStatus: PlatformLiveStatus) {}
 
-  handleGetLiveState(message: IWebSocketMessage<EmptyPayload>): Promise<IWebSocketMessage> {
+  handleGetLiveState(
+    message: IWebSocketMessage<EmptyPayload>
+  ): Promise<IWebSocketMessage<PlatformLiveStatePayload>> {
     return Promise.resolve(createPlatformLiveStateMessage(this.liveStatus.getStates(), message.id));
   }
 }

@@ -1,3 +1,4 @@
+import { IntegrationName } from '@turingmod/shared';
 import {
   type OAuthProviderConfig,
   SPOTIFY_OAUTH_PROVIDER,
@@ -12,7 +13,7 @@ import {
  * code branches on integration name.
  */
 export const OAUTH_INTEGRATION_REGISTRY: Record<string, OAuthProviderConfig> = {
-  'twitch-auth': TWITCH_OAUTH_PROVIDER,
-  'spotify-auth': SPOTIFY_OAUTH_PROVIDER,
-  'youtube-auth': YOUTUBE_OAUTH_PROVIDER,
+  [IntegrationName.TWITCH_AUTH]: TWITCH_OAUTH_PROVIDER,
+  [IntegrationName.SPOTIFY_AUTH]: SPOTIFY_OAUTH_PROVIDER,
+  [IntegrationName.YOUTUBE_AUTH]: YOUTUBE_OAUTH_PROVIDER,
 };

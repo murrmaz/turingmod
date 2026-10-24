@@ -1,5 +1,5 @@
-import type { PlatformLiveState, PlatformLiveStatePayload } from '@turingmod/shared';
-import { createMessage, MessageType } from '@turingmod/shared';
+import type { PlatformLiveState } from '@turingmod/shared';
+import { MessageType } from '@turingmod/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { useWebSocketContext } from '../context/WebSocketContext';
 import { useWebSocketMessage } from './useWebSocket';
@@ -9,12 +9,12 @@ import { useWebSocketMessage } from './useWebSocket';
  * reconnected has missed them, so it asks on every connect.
  */
 export function usePlatformLiveState(): PlatformLiveState[] {
-  const { sendAndWaitForResponse, isConnected } = useWebSocketContext();
+  const { request, isConnected } = useWebSocketContext();
   const [platforms, setPlatforms] = useState<PlatformLiveState[]>([]);
 
-  useWebSocketMessage<PlatformLiveStatePayload>(
+  useWebSocketMessage(
     MessageType.PLATFORM_LIVE_STATE,
-    useCallback((message) => setPlatforms(message.payload.platforms), [])
+    useCallback((payload) => setPlatforms(payload.platforms), [])
   );
 
   useEffect(() => {
@@ -22,12 +22,10 @@ export function usePlatformLiveState(): PlatformLiveState[] {
       return;
     }
     let cancelled = false;
-    sendAndWaitForResponse<PlatformLiveStatePayload>(
-      createMessage(MessageType.PLATFORM_GET_LIVE_STATE, {})
-    )
-      .then((response) => {
+    request(MessageType.PLATFORM_GET_LIVE_STATE, {})
+      .then((payload) => {
         if (!cancelled) {
-          setPlatforms(response.payload.platforms);
+          setPlatforms(payload.platforms);
         }
       })
       .catch((error: unknown) => {
@@ -36,7 +34,7 @@ export function usePlatformLiveState(): PlatformLiveState[] {
     return () => {
       cancelled = true;
     };
-  }, [isConnected, sendAndWaitForResponse]);
+  }, [isConnected, request]);
 
   return platforms;
 }

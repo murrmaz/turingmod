@@ -1,4 +1,4 @@
-import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationName, IntegrationStatus, messageOf } from '@turingmod/shared';
 import { ApiClient } from '@twurple/api';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import { CachedRefreshFailureError, type RefreshingAuthProvider } from '@twurple/auth';
@@ -24,7 +24,7 @@ import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
  */
 @singleton()
 export class TwitchApiIntegration extends BaseIntegration {
-  readonly name = 'twitch-api';
+  readonly name = IntegrationName.TWITCH_API;
 
   private apiClient: ApiClient | null = null;
   private authProvider: RefreshingAuthProvider | null = null;

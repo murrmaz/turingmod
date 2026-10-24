@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process';
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationName, IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
@@ -25,7 +25,7 @@ Exit
 
 @singleton()
 export class SoundIntegration extends BaseIntegration {
-  readonly name = 'sound';
+  readonly name = IntegrationName.SOUND;
 
   private linuxPlayerCommand: string | undefined;
   /** Player processes still running. */

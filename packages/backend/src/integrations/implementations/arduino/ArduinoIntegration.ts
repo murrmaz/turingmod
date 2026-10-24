@@ -1,12 +1,12 @@
 import {
-  ARDUINO_DEFAULT_URL,
-  ArduinoUrlSchema,
+  type ArduinoConfig,
+  ArduinoConfigSchema,
+  IntegrationName,
   IntegrationStatus,
   messageOf,
 } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { type RawData, WebSocket } from 'ws';
-import { z } from 'zod';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
@@ -18,13 +18,6 @@ import {
   parseFrame,
   readHello,
 } from './arduinoProtocol.js';
-
-const ArduinoConfigSchema = z.strictObject({
-  /** The board's WebSocket server. Omitted = the reference firmware's mDNS name. */
-  url: ArduinoUrlSchema.default(ARDUINO_DEFAULT_URL),
-});
-
-type ArduinoConfig = z.infer<typeof ArduinoConfigSchema>;
 
 /** How long the board has to accept the connection, and then to answer `hello`. */
 const CONNECT_TIMEOUT_MS = 5_000;
@@ -55,7 +48,7 @@ const MAX_FRAMES_PER_SECOND = 20;
  */
 @singleton()
 export class ArduinoIntegration extends BaseIntegration {
-  readonly name = 'arduino';
+  readonly name = IntegrationName.ARDUINO;
 
   private config: ArduinoConfig = ArduinoConfigSchema.parse({});
   private socket: WebSocket | null = null;

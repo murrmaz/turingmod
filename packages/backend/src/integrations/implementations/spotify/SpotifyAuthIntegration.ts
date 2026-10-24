@@ -1,4 +1,4 @@
-import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationName, IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
@@ -55,7 +55,7 @@ type SpotifyTokenResponse = z.infer<typeof SpotifyTokenResponseSchema>;
  */
 @singleton()
 export class SpotifyAuthIntegration extends OAuthIntegration<SpotifyAuthConfig> {
-  readonly name = 'spotify-auth';
+  readonly name = IntegrationName.SPOTIFY_AUTH;
 
   protected readonly requiredScopes = SPOTIFY_REQUIRED_SCOPES;
   protected readonly callbackPath = '/callback/spotify';

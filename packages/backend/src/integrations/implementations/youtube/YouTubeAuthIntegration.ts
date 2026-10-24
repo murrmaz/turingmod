@@ -1,4 +1,4 @@
-import { IntegrationGroup, IntegrationStatus, messageOf } from '@turingmod/shared';
+import { IntegrationGroup, IntegrationName, IntegrationStatus, messageOf } from '@turingmod/shared';
 import { google } from 'googleapis';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
@@ -48,7 +48,7 @@ type YouTubeCredentials = NonNullable<Parameters<YouTubeOAuth2Client['setCredent
  */
 @singleton()
 export class YouTubeAuthIntegration extends OAuthIntegration<YouTubeAuthConfig> {
-  readonly name = 'youtube-auth';
+  readonly name = IntegrationName.YOUTUBE_AUTH;
 
   protected readonly requiredScopes = YOUTUBE_REQUIRED_SCOPES;
   protected readonly callbackPath = '/callback/youtube';

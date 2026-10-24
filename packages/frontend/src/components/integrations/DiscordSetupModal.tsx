@@ -1,8 +1,8 @@
 import {
-  createMessage,
+  DiscordConfigSchema,
   DiscordSnowflakeSchema,
-  type IntegrationConfigurePayload,
   type IntegrationInfo,
+  IntegrationName,
   MessageType,
   messageOf,
 } from '@turingmod/shared';
@@ -36,14 +36,17 @@ export interface ConfigSetupModalProps {
  * replaces the whole config, so both are asked for every time.
  */
 export function DiscordSetupModal({ visible, onDismiss, onSuccess }: ConfigSetupModalProps) {
-  const { sendAndWaitForResponse } = useWebSocketContext();
+  const { request } = useWebSocketContext();
   const [botToken, setBotToken] = useState('');
   const [channelId, setChannelId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   const channelIdValid = DiscordSnowflakeSchema.safeParse(channelId.trim()).success;
-  const ready = Boolean(botToken.trim()) && channelIdValid;
+  const parsed = DiscordConfigSchema.safeParse({
+    botToken,
+    notificationChannelId: channelId.trim(),
+  });
 
   const handleClose = () => {
     setBotToken('');
@@ -54,17 +57,16 @@ export function DiscordSetupModal({ visible, onDismiss, onSuccess }: ConfigSetup
   };
 
   const handleSave = async () => {
-    if (!ready) {
+    if (!parsed.success) {
       return;
     }
     setIsLoading(true);
     setErrorMessage('');
     try {
-      const payload: IntegrationConfigurePayload = {
-        integrationName: 'discord',
-        config: { botToken: botToken.trim(), notificationChannelId: channelId.trim() },
-      };
-      await sendAndWaitForResponse(createMessage(MessageType.INTEGRATION_CONFIGURE, payload));
+      await request(MessageType.INTEGRATION_CONFIGURE, {
+        integrationName: IntegrationName.DISCORD,
+        config: parsed.data,
+      });
       onSuccess();
       handleClose();
     } catch (error) {
@@ -182,7 +184,7 @@ export function DiscordSetupModal({ visible, onDismiss, onSuccess }: ConfigSetup
             <Button type="button" variant="ghost" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!ready || isLoading}>
+            <Button type="submit" disabled={!parsed.success || isLoading}>
               {isLoading ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>

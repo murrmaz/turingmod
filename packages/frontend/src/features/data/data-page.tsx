@@ -9,10 +9,9 @@ import type {
   DataCell,
   DataColumnInfo,
   DataQueryRowsPayload,
-  DataRowsPayload,
   DataTableInfo,
 } from '@turingmod/shared';
-import { createMessage, MAX_DATA_PAGE_SIZE, MessageType, messageOf } from '@turingmod/shared';
+import { ActivityCategory, MAX_DATA_PAGE_SIZE, MessageType, messageOf } from '@turingmod/shared';
 import { Copy, Download, Lock, Search, Shield, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
@@ -35,7 +34,7 @@ import {
 } from '@/components/ui/select';
 import { formatDateTime } from '@/constants/activityFormat';
 import { useWebSocketContext } from '@/context/WebSocketContext';
-import { useDataRows } from '@/hooks/useDataRows';
+import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
 import { useDataTables } from './useDataTables';
 
 /** A row of the current page, keyed by its position since tables need not have one id column. */
@@ -44,13 +43,14 @@ interface DataRow {
   cells: Record<string, DataCell>;
 }
 
-const ENUM_TONES: Record<string, Tone> = {
-  command: 'command',
-  event: 'viewer',
-  status: 'idle',
-  error: 'error',
-  chat: 'chat',
-};
+/** Badge tones for enum columns' values; the activity log's categories are the ones that have any. */
+const ENUM_TONES: Partial<Record<string, Tone>> = {
+  [ActivityCategory.COMMAND]: 'command',
+  [ActivityCategory.EVENT]: 'viewer',
+  [ActivityCategory.STATUS]: 'idle',
+  [ActivityCategory.ERROR]: 'error',
+  [ActivityCategory.CHAT]: 'chat',
+} satisfies Record<ActivityCategory, Tone>;
 
 const DAY = 24 * 60 * 60 * 1000;
 const RANGES = {
@@ -60,8 +60,6 @@ const RANGES = {
   month: { label: 'Last 30 days', since: () => Date.now() - 30 * DAY },
 } as const;
 type RangeKey = keyof typeof RANGES;
-
-const PAGE_SIZES = [25, 50, 100, 200];
 
 export function DataPage() {
   const { table: tableName } = useParams();
@@ -88,7 +86,7 @@ export function DataPage() {
 }
 
 function TableInspector({ info }: { info: DataTableInfo }) {
-  const { sendAndWaitForResponse } = useWebSocketContext();
+  const { request } = useWebSocketContext();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [facets, setFacets] = useState<Record<string, Set<string>>>({});
@@ -169,15 +167,13 @@ function TableInspector({ info }: { info: DataTableInfo }) {
     try {
       const all: Record<string, DataCell>[] = [];
       for (let next = 0; all.length < total && next < 50; next++) {
-        const response = await sendAndWaitForResponse<DataRowsPayload>(
-          createMessage(MessageType.DATA_QUERY_ROWS, {
-            ...query,
-            page: next,
-            pageSize: MAX_DATA_PAGE_SIZE,
-          })
-        );
-        all.push(...response.payload.rows);
-        if (response.payload.rows.length < MAX_DATA_PAGE_SIZE) {
+        const { rows } = await request(MessageType.DATA_QUERY_ROWS, {
+          ...query,
+          page: next,
+          pageSize: MAX_DATA_PAGE_SIZE,
+        });
+        all.push(...rows);
+        if (rows.length < MAX_DATA_PAGE_SIZE) {
           break;
         }
       }
@@ -282,7 +278,7 @@ function TableInspector({ info }: { info: DataTableInfo }) {
             setSelectedKey(null);
           }}
           pageSize={pageSize}
-          pageSizes={PAGE_SIZES}
+          pageSizes={DATA_PAGE_SIZES}
           onPageSizeChange={(size) => {
             setPageSize(size);
             setPage(0);

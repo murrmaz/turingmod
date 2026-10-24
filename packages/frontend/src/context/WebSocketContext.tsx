@@ -1,4 +1,11 @@
-import { type IWebSocketMessage, WS_PATH } from '@turingmod/shared';
+import {
+  createMessage,
+  type IWebSocketMessage,
+  type RequestPayload,
+  type RequestType,
+  type ResponsePayload,
+  WS_PATH,
+} from '@turingmod/shared';
 import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { WebSocketClient } from '../services/WebSocketClient';
@@ -10,14 +17,15 @@ export interface WebSocketContextValue {
   /** Whether WebSocket is connected */
   isConnected: boolean;
 
-  /** Send a message */
-  send: (message: IWebSocketMessage) => void;
-
-  /** Send a message and wait for response */
-  sendAndWaitForResponse: <T = unknown>(
-    message: IWebSocketMessage,
+  /**
+   * Send a request and resolve with the payload it's answered with (ResponseTypes in shared), or
+   * reject with the message of the error it's answered with instead.
+   */
+  request: <T extends RequestType>(
+    type: T,
+    payload: RequestPayload<T>,
     timeout?: number
-  ) => Promise<IWebSocketMessage<T>>;
+  ) => Promise<ResponsePayload<T>>;
 
   /** Subscribe to messages */
   subscribe: (handler: (message: IWebSocketMessage) => void) => () => void;
@@ -101,18 +109,21 @@ export function WebSocketProvider({
     };
   }, [url]);
 
-  // Send message
-  const send = useCallback((message: IWebSocketMessage) => {
-    clientRef.current?.send(message);
-  }, []);
-
-  // Send and wait for response
-  const sendAndWaitForResponse = useCallback(
-    <T = unknown>(message: IWebSocketMessage, timeout?: number) => {
+  const request = useCallback(
+    async <T extends RequestType>(
+      type: T,
+      payload: RequestPayload<T>,
+      timeout?: number
+    ): Promise<ResponsePayload<T>> => {
       if (!clientRef.current) {
-        return Promise.reject(new Error('WebSocket not initialized'));
+        throw new Error('WebSocket not initialized');
       }
-      return clientRef.current.sendAndWaitForResponse<T>(message, timeout);
+      // The one place a response is trusted to be what the protocol says it is.
+      const response = await clientRef.current.sendAndWaitForResponse<ResponsePayload<T>>(
+        createMessage(type, payload),
+        timeout
+      );
+      return response.payload;
     },
     []
   );
@@ -139,8 +150,7 @@ export function WebSocketProvider({
 
   const value: WebSocketContextValue = {
     isConnected,
-    send,
-    sendAndWaitForResponse,
+    request,
     subscribe,
     connect,
     disconnect,

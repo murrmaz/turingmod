@@ -1,18 +1,22 @@
 import {
   ActivityCategory,
+  type ActivityEventName,
   type ActivityLogEntry,
   createEventNotificationMessage,
 } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
-import type { EventMap, EventName } from '../core/events.js';
+import type { EventMap } from '../core/events.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { ActivityLogRepository } from '../database/repositories/ActivityLogRepository.js';
 import { WebSocketServer } from '../server/WebSocketServer.js';
 import { Logger } from '../utils/Logger.js';
 
-/** EventBus event name -> activity category. Add new events here as a one-line change. */
-const EVENT_CATEGORIES: Partial<Record<EventName, ActivityCategory>> = {
+/**
+ * Each recorded event's activity category. The events themselves are ACTIVITY_EVENTS in shared,
+ * which the console describes too: a new one goes there first, and then needs a line here.
+ */
+const EVENT_CATEGORIES: Record<ActivityEventName, ActivityCategory> = {
   'chat.message': ActivityCategory.CHAT,
   'command.executed': ActivityCategory.COMMAND,
   'twitch.follow': ActivityCategory.EVENT,
@@ -40,7 +44,7 @@ const EVENT_CATEGORIES: Partial<Record<EventName, ActivityCategory>> = {
  * seeing as it happens, and a chatty one would otherwise push the stream's real history out of
  * the capped log.
  */
-const LIVE_ONLY_EVENTS: ReadonlySet<EventName> = new Set(['arduino.message']);
+const LIVE_ONLY_EVENTS: ReadonlySet<ActivityEventName> = new Set(['arduino.message']);
 
 /**
  * Forwards EventBus activity to the live tail (broadcast) and, for non-chat categories, to the
@@ -62,7 +66,7 @@ export class ActivityForwarder implements IService {
 
   start(): void {
     for (const [event, category] of Object.entries(EVENT_CATEGORIES) as [
-      EventName,
+      ActivityEventName,
       ActivityCategory,
     ][]) {
       this.subscriptions.add(
@@ -75,7 +79,7 @@ export class ActivityForwarder implements IService {
     this.subscriptions.clear();
   }
 
-  private handleEvent(event: EventName, category: ActivityCategory, data: unknown): void {
+  private handleEvent(event: ActivityEventName, category: ActivityCategory, data: unknown): void {
     const entry: ActivityLogEntry = {
       id: crypto.randomUUID(),
       category,
@@ -100,7 +104,7 @@ export class ActivityForwarder implements IService {
     }
   }
 
-  private normalize(event: EventName, data: unknown): Record<string, unknown> {
+  private normalize(event: ActivityEventName, data: unknown): Record<string, unknown> {
     if (event === 'integration.error') {
       const { name, error } = data as EventMap['integration.error'];
       return { name, message: error.message };

@@ -74,7 +74,12 @@ function LiveActivity() {
     setFrozenAt((current) => (frozen ? (current ?? rows[0]?.seq ?? 0) : null));
   }, [frozen, rows]);
 
-  const visible = frozenAt === null ? matching : matching.filter((row) => row.seq <= frozenAt);
+  // Memoized: a new array per render is new table data, and TanStack Table answers new data by
+  // resetting its page index, a state change that renders again, endlessly.
+  const visible = useMemo(
+    () => (frozenAt === null ? matching : matching.filter((row) => row.seq <= frozenAt)),
+    [matching, frozenAt]
+  );
   const pending = matching.length - visible.length;
 
   const jumpToLatest = () => {

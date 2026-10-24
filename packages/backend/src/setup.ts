@@ -116,13 +116,13 @@ export function registerRootFactories(): void {
   container.register(WebSocketServer, {
     useFactory: instanceCachingFactory((c) => {
       const config = c.resolve(TuringModConfig);
-      // Same-origin production origin plus the Vite dev server origin (always
-      // bound to 127.0.0.1 per vite.config.ts, regardless of backend HOST) —
-      // the only two pages ever allowed to open a WS connection to us.
-      const allowedOrigins = [
-        `http://${config.host}:${config.serverPort}`,
-        `http://127.0.0.1:${DEFAULT_FRONTEND_DEV_PORT}`,
-      ];
+      // The console served by the backend itself, or by the Vite dev server in development — the
+      // only pages ever allowed to open a WS connection to us. Either may be opened as localhost
+      // or 127.0.0.1 (both reach the same loopback server, whatever HOST is), and the browser
+      // sends whichever was typed as the origin.
+      const allowedOrigins = ['127.0.0.1', 'localhost'].flatMap((host) =>
+        [config.serverPort, DEFAULT_FRONTEND_DEV_PORT].map((port) => `http://${host}:${port}`)
+      );
       return new WebSocketServer(c.resolve(MessageRouter), allowedOrigins, c.resolve(Logger));
     }),
   });

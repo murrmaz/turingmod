@@ -15,10 +15,10 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  dayDivider,
   FEED_CATEGORY_EVENTS,
   FEED_CATEGORY_LABELS,
   type FeedRow,
-  formatDateTime,
   toFeedRow,
 } from '@/constants/activityFormat';
 import { activityColumns } from '@/features/dashboard/activity-columns';
@@ -98,11 +98,10 @@ export function HistoryPage() {
   );
   const columns = useMemo(
     () =>
-      activityColumns<FeedRow>(
-        { onInspect: (row) => setSelectedId(row.id), onViewUser: viewUser },
-        formatDateTime,
-        180
-      ),
+      activityColumns<FeedRow>({
+        onInspect: (row) => setSelectedId(row.id),
+        onViewUser: viewUser,
+      }),
     [viewUser]
   );
 
@@ -189,6 +188,7 @@ export function HistoryPage() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
         <DataTable
           table={table}
+          divider={dayDivider}
           loading={loading}
           onRowClick={(row) => setSelectedId(row.id)}
           selectedRowId={selectedId}

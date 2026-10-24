@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  dayDivider,
   FEED_CATEGORY_LABELS,
   type FeedCategory,
   type FeedRow,
@@ -203,6 +204,7 @@ function LiveActivity() {
         )}
         <DataTable
           table={table}
+          divider={dayDivider}
           virtualize
           loading={loading}
           scrollRef={scrollRef}

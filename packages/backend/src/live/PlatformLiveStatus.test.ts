@@ -179,6 +179,27 @@ describe('PlatformLiveStatus', () => {
     });
 
     expect(published.mock.calls.map(([state]) => state.live)).toEqual([true, false]);
+    expect(published.mock.calls.map(([state]) => state.cause)).toEqual(['reported', 'reported']);
+  });
+
+  it('publishes a platform it can no longer ask as unavailable, not as reported offline', async () => {
+    const published = vi.fn();
+    eventBus.on('platform.liveState', published);
+    await eventBus.emit('twitch.stream.online', {
+      broadcasterId: '1',
+      broadcasterName: 'b',
+      broadcasterDisplayName: 'B',
+      startedAt: new Date(),
+    });
+    await eventBus.emit('platform.availability', {
+      platform: StreamingPlatform.TWITCH,
+      available: false,
+      reason: 'needs reauth',
+    });
+
+    expect(published).toHaveBeenLastCalledWith(
+      expect.objectContaining({ live: false, cause: 'unavailable' })
+    );
   });
 
   it('pushes only changes', async () => {

@@ -23,8 +23,6 @@ export const ACTIVITY_EVENTS = [
   'twitch.subscribe',
   'twitch.raid',
   'twitch.cheer',
-  'twitch.stream.online',
-  'twitch.stream.offline',
   'twitch.ad.break',
   'stream.break.started',
   'stream.break.ended',
@@ -36,6 +34,7 @@ export const ACTIVITY_EVENTS = [
   'arduino.message',
   'integration.status',
   'platform.availability',
+  'platform.liveState',
   'integration.error',
 ] as const;
 

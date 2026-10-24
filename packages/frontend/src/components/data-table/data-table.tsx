@@ -20,9 +20,15 @@ export interface DataTableProps<TData> {
   onRowClick?: (row: TData) => void;
   selectedRowId?: string | null;
   rowClassName?: (row: TData) => string | undefined;
+  /**
+   * What to show in a full-width line above `row`, given the row before it in display order (none
+   * for the first), e.g. the date where the day changes; null for nothing.
+   */
+  divider?: (row: TData, previous: TData | undefined) => ReactNode;
   /** Render only the rows in view: for long, live lists. */
   virtualize?: boolean;
   rowHeight?: number;
+  dividerHeight?: number;
   loading?: boolean;
   empty: ReactNode;
   /** The scrolling element, for callers that follow or restore its position. */
@@ -30,6 +36,11 @@ export interface DataTableProps<TData> {
   onScroll?: (element: HTMLDivElement) => void;
   className?: string;
 }
+
+/** What the table body lists, in order: the table's rows and any dividers between them. */
+type Line<TData> =
+  | { kind: 'row'; key: string; row: Row<TData> }
+  | { kind: 'divider'; key: string; content: ReactNode };
 
 /**
  * The console's one table: a TanStack table rendered with shadcn's table styles, with a sticky
@@ -42,8 +53,10 @@ export function DataTable<TData>({
   onRowClick,
   selectedRowId,
   rowClassName,
+  divider,
   virtualize = false,
   rowHeight = 41,
+  dividerHeight = 30,
   loading = false,
   empty,
   scrollRef,
@@ -54,16 +67,26 @@ export function DataTable<TData>({
   const rows = table.getRowModel().rows;
   const columns = table.getVisibleLeafColumns();
 
+  const lines = rows.flatMap((row, index): Line<TData>[] => {
+    const content = divider?.(row.original, rows[index - 1]?.original);
+    const line: Line<TData> = { kind: 'row', key: row.id, row };
+    return content == null
+      ? [line]
+      : [{ kind: 'divider', key: `divider:${row.id}`, content }, line];
+  });
+
   const virtualizer = useVirtualizer({
-    count: virtualize ? rows.length : 0,
+    count: virtualize ? lines.length : 0,
     getScrollElement: () => ownRef.current,
-    estimateSize: () => rowHeight,
+    estimateSize: (index) => (lines[index]?.kind === 'divider' ? dividerHeight : rowHeight),
     overscan: 12,
-    getItemKey: (index) => rows[index]?.id ?? index,
+    getItemKey: (index) => lines[index]?.key ?? index,
   });
 
   // Keep the selected row in view, e.g. while a sheet steps through rows with the arrow keys.
-  const selectedIndex = selectedRowId ? rows.findIndex((row) => row.id === selectedRowId) : -1;
+  const selectedIndex = selectedRowId
+    ? lines.findIndex((line) => line.kind === 'row' && line.row.id === selectedRowId)
+    : -1;
   useEffect(() => {
     if (selectedIndex < 0) {
       return;
@@ -78,9 +101,7 @@ export function DataTable<TData>({
   }, [selectedIndex, virtualize, virtualizer]);
 
   const items = virtualize ? virtualizer.getVirtualItems() : [];
-  const rendered: Row<TData>[] = virtualize
-    ? items.flatMap((item) => rows[item.index] ?? [])
-    : rows;
+  const rendered = virtualize ? items.flatMap((item) => lines[item.index] ?? []) : lines;
   const paddingTop = virtualize ? (items[0]?.start ?? 0) : 0;
   const paddingBottom = virtualize
     ? virtualizer.getTotalSize() - (items[items.length - 1]?.end ?? 0)
@@ -157,27 +178,46 @@ export function DataTable<TData>({
                   <td colSpan={columns.length} style={{ height: paddingTop }} />
                 </tr>
               )}
-              {rendered.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.id === selectedRowId ? 'selected' : undefined}
-                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-                  className={cn(onRowClick && 'cursor-pointer', rowClassName?.(row.original))}
-                  style={{ height: rowHeight }}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={cn(
-                        'truncate px-3 py-0',
-                        cell.column.columnDef.meta?.cellClassName
-                      )}
+              {rendered.map((line) => {
+                if (line.kind === 'divider') {
+                  return (
+                    <TableRow
+                      key={line.key}
+                      className="bg-muted/40 hover:bg-muted/40"
+                      style={{ height: dividerHeight }}
                     >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
+                      <TableCell
+                        colSpan={columns.length}
+                        className="truncate px-3 py-0 text-xs font-medium text-muted-foreground"
+                      >
+                        {line.content}
+                      </TableCell>
+                    </TableRow>
+                  );
+                }
+                const { row } = line;
+                return (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.id === selectedRowId ? 'selected' : undefined}
+                    onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                    className={cn(onRowClick && 'cursor-pointer', rowClassName?.(row.original))}
+                    style={{ height: rowHeight }}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={cn(
+                          'truncate px-3 py-0',
+                          cell.column.columnDef.meta?.cellClassName
+                        )}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+              })}
               {paddingBottom > 0 && (
                 <tr aria-hidden>
                   <td colSpan={columns.length} style={{ height: paddingBottom }} />

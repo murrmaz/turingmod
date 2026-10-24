@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { type FeedRow, formatClock } from '@/constants/activityFormat';
+import { type FeedRow, formatClock, formatDateTime } from '@/constants/activityFormat';
 
 export interface ActivityRowActions {
   onInspect: (row: FeedRow) => void;
@@ -18,24 +18,23 @@ export interface ActivityRowActions {
 }
 
 /**
- * Columns shared by the live feed and History. `time` decides how the timestamp reads: a clock
- * for today's feed, a date for the look-back.
+ * Columns shared by the live feed and History. The time is only a clock: the tables' day dividers
+ * (`dayDivider`) say which day it's on, and hovering shows the full date.
  */
-export function activityColumns<T extends FeedRow>(
-  actions: ActivityRowActions,
-  time: (timestamp: number) => string = formatClock,
-  timeWidth = 84
-): ColumnDef<T>[] {
+export function activityColumns<T extends FeedRow>(actions: ActivityRowActions): ColumnDef<T>[] {
   return [
     {
       id: 'time',
       accessorKey: 'timestamp',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Time" />,
-      size: timeWidth,
+      size: 96,
       enableHiding: false,
       cell: ({ row }) => (
-        <span className="font-mono text-[12.5px] text-muted-foreground tabular-nums">
-          {time(row.original.timestamp)}
+        <span
+          className="font-mono text-[12.5px] text-muted-foreground tabular-nums"
+          title={formatDateTime(row.original.timestamp)}
+        >
+          {formatClock(row.original.timestamp)}
         </span>
       ),
     },
@@ -78,7 +77,7 @@ export function activityColumns<T extends FeedRow>(
     {
       id: 'platform',
       header: 'Platform',
-      size: 84,
+      size: 96,
       enableSorting: false,
       cell: ({ row }) => (
         <span className="text-[12.5px] text-muted-foreground">

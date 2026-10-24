@@ -36,7 +36,7 @@ export interface EventMap {
   /** A platform became usable or stopped being usable (see PlatformAvailability). */
   'platform.availability': PlatformAvailabilityEvent;
   /** A platform started or stopped broadcasting (see PlatformLiveStatus). */
-  'platform.liveState': PlatformLiveState;
+  'platform.liveState': PlatformLiveStateEvent;
 
   'stream.break.started': StreamBreakEvent;
   'stream.break.ended': StreamBreakEvent;
@@ -117,6 +117,15 @@ export interface PlatformAvailabilityEvent {
   available: boolean;
   /** Why it can't be acted on, when it can't; the façade's `getUnavailableReason()`. */
   reason: string | null;
+}
+
+/**
+ * Why `PlatformLiveStatus` changed its view of a platform: the platform said so (`reported`), or
+ * the platform stopped being usable (`unavailable`), which makes it unknown rather than offline;
+ * the console shows it as not live either way.
+ */
+export interface PlatformLiveStateEvent extends PlatformLiveState {
+  cause: 'reported' | 'unavailable';
 }
 
 /** What started a break. Ad breaks come from Twitch; manual ones from `!break`. */

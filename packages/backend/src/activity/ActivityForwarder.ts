@@ -23,8 +23,6 @@ const EVENT_CATEGORIES: Record<ActivityEventName, ActivityCategory> = {
   'twitch.subscribe': ActivityCategory.EVENT,
   'twitch.raid': ActivityCategory.EVENT,
   'twitch.cheer': ActivityCategory.EVENT,
-  'twitch.stream.online': ActivityCategory.EVENT,
-  'twitch.stream.offline': ActivityCategory.EVENT,
   'twitch.ad.break': ActivityCategory.EVENT,
   'stream.break.started': ActivityCategory.EVENT,
   'stream.break.ended': ActivityCategory.EVENT,
@@ -36,6 +34,7 @@ const EVENT_CATEGORIES: Record<ActivityEventName, ActivityCategory> = {
   'arduino.message': ActivityCategory.EVENT,
   'integration.status': ActivityCategory.STATUS,
   'platform.availability': ActivityCategory.STATUS,
+  'platform.liveState': ActivityCategory.EVENT,
   'integration.error': ActivityCategory.ERROR,
 };
 
@@ -80,6 +79,14 @@ export class ActivityForwarder implements IService {
   }
 
   private handleEvent(event: ActivityEventName, category: ActivityCategory, data: unknown): void {
+    // A platform that can't be asked isn't known to be offline, and its going unavailable is
+    // already recorded as platform.availability; a stream ending is only what a platform reports.
+    if (
+      event === 'platform.liveState' &&
+      (data as EventMap['platform.liveState']).cause === 'unavailable'
+    ) {
+      return;
+    }
     const entry: ActivityLogEntry = {
       id: crypto.randomUUID(),
       category,

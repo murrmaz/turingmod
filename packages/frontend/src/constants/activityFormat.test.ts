@@ -1,6 +1,13 @@
 import { ActivityCategory, type ActivityLogEntry, StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
-import { FEED_CATEGORY_EVENTS, formatUptime, matchesFeedQuery, toFeedRow } from './activityFormat';
+import {
+  dayDivider,
+  FEED_CATEGORY_EVENTS,
+  formatDay,
+  formatUptime,
+  matchesFeedQuery,
+  toFeedRow,
+} from './activityFormat';
 
 const entry = (
   event: string,
@@ -130,6 +137,60 @@ describe('toFeedRow for a device message', () => {
     );
 
     expect(row).toMatchObject({ title: 'rejected', detail: 'id 7 · reason busy · at [0,10]' });
+  });
+});
+
+describe('stream entries', () => {
+  const live = (data: Record<string, unknown>, timestamp: number) => ({
+    ...entry('platform.liveState', { platform: 'youtube', ...data }),
+    timestamp,
+  });
+
+  it('says a stream started when it began about when it was seen', () => {
+    const row = toFeedRow(live({ live: true, startedAt: 1_000_000 }, 1_060_000));
+
+    expect(row).toMatchObject({
+      title: 'Stream started',
+      detail: '',
+      platform: StreamingPlatform.YOUTUBE,
+    });
+  });
+
+  it('says when a stream that was already running started', () => {
+    const startedAt = new Date(2026, 9, 22, 13, 10).getTime();
+    const row = toFeedRow(live({ live: true, startedAt }, startedAt + 3_600_000));
+
+    expect(row).toMatchObject({ title: 'Stream live', detail: 'started 2026-10-22 13:10:00' });
+  });
+
+  it('says a stream ended', () => {
+    expect(toFeedRow(live({ live: false, startedAt: null }, 0)).title).toBe('Stream ended');
+  });
+
+  it('still reads the Twitch-only entries stored before them', () => {
+    expect(toFeedRow(entry('twitch.stream.online', {}))).toMatchObject({
+      title: 'Stream started',
+      platform: StreamingPlatform.TWITCH,
+    });
+  });
+});
+
+describe('day dividers', () => {
+  const now = new Date(2026, 9, 24, 15, 0).getTime();
+  const at = (day: number, hour: number) => new Date(2026, 9, day, hour).getTime();
+  const row = (timestamp: number) => ({ ...toFeedRow(entry('twitch.follow', {})), timestamp });
+
+  it('names today and yesterday, and dates the rest', () => {
+    expect(formatDay(at(24, 9), now)).toMatch(/^Today · /);
+    expect(formatDay(at(23, 23), now)).toMatch(/^Yesterday · /);
+    expect(formatDay(at(22, 9), now)).not.toMatch(/Today|Yesterday/);
+    expect(formatDay(new Date(2025, 2, 3).getTime(), now)).toContain('2025');
+  });
+
+  it('goes above the first row and wherever the day changes', () => {
+    expect(dayDivider(row(at(24, 9)), undefined)).not.toBeNull();
+    expect(dayDivider(row(at(24, 9)), row(at(24, 14)))).toBeNull();
+    expect(dayDivider(row(at(23, 23)), row(at(24, 0)))).not.toBeNull();
   });
 });
 

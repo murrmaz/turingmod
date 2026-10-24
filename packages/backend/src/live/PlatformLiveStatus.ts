@@ -6,6 +6,7 @@ import {
 } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
+import type { PlatformLiveStateEvent } from '../core/events.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { WebSocketServer } from '../server/WebSocketServer.js';
@@ -48,7 +49,7 @@ export class PlatformLiveStatus implements IService {
         }
         // Bumped, so a refresh still in flight can't bring back a live answer from before.
         this.bump(platform);
-        this.set(offline(platform));
+        this.set(offline(platform), 'unavailable');
         return Promise.resolve();
       }),
       this.eventBus.on('twitch.stream.online', ({ startedAt }) => {
@@ -87,7 +88,7 @@ export class PlatformLiveStatus implements IService {
     }
     const generation = this.bump(platform);
     if (facade.getUnavailableReason() !== null) {
-      this.set(offline(platform));
+      this.set(offline(platform), 'unavailable');
       return;
     }
 
@@ -113,7 +114,7 @@ export class PlatformLiveStatus implements IService {
     return next;
   }
 
-  private set(state: PlatformLiveState): void {
+  private set(state: PlatformLiveState, cause: PlatformLiveStateEvent['cause'] = 'reported'): void {
     const current = this.states.get(state.platform);
     if (current && current.live === state.live && sameStart(current, state)) {
       return;
@@ -121,7 +122,7 @@ export class PlatformLiveStatus implements IService {
     this.states.set(state.platform, state);
     this.webSocketServer.broadcast(createPlatformLiveStateMessage(this.getStates()));
     if (current?.live !== state.live) {
-      void this.eventBus.emit('platform.liveState', state);
+      void this.eventBus.emit('platform.liveState', { ...state, cause });
     }
   }
 }

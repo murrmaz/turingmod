@@ -78,7 +78,7 @@ describe('GoLiveAnnouncer', () => {
   const setLive = (platform: StreamingPlatform, live: boolean, startedAt = Date.now()) => {
     const state = { platform, live, startedAt: live ? startedAt : null };
     states.set(platform, state);
-    return eventBus.emit('platform.liveState', state);
+    return eventBus.emit('platform.liveState', { ...state, cause: 'reported' });
   };
 
   /** Let the timers run, then wait for the work they queued. */

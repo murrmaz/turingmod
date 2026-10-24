@@ -39,14 +39,35 @@ export const FEED_CATEGORY_LABELS: Record<FeedCategory, string> = {
 };
 
 /**
+ * Events the log once recorded and no longer does, still described for the entries stored then.
+ * Twitch's stream online/offline became `platform.liveState`, which covers every platform.
+ */
+const RETIRED_EVENTS = ['twitch.stream.online', 'twitch.stream.offline'] as const;
+type RetiredEventName = (typeof RETIRED_EVENTS)[number];
+
+function isRetiredEventName(event: string): event is RetiredEventName {
+  return (RETIRED_EVENTS as readonly string[]).includes(event);
+}
+
+/**
+ * A stream that started this long before TuringMod saw it go live was already running (TuringMod
+ * restarted, or the platform came back), so its entry says when it started instead.
+ */
+const STARTED_JUST_NOW_MS = 5 * 60_000;
+
+/**
  * The stored events in each category, for filtering the stored log by category on the server.
  * Chat isn't stored. Kept in step with `toFeedRow` by a test.
  */
-export const FEED_CATEGORY_EVENTS: Record<Exclude<FeedCategory, 'chat'>, ActivityEventName[]> = {
+export const FEED_CATEGORY_EVENTS: Record<
+  Exclude<FeedCategory, 'chat'>,
+  (ActivityEventName | RetiredEventName)[]
+> = {
   command: ['command.executed'],
   reward: ['twitch.channelPoint.redemption'],
   viewer: ['twitch.follow', 'twitch.subscribe', 'twitch.raid', 'twitch.cheer'],
   system: [
+    'platform.liveState',
     'twitch.stream.online',
     'twitch.stream.offline',
     'twitch.ad.break',
@@ -114,17 +135,26 @@ function system(label: string, title: string, detail = '', tone: FeedTone = 'sys
 
 /**
  * How each recorded event reads. Every name in ACTIVITY_EVENTS needs a case, which the compiler
- * enforces (the switch must return on every path); anything else, such as an event stored before
- * it was renamed, shows as its bare name.
+ * enforces (the switch must return on every path); a retired event reads as it did, and anything
+ * else, such as an event stored before it was renamed, shows as its bare name.
  */
-function describe(event: string, data: Record<string, unknown>): Described {
+function describe(entry: ActivityLogEntry): Described {
+  const { event, data } = entry;
+  if (isRetiredEventName(event)) {
+    const title = event === 'twitch.stream.online' ? 'Stream started' : 'Stream ended';
+    return { ...system('Stream', title), platform: StreamingPlatform.TWITCH };
+  }
   if (!isActivityEventName(event)) {
     return system('Event', event);
   }
-  return describeEvent(event, data);
+  return describeEvent(event, data, entry.timestamp);
 }
 
-function describeEvent(event: ActivityEventName, data: Record<string, unknown>): Described {
+function describeEvent(
+  event: ActivityEventName,
+  data: Record<string, unknown>,
+  timestamp: number
+): Described {
   const twitch = StreamingPlatform.TWITCH;
 
   switch (event) {
@@ -222,11 +252,6 @@ function describeEvent(event: ActivityEventName, data: Record<string, unknown>):
       };
     }
 
-    case 'twitch.stream.online':
-      return { ...system('Stream', 'Stream online'), platform: twitch };
-    case 'twitch.stream.offline':
-      return { ...system('Stream', 'Stream offline'), platform: twitch };
-
     case 'twitch.ad.break':
       return {
         ...system(
@@ -301,6 +326,21 @@ function describeEvent(event: ActivityEventName, data: Record<string, unknown>):
       };
     }
 
+    case 'platform.liveState': {
+      const platform = platformOf(data);
+      if (data.live !== true) {
+        return { ...system('Stream', 'Stream ended'), platform };
+      }
+      const startedAt = count(data, 'startedAt');
+      if (startedAt === null || timestamp - startedAt < STARTED_JUST_NOW_MS) {
+        return { ...system('Stream', 'Stream started'), platform };
+      }
+      return {
+        ...system('Stream', 'Stream live', `started ${formatDateTime(startedAt)}`),
+        platform,
+      };
+    }
+
     case 'integration.error':
       return system('Error', text(data, 'name'), text(data, 'message'), 'error');
   }
@@ -308,7 +348,7 @@ function describeEvent(event: ActivityEventName, data: Record<string, unknown>):
 
 /** Describe one activity entry for the feed. */
 export function toFeedRow(entry: ActivityLogEntry): FeedRow {
-  return { id: entry.id, timestamp: entry.timestamp, entry, ...describe(entry.event, entry.data) };
+  return { id: entry.id, timestamp: entry.timestamp, entry, ...describe(entry) };
 }
 
 /** Whether a row matches the feed's text filter: event, detail and user, case-insensitively. */
@@ -337,6 +377,41 @@ export function formatDateTime(timestamp: number): string {
   const date = new Date(timestamp);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${formatClock(timestamp)}`;
+}
+
+/** The day a timestamp falls on, in local time, as `YYYY-MM-DD`: equal for any two on one day. */
+function dayOf(timestamp: number): string {
+  return formatDateTime(timestamp).slice(0, 10);
+}
+
+/** The day a timestamp falls on, as the activity tables' dividers name it. */
+export function formatDay(timestamp: number, now = Date.now()): string {
+  const date = new Date(timestamp);
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const named = date.toLocaleDateString([], {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    ...(date.getFullYear() === new Date(now).getFullYear() ? {} : { year: 'numeric' }),
+  });
+  if (dayOf(timestamp) === dayOf(now)) {
+    return `Today · ${named}`;
+  }
+  if (dayOf(timestamp) === dayOf(yesterday.getTime())) {
+    return `Yesterday · ${named}`;
+  }
+  return named;
+}
+
+/**
+ * The divider above an activity row: its day, where that differs from the row before it (and
+ * above the first row). Rows show only the time, so this is what says which day they're on.
+ */
+export function dayDivider(row: FeedRow, previous: FeedRow | undefined): string | null {
+  return previous && dayOf(previous.timestamp) === dayOf(row.timestamp)
+    ? null
+    : formatDay(row.timestamp);
 }
 
 /** `H:MM:SS` for a duration in milliseconds. */

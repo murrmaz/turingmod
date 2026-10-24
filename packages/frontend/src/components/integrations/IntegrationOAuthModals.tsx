@@ -1,4 +1,6 @@
+import { OAuthModal } from './OAuthModal';
 import { OAUTH_INTEGRATION_REGISTRY } from './oauthIntegrationRegistry';
+import { SetupModal } from './SetupModal';
 
 export interface IntegrationOAuthModalsProps {
   /** Name of the OAuth-capable integration currently being set up/authorized, or null if none. */
@@ -32,12 +34,10 @@ export function IntegrationOAuthModals({
     return null;
   }
 
-  const entry = OAUTH_INTEGRATION_REGISTRY[activeIntegration];
-  if (!entry) {
+  const provider = OAUTH_INTEGRATION_REGISTRY[activeIntegration];
+  if (!provider) {
     return null;
   }
-
-  const { oauthModal: OAuthModal, setupModal: SetupModal } = entry;
 
   return (
     <>
@@ -45,12 +45,14 @@ export function IntegrationOAuthModals({
         visible={setupModalVisible}
         onDismiss={onSetupDismiss}
         onSuccess={onSetupSuccess}
+        provider={provider}
       />
 
       <OAuthModal
         visible={oauthModalVisible}
         onDismiss={onOAuthDismiss}
         onSuccess={onOAuthSuccess}
+        provider={provider}
       />
     </>
   );

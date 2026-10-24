@@ -1,4 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table';
+import { platformDisplayName } from '@turingmod/shared';
 import { Ellipsis } from 'lucide-react';
 import { DataTableColumnHeader } from '@/components/data-table/column-header';
 import { DotBadge } from '@/components/status';
@@ -9,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { type FeedRow, formatClock, PLATFORM_LABELS } from '@/constants/activityFormat';
+import { type FeedRow, formatClock } from '@/constants/activityFormat';
 
 export interface ActivityRowActions {
   onInspect: (row: FeedRow) => void;
@@ -81,7 +82,7 @@ export function activityColumns<T extends FeedRow>(
       enableSorting: false,
       cell: ({ row }) => (
         <span className="text-[12.5px] text-muted-foreground">
-          {row.original.platform ? PLATFORM_LABELS[row.original.platform] : '—'}
+          {row.original.platform ? platformDisplayName(row.original.platform) : '—'}
         </span>
       ),
     },

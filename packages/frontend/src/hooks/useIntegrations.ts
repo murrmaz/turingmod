@@ -8,7 +8,7 @@ import { useWebSocketContext } from '../context/WebSocketContext';
  * Hook to interact with integrations
  */
 export function useIntegrations() {
-  const { sendAndWaitForResponse } = useWebSocketContext();
+  const { request } = useWebSocketContext();
   const { integrations, refreshIntegrations } = useAppState();
 
   /**
@@ -17,14 +17,7 @@ export function useIntegrations() {
   const startIntegration = useCallback(
     async (integrationName: string): Promise<void> => {
       try {
-        await sendAndWaitForResponse({
-          id: crypto.randomUUID(),
-          type: MessageType.INTEGRATION_START,
-          timestamp: Date.now(),
-          payload: {
-            integrationName,
-          },
-        });
+        await request(MessageType.INTEGRATION_START, { integrationName });
 
         // Refresh integrations list
         await refreshIntegrations();
@@ -33,7 +26,7 @@ export function useIntegrations() {
         throw error;
       }
     },
-    [sendAndWaitForResponse, refreshIntegrations]
+    [request, refreshIntegrations]
   );
 
   /**
@@ -42,14 +35,7 @@ export function useIntegrations() {
   const stopIntegration = useCallback(
     async (integrationName: string): Promise<void> => {
       try {
-        await sendAndWaitForResponse({
-          id: crypto.randomUUID(),
-          type: MessageType.INTEGRATION_STOP,
-          timestamp: Date.now(),
-          payload: {
-            integrationName,
-          },
-        });
+        await request(MessageType.INTEGRATION_STOP, { integrationName });
 
         // Refresh integrations list
         await refreshIntegrations();
@@ -58,7 +44,7 @@ export function useIntegrations() {
         throw error;
       }
     },
-    [sendAndWaitForResponse, refreshIntegrations]
+    [request, refreshIntegrations]
   );
 
   /**

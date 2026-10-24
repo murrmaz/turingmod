@@ -1,7 +1,8 @@
-import type { CommandInfo, IntegrationInfo, IWebSocketMessage } from '@turingmod/shared';
+import type { CommandInfo, IntegrationInfo } from '@turingmod/shared';
 import { MessageType } from '@turingmod/shared';
 import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { useWebSocketMessage } from '../hooks/useWebSocket';
 import { useWebSocketContext } from './WebSocketContext';
 
 /**
@@ -40,75 +41,46 @@ export interface AppStateProviderProps {
  * Manages global application state
  */
 export function AppStateProvider({ children }: AppStateProviderProps) {
-  const { subscribe, sendAndWaitForResponse, isConnected } = useWebSocketContext();
+  const { request, isConnected } = useWebSocketContext();
   const [integrations, setIntegrations] = useState<IntegrationInfo[]>([]);
   const [commands, setCommands] = useState<CommandInfo[]>([]);
 
   // Refresh integrations list
   const refreshIntegrations = useCallback(async () => {
     try {
-      const response = await sendAndWaitForResponse<{ integrations: IntegrationInfo[] }>({
-        id: crypto.randomUUID(),
-        type: MessageType.INTEGRATION_LIST,
-        timestamp: Date.now(),
-        payload: {},
-      });
-
-      if (response.payload.integrations) {
-        setIntegrations(response.payload.integrations);
-      }
+      const { integrations } = await request(MessageType.INTEGRATION_LIST, {});
+      setIntegrations(integrations);
     } catch (error) {
       console.error('[AppState] Failed to refresh integrations', error);
     }
-  }, [sendAndWaitForResponse]);
+  }, [request]);
 
   // Refresh commands list
   const refreshCommands = useCallback(async () => {
     try {
-      const response = await sendAndWaitForResponse<{ commands: CommandInfo[] }>({
-        id: crypto.randomUUID(),
-        type: MessageType.COMMAND_LIST,
-        timestamp: Date.now(),
-        payload: {},
-      });
-
-      if (response.payload.commands) {
-        setCommands(response.payload.commands);
-      }
+      const { commands } = await request(MessageType.COMMAND_LIST, {});
+      setCommands(commands);
     } catch (error) {
       console.error('[AppState] Failed to refresh commands', error);
     }
-  }, [sendAndWaitForResponse]);
+  }, [request]);
 
-  // Subscribe to real-time updates
-  useEffect(() => {
-    const unsubscribe = subscribe((message: IWebSocketMessage) => {
-      switch (message.type) {
-        case MessageType.INTEGRATION_STATUS: {
-          // Update integration status (payload is { integration: IntegrationInfo })
-          const payload = message.payload as { integration: IntegrationInfo };
-          if (payload.integration) {
-            setIntegrations((prev) => {
-              const updated = [...prev];
-              const index = updated.findIndex((i) => i.name === payload.integration.name);
-              if (index >= 0) {
-                updated[index] = payload.integration;
-              } else {
-                updated.push(payload.integration);
-              }
-              return updated;
-            });
-          }
-          break;
+  // Real-time updates
+  useWebSocketMessage(
+    MessageType.INTEGRATION_STATUS,
+    useCallback(({ integration }) => {
+      setIntegrations((prev) => {
+        const updated = [...prev];
+        const index = updated.findIndex((i) => i.name === integration.name);
+        if (index >= 0) {
+          updated[index] = integration;
+        } else {
+          updated.push(integration);
         }
-
-        default:
-          break;
-      }
-    });
-
-    return unsubscribe;
-  }, [subscribe]);
+        return updated;
+      });
+    }, [])
+  );
 
   // Initial data load
   useEffect(() => {

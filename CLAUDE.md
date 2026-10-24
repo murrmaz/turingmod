@@ -39,7 +39,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **OAuth modal wiring**: `packages/frontend/src/components/integrations/IntegrationOAuthModals.tsx` — the setup → authorize handoff, looked up from the registry below
 - **Setup Modal**: `packages/frontend/src/components/integrations/SetupModal.tsx` — generic, parameterized by `OAuthProviderConfig`
 - **OAuth Modal**: `packages/frontend/src/components/integrations/OAuthModal.tsx` — generic, parameterized by `OAuthProviderConfig`
-- **OAuth Provider Configs**: `packages/frontend/src/components/integrations/oauthProviders.tsx` (per-provider content) + `oauthIntegrationRegistry.tsx` (name → modal/config lookup)
+- **OAuth Provider Configs**: `packages/frontend/src/components/integrations/oauthProviders.tsx` (per-provider content) + `oauthIntegrationRegistry.tsx` (name → provider config lookup)
 - **Non-OAuth setup dialogs**: `packages/frontend/src/components/integrations/configIntegrationRegistry.tsx` (name → dialog, shown as Set up on the Integrations page), e.g. `DiscordSetupModal.tsx`
 - **Backend Manager**: `packages/backend/src/integrations/IntegrationManager.ts`
 - **OAuth flow**: `packages/backend/src/integrations/OAuthFlowService.ts` — authorization URL, single-use `state`, callback routes, code exchange. Client credentials come only from the console's setup dialog (stored encrypted), never from `.env`; `IntegrationInfo.oauth.configured` tells the console whether to open setup or authorization
@@ -69,7 +69,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Mirroring/reads**: `packages/backend/src/platforms/StreamControlService.ts` — the seam commands depend on
 - **Auth reporting**: `packages/backend/src/platforms/availability.ts` (`unavailableReason`) + `errors.ts` (`NotAuthenticatedError`)
 - **Availability events**: `packages/backend/src/platforms/PlatformAvailability.ts` — publishes `platform.availability` when a façade becomes usable or stops being usable
-- **Display names**: `packages/backend/src/platforms/platformNames.ts`
+- **Display names**: `platformDisplayName()` / `formatPlatformList()` in `packages/shared/src/constants/platform.ts` (shared with the console)
 
 ### Channel Point Rewards & Raids
 - **Handler interface**: `packages/backend/src/rewards/interfaces/IRewardHandler.ts`
@@ -126,6 +126,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Router**: `packages/backend/src/server/MessageRouter.ts`
 - **Messages/Types**: `packages/shared/src/protocol/messages.ts`
 - **Request schemas**: `packages/shared/src/protocol/requests.ts` — Zod schema per client → server payload (`REQUEST_PAYLOAD_SCHEMAS`), types inferred from them
+- **Responses**: `packages/shared/src/protocol/responses.ts` — `ServerPayloads` (payload per server → client type) and `ResponseTypes` (what each request is answered with); `MessageRouter` handlers must return it, and the console's `request(type, payload)` (`WebSocketContext`) infers it
 - **Frontend Context**: `packages/frontend/src/context/WebSocketContext.tsx`
 - **Frontend Hooks**: `packages/frontend/src/hooks/useWebSocket.ts` (`useWebSocket()`, `useWebSocketMessage()`)
 

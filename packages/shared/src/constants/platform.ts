@@ -5,6 +5,22 @@ export enum StreamingPlatform {
   // TIKTOK = 'tiktok', // future
 }
 
+/** Human-readable display names for platforms, in chat replies and in the console alike. */
+const PLATFORM_DISPLAY_NAMES: Record<StreamingPlatform, string> = {
+  [StreamingPlatform.TWITCH]: 'Twitch',
+  [StreamingPlatform.YOUTUBE]: 'YouTube',
+};
+
+/** Format a platform for display, e.g. `StreamingPlatform.TWITCH` → `Twitch`. */
+export function platformDisplayName(platform: StreamingPlatform): string {
+  return PLATFORM_DISPLAY_NAMES[platform];
+}
+
+/** Format a list of platforms for display, e.g. `Twitch, YouTube`. */
+export function formatPlatformList(platforms: StreamingPlatform[]): string {
+  return platforms.map(platformDisplayName).join(', ');
+}
+
 /**
  * Capabilities a platform may support. A command is available on a platform only if the
  * platform's capability set is a superset of the command's requiredCapabilities.

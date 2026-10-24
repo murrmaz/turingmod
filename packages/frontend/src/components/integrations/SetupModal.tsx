@@ -1,8 +1,8 @@
 import {
-  createMessage,
-  type IntegrationConfigurePayload,
   MessageType,
   messageOf,
+  type OAuthClientCredentials,
+  OAuthClientCredentialsSchema,
 } from '@turingmod/shared';
 import { CircleAlert, ExternalLink, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
@@ -35,7 +35,7 @@ export interface SetupModalProps {
  * Allows user to configure an OAuth-capable integration's Client ID and Client Secret
  */
 export function SetupModal({ visible, onDismiss, onSuccess, provider }: SetupModalProps) {
-  const { sendAndWaitForResponse } = useWebSocketContext();
+  const { request } = useWebSocketContext();
   const { integrations } = useAppState();
   // Reported by the backend, which derives it from its own port; never sent back to it.
   const redirectUri =
@@ -47,24 +47,24 @@ export function SetupModal({ visible, onDismiss, onSuccess, provider }: SetupMod
   const [errorMessage, setErrorMessage] = useState('');
 
   const handleSave = async () => {
-    if (!(clientId.trim() && clientSecret.trim())) {
+    const parsed = OAuthClientCredentialsSchema.safeParse({
+      clientId: clientId.trim(),
+      clientSecret: clientSecret.trim(),
+    });
+    if (!parsed.success) {
       setErrorMessage('Please enter both Client ID and Client Secret');
       return;
     }
+    const config: OAuthClientCredentials = parsed.data;
 
     setIsLoading(true);
     setErrorMessage('');
 
     try {
-      const payload: IntegrationConfigurePayload = {
+      await request(MessageType.INTEGRATION_CONFIGURE, {
         integrationName: provider.integrationName,
-        config: {
-          clientId: clientId.trim(),
-          clientSecret: clientSecret.trim(),
-        },
-      };
-
-      await sendAndWaitForResponse(createMessage(MessageType.INTEGRATION_CONFIGURE, payload));
+        config,
+      });
 
       // Success! Close and trigger OAuth flow
       onSuccess();

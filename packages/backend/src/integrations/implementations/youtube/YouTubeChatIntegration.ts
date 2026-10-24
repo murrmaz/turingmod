@@ -1,6 +1,7 @@
 import type { YouTubeChatState } from '@turingmod/shared';
 import {
   IntegrationGroup,
+  IntegrationName,
   IntegrationStatus,
   PermissionLevel,
   StreamingPlatform,
@@ -135,7 +136,7 @@ function isTransportError(error: unknown): boolean {
  */
 @singleton()
 export class YouTubeChatIntegration extends BaseIntegration {
-  readonly name = 'youtube-chat';
+  readonly name = IntegrationName.YOUTUBE_CHAT;
 
   private broadcast: StreamedBroadcast | null = null;
   private nextPageToken: string | undefined;

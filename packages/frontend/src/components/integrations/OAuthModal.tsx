@@ -1,12 +1,4 @@
-import {
-  createOAuthExchangeCodeMessage,
-  createOAuthGetAuthUrlMessage,
-  MessageType,
-  messageOf,
-  type OAuthAuthUrlResponsePayload,
-  type OAuthCodeReceivedPayload,
-  type OAuthExchangeResultPayload,
-} from '@turingmod/shared';
+import { MessageType, messageOf } from '@turingmod/shared';
 import { CircleAlert, Info, Loader2, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -20,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useWebSocketContext } from '../../context/WebSocketContext';
+import { useWebSocketMessage } from '../../hooks/useWebSocket';
 import type { OAuthProviderConfig } from './oauthProviders';
 
 export interface OAuthModalProps {
@@ -38,7 +31,7 @@ export interface OAuthModalProps {
  * Opens popup window for OAuth, automatically captures code and exchanges it
  */
 export function OAuthModal({ visible, onDismiss, onSuccess, provider }: OAuthModalProps) {
-  const { sendAndWaitForResponse, subscribe } = useWebSocketContext();
+  const { request } = useWebSocketContext();
   const [step, setStep] = useState<'loading' | 'waiting' | 'exchanging' | 'error'>('loading');
   const [authUrl, setAuthUrl] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -109,17 +102,18 @@ export function OAuthModal({ visible, onDismiss, onSuccess, provider }: OAuthMod
       setErrorMessage('');
 
       try {
-        const response = await sendAndWaitForResponse<OAuthExchangeResultPayload>(
-          createOAuthExchangeCodeMessage(provider.integrationName, code)
-        );
+        const result = await request(MessageType.OAUTH_EXCHANGE_CODE, {
+          integrationName: provider.integrationName,
+          code,
+        });
 
-        if (response.payload.success) {
+        if (result.success) {
           // Success! Integration should start automatically
           closePopup();
           onSuccess();
           handleClose();
         } else {
-          setErrorMessage(response.payload.errorMessage || 'Failed to exchange code');
+          setErrorMessage(result.errorMessage || 'Failed to exchange code');
           setStep('error');
           closePopup();
         }
@@ -129,7 +123,7 @@ export function OAuthModal({ visible, onDismiss, onSuccess, provider }: OAuthMod
         closePopup();
       }
     },
-    [sendAndWaitForResponse, closePopup, onSuccess, handleClose, provider.integrationName]
+    [request, closePopup, onSuccess, handleClose, provider.integrationName]
   );
 
   // Fetch the authorization URL when modal opens
@@ -138,14 +132,14 @@ export function OAuthModal({ visible, onDismiss, onSuccess, provider }: OAuthMod
     setErrorMessage('');
 
     try {
-      const response = await sendAndWaitForResponse<OAuthAuthUrlResponsePayload>(
-        createOAuthGetAuthUrlMessage(provider.integrationName)
-      );
+      const { authUrl } = await request(MessageType.OAUTH_GET_AUTH_URL, {
+        integrationName: provider.integrationName,
+      });
 
-      if (response.payload.authUrl) {
-        setAuthUrl(response.payload.authUrl);
+      if (authUrl) {
+        setAuthUrl(authUrl);
         // Open popup with auth URL
-        openAuthPopup(response.payload.authUrl);
+        openAuthPopup(authUrl);
         setStep('waiting');
       } else {
         setErrorMessage('Failed to get authorization URL');
@@ -155,13 +149,13 @@ export function OAuthModal({ visible, onDismiss, onSuccess, provider }: OAuthMod
       setErrorMessage(messageOf(error));
       setStep('error');
     }
-  }, [sendAndWaitForResponse, openAuthPopup, provider.integrationName]);
+  }, [request, openAuthPopup, provider.integrationName]);
 
   // Subscribe to OAuth code received events
-  useEffect(() => {
-    const unsubscribe = subscribe((message) => {
-      if (message.type === MessageType.OAUTH_CODE_RECEIVED) {
-        const payload = message.payload as OAuthCodeReceivedPayload;
+  useWebSocketMessage(
+    MessageType.OAUTH_CODE_RECEIVED,
+    useCallback(
+      (payload) => {
         if (payload.integrationName === provider.integrationName) {
           // The popup's job is done the moment we have the code — close it now
           // rather than waiting on the exchange, so it can't race the backend's
@@ -169,13 +163,10 @@ export function OAuthModal({ visible, onDismiss, onSuccess, provider }: OAuthMod
           closePopup();
           exchangeCode(payload.code);
         }
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [subscribe, exchangeCode, closePopup, provider.integrationName]);
+      },
+      [exchangeCode, closePopup, provider.integrationName]
+    )
+  );
 
   // Fetch auth URL when modal becomes visible
   useEffect(() => {

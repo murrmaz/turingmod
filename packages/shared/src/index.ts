@@ -10,6 +10,7 @@ export * from './constants/platform.js';
 // Protocol
 export * from './protocol/messages.js';
 export * from './protocol/requests.js';
+export * from './protocol/responses.js';
 export * from './types/activity.js';
 export * from './types/arduino.js';
 export * from './types/command.js';

@@ -1,5 +1,6 @@
 import {
   IntegrationGroup,
+  IntegrationName,
   IntegrationStatus,
   messageOf,
   PermissionLevel,
@@ -80,7 +81,7 @@ export type TwitchEventSubConfig = z.infer<typeof TwitchEventSubConfigSchema>;
  */
 @singleton()
 export class TwitchEventSubIntegration extends BaseIntegration {
-  readonly name = 'twitch-eventsub';
+  readonly name = IntegrationName.TWITCH_EVENTSUB;
 
   private eventSubListener: EventSubWsListener | null = null;
   private config: TwitchEventSubConfig = {};

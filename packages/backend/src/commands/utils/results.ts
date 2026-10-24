@@ -1,5 +1,6 @@
 import type { CommandErrorCode, CommandResult } from '@turingmod/shared';
-import { formatPlatformList } from '../../platforms/platformNames.js';
+import { formatPlatformList } from '@turingmod/shared';
+
 import type { MirrorResult } from '../../platforms/StreamControlService.js';
 
 /** A success, replying `message` in chat (empty to reply with nothing). */

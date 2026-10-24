@@ -1,6 +1,7 @@
 import type {
   ActivityListPayload,
   ActivityQueryPayload,
+  ErrorPayload,
   IWebSocketMessage,
 } from '@turingmod/shared';
 import { createActivityListMessage, createErrorMessage, messageOf } from '@turingmod/shared';
@@ -25,7 +26,7 @@ export class ActivityHandler {
 
   handleQuery(
     message: IWebSocketMessage<ActivityQueryPayload>
-  ): Promise<IWebSocketMessage<ActivityListPayload> | IWebSocketMessage> {
+  ): Promise<IWebSocketMessage<ActivityListPayload | ErrorPayload>> {
     try {
       const entries = this.repo.findRecent(message.payload);
       return Promise.resolve(createActivityListMessage(entries, message.id));

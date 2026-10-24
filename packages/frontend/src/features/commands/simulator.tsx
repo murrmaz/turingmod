@@ -1,8 +1,10 @@
 import {
   type ExecutionResult,
+  type ExecutorErrorCode,
   isExecutorErrorCode,
   messageOf,
   PermissionLevel,
+  platformDisplayName,
   StreamingPlatform,
 } from '@turingmod/shared';
 import { CircleCheck, CircleX, Play } from 'lucide-react';
@@ -26,7 +28,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { PLATFORM_LABELS } from '@/constants/activityFormat';
+
 import { useCommands } from '@/hooks/useCommands';
 
 export const PERMISSION_LABELS: Record<PermissionLevel, string> = {
@@ -46,7 +48,7 @@ interface Outcome {
   reason?: string;
 }
 
-const EXECUTOR_TITLES: Record<string, string> = {
+const EXECUTOR_TITLES: Record<ExecutorErrorCode, string> = {
   COMMAND_NOT_FOUND: 'Not a command here',
   INSUFFICIENT_PERMISSIONS: 'Not allowed at this permission level',
   COMMAND_ON_COOLDOWN: 'On cooldown',
@@ -63,13 +65,15 @@ function toOutcome(result: ExecutionResult): Outcome {
   }
   const { code, reason } = result.error;
   // The executor's own refusals get no reply in chat; say so, since the sheet shows one anyway.
-  const silent = isExecutorErrorCode(code);
-  return {
-    success: false,
-    title: EXECUTOR_TITLES[code] ?? 'Command failed',
-    message: silent ? `${result.message}. In chat this gets no reply.` : result.message,
-    reason,
-  };
+  if (isExecutorErrorCode(code)) {
+    return {
+      success: false,
+      title: EXECUTOR_TITLES[code],
+      message: `${result.message}. In chat this gets no reply.`,
+      reason,
+    };
+  }
+  return { success: false, title: 'Command failed', message: result.message, reason };
 }
 
 interface SimulatorRequest {
@@ -206,7 +210,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
                   <SelectContent>
                     {Object.values(StreamingPlatform).map((value) => (
                       <SelectItem key={value} value={value}>
-                        {PLATFORM_LABELS[value]}
+                        {platformDisplayName(value)}
                       </SelectItem>
                     ))}
                   </SelectContent>

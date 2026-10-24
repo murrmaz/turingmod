@@ -11,3 +11,10 @@ export const ArduinoUrlSchema = z.url({
   protocol: /^wss?$/,
   error: 'Expected a ws:// address, such as ws://192.168.1.50:81',
 });
+
+/** The Arduino integration's config, as its setup dialog saves it and the backend stores it. */
+export const ArduinoConfigSchema = z.strictObject({
+  /** The board's WebSocket server. Omitted = the reference firmware's mDNS name. */
+  url: ArduinoUrlSchema.default(ARDUINO_DEFAULT_URL),
+});
+export type ArduinoConfig = z.infer<typeof ArduinoConfigSchema>;

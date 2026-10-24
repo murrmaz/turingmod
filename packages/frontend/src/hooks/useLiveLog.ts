@@ -1,9 +1,5 @@
-import type {
-  ActivityListPayload,
-  ActivityLogEntry,
-  EventNotificationPayload,
-} from '@turingmod/shared';
-import { createActivityQueryMessage, MessageType } from '@turingmod/shared';
+import type { ActivityLogEntry } from '@turingmod/shared';
+import { MessageType } from '@turingmod/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { type FeedRow, toFeedRow } from '../constants/activityFormat';
 import { useWebSocketContext } from '../context/WebSocketContext';
@@ -33,7 +29,7 @@ function toLiveRow(entry: ActivityLogEntry, live: boolean): LiveFeedRow {
  * the stored log, include chat).
  */
 export function useLiveLog() {
-  const { sendAndWaitForResponse, isConnected } = useWebSocketContext();
+  const { request, isConnected } = useWebSocketContext();
   const [rows, setRows] = useState<LiveFeedRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,13 +41,11 @@ export function useLiveLog() {
 
     (async () => {
       try {
-        const response = await sendAndWaitForResponse<ActivityListPayload>(
-          createActivityQueryMessage({ limit: SEED_LIMIT })
-        );
+        const { entries } = await request(MessageType.ACTIVITY_QUERY, { limit: SEED_LIMIT });
         if (!cancelled) {
           // The server answers newest first, which is the feed's order; numbering goes oldest
           // first so that a newer row always has the higher seq.
-          const seeded = [...response.payload.entries]
+          const seeded = [...entries]
             .reverse()
             .map((entry) => toLiveRow(entry, false))
             .reverse();
@@ -74,12 +68,12 @@ export function useLiveLog() {
     return () => {
       cancelled = true;
     };
-  }, [isConnected, sendAndWaitForResponse]);
+  }, [isConnected, request]);
 
-  useWebSocketMessage<EventNotificationPayload>(
+  useWebSocketMessage(
     MessageType.EVENT_NOTIFICATION,
-    useCallback((message) => {
-      const row = toLiveRow(message.payload.entry, true);
+    useCallback(({ entry }) => {
+      const row = toLiveRow(entry, true);
       setRows((previous) => [row, ...previous].slice(0, MAX_ENTRIES));
     }, [])
   );

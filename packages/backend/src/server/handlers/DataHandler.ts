@@ -3,6 +3,7 @@ import type {
   DataRowsPayload,
   DataTablesPayload,
   EmptyPayload,
+  ErrorPayload,
   IWebSocketMessage,
 } from '@turingmod/shared';
 import { createErrorMessage, createMessage, MessageType, messageOf } from '@turingmod/shared';
@@ -26,7 +27,9 @@ export class DataHandler {
     this.logger = logger.child({ component: 'DataHandler' });
   }
 
-  handleListTables(message: IWebSocketMessage<EmptyPayload>): Promise<IWebSocketMessage> {
+  handleListTables(
+    message: IWebSocketMessage<EmptyPayload>
+  ): Promise<IWebSocketMessage<DataTablesPayload | ErrorPayload>> {
     return Promise.resolve(
       this.answer(message.id, () =>
         createMessage<DataTablesPayload>(
@@ -38,7 +41,9 @@ export class DataHandler {
     );
   }
 
-  handleQueryRows(message: IWebSocketMessage<DataQueryRowsPayload>): Promise<IWebSocketMessage> {
+  handleQueryRows(
+    message: IWebSocketMessage<DataQueryRowsPayload>
+  ): Promise<IWebSocketMessage<DataRowsPayload | ErrorPayload>> {
     return Promise.resolve(
       this.answer(message.id, () =>
         createMessage<DataRowsPayload>(
@@ -50,7 +55,10 @@ export class DataHandler {
     );
   }
 
-  private answer(id: string, read: () => IWebSocketMessage): IWebSocketMessage {
+  private answer<T>(
+    id: string,
+    read: () => IWebSocketMessage<T>
+  ): IWebSocketMessage<T | ErrorPayload> {
     try {
       return read();
     } catch (error) {

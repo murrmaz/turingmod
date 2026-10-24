@@ -1,10 +1,9 @@
-import { StreamingPlatform } from '@turingmod/shared';
+import { platformDisplayName, StreamingPlatform } from '@turingmod/shared';
 import { z } from 'zod';
 import type {
   DiscordEmbed,
   DiscordMessage,
 } from '../integrations/implementations/discord/DiscordIntegration.js';
-import { platformDisplayName } from '../platforms/platformNames.js';
 
 /** What a go-live post says about the stream. */
 export const StreamSummarySchema = z.strictObject({

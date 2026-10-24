@@ -1,5 +1,5 @@
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { ActivityCategory, type ActivityLogEntry, type DataCell } from '@turingmod/shared';
+import { type ActivityLogEntry, ActivityLogEntrySchema, type DataCell } from '@turingmod/shared';
 import { Search } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -23,7 +23,7 @@ import {
 } from '@/constants/activityFormat';
 import { activityColumns } from '@/features/dashboard/activity-columns';
 import { EventSheet } from '@/features/dashboard/event-sheet';
-import { useDataRows } from '@/hooks/useDataRows';
+import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
 
 type HistoryCategory = keyof typeof FEED_CATEGORY_EVENTS | 'all';
 
@@ -44,36 +44,21 @@ const RANGES = {
 } as const;
 type RangeKey = keyof typeof RANGES;
 
-const PAGE_SIZES = [25, 50, 100, 200];
-
-/** Back from a stored row to the entry it was saved from. */
+/** Back from a stored row to the entry it was saved from; null for a row that isn't one. */
 function toEntry(row: Record<string, DataCell>): ActivityLogEntry | null {
-  const { id, event, data, timestamp } = row;
-  const category = Object.values(ActivityCategory).find((value) => value === row.category);
-  if (
-    typeof id !== 'string' ||
-    typeof event !== 'string' ||
-    typeof timestamp !== 'number' ||
-    !category
-  ) {
-    return null;
-  }
-  let parsed: unknown = {};
+  const parsed = ActivityLogEntrySchema.safeParse({ ...row, data: readData(row.data) });
+  return parsed.success ? parsed.data : null;
+}
+
+/** A stored payload, or an empty one when it can't be read, so the row still shows as its event. */
+function readData(data: DataCell | undefined): ActivityLogEntry['data'] {
   try {
-    parsed = typeof data === 'string' ? JSON.parse(data) : {};
+    return ActivityLogEntrySchema.shape.data.parse(
+      JSON.parse(typeof data === 'string' ? data : '')
+    );
   } catch {
-    // An unreadable payload still shows as its event.
+    return {};
   }
-  return {
-    id,
-    event,
-    timestamp,
-    category,
-    data:
-      typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-        ? Object.fromEntries(Object.entries(parsed))
-        : {},
-  };
 }
 
 /**
@@ -218,7 +203,7 @@ export function HistoryPage() {
           setSelectedId(null);
         }}
         pageSize={pageSize}
-        pageSizes={PAGE_SIZES}
+        pageSizes={DATA_PAGE_SIZES}
         onPageSizeChange={(size) => {
           setPageSize(size);
           reset();

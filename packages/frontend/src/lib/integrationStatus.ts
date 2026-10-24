@@ -1,4 +1,4 @@
-import { type IntegrationInfo, IntegrationStatus } from '@turingmod/shared';
+import { IntegrationGroup, type IntegrationInfo, IntegrationStatus } from '@turingmod/shared';
 import type { Tone } from '@/components/status';
 
 /** How an integration's state reads in the console. */
@@ -33,12 +33,20 @@ export function describeIntegration(integration: IntegrationInfo): IntegrationDi
   }
 }
 
-/** Display order of the dependency chains on the Integrations page, by group. */
-export const INTEGRATION_CHAINS = [
-  { group: 'twitch', label: 'Twitch' },
-  { group: 'youtube', label: 'YouTube' },
-  { group: 'spotify', label: 'Spotify' },
-] as const;
+const GROUP_LABELS: Record<IntegrationGroup, string> = {
+  [IntegrationGroup.TWITCH]: 'Twitch',
+  [IntegrationGroup.YOUTUBE]: 'YouTube',
+  [IntegrationGroup.SPOTIFY]: 'Spotify',
+};
+
+/**
+ * The dependency chains on the Integrations page, one per group in the enum's order. Every group
+ * gets one, so a new group's integrations can't go missing from the page.
+ */
+export const INTEGRATION_CHAINS = Object.values(IntegrationGroup).map((group) => ({
+  group,
+  label: GROUP_LABELS[group],
+}));
 
 /**
  * The integrations of one group in dependency order (each after the ones it depends on), so a

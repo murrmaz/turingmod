@@ -1,4 +1,4 @@
-import { type PlatformLiveState, StreamingPlatform } from '@turingmod/shared';
+import { type PlatformLiveState, platformDisplayName, StreamingPlatform } from '@turingmod/shared';
 import { ChevronDown, Search } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { StatusDot } from '@/components/status';
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { formatUptime, PLATFORM_LABELS } from '@/constants/activityFormat';
+import { formatUptime } from '@/constants/activityFormat';
 import { useNow, usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import { useYouTubeChat } from '@/hooks/useYouTubeChat';
 import { cn } from '@/lib/utils';
@@ -65,7 +65,7 @@ function BadgeBody({ state, now }: { state: PlatformLiveState; now: number }) {
   return (
     <>
       <StatusDot tone={state.live ? 'error' : 'idle'} />
-      <span className="font-semibold text-foreground">{PLATFORM_LABELS[state.platform]}</span>
+      <span className="font-semibold text-foreground">{platformDisplayName(state.platform)}</span>
       <span className="text-muted-foreground">{state.live ? 'Live' : 'Offline'}</span>
       {state.live && state.startedAt !== null && (
         <span className="font-mono text-muted-foreground tabular-nums">

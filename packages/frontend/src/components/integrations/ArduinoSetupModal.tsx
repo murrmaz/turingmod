@@ -1,8 +1,7 @@
 import {
   ARDUINO_DEFAULT_URL,
-  ArduinoUrlSchema,
-  createMessage,
-  type IntegrationConfigurePayload,
+  ArduinoConfigSchema,
+  IntegrationName,
   MessageType,
   messageOf,
 } from '@turingmod/shared';
@@ -33,7 +32,7 @@ export function ArduinoSetupModal({
   onDismiss,
   onSuccess,
 }: ConfigSetupModalProps) {
-  const { sendAndWaitForResponse } = useWebSocketContext();
+  const { request } = useWebSocketContext();
   const currentUrl = integration.address ?? ARDUINO_DEFAULT_URL;
   const [url, setUrl] = useState(currentUrl);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,8 +45,8 @@ export function ArduinoSetupModal({
     }
   }, [visible, currentUrl]);
 
-  const trimmed = url.trim();
-  const urlValid = ArduinoUrlSchema.safeParse(trimmed).success;
+  const parsed = ArduinoConfigSchema.safeParse({ url: url.trim() });
+  const urlValid = parsed.success;
 
   const handleClose = () => {
     setErrorMessage('');
@@ -56,17 +55,16 @@ export function ArduinoSetupModal({
   };
 
   const handleSave = async () => {
-    if (!urlValid) {
+    if (!parsed.success) {
       return;
     }
     setIsLoading(true);
     setErrorMessage('');
     try {
-      const payload: IntegrationConfigurePayload = {
-        integrationName: 'arduino',
-        config: { url: trimmed },
-      };
-      await sendAndWaitForResponse(createMessage(MessageType.INTEGRATION_CONFIGURE, payload));
+      await request(MessageType.INTEGRATION_CONFIGURE, {
+        integrationName: IntegrationName.ARDUINO,
+        config: parsed.data,
+      });
       onSuccess();
       handleClose();
     } catch (error) {
@@ -100,7 +98,7 @@ export function ArduinoSetupModal({
               className="font-mono"
               value={url}
               onChange={(event) => setUrl(event.target.value)}
-              aria-invalid={trimmed !== '' && !urlValid}
+              aria-invalid={url.trim() !== '' && !urlValid}
               autoComplete="off"
             />
             <p className="text-xs text-muted-foreground">

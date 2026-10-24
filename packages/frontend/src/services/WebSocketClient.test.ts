@@ -44,7 +44,7 @@ describe('WebSocketClient', () => {
   let client: WebSocketClient;
 
   beforeEach(() => {
-    const WebSocketMock = vi.fn(function WebSocketMock() {
+    const WebSocketMock = vi.fn(function createMockWebSocket() {
       mockWs = new MockWebSocket();
       return mockWs;
     });

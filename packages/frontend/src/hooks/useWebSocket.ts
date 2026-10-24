@@ -1,4 +1,4 @@
-import type { IWebSocketMessage, MessageType } from '@turingmod/shared';
+import type { ServerMessageType, ServerPayloads } from '@turingmod/shared';
 import { useEffect } from 'react';
 import { useWebSocketContext } from '../context/WebSocketContext';
 
@@ -11,18 +11,19 @@ export function useWebSocket() {
 }
 
 /**
- * Hook to subscribe to specific message types
+ * Hook to subscribe to one type of server message, with its payload typed by ServerPayloads.
+ * Hears answers to requests as well as pushed messages.
  */
-export function useWebSocketMessage<T = unknown>(
-  messageType: MessageType,
-  handler: (message: IWebSocketMessage<T>) => void
+export function useWebSocketMessage<T extends ServerMessageType>(
+  messageType: T,
+  handler: (payload: ServerPayloads[T]) => void
 ) {
   const { subscribe } = useWebSocketContext();
 
   useEffect(() => {
     const unsubscribe = subscribe((message) => {
       if (message.type === messageType) {
-        handler(message as IWebSocketMessage<T>);
+        handler(message.payload as ServerPayloads[T]);
       }
     });
 

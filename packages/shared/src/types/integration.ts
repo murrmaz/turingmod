@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /**
  * Integration connection status
  */
@@ -13,6 +15,25 @@ export enum IntegrationStatus {
    * ERROR: nothing is broken, a prerequisite is just off or still starting.
    */
   BLOCKED = 'blocked',
+}
+
+/**
+ * Every integration's name, as the backend registers it and the console asks for it (start, stop,
+ * configure, authorize).
+ */
+export enum IntegrationName {
+  TWITCH_AUTH = 'twitch-auth',
+  TWITCH_API = 'twitch-api',
+  TWITCH_EVENTSUB = 'twitch-eventsub',
+  YOUTUBE_AUTH = 'youtube-auth',
+  YOUTUBE_API = 'youtube-api',
+  YOUTUBE_CHAT = 'youtube-chat',
+  SPOTIFY_AUTH = 'spotify-auth',
+  SPOTIFY_API = 'spotify-api',
+  OBS = 'obs',
+  SOUND = 'sound',
+  DISCORD = 'discord',
+  ARDUINO = 'arduino',
 }
 
 /** Logical grouping of related integrations for UI display (e.g. Twitch's auth/api/eventsub trio). */
@@ -78,3 +99,13 @@ export interface IntegrationInfo {
   /** Logical group this integration belongs to, for grouping related integrations in the UI. Absent for standalone integrations (Discord, OBS, Arduino, Sound). */
   group?: IntegrationGroup;
 }
+
+/**
+ * The client credentials an OAuth integration's setup dialog saves. The backend's stored config
+ * extends this with the provider's token fields.
+ */
+export const OAuthClientCredentialsSchema = z.strictObject({
+  clientId: z.string().min(1),
+  clientSecret: z.string().min(1),
+});
+export type OAuthClientCredentials = z.infer<typeof OAuthClientCredentialsSchema>;

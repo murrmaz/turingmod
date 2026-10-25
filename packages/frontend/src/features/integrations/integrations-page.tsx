@@ -3,7 +3,6 @@ import { CircleAlert, Copy, KeyRound, Play, Settings, Square, X } from 'lucide-r
 import { Fragment, type ReactNode, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CONFIG_SETUP_REGISTRY } from '@/components/integrations/configIntegrationRegistry';
-import { IntegrationOAuthModals } from '@/components/integrations/IntegrationOAuthModals';
 import { StatusDot, TONE_TEXT } from '@/components/status';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -16,6 +15,7 @@ import {
   inDisplayOrder,
   orderByDependencies,
 } from '@/lib/integrationStatus';
+import { copyToClipboard } from '@/lib/reportError';
 import { cn } from '@/lib/utils';
 
 export function IntegrationsPage() {
@@ -92,16 +92,6 @@ export function IntegrationsPage() {
           onClose={() => select(null)}
         />
       )}
-
-      <IntegrationOAuthModals
-        activeIntegration={actions.activeOAuthIntegration}
-        oauthModalVisible={actions.oauthModalVisible}
-        setupModalVisible={actions.setupModalVisible}
-        onOAuthDismiss={actions.closeOAuthModal}
-        onSetupDismiss={actions.closeSetupModal}
-        onSetupSuccess={actions.handleSetupSuccess}
-        onOAuthSuccess={actions.handleOAuthSuccess}
-      />
     </div>
   );
 }
@@ -256,13 +246,13 @@ function IntegrationDetail({
         </div>
       )}
 
-      {SetupModal && (
+      {SetupModal && setupOpen && (
         <SetupModal
           integration={integration}
-          visible={setupOpen}
           onDismiss={() => setSetupOpen(false)}
           // A running integration restarts on its new config; one that isn't is started on it.
-          onSuccess={() => {
+          onSaved={() => {
+            setSetupOpen(false);
             if (!integration.enabled) {
               void actions.handleStart(integration.name);
             }
@@ -290,7 +280,7 @@ function IntegrationDetail({
                 className="size-6 shrink-0"
                 aria-label="Copy redirect URI"
                 onClick={() =>
-                  void navigator.clipboard.writeText(integration.oauth?.redirectUri ?? '')
+                  void copyToClipboard(integration.oauth?.redirectUri ?? '', 'redirect URI')
                 }
               >
                 <Copy className="size-3.5" />

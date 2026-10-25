@@ -1,42 +1,19 @@
 import type { PlatformLiveState } from '@turingmod/shared';
 import { MessageType } from '@turingmod/shared';
-import { useCallback, useEffect, useState } from 'react';
-import { useWebSocketContext } from '../context/WebSocketContext';
-import { useWebSocketMessage } from './useWebSocket';
+import { useEffect, useState } from 'react';
+import { useServerState } from './useServerState';
 
-/**
- * Whether each platform is live and since when. Changes are pushed; a console that just loaded or
- * reconnected has missed them, so it asks on every connect.
- */
+const NO_PLATFORMS: PlatformLiveState[] = [];
+
+/** Whether each platform is live and since when, as the backend last pushed it. */
 export function usePlatformLiveState(): PlatformLiveState[] {
-  const { request, isConnected } = useWebSocketContext();
-  const [platforms, setPlatforms] = useState<PlatformLiveState[]>([]);
-
-  useWebSocketMessage(
-    MessageType.PLATFORM_LIVE_STATE,
-    useCallback((payload) => setPlatforms(payload.platforms), [])
-  );
-
-  useEffect(() => {
-    if (!isConnected) {
-      return;
-    }
-    let cancelled = false;
-    request(MessageType.PLATFORM_GET_LIVE_STATE, {})
-      .then((payload) => {
-        if (!cancelled) {
-          setPlatforms(payload.platforms);
-        }
-      })
-      .catch((error: unknown) => {
-        console.error('[usePlatformLiveState] Failed to read live state', error);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isConnected, request]);
-
-  return platforms;
+  return useServerState(MessageType.PLATFORM_GET_LIVE_STATE, {
+    payload: {},
+    initial: NO_PLATFORMS,
+    onReply: (reply) => reply.platforms,
+    push: { type: MessageType.PLATFORM_LIVE_STATE, apply: (payload) => payload.platforms },
+    errorTitle: "Couldn't read whether you're live",
+  }).state;
 }
 
 /** The current time, updated every second, for uptimes that tick. */

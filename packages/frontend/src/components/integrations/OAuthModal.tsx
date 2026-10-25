@@ -16,174 +16,142 @@ import { useWebSocketMessage } from '../../hooks/useWebSocket';
 import type { OAuthProviderConfig } from './oauthProviders';
 
 export interface OAuthModalProps {
-  /** Whether the modal is visible */
-  visible: boolean;
-  /** Callback when modal is dismissed */
-  onDismiss: () => void;
-  /** Callback when OAuth is successful */
-  onSuccess: () => void;
   /** The integration this modal is authorizing */
   provider: OAuthProviderConfig;
+  onDismiss: () => void;
+  /** The code was exchanged for tokens. */
+  onSuccess: () => void;
+}
+
+type Step = 'loading' | 'waiting' | 'exchanging' | 'error';
+
+/** Open the sign-in page in a popup centred over the console; null when the browser blocks it. */
+function openPopup(url: string, name: string): Window | null {
+  const width = 600;
+  const height = 800;
+  const left = window.screenX + (window.outerWidth - width) / 2;
+  const top = window.screenY + (window.outerHeight - height) / 2;
+  return window.open(
+    url,
+    name,
+    `width=${width},height=${height},left=${left},top=${top},toolbar=no,location=no,status=no,menubar=no`
+  );
 }
 
 /**
- * OAuth Authorization Modal
- * Opens popup window for OAuth, automatically captures code and exchanges it
+ * Authorizes an OAuth integration. Render it only while authorizing: opening starts an attempt,
+ * and closing ends it, popup included.
+ *
+ * An attempt asks the backend for the provider's authorization URL and opens it in a popup. The
+ * provider redirects to the backend's own callback (whose URI the backend derives), and the
+ * backend forwards the code to the console that asked, which sends it back to be exchanged.
  */
-export function OAuthModal({ visible, onDismiss, onSuccess, provider }: OAuthModalProps) {
+export function OAuthModal({ provider, onDismiss, onSuccess }: OAuthModalProps) {
   const { request } = useWebSocketContext();
-  const [step, setStep] = useState<'loading' | 'waiting' | 'exchanging' | 'error'>('loading');
-  const [authUrl, setAuthUrl] = useState<string>('');
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [step, setStep] = useState<Step>('loading');
+  const [errorMessage, setErrorMessage] = useState('');
+  /** Bumped by Try again, which starts a new attempt. */
+  const [attempt, setAttempt] = useState(0);
   const popupRef = useRef<Window | null>(null);
-  const popupCheckIntervalRef = useRef<number | null>(null);
+  const { integrationName, popupWindowName } = provider;
 
-  // Close popup window
+  const fail = useCallback((message: string) => {
+    setErrorMessage(message);
+    setStep('error');
+  }, []);
+
   const closePopup = useCallback(() => {
-    if (popupRef.current && !popupRef.current.closed) {
-      popupRef.current.close();
-    }
-    if (popupCheckIntervalRef.current) {
-      clearInterval(popupCheckIntervalRef.current);
-      popupCheckIntervalRef.current = null;
+    const popup = popupRef.current;
+    popupRef.current = null;
+    if (popup && !popup.closed) {
+      popup.close();
     }
   }, []);
 
-  // Handle modal close
-  const handleClose = useCallback(() => {
-    closePopup();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: attempt starts a new attempt on Try again
+  useEffect(() => {
+    let cancelled = false;
+    let watcher: number | undefined;
     setStep('loading');
-    setAuthUrl('');
     setErrorMessage('');
-    onDismiss();
-  }, [closePopup, onDismiss]);
 
-  // Open auth popup
-  const openAuthPopup = useCallback(
-    (url: string) => {
-      const width = 600;
-      const height = 800;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
-
-      popupRef.current = window.open(
-        url,
-        provider.popupWindowName,
-        `width=${width},height=${height},left=${left},top=${top},toolbar=no,location=no,status=no,menubar=no`
-      );
-
-      // Check if popup was blocked
-      if (!popupRef.current) {
-        setErrorMessage('Popup was blocked. Please allow popups for this site.');
-        setStep('error');
-        return;
-      }
-
-      // Monitor popup close
-      popupCheckIntervalRef.current = window.setInterval(() => {
-        if (popupRef.current?.closed) {
-          if (popupCheckIntervalRef.current !== null) {
-            clearInterval(popupCheckIntervalRef.current);
-          }
-          popupCheckIntervalRef.current = null;
-          // User closed popup without completing auth
-          setErrorMessage('Authorization cancelled');
-          setStep('error');
+    request(MessageType.OAUTH_GET_AUTH_URL, { integrationName })
+      .then(({ authUrl }) => {
+        if (cancelled) {
+          return;
         }
-      }, 500);
-    },
-    [provider.popupWindowName]
-  );
+        if (!authUrl) {
+          fail('Failed to get authorization URL');
+          return;
+        }
+        const popup = openPopup(authUrl, popupWindowName);
+        if (!popup) {
+          fail('Popup was blocked. Please allow popups for this site.');
+          return;
+        }
+        popupRef.current = popup;
+        setStep('waiting');
+        // The popup closing by itself, not by the code arriving (which clears popupRef first),
+        // means the streamer closed it without finishing.
+        watcher = window.setInterval(() => {
+          if (popup.closed) {
+            window.clearInterval(watcher);
+            if (popupRef.current === popup) {
+              popupRef.current = null;
+              fail('Authorization cancelled');
+            }
+          }
+        }, 500);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          fail(messageOf(error));
+        }
+      });
 
-  // Exchange the authorization code for tokens
+    return () => {
+      cancelled = true;
+      window.clearInterval(watcher);
+      closePopup();
+    };
+  }, [request, integrationName, popupWindowName, fail, closePopup, attempt]);
+
   const exchangeCode = useCallback(
     async (code: string) => {
       setStep('exchanging');
       setErrorMessage('');
-
       try {
-        const result = await request(MessageType.OAUTH_EXCHANGE_CODE, {
-          integrationName: provider.integrationName,
-          code,
-        });
-
+        const result = await request(MessageType.OAUTH_EXCHANGE_CODE, { integrationName, code });
         if (result.success) {
-          // Success! Integration should start automatically
-          closePopup();
           onSuccess();
-          handleClose();
         } else {
-          setErrorMessage(result.errorMessage || 'Failed to exchange code');
-          setStep('error');
-          closePopup();
+          fail(result.errorMessage || 'Failed to exchange code');
         }
       } catch (error) {
-        setErrorMessage(messageOf(error));
-        setStep('error');
-        closePopup();
+        fail(messageOf(error));
       }
     },
-    [request, closePopup, onSuccess, handleClose, provider.integrationName]
+    [request, integrationName, onSuccess, fail]
   );
 
-  // Fetch the authorization URL when modal opens
-  const fetchAuthUrl = useCallback(async () => {
-    setStep('loading');
-    setErrorMessage('');
-
-    try {
-      const { authUrl } = await request(MessageType.OAUTH_GET_AUTH_URL, {
-        integrationName: provider.integrationName,
-      });
-
-      if (authUrl) {
-        setAuthUrl(authUrl);
-        // Open popup with auth URL
-        openAuthPopup(authUrl);
-        setStep('waiting');
-      } else {
-        setErrorMessage('Failed to get authorization URL');
-        setStep('error');
-      }
-    } catch (error) {
-      setErrorMessage(messageOf(error));
-      setStep('error');
-    }
-  }, [request, openAuthPopup, provider.integrationName]);
-
-  // Subscribe to OAuth code received events
   useWebSocketMessage(
     MessageType.OAUTH_CODE_RECEIVED,
     useCallback(
       (payload) => {
-        if (payload.integrationName === provider.integrationName) {
-          // The popup's job is done the moment we have the code — close it now
-          // rather than waiting on the exchange, so it can't race the backend's
-          // own (independent) window-close behavior.
+        if (payload.integrationName === integrationName) {
+          // The popup's job is done the moment we have the code — close it now rather than
+          // waiting on the exchange, so it can't race the backend's own (independent)
+          // window-close behavior.
           closePopup();
-          exchangeCode(payload.code);
+          void exchangeCode(payload.code);
         }
       },
-      [exchangeCode, closePopup, provider.integrationName]
+      [integrationName, closePopup, exchangeCode]
     )
   );
 
-  // Fetch auth URL when modal becomes visible
-  useEffect(() => {
-    if (visible && step === 'loading' && !authUrl) {
-      fetchAuthUrl();
-    }
-  }, [visible, step, authUrl, fetchAuthUrl]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      closePopup();
-    };
-  }, [closePopup]);
-
   return (
-    <Dialog open={visible} onOpenChange={(open) => !open && handleClose()}>
+    <Dialog open onOpenChange={(open) => !open && onDismiss()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Authorize {provider.displayName}</DialogTitle>
@@ -241,10 +209,10 @@ export function OAuthModal({ visible, onDismiss, onSuccess, provider }: OAuthMod
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={handleClose}>
+          <Button variant="ghost" onClick={onDismiss}>
             Cancel
           </Button>
-          {step === 'error' && <Button onClick={fetchAuthUrl}>Try again</Button>}
+          {step === 'error' && <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -36,11 +36,11 @@ Use this to quickly locate files without searching. Organized by system/feature.
 
 ### Integration System
 - **UI**: `packages/frontend/src/features/integrations/integrations-page.tsx` (dependency chains + detail panel with Start/Stop/Authorize) + `features/dashboard/health-rail.tsx` (the dashboard's Needs attention cards and status list); status wording in `src/lib/integrationStatus.ts`
-- **OAuth modal wiring**: `packages/frontend/src/components/integrations/IntegrationOAuthModals.tsx` — the setup → authorize handoff, looked up from the registry below
+- **OAuth flow**: `packages/frontend/src/components/integrations/OAuthFlow.tsx` — `OAuthFlowProvider` renders the setup → authorize dialogs once for the whole console; pages start it with `useOAuthFlow().authorize(integration)`. Provider configs are looked up from the registry below
 - **Setup Modal**: `packages/frontend/src/components/integrations/SetupModal.tsx` — generic, parameterized by `OAuthProviderConfig`
 - **OAuth Modal**: `packages/frontend/src/components/integrations/OAuthModal.tsx` — generic, parameterized by `OAuthProviderConfig`
 - **OAuth Provider Configs**: `packages/frontend/src/components/integrations/oauthProviders.tsx` (per-provider content) + `oauthIntegrationRegistry.tsx` (name → provider config lookup)
-- **Non-OAuth setup dialogs**: `packages/frontend/src/components/integrations/configIntegrationRegistry.tsx` (name → dialog, shown as Set up on the Integrations page), e.g. `DiscordSetupModal.tsx`
+- **Non-OAuth setup dialogs**: `packages/frontend/src/components/integrations/configIntegrationRegistry.tsx` (name → dialog, shown as Set up on the Integrations page), e.g. `DiscordSetupModal.tsx`; every setup dialog, OAuth credentials included, is built on `IntegrationConfigDialog.tsx` (form, save, error, Cancel/Save)
 - **Backend Manager**: `packages/backend/src/integrations/IntegrationManager.ts`
 - **OAuth flow**: `packages/backend/src/integrations/OAuthFlowService.ts` — authorization URL, single-use `state`, callback routes, code exchange. Client credentials come only from the console's setup dialog (stored encrypted), never from `.env`; `IntegrationInfo.oauth.configured` tells the console whether to open setup or authorization
 - **Dependency graph**: `packages/backend/src/integrations/DependencyGraph.ts` — pure sort/levels/dependents/validate queries over the registered integrations
@@ -405,7 +405,7 @@ there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 
-React Context for state management: `WebSocketContext` (connection + send/subscribe) and `AppStateContext` (commands, integrations). Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (`App.tsx`, under `src/features/<page>/`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
+React Context for state management: `WebSocketContext` (connection + send/subscribe) and `AppStateContext` (commands, integrations). Anything read from the backend goes through `useServerState()` (`hooks/useServerState.ts`): read on every connect and whenever its payload changes, stale replies dropped, kept current by an optional push message; don't hand-write that in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (`App.tsx`, under `src/features/<page>/`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
 
 ### Console UI
 

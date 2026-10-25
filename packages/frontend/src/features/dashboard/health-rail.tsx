@@ -2,7 +2,6 @@ import type { IntegrationInfo } from '@turingmod/shared';
 import { IntegrationStatus } from '@turingmod/shared';
 import { CircleAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { IntegrationOAuthModals } from '@/components/integrations/IntegrationOAuthModals';
 import { StatusDot } from '@/components/status';
 import { Button } from '@/components/ui/button';
 import { useAppState } from '@/context/AppStateContext';
@@ -61,16 +60,6 @@ export function HealthRail() {
           })}
         </ul>
       </section>
-
-      <IntegrationOAuthModals
-        activeIntegration={actions.activeOAuthIntegration}
-        oauthModalVisible={actions.oauthModalVisible}
-        setupModalVisible={actions.setupModalVisible}
-        onOAuthDismiss={actions.closeOAuthModal}
-        onSetupDismiss={actions.closeSetupModal}
-        onSetupSuccess={actions.handleSetupSuccess}
-        onOAuthSuccess={actions.handleOAuthSuccess}
-      />
     </aside>
   );
 }

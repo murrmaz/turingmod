@@ -1,9 +1,7 @@
 import type { ActivityLogEntry } from '@turingmod/shared';
 import { MessageType } from '@turingmod/shared';
-import { useCallback, useEffect, useState } from 'react';
 import { type FeedRow, toFeedRow } from '../constants/activityFormat';
-import { useWebSocketContext } from '../context/WebSocketContext';
-import { useWebSocketMessage } from './useWebSocket';
+import { useServerState } from './useServerState';
 
 const MAX_ENTRIES = 1000;
 const SEED_LIMIT = 200;
@@ -16,11 +14,28 @@ export interface LiveFeedRow extends FeedRow {
   receivedAt: number | null;
 }
 
+const NO_ROWS: LiveFeedRow[] = [];
+
+// Rows are numbered as they're made, inside state updates. React may run an update twice in
+// development, which skips numbers; only their order matters.
 let nextSeq = 0;
 
 function toLiveRow(entry: ActivityLogEntry, live: boolean): LiveFeedRow {
   nextSeq += 1;
   return { ...toFeedRow(entry), seq: nextSeq, receivedAt: live ? Date.now() : null };
+}
+
+/** The stored log as the feed's rows, keeping rows that arrived live and aren't in it on top. */
+function withSeed(previous: LiveFeedRow[], entries: ActivityLogEntry[]): LiveFeedRow[] {
+  // The server answers newest first, which is the feed's order; numbering goes oldest first so
+  // that a newer row always has the higher seq.
+  const seeded = [...entries]
+    .reverse()
+    .map((entry) => toLiveRow(entry, false))
+    .reverse();
+  const known = new Set(seeded.map((row) => row.id));
+  const live = previous.filter((row) => row.receivedAt !== null && !known.has(row.id));
+  return [...live, ...seeded].slice(0, MAX_ENTRIES);
 }
 
 /**
@@ -29,54 +44,15 @@ function toLiveRow(entry: ActivityLogEntry, live: boolean): LiveFeedRow {
  * the stored log, include chat).
  */
 export function useLiveLog() {
-  const { request, isConnected } = useWebSocketContext();
-  const [rows, setRows] = useState<LiveFeedRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!isConnected) {
-      return;
-    }
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const { entries } = await request(MessageType.ACTIVITY_QUERY, { limit: SEED_LIMIT });
-        if (!cancelled) {
-          // The server answers newest first, which is the feed's order; numbering goes oldest
-          // first so that a newer row always has the higher seq.
-          const seeded = [...entries]
-            .reverse()
-            .map((entry) => toLiveRow(entry, false))
-            .reverse();
-          // Rows that arrived live while this was loading stay on top, unless the seed has them.
-          setRows((previous) => {
-            const known = new Set(seeded.map((row) => row.id));
-            const live = previous.filter((row) => row.receivedAt !== null && !known.has(row.id));
-            return [...live, ...seeded].slice(0, MAX_ENTRIES);
-          });
-        }
-      } catch (error) {
-        console.error('[useLiveLog] Failed to seed activity log', error);
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isConnected, request]);
-
-  useWebSocketMessage(
-    MessageType.EVENT_NOTIFICATION,
-    useCallback(({ entry }) => {
-      const row = toLiveRow(entry, true);
-      setRows((previous) => [row, ...previous].slice(0, MAX_ENTRIES));
-    }, [])
-  );
-
+  const { state: rows, loading } = useServerState(MessageType.ACTIVITY_QUERY, {
+    payload: { limit: SEED_LIMIT },
+    initial: NO_ROWS,
+    onReply: (reply, current) => withSeed(current, reply.entries),
+    push: {
+      type: MessageType.EVENT_NOTIFICATION,
+      apply: ({ entry }, current) => [toLiveRow(entry, true), ...current].slice(0, MAX_ENTRIES),
+    },
+    errorTitle: "Couldn't load recent activity",
+  });
   return { rows, loading };
 }

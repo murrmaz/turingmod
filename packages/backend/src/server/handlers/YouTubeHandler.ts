@@ -1,5 +1,5 @@
 import type { EmptyPayload, IWebSocketMessage, YouTubeChatStatePayload } from '@turingmod/shared';
-import { createYouTubeChatStateMessage } from '@turingmod/shared';
+import { createYouTubeChatStateMessage, IntegrationName } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { Logger } from '../../utils/Logger.js';
@@ -23,12 +23,21 @@ export class YouTubeHandler {
   }
 
   /**
-   * Handle a go-live request: start looking for an active broadcast and connect its chat.
+   * Handle a go-live request: start looking for an active broadcast and connect its chat. Refused
+   * when the integration isn't running, since nothing would happen and the console would otherwise
+   * be told it worked.
    */
   handleGoLive(
     message: IWebSocketMessage<EmptyPayload>
   ): Promise<IWebSocketMessage<YouTubeChatStatePayload>> {
     this.logger.info('Go-live requested from the console');
+    if (!this.chatIntegration.isRunning()) {
+      return Promise.reject(
+        new Error(
+          `${IntegrationName.YOUTUBE_CHAT} isn't running: start it on the Integrations page`
+        )
+      );
+    }
     this.chatIntegration.connectChat('console');
 
     return Promise.resolve(

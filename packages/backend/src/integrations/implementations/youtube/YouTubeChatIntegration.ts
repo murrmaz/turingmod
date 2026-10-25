@@ -218,6 +218,11 @@ export class YouTubeChatIntegration extends BaseIntegration {
     return Promise.resolve();
   }
 
+  /** Whether it has been started, so chat can be connected on request. */
+  isRunning(): boolean {
+    return this.running;
+  }
+
   /** Current lifecycle state, for the console's go-live control. */
   getState(): YouTubeChatState {
     return this.state;

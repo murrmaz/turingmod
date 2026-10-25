@@ -16,15 +16,8 @@ export function useIntegrations() {
    */
   const startIntegration = useCallback(
     async (integrationName: string): Promise<void> => {
-      try {
-        await request(MessageType.INTEGRATION_START, { integrationName });
-
-        // Refresh integrations list
-        await refreshIntegrations();
-      } catch (error) {
-        console.error(`[useIntegrations] Failed to start ${integrationName}`, error);
-        throw error;
-      }
+      await request(MessageType.INTEGRATION_START, { integrationName });
+      await refreshIntegrations();
     },
     [request, refreshIntegrations]
   );
@@ -34,15 +27,8 @@ export function useIntegrations() {
    */
   const stopIntegration = useCallback(
     async (integrationName: string): Promise<void> => {
-      try {
-        await request(MessageType.INTEGRATION_STOP, { integrationName });
-
-        // Refresh integrations list
-        await refreshIntegrations();
-      } catch (error) {
-        console.error(`[useIntegrations] Failed to stop ${integrationName}`, error);
-        throw error;
-      }
+      await request(MessageType.INTEGRATION_STOP, { integrationName });
+      await refreshIntegrations();
     },
     [request, refreshIntegrations]
   );

@@ -35,6 +35,7 @@ import {
 import { formatDateTime } from '@/constants/activityFormat';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
+import { copyToClipboard } from '@/lib/reportError';
 import { useDataTables } from './useDataTables';
 
 /** A row of the current page, keyed by its position since tables need not have one id column. */
@@ -391,7 +392,7 @@ function RowPanel({
                 variant="ghost"
                 size="sm"
                 className="h-7 text-muted-foreground"
-                onClick={() => void navigator.clipboard.writeText(pretty ?? String(value))}
+                onClick={() => void copyToClipboard(pretty ?? String(value), 'JSON')}
               >
                 <Copy />
                 Copy JSON

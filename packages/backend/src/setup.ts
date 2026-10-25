@@ -11,7 +11,6 @@ import { LurkTracker } from './chat/lurk/LurkTracker.js';
 import { OwnChatMessages } from './chat/OwnChatMessages.js';
 import { CommandRegistry } from './commands/CommandRegistry.js';
 import { loadCommands } from './commands/loadCommands.js';
-import { EventBus } from './core/EventBus.js';
 import { ServiceLifecycle } from './core/ServiceLifecycle.js';
 import { DatabaseManager } from './database/DatabaseManager.js';
 import { DataInspector } from './database/DataInspector.js';
@@ -106,7 +105,6 @@ export function registerRootFactories(): void {
         config.serverPort,
         config.host,
         config.frontendDistPath,
-        c.resolve(EventBus),
         c.resolve(OAuthFlowService),
         c.resolve(Logger)
       );
@@ -249,6 +247,7 @@ export async function initializeComponents(): Promise<void> {
   const commandHandler = container.resolve(CommandHandler);
   const integrationHandler = container.resolve(IntegrationHandler);
   const oauthHandler = container.resolve(OAuthHandler);
+  const webSocketServer = container.resolve(WebSocketServer);
   const activityHandler = container.resolve(ActivityHandler);
   const youtubeHandler = container.resolve(YouTubeHandler);
   const platformHandler = container.resolve(PlatformHandler);
@@ -276,12 +275,9 @@ export async function initializeComponents(): Promise<void> {
     integrationHandler.handleConfigure(msg)
   );
 
+  // The console's origin is where the callback page sends the streamer back to.
   messageRouter.registerHandler(MessageType.OAUTH_GET_AUTH_URL, (msg, clientId) =>
-    oauthHandler.handleGetAuthUrl(msg, clientId)
-  );
-
-  messageRouter.registerHandler(MessageType.OAUTH_EXCHANGE_CODE, (msg) =>
-    oauthHandler.handleExchangeCode(msg)
+    oauthHandler.handleGetAuthUrl(msg, webSocketServer.originOf(clientId))
   );
 
   messageRouter.registerHandler(MessageType.ACTIVITY_QUERY, (msg) =>

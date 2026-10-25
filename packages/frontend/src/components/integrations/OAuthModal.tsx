@@ -23,7 +23,7 @@ export interface OAuthModalProps {
   onSuccess: () => void;
 }
 
-type Step = 'loading' | 'waiting' | 'exchanging' | 'error';
+type Step = 'loading' | 'waiting' | 'error';
 
 /** Open the sign-in page in a popup centred over the console; null when the browser blocks it. */
 function openPopup(url: string, name: string): Window | null {
@@ -43,8 +43,10 @@ function openPopup(url: string, name: string): Window | null {
  * and closing ends it, popup included.
  *
  * An attempt asks the backend for the provider's authorization URL and opens it in a popup. The
- * provider redirects to the backend's own callback (whose URI the backend derives), and the
- * backend forwards the code to the console that asked, which sends it back to be exchanged.
+ * provider redirects to the backend's own callback (whose URI the backend derives), where the
+ * backend exchanges the code itself and broadcasts how it went (`oauth.result`); this only waits
+ * for that. The flow doesn't depend on this dialog: closing it, or the console, mid sign-in still
+ * connects the integration.
  */
 export function OAuthModal({ provider, onDismiss, onSuccess }: OAuthModalProps) {
   const { request } = useWebSocketContext();
@@ -91,8 +93,9 @@ export function OAuthModal({ provider, onDismiss, onSuccess }: OAuthModalProps) 
         }
         popupRef.current = popup;
         setStep('waiting');
-        // The popup closing by itself, not by the code arriving (which clears popupRef first),
-        // means the streamer closed it without finishing.
+        // The popup closing before the result (which clears popupRef first) means the streamer
+        // closed it without finishing. The backend announces the result before its page closes
+        // the popup, so a finished sign-in isn't mistaken for this.
         watcher = window.setInterval(() => {
           if (popup.closed) {
             window.clearInterval(watcher);
@@ -116,37 +119,21 @@ export function OAuthModal({ provider, onDismiss, onSuccess }: OAuthModalProps) 
     };
   }, [request, integrationName, popupWindowName, fail, closePopup, attempt]);
 
-  const exchangeCode = useCallback(
-    async (code: string) => {
-      setStep('exchanging');
-      setErrorMessage('');
-      try {
-        const result = await request(MessageType.OAUTH_EXCHANGE_CODE, { integrationName, code });
+  useWebSocketMessage(
+    MessageType.OAUTH_RESULT,
+    useCallback(
+      (result) => {
+        if (result.integrationName !== integrationName) {
+          return;
+        }
+        closePopup();
         if (result.success) {
           onSuccess();
         } else {
-          fail(result.errorMessage || 'Failed to exchange code');
-        }
-      } catch (error) {
-        fail(messageOf(error));
-      }
-    },
-    [request, integrationName, onSuccess, fail]
-  );
-
-  useWebSocketMessage(
-    MessageType.OAUTH_CODE_RECEIVED,
-    useCallback(
-      (payload) => {
-        if (payload.integrationName === integrationName) {
-          // The popup's job is done the moment we have the code — close it now rather than
-          // waiting on the exchange, so it can't race the backend's own (independent)
-          // window-close behavior.
-          closePopup();
-          void exchangeCode(payload.code);
+          fail(result.errorMessage || 'Authorization failed');
         }
       },
-      [integrationName, closePopup, exchangeCode]
+      [integrationName, closePopup, onSuccess, fail]
     )
   );
 
@@ -156,18 +143,16 @@ export function OAuthModal({ provider, onDismiss, onSuccess }: OAuthModalProps) 
         <DialogHeader>
           <DialogTitle>Authorize {provider.displayName}</DialogTitle>
           <DialogDescription>
-            Sign in to {provider.displayName} in the window that opens; TuringMod picks the code up
-            by itself.
+            Sign in to {provider.displayName} in the window that opens; TuringMod connects by itself
+            once you have.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 text-sm">
-          {(step === 'loading' || step === 'exchanging') && (
+          {step === 'loading' && (
             <div className="flex items-center justify-center gap-3 py-6 text-muted-foreground">
               <Loader2 className="size-5 animate-spin" />
-              {step === 'loading'
-                ? 'Loading authorization URL…'
-                : 'Exchanging authorization code for access tokens…'}
+              Loading authorization URL…
             </div>
           )}
 
@@ -177,8 +162,8 @@ export function OAuthModal({ provider, onDismiss, onSuccess }: OAuthModalProps) 
                 <Info />
                 <AlertTitle>Waiting for authorization</AlertTitle>
                 <AlertDescription>
-                  Complete the authorization in the popup window. The code will be captured
-                  automatically.
+                  Complete the authorization in the popup window. TuringMod connects as soon as
+                  you've signed in.
                 </AlertDescription>
               </Alert>
               <div className="flex items-center justify-center py-2">

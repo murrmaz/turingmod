@@ -69,15 +69,6 @@ export const OAuthGetAuthUrlPayloadSchema = z.strictObject({
 });
 export type OAuthGetAuthUrlPayload = z.infer<typeof OAuthGetAuthUrlPayloadSchema>;
 
-/** Exchange an authorization code the console captured. */
-export const OAuthExchangeCodePayloadSchema = z.strictObject({
-  /** Integration name (e.g., 'twitch-auth') */
-  integrationName: z.string().min(1),
-  /** Authorization code from OAuth callback */
-  code: z.string().min(1),
-});
-export type OAuthExchangeCodePayload = z.infer<typeof OAuthExchangeCodePayloadSchema>;
-
 /** Read a page of the activity log. */
 export const ActivityQueryPayloadSchema = z.strictObject({
   /** Max entries to return (default 100 server-side, capped at 500) */
@@ -125,7 +116,6 @@ export const REQUEST_PAYLOAD_SCHEMAS = {
   [MessageType.INTEGRATION_LIST]: EmptyPayloadSchema,
   [MessageType.INTEGRATION_CONFIGURE]: IntegrationConfigurePayloadSchema,
   [MessageType.OAUTH_GET_AUTH_URL]: OAuthGetAuthUrlPayloadSchema,
-  [MessageType.OAUTH_EXCHANGE_CODE]: OAuthExchangeCodePayloadSchema,
   [MessageType.ACTIVITY_QUERY]: ActivityQueryPayloadSchema,
   [MessageType.YOUTUBE_GO_LIVE]: EmptyPayloadSchema,
   [MessageType.YOUTUBE_GO_OFFLINE]: EmptyPayloadSchema,

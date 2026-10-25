@@ -1,6 +1,6 @@
 import {
   createIntegrationStatusMessage,
-  createOAuthCodeReceivedMessage,
+  createOAuthResultMessage,
   createYouTubeChatStateMessage,
 } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
@@ -100,18 +100,11 @@ export class Application {
       this.webSocketServer.broadcast(createYouTubeChatStateMessage(data.state));
     });
 
-    // OAuth callback received: deliver the code only to the client that
-    // started this flow (correlated via the `state` value), never broadcast
-    // it — any other connected client could otherwise redeem it first.
-    this.eventBus.on('oauth.callback', (data) => {
-      this.logger.info('OAuth callback received, notifying originating client', {
-        integrationName: data.integrationName,
-        clientId: data.clientId,
-      });
-
-      this.webSocketServer.sendToClient(
-        data.clientId,
-        createOAuthCodeReceivedMessage(data.integrationName, data.code)
+    // An authorization finished. The backend exchanged the code itself, so the result carries
+    // none and goes to every console: whichever one asked may have reconnected or closed since.
+    this.eventBus.on('oauth.completed', (data) => {
+      this.webSocketServer.broadcast(
+        createOAuthResultMessage(data.integrationName, data.success, data.errorMessage)
       );
     });
   }

@@ -55,9 +55,7 @@ export enum MessageType {
   // OAuth Flow
   OAUTH_GET_AUTH_URL = 'oauth.getAuthUrl',
   OAUTH_AUTH_URL_RESPONSE = 'oauth.authUrlResponse',
-  OAUTH_EXCHANGE_CODE = 'oauth.exchangeCode',
-  OAUTH_EXCHANGE_RESULT = 'oauth.exchangeResult',
-  OAUTH_CODE_RECEIVED = 'oauth.codeReceived', // Server → Client: OAuth code captured from callback
+  OAUTH_RESULT = 'oauth.result', // Server → Client (broadcast): an authorization finished
 
   // YouTube chat go-live control. YouTube has no push notification for "a broadcast started"
   // (see YouTubeChatIntegration), so the console can tell the backend to go look for one.
@@ -256,28 +254,18 @@ export interface OAuthAuthUrlResponsePayload {
 }
 
 /**
- * OAuth exchange result payload
+ * How an authorization ended, broadcast once the backend has handled the provider's callback:
+ * it exchanges the code itself, so this never carries one.
  */
-export interface OAuthExchangeResultPayload {
-  /** Whether the exchange was successful */
-  success: boolean;
-
-  /** Error message if failed */
-  errorMessage?: string;
-
-  /** Integration name */
-  integrationName: string;
-}
-
-/**
- * OAuth code received payload (from callback)
- */
-export interface OAuthCodeReceivedPayload {
+export interface OAuthResultPayload {
   /** Integration name (e.g., 'twitch-auth') */
   integrationName: string;
 
-  /** Authorization code captured from callback */
-  code: string;
+  /** Whether the integration now holds tokens */
+  success: boolean;
+
+  /** Why not: the provider's error (e.g. the streamer denied access) or the exchange's */
+  errorMessage?: string;
 }
 
 // ============================================================================
@@ -369,29 +357,18 @@ export function createOAuthAuthUrlResponseMessage(
 }
 
 /**
- * Create an OAuth exchange result message
+ * Create an OAuth result message
  */
-export function createOAuthExchangeResultMessage(
+export function createOAuthResultMessage(
   integrationName: string,
   success: boolean,
-  errorMessage: string | undefined,
-  originalMessageId: string
-): IWebSocketMessage<OAuthExchangeResultPayload> {
-  const payload: OAuthExchangeResultPayload = { integrationName, success };
+  errorMessage?: string
+): IWebSocketMessage<OAuthResultPayload> {
+  const payload: OAuthResultPayload = { integrationName, success };
   if (errorMessage !== undefined) {
     payload.errorMessage = errorMessage;
   }
-  return createMessage(MessageType.OAUTH_EXCHANGE_RESULT, payload, originalMessageId);
-}
-
-/**
- * Create an OAuth code received message
- */
-export function createOAuthCodeReceivedMessage(
-  integrationName: string,
-  code: string
-): IWebSocketMessage<OAuthCodeReceivedPayload> {
-  return createMessage(MessageType.OAUTH_CODE_RECEIVED, { integrationName, code });
+  return createMessage(MessageType.OAUTH_RESULT, payload);
 }
 
 /**

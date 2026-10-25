@@ -31,7 +31,8 @@ export interface EventMap {
   'integration.status': IntegrationStatusEvent;
   'integration.error': IntegrationErrorEvent;
   'integration.tokenRefreshed': IntegrationTokenRefreshedEvent;
-  'oauth.callback': OAuthCallbackEvent;
+  /** An authorization finished, either way (see OAuthFlowService.handleCallback). */
+  'oauth.completed': OAuthCompletedEvent;
 
   /** A platform became usable or stopped being usable (see PlatformAvailability). */
   'platform.availability': PlatformAvailabilityEvent;
@@ -106,10 +107,10 @@ export interface IntegrationTokenRefreshedEvent {
 }
 
 /** An OAuth redirect reached the HTTP server; `clientId` is the console client that started it. */
-export interface OAuthCallbackEvent {
+export interface OAuthCompletedEvent {
   integrationName: string;
-  code: string;
-  clientId: string;
+  success: boolean;
+  errorMessage?: string;
 }
 
 export interface PlatformAvailabilityEvent {

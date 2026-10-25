@@ -4,8 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { EventBus } from '../core/EventBus.js';
-import type { OAuthFlowService } from '../integrations/OAuthFlowService.js';
+import type { OAuthCallbackOutcome, OAuthFlowService } from '../integrations/OAuthFlowService.js';
 import { Logger } from '../utils/Logger.js';
 import { escapeHtml, HttpServer } from './HttpServer.js';
 
@@ -33,39 +32,67 @@ describe('HttpServer OAuth callback', () => {
     server = null;
   });
 
-  async function startServer(): Promise<string> {
+  /** A server whose OAuth flow completes every callback with `outcome`. */
+  async function startServer(outcome: OAuthCallbackOutcome): Promise<string> {
     const oauthFlow = {
       getCallbackRoutes: () => [{ path: '/callback/spotify', integrationName: 'spotify-auth' }],
+      handleCallback: () => Promise.resolve(outcome),
     } as unknown as OAuthFlowService;
-    server = new HttpServer(
-      0,
-      '127.0.0.1',
-      '/nonexistent',
-      new EventBus(logger),
-      oauthFlow,
-      logger
-    );
+    server = new HttpServer(0, '127.0.0.1', '/nonexistent', oauthFlow, logger);
     await server.start();
     const { port } = server.getServer().address() as AddressInfo;
     return `http://127.0.0.1:${port}`;
   }
 
-  it("shows the provider's error without letting it inject markup", async () => {
-    const base = await startServer();
-    const payload = '<script>new WebSocket("ws://127.0.0.1/ws")</script>';
-    const query = new URLSearchParams({
-      error: payload,
-      error_description: `<img src=x onerror=1>`,
+  async function page(outcome: OAuthCallbackOutcome) {
+    const base = await startServer(outcome);
+    const response = await fetch(`${base}/callback/spotify?code=c&state=s`);
+    return { status: response.status, body: await response.text() };
+  }
+
+  it('reports success and leads back to the console that asked', async () => {
+    const { status, body } = await page({
+      result: 'connected',
+      consoleOrigin: 'http://localhost:3000',
     });
 
-    const response = await fetch(`${base}/callback/spotify?${query}`);
-    const body = await response.text();
+    expect(status).toBe(200);
+    expect(body).toContain('Authorization successful');
+    expect(body).toContain('href="http://localhost:3000/integrations?selected=spotify-auth"');
+    expect(body).toContain('window.close()');
+    expect(body).toContain(
+      'location.replace("http://localhost:3000/integrations?selected=spotify-auth")'
+    );
+  });
 
-    expect(body).toContain('Authorization Failed');
+  it("shows a failure's message without letting it inject markup, and doesn't leave by itself", async () => {
+    const payload = '<script>new WebSocket("ws://127.0.0.1/ws")</script>';
+    const { body } = await page({
+      result: 'failed',
+      message: `access_denied: ${payload} <img src=x onerror=1>`,
+      consoleOrigin: 'http://localhost:3000',
+    });
+
+    expect(body).toContain('Authorization failed');
     expect(body).toContain(escapeHtml(payload));
     expect(body).toContain('&lt;img src=x onerror=1&gt;');
     expect(body).not.toContain('<script>');
     expect(body).not.toContain('<img');
+    expect(body).toContain('Back to TuringMod');
+  });
+
+  it('refuses an invalid or expired state', async () => {
+    const { status, body } = await page({ result: 'invalid' });
+
+    expect(status).toBe(400);
+    expect(body).toContain('invalid or has expired');
+  });
+
+  it('says to return to TuringMod when it does not know where the console is', async () => {
+    const { body } = await page({ result: 'connected', consoleOrigin: null });
+
+    expect(body).toContain('return to TuringMod');
+    expect(body).not.toContain('<script>');
   });
 });
 
@@ -84,14 +111,7 @@ describe('HttpServer static files', () => {
     await writeFile(join(root, 'secret.txt'), 'secret');
 
     const oauthFlow = { getCallbackRoutes: () => [] } as unknown as OAuthFlowService;
-    server = new HttpServer(
-      0,
-      '127.0.0.1',
-      join(root, 'dist'),
-      new EventBus(logger),
-      oauthFlow,
-      logger
-    );
+    server = new HttpServer(0, '127.0.0.1', join(root, 'dist'), oauthFlow, logger);
     await server.start();
     ({ port } = server.getServer().address() as AddressInfo);
   });

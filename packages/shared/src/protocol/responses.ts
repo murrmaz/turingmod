@@ -10,8 +10,7 @@ import type {
   IntegrationStatusPayload,
   MessageType,
   OAuthAuthUrlResponsePayload,
-  OAuthCodeReceivedPayload,
-  OAuthExchangeResultPayload,
+  OAuthResultPayload,
   PlatformLiveStatePayload,
   YouTubeChatStatePayload,
 } from './messages.js';
@@ -30,8 +29,7 @@ export interface ServerPayloads {
   [MessageType.ACTIVITY_LIST]: ActivityListPayload;
   [MessageType.ERROR]: ErrorPayload;
   [MessageType.OAUTH_AUTH_URL_RESPONSE]: OAuthAuthUrlResponsePayload;
-  [MessageType.OAUTH_EXCHANGE_RESULT]: OAuthExchangeResultPayload;
-  [MessageType.OAUTH_CODE_RECEIVED]: OAuthCodeReceivedPayload;
+  [MessageType.OAUTH_RESULT]: OAuthResultPayload;
   [MessageType.YOUTUBE_CHAT_STATE]: YouTubeChatStatePayload;
   [MessageType.PLATFORM_LIVE_STATE]: PlatformLiveStatePayload;
   [MessageType.DATA_TABLES]: DataTablesPayload;
@@ -53,7 +51,6 @@ export interface ResponseTypes {
   [MessageType.INTEGRATION_LIST]: MessageType.INTEGRATION_LIST;
   [MessageType.INTEGRATION_CONFIGURE]: MessageType.INTEGRATION_STATUS;
   [MessageType.OAUTH_GET_AUTH_URL]: MessageType.OAUTH_AUTH_URL_RESPONSE;
-  [MessageType.OAUTH_EXCHANGE_CODE]: MessageType.OAUTH_EXCHANGE_RESULT;
   [MessageType.ACTIVITY_QUERY]: MessageType.ACTIVITY_LIST;
   [MessageType.YOUTUBE_GO_LIVE]: MessageType.YOUTUBE_CHAT_STATE;
   [MessageType.YOUTUBE_GO_OFFLINE]: MessageType.YOUTUBE_CHAT_STATE;

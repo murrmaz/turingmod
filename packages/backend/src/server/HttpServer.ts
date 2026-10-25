@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, isAbsolute, join, relative, sep } from 'node:path';
-import type { EventBus } from '../core/EventBus.js';
 import type { OAuthFlowService } from '../integrations/OAuthFlowService.js';
 import type { Logger } from '../utils/Logger.js';
 
@@ -23,6 +22,53 @@ export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char] ?? char);
 }
 
+interface CallbackPage {
+  title: string;
+  /** Plain text, escaped here: an error can come from the provider's redirect URL. */
+  lines: string[];
+  /** The console page to go back to, or null when it isn't known. */
+  returnUrl?: string | null;
+  /**
+   * Leave by itself: a popup the console opened closes (the console already knows), and a tab
+   * whose console was closed meanwhile goes back to it.
+   */
+  returnAutomatically?: boolean;
+}
+
+/** Render a page for the end of an OAuth callback. */
+function sendPage(res: ServerResponse, status: number, page: CallbackPage): void {
+  const { title, lines, returnUrl = null, returnAutomatically = false } = page;
+  const back =
+    returnUrl === null
+      ? '<p>You can close this window and return to TuringMod.</p>'
+      : `<p><a href="${escapeHtml(returnUrl)}">Back to TuringMod</a></p>`;
+  // JSON is a valid script literal; escaping `<` keeps a `</script>` from ending the block.
+  const script =
+    returnAutomatically && returnUrl !== null
+      ? `<script>
+        if (window.opener) {
+          window.close();
+        } else {
+          setTimeout(() => location.replace(${JSON.stringify(returnUrl).replace(/</g, '\\u003c')}), 1500);
+        }
+      </script>`
+      : '';
+  res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(`<!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>${escapeHtml(title)}</title>
+      </head>
+      <body style="font-family: system-ui; padding: 40px; text-align: center;">
+        <h1>${escapeHtml(title)}</h1>
+        ${lines.map((line) => `<p>${escapeHtml(line)}</p>`).join('\n        ')}
+        ${back}
+        ${script}
+      </body>
+    </html>`);
+}
+
 /**
  * HTTP server
  * Serves static files and handles health checks
@@ -39,7 +85,6 @@ export class HttpServer {
     private port: number,
     private host: string,
     private frontendDistPath: string,
-    private eventBus: EventBus,
     private oauthFlow: OAuthFlowService,
     logger: Logger
   ) {
@@ -110,7 +155,7 @@ export class HttpServer {
     // OAuth callback endpoints (per-provider, from the routing table)
     const oauthIntegrationName = this.oauthCallbackRoutes.get(pathname);
     if (oauthIntegrationName) {
-      this.handleOAuthCallback(oauthIntegrationName, url, res);
+      await this.handleOAuthCallback(oauthIntegrationName, url, res);
       return;
     }
 
@@ -125,94 +170,58 @@ export class HttpServer {
   }
 
   /**
-   * Handle OAuth callback for any integration
+   * The page the provider's redirect lands on. OAuthFlowService completes the authorization
+   * first, so the page reports what actually happened, and every open console has already been
+   * told; it then takes the streamer back to the console that asked.
    */
-  private handleOAuthCallback(integrationName: string, url: string, res: ServerResponse): void {
+  private async handleOAuthCallback(
+    integrationName: string,
+    url: string,
+    res: ServerResponse
+  ): Promise<void> {
     try {
-      // Parse query parameters
-      const urlObj = new URL(url, `http://localhost:${this.port}`);
-      const code = urlObj.searchParams.get('code');
-      const state = urlObj.searchParams.get('state');
-      const error = urlObj.searchParams.get('error');
-      const errorDescription = urlObj.searchParams.get('error_description');
-
-      if (error) {
-        this.logger.error('OAuth callback error', error, { integrationName, errorDescription });
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <meta charset="UTF-8">
-              <title>Authorization Failed</title>
-            </head>
-            <body style="font-family: system-ui; padding: 40px; text-align: center;">
-              <h1>Authorization Failed</h1>
-              <p>Error: ${escapeHtml(error)}</p>
-              <p>${escapeHtml(errorDescription ?? '')}</p>
-              <p>You can close this window.</p>
-            </body>
-          </html>
-        `);
-        return;
-      }
-
-      if (!code) {
-        res.writeHead(400, { 'Content-Type': 'text/plain' });
-        res.end('Missing authorization code');
-        return;
-      }
-
-      // Resolve `state` back to the WebSocket client that started this flow.
-      // Rejects missing/expired/reused/mismatched state so the code can
-      // never be routed (or attributed) to the wrong client.
-      const clientId = this.oauthFlow.consumeState(integrationName, state);
-      if (!clientId) {
-        this.logger.warn('OAuth callback rejected: invalid or expired state', {
-          integrationName,
-        });
-        res.writeHead(400, { 'Content-Type': 'text/html' });
-        res.end(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <meta charset="UTF-8">
-              <title>Authorization Failed</title>
-            </head>
-            <body style="font-family: system-ui; padding: 40px; text-align: center;">
-              <h1>Authorization Failed</h1>
-              <p>This authorization request is invalid or has expired.</p>
-              <p>Please close this window and try connecting again from TuringMod.</p>
-            </body>
-          </html>
-        `);
-        return;
-      }
-
-      this.logger.info('OAuth callback received with code', { integrationName });
-
-      // Emit event with the code for the client that started this flow
-      this.eventBus.emit('oauth.callback', {
-        integrationName,
-        code,
-        clientId,
+      const query = new URL(url, `http://localhost:${this.port}`).searchParams;
+      const outcome = await this.oauthFlow.handleCallback(integrationName, {
+        code: query.get('code'),
+        state: query.get('state'),
+        error: query.get('error'),
+        errorDescription: query.get('error_description'),
       });
 
-      // Return success page
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="UTF-8">
-            <title>Authorization Successful</title>
-          </head>
-          <body style="font-family: system-ui; padding: 40px; text-align: center;">
-            <h1>Authorization Successful</h1>
-            <p>You can close this window and return to TuringMod.</p>
-          </body>
-        </html>
-      `);
+      if (outcome.result === 'invalid') {
+        this.logger.warn('OAuth callback rejected: invalid or expired state', { integrationName });
+        sendPage(res, 400, {
+          title: 'Authorization failed',
+          lines: [
+            'This authorization request is invalid or has expired.',
+            'Please close this window and try connecting again from TuringMod.',
+          ],
+        });
+        return;
+      }
+
+      const returnUrl =
+        outcome.consoleOrigin === null
+          ? null
+          : `${outcome.consoleOrigin}/integrations?selected=${encodeURIComponent(integrationName)}`;
+
+      if (outcome.result === 'failed') {
+        this.logger.error('OAuth authorization failed', outcome.message, { integrationName });
+        sendPage(res, 200, {
+          title: 'Authorization failed',
+          lines: [outcome.message, 'You can try again from TuringMod.'],
+          returnUrl,
+        });
+        return;
+      }
+
+      this.logger.info('OAuth authorization completed', { integrationName });
+      sendPage(res, 200, {
+        title: 'Authorization successful',
+        lines: [`${integrationName} is connected.`],
+        returnUrl,
+        returnAutomatically: true,
+      });
     } catch (error) {
       this.logger.error('Error handling OAuth callback', error);
       res.writeHead(500, { 'Content-Type': 'text/plain' });

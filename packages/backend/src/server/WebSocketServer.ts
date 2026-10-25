@@ -13,6 +13,8 @@ import type { MessageRouter } from './MessageRouter.js';
 export class WebSocketServer {
   private wss: WSServer | null = null;
   private clients = new Map<string, WebSocket>();
+  /** Each connected client's Origin header, which verifyClient has already allowed. */
+  private origins = new Map<string, string>();
   private logger: Logger;
 
   constructor(
@@ -50,8 +52,8 @@ export class WebSocketServer {
       },
     });
 
-    this.wss.on('connection', (ws: WebSocket) => {
-      this.handleConnection(ws);
+    this.wss.on('connection', (ws: WebSocket, request) => {
+      this.handleConnection(ws, request.headers.origin);
     });
 
     this.logger.info('WebSocket server started');
@@ -60,9 +62,12 @@ export class WebSocketServer {
   /**
    * Handle new WebSocket connection
    */
-  private handleConnection(ws: WebSocket): void {
+  private handleConnection(ws: WebSocket, origin: string | undefined): void {
     const clientId = crypto.randomUUID();
     this.clients.set(clientId, ws);
+    if (origin) {
+      this.origins.set(clientId, origin);
+    }
 
     this.logger.debug('Client connected', { clientId, total: this.clients.size });
 
@@ -128,6 +133,7 @@ export class WebSocketServer {
    */
   private handleDisconnection(clientId: string): void {
     this.clients.delete(clientId);
+    this.origins.delete(clientId);
     this.logger.debug('Client disconnected', { clientId, total: this.clients.size });
   }
 
@@ -150,6 +156,11 @@ export class WebSocketServer {
     } catch (error) {
       this.logger.error('Failed to send message to client', error, { clientId });
     }
+  }
+
+  /** The origin (e.g. `http://localhost:3000`) of the console behind a client, if it's connected. */
+  originOf(clientId: string): string | null {
+    return this.origins.get(clientId) ?? null;
   }
 
   /**

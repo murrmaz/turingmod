@@ -77,7 +77,7 @@ function NeedsAttention({
 }) {
   const target = reconnectTarget(integration, all);
   return (
-    <section className="flex flex-col gap-2.5 rounded-xl border border-red-900 bg-[oklch(0.7_0.16_25/0.06)] p-4">
+    <section className="flex flex-col gap-2.5 rounded-xl border border-cat-error/40 bg-cat-error/6 p-4">
       <h2 className="flex items-center gap-2 text-sm font-semibold">
         <CircleAlert className="size-4 text-cat-error" />
         Needs attention

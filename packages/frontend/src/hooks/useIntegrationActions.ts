@@ -1,9 +1,9 @@
 import type { IntegrationInfo } from '@turingmod/shared';
 import { IntegrationStatus } from '@turingmod/shared';
 import { useCallback, useState } from 'react';
-import { useOAuthFlow } from '../components/integrations/OAuthFlow';
-import { reconnectTarget } from '../lib/reconnect';
-import { reportActionError } from '../lib/reportError';
+import { useOAuthFlow } from '@/components/integrations/OAuthFlow';
+import { reconnectTarget } from '@/lib/reconnect';
+import { reportActionError } from '@/lib/reportError';
 import { useIntegrations } from './useIntegrations';
 
 /**
@@ -14,7 +14,6 @@ export interface IntegrationActionState {
   isConnected: boolean;
   /** Turned on by the streamer, so Stop applies even while it waits on a dependency. */
   isEnabled: boolean;
-  isStartable: boolean;
   isOAuthIntegration: boolean;
   needsReauth: boolean;
   hasUnmetDependencies: boolean;
@@ -27,13 +26,8 @@ export interface IntegrationActionState {
  * OAuth dialogs (OAuthFlowProvider).
  */
 export function useIntegrationActions() {
-  const {
-    integrations,
-    startIntegration,
-    stopIntegration,
-    areDependenciesMet,
-    getMissingDependencies,
-  } = useIntegrations();
+  const { integrations, startIntegration, stopIntegration, getMissingDependencies } =
+    useIntegrations();
 
   const { authorize: handleAuthorize } = useOAuthFlow();
   const [loadingIntegration, setLoadingIntegration] = useState<string | null>(null);
@@ -67,21 +61,19 @@ export function useIntegrationActions() {
   );
 
   const getActionState = useCallback(
-    (item: IntegrationInfo): IntegrationActionState => ({
-      isLoading: loadingIntegration === item.name,
-      isConnected: item.status === IntegrationStatus.CONNECTED,
-      isEnabled: item.enabled,
-      isStartable:
-        item.status === IntegrationStatus.DISCONNECTED ||
-        item.status === IntegrationStatus.ERROR ||
-        item.status === IntegrationStatus.NEEDS_REAUTH ||
-        item.status === IntegrationStatus.BLOCKED,
-      isOAuthIntegration: Boolean(item.oauth),
-      needsReauth: item.status === IntegrationStatus.NEEDS_REAUTH,
-      hasUnmetDependencies: !areDependenciesMet(item.name),
-      missingDependencies: getMissingDependencies(item.name),
-    }),
-    [loadingIntegration, areDependenciesMet, getMissingDependencies]
+    (item: IntegrationInfo): IntegrationActionState => {
+      const missingDependencies = getMissingDependencies(item.name);
+      return {
+        isLoading: loadingIntegration === item.name,
+        isConnected: item.status === IntegrationStatus.CONNECTED,
+        isEnabled: item.enabled,
+        isOAuthIntegration: Boolean(item.oauth),
+        needsReauth: item.status === IntegrationStatus.NEEDS_REAUTH,
+        hasUnmetDependencies: missingDependencies.length > 0,
+        missingDependencies,
+      };
+    },
+    [loadingIntegration, getMissingDependencies]
   );
 
   // Fix a broken integration the one way that can: authorize again where OAuth is involved

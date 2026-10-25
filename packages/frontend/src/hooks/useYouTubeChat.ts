@@ -1,7 +1,7 @@
 import type { YouTubeChatState } from '@turingmod/shared';
 import { MessageType } from '@turingmod/shared';
 import { useCallback, useState } from 'react';
-import { useWebSocketContext } from '../context/WebSocketContext';
+import { useWebSocketContext } from '@/context/WebSocketContext';
 import { useServerState } from './useServerState';
 
 const NOT_CONNECTED: YouTubeChatState = 'idle';

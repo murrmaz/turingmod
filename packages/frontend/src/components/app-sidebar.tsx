@@ -1,4 +1,3 @@
-import { Database, History, LayoutDashboard, Plug, Terminal } from 'lucide-react';
 import { NavLink, useLocation, useMatch } from 'react-router-dom';
 import { StatusDot } from '@/components/status';
 import { Button } from '@/components/ui/button';
@@ -17,25 +16,18 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { PAGES, pageAt } from '@/constants/pages';
 import { useAppState } from '@/context/AppStateContext';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { useDataTables } from '@/features/data/useDataTables';
 import { describeIntegration } from '@/lib/integrationStatus';
-
-const NAV = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/commands', label: 'Commands', icon: Terminal },
-  { to: '/integrations', label: 'Integrations', icon: Plug },
-  { to: '/history', label: 'History', icon: History },
-  { to: '/data', label: 'Data', icon: Database },
-] as const;
 
 export function AppSidebar() {
   const { pathname } = useLocation();
   const { integrations } = useAppState();
   const { state } = useSidebar();
   const broken = integrations.filter((i) => describeIntegration(i).needsAttention).length;
-  const onDataPage = pathname.startsWith('/data');
+  const current = pageAt(pathname);
 
   return (
     <Sidebar collapsible="icon">
@@ -61,24 +53,24 @@ export function AppSidebar() {
           <SidebarGroupLabel>Console</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV.map(({ to, label, icon: Icon }) => (
-                <SidebarMenuItem key={to}>
+              {PAGES.map((page) => (
+                <SidebarMenuItem key={page.path}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname.startsWith(to)}
-                    tooltip={label}
+                    isActive={page === current}
+                    tooltip={page.label}
                     className="data-[active=true]:font-medium"
                   >
-                    <NavLink to={to} className="relative">
-                      <Icon />
-                      <span>{label}</span>
-                      {to === '/integrations' && broken > 0 && state === 'collapsed' && (
+                    <NavLink to={page.path} className="relative">
+                      <page.icon />
+                      <span>{page.label}</span>
+                      {page.path === '/integrations' && broken > 0 && state === 'collapsed' && (
                         <StatusDot tone="error" className="absolute top-1 right-1" />
                       )}
                     </NavLink>
                   </SidebarMenuButton>
-                  {to === '/integrations' && broken > 0 && (
-                    <SidebarMenuBadge className="rounded-md bg-red-900 text-[11px] font-semibold text-red-100 peer-hover/menu-button:text-red-100 peer-data-[active=true]/menu-button:text-red-100">
+                  {page.path === '/integrations' && broken > 0 && (
+                    <SidebarMenuBadge className="rounded-md bg-cat-error/25 text-[11px] font-semibold text-foreground peer-hover/menu-button:text-foreground peer-data-[active=true]/menu-button:text-foreground">
                       {broken}
                     </SidebarMenuBadge>
                   )}
@@ -87,7 +79,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        {onDataPage && <DataTablesGroup />}
+        {current?.path === '/data' && <DataTablesGroup />}
       </SidebarContent>
       <SidebarFooter>
         <ConnectionStatus />

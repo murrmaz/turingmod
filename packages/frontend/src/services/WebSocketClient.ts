@@ -115,7 +115,7 @@ export class WebSocketClient {
       });
 
       socket.send(JSON.stringify(message));
-      console.log('[WebSocket] Message sent', message.type);
+      console.debug('[WebSocket] Message sent', message.type);
     });
   }
 
@@ -188,7 +188,7 @@ export class WebSocketClient {
         console.error('[WebSocket] Failed to parse message', error);
         return;
       }
-      console.log('[WebSocket] Message received', message.type);
+      console.debug('[WebSocket] Message received', message.type);
 
       const handler = this.pending.get(message.id);
       if (handler) {

@@ -11,8 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useWebSocketContext } from '../../context/WebSocketContext';
-import { useWebSocketMessage } from '../../hooks/useWebSocket';
+import { useWebSocketContext } from '@/context/WebSocketContext';
+import { useWebSocketMessage } from '@/hooks/useWebSocket';
 import type { OAuthProviderConfig } from './oauthProviders';
 
 export interface OAuthModalProps {

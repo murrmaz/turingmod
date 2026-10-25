@@ -1,18 +1,12 @@
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { type ActivityLogEntry, ActivityLogEntrySchema, type DataCell } from '@turingmod/shared';
 import { Search } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTablePagination } from '@/components/data-table/pagination';
+import { type DateRange, DateRangeSelect, rangeStart } from '@/components/date-range-select';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   dayDivider,
@@ -24,6 +18,7 @@ import {
 import { activityColumns } from '@/features/dashboard/activity-columns';
 import { EventSheet } from '@/features/dashboard/event-sheet';
 import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
+import { useDebounced } from '@/hooks/useDebounced';
 
 type HistoryCategory = keyof typeof FEED_CATEGORY_EVENTS | 'all';
 
@@ -34,15 +29,6 @@ const TABS: { value: HistoryCategory; label: string }[] = [
   { value: 'viewer', label: FEED_CATEGORY_LABELS.viewer },
   { value: 'system', label: FEED_CATEGORY_LABELS.system },
 ];
-
-const DAY = 24 * 60 * 60 * 1000;
-const RANGES = {
-  today: { label: 'Today', since: () => new Date().setHours(0, 0, 0, 0) },
-  week: { label: 'Last 7 days', since: () => Date.now() - 7 * DAY },
-  month: { label: 'Last 30 days', since: () => Date.now() - 30 * DAY },
-  all: { label: 'All time', since: () => undefined },
-} as const;
-type RangeKey = keyof typeof RANGES;
 
 /** Back from a stored row to the entry it was saved from; null for a row that isn't one. */
 function toEntry(row: Record<string, DataCell>): ActivityLogEntry | null {
@@ -68,14 +54,13 @@ function readData(data: DataCell | undefined): ActivityLogEntry['data'] {
 export function HistoryPage() {
   const [params, setParams] = useSearchParams();
   const [category, setCategory] = useState<HistoryCategory>('all');
-  const [range, setRange] = useState<RangeKey>('all');
+  const [range, setRange] = useState<DateRange>('all');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const query = params.get('q') ?? '';
 
-  const since = RANGES[range].since();
-  // Rounded to the minute, so the request (and the query it causes) changes once a minute.
+  const since = rangeStart(range);
   const { rows, total, loading, error } = useDataRows({
     table: 'activity_log',
     page,
@@ -83,7 +68,7 @@ export function HistoryPage() {
     sort: { column: 'timestamp', direction: 'desc' },
     ...(category === 'all' ? {} : { filters: { event: FEED_CATEGORY_EVENTS[category] } }),
     ...(query.trim() ? { search: query.trim() } : {}),
-    ...(since === undefined ? {} : { since: Math.floor(since / 60_000) * 60_000 }),
+    ...(since === undefined ? {} : { since }),
   });
 
   const feedRows = useMemo(() => rows.flatMap((row) => toEntry(row) ?? []).map(toFeedRow), [rows]);
@@ -129,6 +114,28 @@ export function HistoryPage() {
     setSelectedId(null);
   };
 
+  // What's typed in the search box. The URL's `q`, which the query reads, follows it once typing
+  // pauses, replacing the browser history entry rather than adding one per keystroke. When the
+  // URL changes any other way (View someone's history, Back), the box is set from it.
+  const [search, setSearch] = useState(query);
+  const typed = useDebounced(search.trim());
+  const lastWritten = useRef(query);
+  const writeQuery = useEffectEvent((next: string) => {
+    if (next === query) {
+      return;
+    }
+    lastWritten.current = next;
+    setParams(next ? { q: next } : {}, { replace: true });
+    reset();
+  });
+  useEffect(() => writeQuery(typed), [typed]);
+  useEffect(() => {
+    if (query !== lastWritten.current) {
+      lastWritten.current = query;
+      setSearch(query);
+    }
+  }, [query]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 px-8 py-6">
       <div>
@@ -157,33 +164,19 @@ export function HistoryPage() {
         <div className="relative ml-auto w-64">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            value={query}
-            onChange={(event) => {
-              setParams(event.target.value ? { q: event.target.value } : {});
-              reset();
-            }}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
             placeholder="Search events, users…"
             className="pl-8"
           />
         </div>
-        <Select
+        <DateRangeSelect
           value={range}
-          onValueChange={(value) => {
-            setRange(value as RangeKey);
+          onChange={(next) => {
+            setRange(next);
             reset();
           }}
-        >
-          <SelectTrigger className="w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(RANGES).map(([key, { label }]) => (
-              <SelectItem key={key} value={key}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        />
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
         <DataTable

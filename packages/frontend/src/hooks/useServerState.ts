@@ -7,8 +7,8 @@ import type {
 } from '@turingmod/shared';
 import { messageOf } from '@turingmod/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useWebSocketContext } from '../context/WebSocketContext';
-import { reportLoadError } from '../lib/reportError';
+import { useWebSocketContext } from '@/context/WebSocketContext';
+import { reportLoadError } from '@/lib/reportError';
 
 export interface ServerStateOptions<T extends RequestType, S, P extends ServerMessageType> {
   /** What to read with. Read again whenever it changes, compared by value. */

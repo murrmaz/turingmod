@@ -405,7 +405,7 @@ there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 
-React Context for state management: `WebSocketContext` (connection + send/subscribe) and `AppStateContext` (commands, integrations). Anything read from the backend goes through `useServerState()` (`hooks/useServerState.ts`): read on every connect and whenever its payload changes, stale replies dropped, kept current by an optional push message; don't hand-write that in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (`App.tsx`, under `src/features/<page>/`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
+React Context for state management: `WebSocketContext` (connection + send/subscribe) and `AppStateContext` (commands, integrations). Anything read from the backend goes through `useServerState()` (`hooks/useServerState.ts`): read on every connect and whenever its payload changes, stale replies dropped, kept current by an optional push message; don't hand-write that in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
 
 ### Console UI
 
@@ -414,7 +414,7 @@ prominent thing on the Dashboard and integration health stays quiet until someth
 Components are [shadcn/ui](https://ui.shadcn.com) (new-york, zinc), vendored in
 `src/components/ui/` from the shadcn repository; edit them there like any other source. Theme
 tokens, including the category/status accents (`--cat-*`), are CSS variables in `src/index.css`;
-use the tokens, not hex values. `@/` is `src/`. Every table is `components/data-table/data-table.tsx`
+use the tokens, not hex values or Tailwind's fixed palette (`red-900`). `@/` is `src/`, and imports from outside a file's own folder use it: lint rejects `../`. Every table is `components/data-table/data-table.tsx`
 over a TanStack table instance the page owns (sorting, filters and paging stay the page's, so the
 same component serves client-side lists and server-paged queries), with optional row
 virtualization for the live feed. History and the Data page read through the backend's read-only

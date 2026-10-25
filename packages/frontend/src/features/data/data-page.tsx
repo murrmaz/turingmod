@@ -13,7 +13,7 @@ import type {
 } from '@turingmod/shared';
 import { ActivityCategory, MAX_DATA_PAGE_SIZE, MessageType, messageOf } from '@turingmod/shared';
 import { Copy, Download, Lock, Search, Shield, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { DataTableColumnHeader } from '@/components/data-table/column-header';
@@ -21,21 +21,17 @@ import { DataTable } from '@/components/data-table/data-table';
 import { DataTableFacetedFilter } from '@/components/data-table/faceted-filter';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { DataTableViewOptions } from '@/components/data-table/view-options';
+import { type DateRange, DateRangeSelect, rangeStart } from '@/components/date-range-select';
 import { DotBadge, type Tone } from '@/components/status';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { formatDateTime } from '@/constants/activityFormat';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
+import { useDebounced } from '@/hooks/useDebounced';
 import { copyToClipboard } from '@/lib/reportError';
+import { toCsv } from './csv';
 import { useDataTables } from './useDataTables';
 
 /** A row of the current page, keyed by its position since tables need not have one id column. */
@@ -52,15 +48,6 @@ const ENUM_TONES: Partial<Record<string, Tone>> = {
   [ActivityCategory.ERROR]: 'error',
   [ActivityCategory.CHAT]: 'chat',
 } satisfies Record<ActivityCategory, Tone>;
-
-const DAY = 24 * 60 * 60 * 1000;
-const RANGES = {
-  all: { label: 'Any time', since: () => undefined },
-  today: { label: 'Today', since: () => new Date().setHours(0, 0, 0, 0) },
-  week: { label: 'Last 7 days', since: () => Date.now() - 7 * DAY },
-  month: { label: 'Last 30 days', since: () => Date.now() - 30 * DAY },
-} as const;
-type RangeKey = keyof typeof RANGES;
 
 export function DataPage() {
   const { table: tableName } = useParams();
@@ -89,9 +76,8 @@ export function DataPage() {
 function TableInspector({ info }: { info: DataTableInfo }) {
   const { request } = useWebSocketContext();
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [facets, setFacets] = useState<Record<string, Set<string>>>({});
-  const [range, setRange] = useState<RangeKey>('all');
+  const [range, setRange] = useState<DateRange>('all');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [visibility, setVisibility] = useState<VisibilityState>({});
   const [page, setPage] = useState(0);
@@ -99,13 +85,10 @@ function TableInspector({ info }: { info: DataTableInfo }) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [search]);
+  const debouncedSearch = useDebounced(search.trim());
 
   const timeColumn = info.columns.find((column) => column.isTimestamp);
-  const since = RANGES[range].since();
+  const since = rangeStart(range);
   const filters = Object.fromEntries(
     Object.entries(facets)
       .filter(([, values]) => values.size > 0)
@@ -117,7 +100,7 @@ function TableInspector({ info }: { info: DataTableInfo }) {
     ...(sort ? { sort: { column: sort.id, direction: sort.desc ? 'desc' : 'asc' } } : {}),
     ...(Object.keys(filters).length > 0 ? { filters } : {}),
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
-    ...(since === undefined ? {} : { since: Math.floor(since / 60_000) * 60_000 }),
+    ...(since === undefined ? {} : { since }),
   };
   const { rows, total, loading, error } = useDataRows({ ...query, page, pageSize });
 
@@ -231,24 +214,13 @@ function TableInspector({ info }: { info: DataTableInfo }) {
             />
           ))}
           {timeColumn && (
-            <Select
+            <DateRangeSelect
               value={range}
-              onValueChange={(value) => {
-                setRange(value as RangeKey);
+              onChange={(next) => {
+                setRange(next);
                 setPage(0);
               }}
-            >
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(RANGES).map(([key, { label }]) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           )}
           <Button
             variant="outline"
@@ -415,21 +387,6 @@ function RowPanel({
       </p>
     </aside>
   );
-}
-
-function toCsv(columns: DataColumnInfo[], rows: Record<string, DataCell>[]): string {
-  const csvField = (value: DataCell) => {
-    if (value === null) {
-      return '';
-    }
-    const text = String(value);
-    return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-  };
-  const header = columns.map((column) => csvField(column.name)).join(',');
-  const body = rows.map((row) =>
-    columns.map((column) => csvField(row[column.name] ?? null)).join(',')
-  );
-  return [header, ...body].join('\r\n');
 }
 
 function download(filename: string, content: string): void {

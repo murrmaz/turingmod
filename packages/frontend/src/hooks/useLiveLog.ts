@@ -1,6 +1,6 @@
 import type { ActivityLogEntry } from '@turingmod/shared';
 import { MessageType } from '@turingmod/shared';
-import { type FeedRow, toFeedRow } from '../constants/activityFormat';
+import { type FeedRow, toFeedRow } from '@/constants/activityFormat';
 import { useServerState } from './useServerState';
 
 const MAX_ENTRIES = 1000;

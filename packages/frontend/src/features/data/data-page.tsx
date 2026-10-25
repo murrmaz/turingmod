@@ -13,7 +13,7 @@ import type {
 } from '@turingmod/shared';
 import { ActivityCategory, MAX_DATA_PAGE_SIZE, MessageType, messageOf } from '@turingmod/shared';
 import { Copy, Download, Lock, Search, Shield, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { DataTableColumnHeader } from '@/components/data-table/column-header';
@@ -35,7 +35,9 @@ import {
 import { formatDateTime } from '@/constants/activityFormat';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
+import { useDebounced } from '@/hooks/useDebounced';
 import { copyToClipboard } from '@/lib/reportError';
+import { toCsv } from './csv';
 import { useDataTables } from './useDataTables';
 
 /** A row of the current page, keyed by its position since tables need not have one id column. */
@@ -89,7 +91,6 @@ export function DataPage() {
 function TableInspector({ info }: { info: DataTableInfo }) {
   const { request } = useWebSocketContext();
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [facets, setFacets] = useState<Record<string, Set<string>>>({});
   const [range, setRange] = useState<RangeKey>('all');
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -99,10 +100,7 @@ function TableInspector({ info }: { info: DataTableInfo }) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [search]);
+  const debouncedSearch = useDebounced(search.trim());
 
   const timeColumn = info.columns.find((column) => column.isTimestamp);
   const since = RANGES[range].since();
@@ -415,21 +413,6 @@ function RowPanel({
       </p>
     </aside>
   );
-}
-
-function toCsv(columns: DataColumnInfo[], rows: Record<string, DataCell>[]): string {
-  const csvField = (value: DataCell) => {
-    if (value === null) {
-      return '';
-    }
-    const text = String(value);
-    return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-  };
-  const header = columns.map((column) => csvField(column.name)).join(',');
-  const body = rows.map((row) =>
-    columns.map((column) => csvField(row[column.name] ?? null)).join(',')
-  );
-  return [header, ...body].join('\r\n');
 }
 
 function download(filename: string, content: string): void {

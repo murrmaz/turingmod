@@ -1,7 +1,7 @@
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { type ActivityLogEntry, ActivityLogEntrySchema, type DataCell } from '@turingmod/shared';
 import { Search } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTablePagination } from '@/components/data-table/pagination';
@@ -24,6 +24,7 @@ import {
 import { activityColumns } from '@/features/dashboard/activity-columns';
 import { EventSheet } from '@/features/dashboard/event-sheet';
 import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
+import { useDebounced } from '@/hooks/useDebounced';
 
 type HistoryCategory = keyof typeof FEED_CATEGORY_EVENTS | 'all';
 
@@ -129,6 +130,28 @@ export function HistoryPage() {
     setSelectedId(null);
   };
 
+  // What's typed in the search box. The URL's `q`, which the query reads, follows it once typing
+  // pauses, replacing the browser history entry rather than adding one per keystroke. When the
+  // URL changes any other way (View someone's history, Back), the box is set from it.
+  const [search, setSearch] = useState(query);
+  const typed = useDebounced(search.trim());
+  const lastWritten = useRef(query);
+  const writeQuery = useEffectEvent((next: string) => {
+    if (next === query) {
+      return;
+    }
+    lastWritten.current = next;
+    setParams(next ? { q: next } : {}, { replace: true });
+    reset();
+  });
+  useEffect(() => writeQuery(typed), [typed]);
+  useEffect(() => {
+    if (query !== lastWritten.current) {
+      lastWritten.current = query;
+      setSearch(query);
+    }
+  }, [query]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 px-8 py-6">
       <div>
@@ -157,11 +180,8 @@ export function HistoryPage() {
         <div className="relative ml-auto w-64">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            value={query}
-            onChange={(event) => {
-              setParams(event.target.value ? { q: event.target.value } : {});
-              reset();
-            }}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
             placeholder="Search events, users…"
             className="pl-8"
           />

@@ -1,0 +1,35 @@
+import { messageOf } from '@turingmod/shared';
+import { toast } from 'sonner';
+import { ConnectionError } from '@/services/WebSocketClient';
+
+/**
+ * Something the streamer did failed: always say so, connection loss included, so a click is never
+ * answered with nothing.
+ */
+export function reportActionError(title: string, error: unknown): void {
+  console.error(`[console] ${title}`, error);
+  toast.error(title, { description: messageOf(error) });
+}
+
+/**
+ * Something the console reads by itself failed. Not when the connection is down: the banner
+ * already says so, and everything is read again on reconnect. Toasted under its title as id, so
+ * the same failure repeating replaces its toast rather than stacking another.
+ */
+export function reportLoadError(title: string, error: unknown): void {
+  console.error(`[console] ${title}`, error);
+  if (error instanceof ConnectionError) {
+    return;
+  }
+  toast.error(title, { id: title, description: messageOf(error) });
+}
+
+/** Copy text for the streamer, confirming it, since a copy is otherwise invisible. */
+export async function copyToClipboard(text: string, what: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(`Copied ${what}`);
+  } catch (error) {
+    reportActionError(`Couldn't copy ${what}`, error);
+  }
+}

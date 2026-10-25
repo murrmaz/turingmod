@@ -14,8 +14,10 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { formatUptime } from '@/constants/activityFormat';
+import { useWebSocketContext } from '@/context/WebSocketContext';
 import { useNow, usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import { useYouTubeChat } from '@/hooks/useYouTubeChat';
+import { reportActionError } from '@/lib/reportError';
 import { cn } from '@/lib/utils';
 
 const TITLES: Record<string, string> = {
@@ -61,7 +63,21 @@ export function SiteHeader({ onOpenPalette }: { onOpenPalette: () => void }) {
   );
 }
 
+/**
+ * A platform's name and whether it's live. While the console is disconnected that isn't known, so
+ * it says so rather than showing the last state with an uptime still counting.
+ */
 function BadgeBody({ state, now }: { state: PlatformLiveState; now: number }) {
+  const { isConnected } = useWebSocketContext();
+  if (!isConnected) {
+    return (
+      <>
+        <StatusDot tone="idle" />
+        <span className="font-semibold text-foreground">{platformDisplayName(state.platform)}</span>
+        <span className="text-muted-foreground">Unknown</span>
+      </>
+    );
+  }
   return (
     <>
       <StatusDot tone={state.live ? 'error' : 'idle'} />
@@ -99,6 +115,7 @@ const CHAT_STATE_TEXT = {
  */
 function YouTubeBadge({ state, now }: { state: PlatformLiveState; now: number }) {
   const chat = useYouTubeChat();
+  const { isConnected } = useWebSocketContext();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className={cn(BADGE_CLASS, 'hover:bg-accent')}>
@@ -109,22 +126,38 @@ function YouTubeBadge({ state, now }: { state: PlatformLiveState; now: number })
         <DropdownMenuLabel className="flex items-center gap-2 font-normal text-muted-foreground">
           <StatusDot
             tone={
-              chat.state === 'streaming' ? 'viewer' : chat.state === 'resolving' ? 'system' : 'idle'
+              isConnected
+                ? chat.state === 'streaming'
+                  ? 'viewer'
+                  : chat.state === 'resolving'
+                    ? 'system'
+                    : 'idle'
+                : 'idle'
             }
-            pulse={chat.state === 'resolving'}
+            pulse={isConnected && chat.state === 'resolving'}
           />
-          {CHAT_STATE_TEXT[chat.state]}
+          {isConnected ? CHAT_STATE_TEXT[chat.state] : 'Not connected to TuringMod'}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          disabled={chat.pending || chat.state !== 'idle'}
-          onSelect={() => void chat.goLive().catch(() => undefined)}
+          disabled={!isConnected || chat.pending || chat.state !== 'idle'}
+          onSelect={() =>
+            void chat
+              .goLive()
+              .catch((error: unknown) => reportActionError("Couldn't connect YouTube chat", error))
+          }
         >
           Connect chat
         </DropdownMenuItem>
         <DropdownMenuItem
-          disabled={chat.pending || chat.state === 'idle'}
-          onSelect={() => void chat.goOffline().catch(() => undefined)}
+          disabled={!isConnected || chat.pending || chat.state === 'idle'}
+          onSelect={() =>
+            void chat
+              .goOffline()
+              .catch((error: unknown) =>
+                reportActionError("Couldn't disconnect YouTube chat", error)
+              )
+          }
         >
           Disconnect chat
         </DropdownMenuItem>

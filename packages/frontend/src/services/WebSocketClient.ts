@@ -1,250 +1,255 @@
 import { createErrorMessage, type ErrorPayload, type IWebSocketMessage } from '@turingmod/shared';
 
 /**
- * WebSocket event types
+ * Where the connection stands. `connecting` is only the first attempt after connect(); once a
+ * connection has failed or dropped, the client is `reconnecting` until one opens again.
  */
-export type WebSocketEventType = 'open' | 'close' | 'error' | 'message';
+export type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'closed';
 
-/**
- * WebSocket event handler
- */
-export type WebSocketEventHandler = (data?: unknown) => void;
-
-/**
- * WebSocket client configuration
- */
+/** WebSocket client configuration */
 export interface WebSocketClientConfig {
   /** WebSocket URL */
   url: string;
 }
 
+/** The first retry waits this long, doubling each time it fails, up to RECONNECT_MAX_MS. */
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 30_000;
+
+export const NOT_CONNECTED_MESSAGE = 'Not connected to TuringMod';
+
 /**
- * WebSocket client wrapper
- * Connects only when explicitly told to (initial load or user action) —
- * no background retry/backoff. A failed or dropped connection just reports
- * its state and waits for the next explicit connect() call.
+ * A request got no answer because there was no connection, or it was lost first. Kept apart from
+ * an error the backend answered with, since the connection banner already reports this one.
+ */
+export class ConnectionError extends Error {
+  override name = 'ConnectionError';
+}
+
+/**
+ * WebSocket client wrapper. Once connect() is called it stays connected: a failed or dropped
+ * connection is retried with backoff until disconnect().
+ *
+ * Nothing is queued while disconnected. A request made then is rejected at once, so an action
+ * the streamer clicked during an outage never runs later, after they've given up on it; the
+ * console re-reads its state on every connect instead.
  */
 export class WebSocketClient {
   private ws: WebSocket | null = null;
-  private config: Required<WebSocketClientConfig>;
-  private messageQueue: IWebSocketMessage[] = [];
-  private eventHandlers: Map<WebSocketEventType, Set<WebSocketEventHandler>> = new Map();
-  private messageHandlers: Map<string, WebSocketEventHandler> = new Map();
-  private isConnecting = false;
+  private readonly url: string;
+  private state: ConnectionState = 'closed';
+  private readonly stateHandlers = new Set<(state: ConnectionState) => void>();
+  private readonly messageListeners = new Set<(message: IWebSocketMessage) => void>();
+  /** Response handlers for in-flight requests, by request id. */
+  private readonly pending = new Map<string, (message: IWebSocketMessage) => void>();
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Consecutive attempts that failed, which sets the next retry's delay. */
+  private failedAttempts = 0;
 
   constructor(config: WebSocketClientConfig) {
-    this.config = {
-      url: config.url,
-    };
-
-    // Initialize event handler maps
-    this.eventHandlers.set('open', new Set());
-    this.eventHandlers.set('close', new Set());
-    this.eventHandlers.set('error', new Set());
-    this.eventHandlers.set('message', new Set());
+    this.url = config.url;
   }
 
   /**
-   * Connect to WebSocket server
+   * Connect, and keep reconnecting after any loss until disconnect(). While a retry is waiting,
+   * this tries again immediately.
    */
   connect(): void {
-    if (this.ws?.readyState === WebSocket.OPEN || this.isConnecting) {
+    this.clearRetry();
+    if (this.ws) {
       return;
     }
-
-    this.isConnecting = true;
-
-    try {
-      this.ws = new WebSocket(this.config.url);
-
-      this.ws.onopen = () => {
-        this.isConnecting = false;
-        console.log('[WebSocket] Connected');
-
-        // Flush message queue
-        this.flushMessageQueue();
-
-        // Emit open event
-        this.emit('open');
-      };
-
-      this.ws.onclose = (event) => {
-        this.isConnecting = false;
-        console.log('[WebSocket] Disconnected', event.code, event.reason);
-
-        this.handleConnectionLoss('Connection closed');
-
-        // Emit close event
-        this.emit('close', event);
-      };
-
-      this.ws.onerror = (event) => {
-        this.isConnecting = false;
-        console.error('[WebSocket] Error', event);
-
-        // Emit error event
-        this.emit('error', event);
-      };
-
-      this.ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data) as IWebSocketMessage;
-          console.log('[WebSocket] Message received', message.type);
-
-          // Check for message-specific handler (request/response pattern)
-          const handler = this.messageHandlers.get(message.id);
-          if (handler) {
-            handler(message);
-            this.messageHandlers.delete(message.id);
-          }
-
-          // Emit message event to all subscribers
-          this.emit('message', message);
-        } catch (error) {
-          console.error('[WebSocket] Failed to parse message', error);
-        }
-      };
-    } catch (error) {
-      this.isConnecting = false;
-      console.error('[WebSocket] Connection failed', error);
-      this.emit('error', error);
+    if (this.state === 'closed') {
+      this.setState('connecting');
     }
+    this.open();
   }
 
-  /**
-   * Disconnect from WebSocket server
-   */
+  /** Close the connection and stop reconnecting. */
   disconnect(): void {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    this.handleConnectionLoss('Connection closed');
+    this.clearRetry();
+    const socket = this.ws;
+    this.ws = null;
+    socket?.close();
+    this.rejectPending('Connection closed');
+    this.failedAttempts = 0;
+    this.setState('closed');
   }
 
   /**
-   * Send a message
-   * Queues message if not connected
-   */
-  send(message: IWebSocketMessage): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(message));
-      console.log('[WebSocket] Message sent', message.type);
-    } else {
-      console.log('[WebSocket] Message queued (not connected)', message.type);
-      this.messageQueue.push(message);
-    }
-  }
-
-  /**
-   * Send a message and wait for response
+   * Send a message and wait for its response. Rejects at once when not connected, and when the
+   * connection is lost before the response arrives.
    */
   sendAndWaitForResponse<T = unknown>(
     message: IWebSocketMessage,
     timeout = 30000
   ): Promise<IWebSocketMessage<T>> {
     return new Promise((resolve, reject) => {
+      const socket = this.ws;
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        reject(new ConnectionError(NOT_CONNECTED_MESSAGE));
+        return;
+      }
+
       const timeoutId = setTimeout(() => {
-        this.messageHandlers.delete(message.id);
+        this.pending.delete(message.id);
         reject(new Error('Request timeout'));
       }, timeout);
 
-      this.messageHandlers.set(message.id, (data?: unknown) => {
+      this.pending.set(message.id, (data) => {
         const response = data as IWebSocketMessage<T>;
         clearTimeout(timeoutId);
 
         // Check if response is an error message
         if (response.type === 'error') {
           const errorPayload = response.payload as ErrorPayload;
-          reject(new Error(errorPayload?.message || 'Unknown error'));
+          const message = errorPayload?.message || 'Unknown error';
+          reject(
+            errorPayload?.code === 'CONNECTION_CLOSED'
+              ? new ConnectionError(message)
+              : new Error(message)
+          );
         } else {
           resolve(response);
         }
       });
 
-      this.send(message);
+      socket.send(JSON.stringify(message));
+      console.log('[WebSocket] Message sent', message.type);
     });
   }
 
-  /**
-   * Subscribe to WebSocket events
-   */
-  on(event: WebSocketEventType, handler: WebSocketEventHandler): void {
-    const handlers = this.eventHandlers.get(event);
-    if (handlers) {
-      handlers.add(handler);
-    }
+  /** Be told of every state change. Returns the unsubscribe function. */
+  onStateChange(handler: (state: ConnectionState) => void): () => void {
+    this.stateHandlers.add(handler);
+    return () => this.stateHandlers.delete(handler);
   }
 
-  /**
-   * Unsubscribe from WebSocket events
-   */
-  off(event: WebSocketEventType, handler: WebSocketEventHandler): void {
-    const handlers = this.eventHandlers.get(event);
-    if (handlers) {
-      handlers.delete(handler);
-    }
+  /** Hear every message from the server, responses included. Returns the unsubscribe function. */
+  onMessage(handler: (message: IWebSocketMessage) => void): () => void {
+    this.messageListeners.add(handler);
+    return () => this.messageListeners.delete(handler);
   }
 
-  /**
-   * Check if connected
-   */
+  getState(): ConnectionState {
+    return this.state;
+  }
+
   isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN;
+    return this.state === 'connected';
   }
 
-  /**
-   * Emit event to all subscribers
-   */
-  private emit(event: WebSocketEventType, data?: unknown): void {
-    const handlers = this.eventHandlers.get(event);
-    if (handlers) {
-      for (const handler of handlers) {
-        try {
-          handler(data);
-        } catch (error) {
-          console.error(`[WebSocket] Event handler error (${event})`, error);
-        }
-      }
-    }
-  }
-
-  /**
-   * Reject all in-flight requests and drop queued messages. Called on both an
-   * explicit disconnect() and the socket's close event, so pending callers fail
-   * fast instead of waiting out their timeout.
-   */
-  private handleConnectionLoss(reason: string): void {
-    if (this.messageHandlers.size > 0) {
-      console.log('[WebSocket] Rejecting pending requests', this.messageHandlers.size, reason);
-      const pending = Array.from(this.messageHandlers.entries());
-      this.messageHandlers.clear();
-      for (const [id, handler] of pending) {
-        handler(createErrorMessage('CONNECTION_CLOSED', reason, id));
-      }
-    }
-
-    if (this.messageQueue.length > 0) {
-      console.log('[WebSocket] Dropping queued messages', this.messageQueue.length, reason);
-      this.messageQueue = [];
-    }
-  }
-
-  /**
-   * Flush queued messages
-   */
-  private flushMessageQueue(): void {
-    if (this.messageQueue.length === 0) {
+  private open(): void {
+    let socket: WebSocket;
+    try {
+      socket = new WebSocket(this.url);
+    } catch (error) {
+      console.error('[WebSocket] Connection failed', error);
+      this.handleLoss();
       return;
     }
+    this.ws = socket;
 
-    console.log('[WebSocket] Flushing message queue', this.messageQueue.length);
-
-    while (this.messageQueue.length > 0) {
-      const message = this.messageQueue.shift();
-      if (message) {
-        this.send(message);
+    // Each handler first checks that its socket is still the current one, so a socket replaced by
+    // disconnect() or a retry can't report its late close against the connection that followed.
+    socket.onopen = () => {
+      if (this.ws !== socket) {
+        return;
       }
+      console.log('[WebSocket] Connected');
+      this.failedAttempts = 0;
+      this.setState('connected');
+    };
+
+    socket.onclose = (event) => {
+      if (this.ws !== socket) {
+        return;
+      }
+      console.log('[WebSocket] Disconnected', event.code, event.reason);
+      this.ws = null;
+      this.handleLoss();
+    };
+
+    // An error is always followed by close, which does the handling.
+    socket.onerror = (event) => {
+      if (this.ws === socket) {
+        console.error('[WebSocket] Error', event);
+      }
+    };
+
+    socket.onmessage = (event) => {
+      if (this.ws !== socket) {
+        return;
+      }
+      let message: IWebSocketMessage;
+      try {
+        message = JSON.parse(event.data) as IWebSocketMessage;
+      } catch (error) {
+        console.error('[WebSocket] Failed to parse message', error);
+        return;
+      }
+      console.log('[WebSocket] Message received', message.type);
+
+      const handler = this.pending.get(message.id);
+      if (handler) {
+        this.pending.delete(message.id);
+        handler(message);
+      }
+
+      for (const listener of this.messageListeners) {
+        try {
+          listener(message);
+        } catch (error) {
+          console.error('[WebSocket] Message listener error', error);
+        }
+      }
+    };
+  }
+
+  /** A connection failed or dropped: fail what was waiting on it and schedule the next try. */
+  private handleLoss(): void {
+    this.rejectPending('Connection closed');
+    this.setState('reconnecting');
+    const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** this.failedAttempts);
+    this.failedAttempts += 1;
+    console.log(`[WebSocket] Reconnecting in ${delay / 1000}s`);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.open();
+    }, delay);
+  }
+
+  private clearRetry(): void {
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+  }
+
+  private setState(state: ConnectionState): void {
+    if (this.state === state) {
+      return;
+    }
+    this.state = state;
+    for (const handler of this.stateHandlers) {
+      try {
+        handler(state);
+      } catch (error) {
+        console.error('[WebSocket] State handler error', error);
+      }
+    }
+  }
+
+  /** Fail every in-flight request now rather than leaving it to wait out its timeout. */
+  private rejectPending(reason: string): void {
+    if (this.pending.size === 0) {
+      return;
+    }
+    console.log('[WebSocket] Rejecting pending requests', this.pending.size, reason);
+    const pending = [...this.pending.entries()];
+    this.pending.clear();
+    for (const [id, handler] of pending) {
+      handler(createErrorMessage('CONNECTION_CLOSED', reason, id));
     }
   }
 }

@@ -34,6 +34,7 @@ import {
 import { Input } from '@/components/ui/input';
 
 import { useAppState } from '@/context/AppStateContext';
+import { copyToClipboard } from '@/lib/reportError';
 import { PERMISSION_LABELS, useSimulator } from './simulator';
 
 const PERMISSION_TONES: Record<PermissionLevel, Tone> = {
@@ -144,9 +145,7 @@ export function CommandsPage() {
               <DropdownMenuItem onSelect={() => simulator.open({ command: row.original.name })}>
                 Simulate…
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => void navigator.clipboard.writeText(row.original.usage)}
-              >
+              <DropdownMenuItem onSelect={() => void copyToClipboard(row.original.usage, 'usage')}>
                 Copy usage
               </DropdownMenuItem>
             </DropdownMenuContent>

@@ -126,27 +126,28 @@ function DataTablesGroup() {
 }
 
 /**
- * The console's own connection to the backend. It doesn't retry by itself, so a dropped
- * connection offers Reconnect.
+ * The console's own connection to the backend. A lost one is retried by itself (the banner over
+ * the page says so too); Retry now skips the wait.
  */
 function ConnectionStatus() {
-  const { isConnected, connect } = useWebSocketContext();
+  const { connectionState, connect } = useWebSocketContext();
 
-  if (isConnected) {
+  if (connectionState === 'connected' || connectionState === 'connecting') {
+    const connected = connectionState === 'connected';
     return (
       <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-        <StatusDot tone="viewer" className="size-2" />
+        <StatusDot tone={connected ? 'viewer' : 'system'} pulse={!connected} className="size-2" />
         <span className="truncate group-data-[collapsible=icon]:hidden">
-          Connected · {window.location.host}
+          {connected ? `Connected · ${window.location.host}` : 'Connecting…'}
         </span>
       </div>
     );
   }
   return (
     <div className="flex flex-col gap-2 px-2 py-1 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
-      <div className="flex items-center gap-2 text-xs text-red-300">
-        <StatusDot tone="error" className="size-2" />
-        <span className="group-data-[collapsible=icon]:hidden">Disconnected</span>
+      <div className="flex items-center gap-2 text-xs text-cat-error">
+        <StatusDot tone="error" pulse className="size-2" />
+        <span className="group-data-[collapsible=icon]:hidden">Reconnecting…</span>
       </div>
       <Button
         size="sm"
@@ -154,7 +155,7 @@ function ConnectionStatus() {
         onClick={connect}
         className="group-data-[collapsible=icon]:hidden"
       >
-        Reconnect
+        Retry now
       </Button>
     </div>
   );

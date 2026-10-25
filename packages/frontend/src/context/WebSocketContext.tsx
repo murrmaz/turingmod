@@ -8,7 +8,7 @@ import {
 } from '@turingmod/shared';
 import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { WebSocketClient } from '../services/WebSocketClient';
+import { type ConnectionState, WebSocketClient } from '../services/WebSocketClient';
 
 /**
  * WebSocket context value
@@ -16,6 +16,12 @@ import { WebSocketClient } from '../services/WebSocketClient';
 export interface WebSocketContextValue {
   /** Whether WebSocket is connected */
   isConnected: boolean;
+
+  /**
+   * Where the connection stands. While `reconnecting`, everything the console shows is as it was
+   * when the connection was lost.
+   */
+  connectionState: ConnectionState;
 
   /**
    * Send a request and resolve with the payload it's answered with (ResponseTypes in shared), or
@@ -30,11 +36,8 @@ export interface WebSocketContextValue {
   /** Subscribe to messages */
   subscribe: (handler: (message: IWebSocketMessage) => void) => () => void;
 
-  /** Manually connect */
+  /** Retry now, instead of waiting for the next automatic attempt. */
   connect: () => void;
-
-  /** Manually disconnect */
-  disconnect: () => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextValue | null>(null);
@@ -65,30 +68,14 @@ export function WebSocketProvider({
   children,
   url = defaultWebSocketUrl(),
 }: WebSocketProviderProps) {
-  const [isConnected, setIsConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
   const clientRef = useRef<WebSocketClient | null>(null);
   const subscribersRef = useRef<Set<(message: IWebSocketMessage) => void>>(new Set());
 
-  // Initialize WebSocket client
   useEffect(() => {
     const client = new WebSocketClient({ url });
-
-    // Set up event handlers
-    client.on('open', () => {
-      setIsConnected(true);
-    });
-
-    client.on('close', () => {
-      setIsConnected(false);
-    });
-
-    client.on('error', () => {
-      setIsConnected(false);
-    });
-
-    client.on('message', (data) => {
-      const message = data as IWebSocketMessage;
-      // Notify all subscribers
+    client.onStateChange(setConnectionState);
+    client.onMessage((message) => {
       for (const handler of subscribersRef.current) {
         try {
           handler(message);
@@ -97,13 +84,9 @@ export function WebSocketProvider({
         }
       }
     });
-
     clientRef.current = client;
-
-    // Connect
     client.connect();
 
-    // Cleanup
     return () => {
       client.disconnect();
     };
@@ -138,22 +121,16 @@ export function WebSocketProvider({
     };
   }, []);
 
-  // Manual connect
   const connect = useCallback(() => {
     clientRef.current?.connect();
   }, []);
 
-  // Manual disconnect
-  const disconnect = useCallback(() => {
-    clientRef.current?.disconnect();
-  }, []);
-
   const value: WebSocketContextValue = {
-    isConnected,
+    isConnected: connectionState === 'connected',
+    connectionState,
     request,
     subscribe,
     connect,
-    disconnect,
   };
 
   return <WebSocketContext.Provider value={value}>{children}</WebSocketContext.Provider>;

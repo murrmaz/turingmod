@@ -1,108 +1,62 @@
 import type { CommandInfo, IntegrationInfo } from '@turingmod/shared';
 import { MessageType } from '@turingmod/shared';
 import type { ReactNode } from 'react';
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { useWebSocketMessage } from '../hooks/useWebSocket';
-import { useWebSocketContext } from './WebSocketContext';
+import { createContext, useContext } from 'react';
+import { useServerState } from '../hooks/useServerState';
 
-/**
- * Application state
- */
-export interface AppState {
-  /** Integration statuses */
+/** The integrations and commands, which most of the console needs. */
+export interface AppStateContextValue {
   integrations: IntegrationInfo[];
-
-  /** Available commands */
   commands: CommandInfo[];
-}
-
-/**
- * Application state context value
- */
-export interface AppStateContextValue extends AppState {
-  /** Refresh integrations list */
+  /** Read the integrations again, e.g. after starting one, without waiting for its push. */
   refreshIntegrations: () => Promise<void>;
-
-  /** Refresh commands list */
   refreshCommands: () => Promise<void>;
 }
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
 
-/**
- * Application state provider props
- */
-export interface AppStateProviderProps {
-  children: ReactNode;
+const NO_INTEGRATIONS: IntegrationInfo[] = [];
+const NO_COMMANDS: CommandInfo[] = [];
+
+/** One integration's new state, replacing its entry or added if it's new. */
+function withIntegration(
+  integrations: IntegrationInfo[],
+  integration: IntegrationInfo
+): IntegrationInfo[] {
+  return integrations.some((i) => i.name === integration.name)
+    ? integrations.map((i) => (i.name === integration.name ? integration : i))
+    : [...integrations, integration];
 }
 
-/**
- * Application state provider
- * Manages global application state
- */
-export function AppStateProvider({ children }: AppStateProviderProps) {
-  const { request, isConnected } = useWebSocketContext();
-  const [integrations, setIntegrations] = useState<IntegrationInfo[]>([]);
-  const [commands, setCommands] = useState<CommandInfo[]>([]);
-
-  // Refresh integrations list
-  const refreshIntegrations = useCallback(async () => {
-    try {
-      const { integrations } = await request(MessageType.INTEGRATION_LIST, {});
-      setIntegrations(integrations);
-    } catch (error) {
-      console.error('[AppState] Failed to refresh integrations', error);
-    }
-  }, [request]);
-
-  // Refresh commands list
-  const refreshCommands = useCallback(async () => {
-    try {
-      const { commands } = await request(MessageType.COMMAND_LIST, {});
-      setCommands(commands);
-    } catch (error) {
-      console.error('[AppState] Failed to refresh commands', error);
-    }
-  }, [request]);
-
-  // Real-time updates
-  useWebSocketMessage(
-    MessageType.INTEGRATION_STATUS,
-    useCallback(({ integration }) => {
-      setIntegrations((prev) => {
-        const updated = [...prev];
-        const index = updated.findIndex((i) => i.name === integration.name);
-        if (index >= 0) {
-          updated[index] = integration;
-        } else {
-          updated.push(integration);
-        }
-        return updated;
-      });
-    }, [])
-  );
-
-  // Initial data load
-  useEffect(() => {
-    if (isConnected) {
-      refreshIntegrations();
-      refreshCommands();
-    }
-  }, [isConnected, refreshIntegrations, refreshCommands]);
+export function AppStateProvider({ children }: { children: ReactNode }) {
+  const integrations = useServerState(MessageType.INTEGRATION_LIST, {
+    payload: {},
+    initial: NO_INTEGRATIONS,
+    onReply: (reply) => reply.integrations,
+    push: {
+      type: MessageType.INTEGRATION_STATUS,
+      apply: ({ integration }, current) => withIntegration(current, integration),
+    },
+    errorTitle: "Couldn't load integrations",
+  });
+  const commands = useServerState(MessageType.COMMAND_LIST, {
+    payload: {},
+    initial: NO_COMMANDS,
+    onReply: (reply) => reply.commands,
+    errorTitle: "Couldn't load commands",
+  });
 
   const value: AppStateContextValue = {
-    integrations,
-    commands,
-    refreshIntegrations,
-    refreshCommands,
+    integrations: integrations.state,
+    commands: commands.state,
+    refreshIntegrations: integrations.refresh,
+    refreshCommands: commands.refresh,
   };
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 }
 
-/**
- * Hook to access application state
- */
+/** The integrations and commands; see AppStateProvider. */
 export function useAppState(): AppStateContextValue {
   const context = useContext(AppStateContext);
   if (!context) {

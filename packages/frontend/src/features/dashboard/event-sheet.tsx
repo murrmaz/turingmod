@@ -12,6 +12,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { type FeedRow, formatDateTime } from '@/constants/activityFormat';
+import { copyToClipboard } from '@/lib/reportError';
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined || value === '') {
@@ -93,9 +94,7 @@ export function EventSheet({
               <span className="text-xs font-medium text-muted-foreground">Actions</span>
               <Button
                 variant="outline"
-                onClick={() =>
-                  void navigator.clipboard.writeText(JSON.stringify(row.entry, null, 2))
-                }
+                onClick={() => void copyToClipboard(JSON.stringify(row.entry, null, 2), 'JSON')}
               >
                 <Copy />
                 Copy JSON

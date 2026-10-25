@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { type FeedRow, formatClock, formatDateTime } from '@/constants/activityFormat';
+import { copyToClipboard } from '@/lib/reportError';
 
 export interface ActivityRowActions {
   onInspect: (row: FeedRow) => void;
@@ -110,7 +111,7 @@ export function activityColumns<T extends FeedRow>(actions: ActivityRowActions):
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() =>
-                void navigator.clipboard.writeText(JSON.stringify(row.original.entry, null, 2))
+                void copyToClipboard(JSON.stringify(row.original.entry, null, 2), 'JSON')
               }
             >
               Copy JSON

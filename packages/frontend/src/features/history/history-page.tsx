@@ -5,14 +5,8 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import { useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTablePagination } from '@/components/data-table/pagination';
+import { type DateRange, DateRangeSelect, rangeStart } from '@/components/date-range-select';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   dayDivider,
@@ -35,15 +29,6 @@ const TABS: { value: HistoryCategory; label: string }[] = [
   { value: 'viewer', label: FEED_CATEGORY_LABELS.viewer },
   { value: 'system', label: FEED_CATEGORY_LABELS.system },
 ];
-
-const DAY = 24 * 60 * 60 * 1000;
-const RANGES = {
-  today: { label: 'Today', since: () => new Date().setHours(0, 0, 0, 0) },
-  week: { label: 'Last 7 days', since: () => Date.now() - 7 * DAY },
-  month: { label: 'Last 30 days', since: () => Date.now() - 30 * DAY },
-  all: { label: 'All time', since: () => undefined },
-} as const;
-type RangeKey = keyof typeof RANGES;
 
 /** Back from a stored row to the entry it was saved from; null for a row that isn't one. */
 function toEntry(row: Record<string, DataCell>): ActivityLogEntry | null {
@@ -69,14 +54,13 @@ function readData(data: DataCell | undefined): ActivityLogEntry['data'] {
 export function HistoryPage() {
   const [params, setParams] = useSearchParams();
   const [category, setCategory] = useState<HistoryCategory>('all');
-  const [range, setRange] = useState<RangeKey>('all');
+  const [range, setRange] = useState<DateRange>('all');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const query = params.get('q') ?? '';
 
-  const since = RANGES[range].since();
-  // Rounded to the minute, so the request (and the query it causes) changes once a minute.
+  const since = rangeStart(range);
   const { rows, total, loading, error } = useDataRows({
     table: 'activity_log',
     page,
@@ -84,7 +68,7 @@ export function HistoryPage() {
     sort: { column: 'timestamp', direction: 'desc' },
     ...(category === 'all' ? {} : { filters: { event: FEED_CATEGORY_EVENTS[category] } }),
     ...(query.trim() ? { search: query.trim() } : {}),
-    ...(since === undefined ? {} : { since: Math.floor(since / 60_000) * 60_000 }),
+    ...(since === undefined ? {} : { since }),
   });
 
   const feedRows = useMemo(() => rows.flatMap((row) => toEntry(row) ?? []).map(toFeedRow), [rows]);
@@ -186,24 +170,13 @@ export function HistoryPage() {
             className="pl-8"
           />
         </div>
-        <Select
+        <DateRangeSelect
           value={range}
-          onValueChange={(value) => {
-            setRange(value as RangeKey);
+          onChange={(next) => {
+            setRange(next);
             reset();
           }}
-        >
-          <SelectTrigger className="w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(RANGES).map(([key, { label }]) => (
-              <SelectItem key={key} value={key}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        />
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
         <DataTable

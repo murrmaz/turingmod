@@ -21,17 +21,11 @@ import { DataTable } from '@/components/data-table/data-table';
 import { DataTableFacetedFilter } from '@/components/data-table/faceted-filter';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { DataTableViewOptions } from '@/components/data-table/view-options';
+import { type DateRange, DateRangeSelect, rangeStart } from '@/components/date-range-select';
 import { DotBadge, type Tone } from '@/components/status';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { formatDateTime } from '@/constants/activityFormat';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
@@ -54,15 +48,6 @@ const ENUM_TONES: Partial<Record<string, Tone>> = {
   [ActivityCategory.ERROR]: 'error',
   [ActivityCategory.CHAT]: 'chat',
 } satisfies Record<ActivityCategory, Tone>;
-
-const DAY = 24 * 60 * 60 * 1000;
-const RANGES = {
-  all: { label: 'Any time', since: () => undefined },
-  today: { label: 'Today', since: () => new Date().setHours(0, 0, 0, 0) },
-  week: { label: 'Last 7 days', since: () => Date.now() - 7 * DAY },
-  month: { label: 'Last 30 days', since: () => Date.now() - 30 * DAY },
-} as const;
-type RangeKey = keyof typeof RANGES;
 
 export function DataPage() {
   const { table: tableName } = useParams();
@@ -92,7 +77,7 @@ function TableInspector({ info }: { info: DataTableInfo }) {
   const { request } = useWebSocketContext();
   const [search, setSearch] = useState('');
   const [facets, setFacets] = useState<Record<string, Set<string>>>({});
-  const [range, setRange] = useState<RangeKey>('all');
+  const [range, setRange] = useState<DateRange>('all');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [visibility, setVisibility] = useState<VisibilityState>({});
   const [page, setPage] = useState(0);
@@ -103,7 +88,7 @@ function TableInspector({ info }: { info: DataTableInfo }) {
   const debouncedSearch = useDebounced(search.trim());
 
   const timeColumn = info.columns.find((column) => column.isTimestamp);
-  const since = RANGES[range].since();
+  const since = rangeStart(range);
   const filters = Object.fromEntries(
     Object.entries(facets)
       .filter(([, values]) => values.size > 0)
@@ -115,7 +100,7 @@ function TableInspector({ info }: { info: DataTableInfo }) {
     ...(sort ? { sort: { column: sort.id, direction: sort.desc ? 'desc' : 'asc' } } : {}),
     ...(Object.keys(filters).length > 0 ? { filters } : {}),
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
-    ...(since === undefined ? {} : { since: Math.floor(since / 60_000) * 60_000 }),
+    ...(since === undefined ? {} : { since }),
   };
   const { rows, total, loading, error } = useDataRows({ ...query, page, pageSize });
 
@@ -229,24 +214,13 @@ function TableInspector({ info }: { info: DataTableInfo }) {
             />
           ))}
           {timeColumn && (
-            <Select
+            <DateRangeSelect
               value={range}
-              onValueChange={(value) => {
-                setRange(value as RangeKey);
+              onChange={(next) => {
+                setRange(next);
                 setPage(0);
               }}
-            >
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(RANGES).map(([key, { label }]) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           )}
           <Button
             variant="outline"

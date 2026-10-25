@@ -3,7 +3,7 @@ import { ExternalLink, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAppState } from '../../context/AppStateContext';
+import { useAppState } from '@/context/AppStateContext';
 import { IntegrationConfigDialog } from './IntegrationConfigDialog';
 import type { OAuthProviderConfig } from './oauthProviders';
 

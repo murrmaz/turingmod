@@ -56,7 +56,7 @@ export function IntegrationsPage() {
             <div className="flex items-center">
               {chain.items.map((integration, index) => (
                 <Fragment key={integration.name}>
-                  {index > 0 && <div aria-hidden className="h-px w-9 shrink-0 bg-zinc-700" />}
+                  {index > 0 && <div aria-hidden className="h-px w-9 shrink-0 bg-border" />}
                   <IntegrationNode
                     integration={integration}
                     selected={integration.name === selectedName}

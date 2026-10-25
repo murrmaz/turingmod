@@ -1,5 +1,5 @@
 import { PermissionLevel } from '@turingmod/shared';
-import { Database, History, LayoutDashboard, Plug, Terminal } from 'lucide-react';
+import { Terminal } from 'lucide-react';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -11,16 +11,9 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command';
+import { PAGES } from '@/constants/pages';
 import { useAppState } from '@/context/AppStateContext';
 import { useSimulator } from '@/features/commands/simulator';
-
-const PAGES = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/commands', label: 'Commands', icon: Terminal },
-  { to: '/integrations', label: 'Integrations', icon: Plug },
-  { to: '/history', label: 'History', icon: History },
-  { to: '/data', label: 'Data', icon: Database },
-];
 
 /**
  * ⌘K: jump to a page, or open a command in the simulator. Running goes through the simulator
@@ -59,8 +52,8 @@ export function CommandPalette({
       <CommandList>
         <CommandEmpty>No results.</CommandEmpty>
         <CommandGroup heading="Go to">
-          {PAGES.map(({ to, label, icon: Icon }) => (
-            <CommandItem key={to} onSelect={() => run(() => navigate(to))}>
+          {PAGES.map(({ path, label, icon: Icon }) => (
+            <CommandItem key={path} onSelect={() => run(() => navigate(path))}>
               <Icon />
               {label}
             </CommandItem>

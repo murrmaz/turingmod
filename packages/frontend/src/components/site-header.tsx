@@ -14,23 +14,16 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { formatUptime } from '@/constants/activityFormat';
+import { pageAt } from '@/constants/pages';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { useNow, usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import { useYouTubeChat } from '@/hooks/useYouTubeChat';
 import { reportActionError } from '@/lib/reportError';
 import { cn } from '@/lib/utils';
 
-const TITLES: Record<string, string> = {
-  dashboard: 'Dashboard',
-  commands: 'Commands',
-  integrations: 'Integrations',
-  history: 'History',
-  data: 'Data',
-};
-
 export function SiteHeader({ onOpenPalette }: { onOpenPalette: () => void }) {
   const { pathname } = useLocation();
-  const title = TITLES[pathname.split('/')[1] ?? ''] ?? 'TuringMod';
+  const title = pageAt(pathname)?.label ?? 'TuringMod';
   const platforms = usePlatformLiveState();
   const now = useNow();
   const stateOf = (platform: StreamingPlatform): PlatformLiveState =>

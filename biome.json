@@ -147,6 +147,30 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "**/packages/frontend/src/**/*.ts",
+        "**/packages/frontend/src/**/*.tsx",
+        "!**/packages/frontend/src/components/ui/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**"],
+                    "message": "Import from outside this folder with the @/ alias (src/), not ../"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

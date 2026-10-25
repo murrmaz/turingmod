@@ -8,7 +8,7 @@ import {
 } from '@turingmod/shared';
 import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { type ConnectionState, WebSocketClient } from '../services/WebSocketClient';
+import { type ConnectionState, WebSocketClient } from '@/services/WebSocketClient';
 
 /**
  * WebSocket context value

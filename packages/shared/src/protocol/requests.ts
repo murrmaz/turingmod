@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { ActivityCategory } from '../types/activity.js';
 import { MessageType } from './messages.js';
 
 /**
@@ -28,21 +27,9 @@ export const OAuthGetAuthUrlPayloadSchema = z.strictObject({
 });
 export type OAuthGetAuthUrlPayload = z.infer<typeof OAuthGetAuthUrlPayloadSchema>;
 
-/** Read a page of the activity log. */
-export const ActivityQueryPayloadSchema = z.strictObject({
-  /** Max entries to return (default 100 server-side, capped at 500) */
-  limit: z.int().positive().exactOptional(),
-  /** Filter to a single category. Omit = all categories */
-  category: z.enum(ActivityCategory).exactOptional(),
-  /** Timestamp cursor for "load older"; omit = most recent */
-  before: z.number().exactOptional(),
-});
-export type ActivityQueryPayload = z.infer<typeof ActivityQueryPayloadSchema>;
-
 /** Every request the backend accepts, and the schema its payload must match. */
 export const REQUEST_PAYLOAD_SCHEMAS = {
   [MessageType.OAUTH_GET_AUTH_URL]: OAuthGetAuthUrlPayloadSchema,
-  [MessageType.ACTIVITY_QUERY]: ActivityQueryPayloadSchema,
 } as const satisfies Partial<Record<MessageType, z.ZodType>>;
 
 /** A message type the backend accepts as a request, as its MessageType member. */

@@ -63,3 +63,62 @@ export function watchable<T>(read: () => T, subscribe: (onChange: () => void) =>
     watch: (signal: AbortSignal | undefined) => watch(current, subscribe, signal),
   };
 }
+
+/**
+ * Every event `subscribe` reports from now on, in order, until `signal` aborts or the iterator is
+ * returned: the body of a subscription to a stream of events rather than to state.
+ *
+ * It subscribes when called, not when first iterated, so a caller can read a snapshot right after
+ * calling it, in the same synchronous step, and neither miss an event nor see one twice. Events
+ * wait in order while the consumer is busy.
+ */
+export function events<T>(
+  subscribe: (onEvent: (event: T) => void) => () => void,
+  signal: AbortSignal | undefined
+): AsyncIterableIterator<T> {
+  const queue: T[] = [];
+  let done = false;
+  let wake: (() => void) | null = null;
+
+  const finish = () => {
+    if (done) {
+      return;
+    }
+    done = true;
+    unsubscribe();
+    signal?.removeEventListener('abort', finish);
+    wake?.();
+  };
+  const unsubscribe = subscribe((event) => {
+    if (!done) {
+      queue.push(event);
+      wake?.();
+    }
+  });
+  signal?.addEventListener('abort', finish);
+  if (signal?.aborted) {
+    finish();
+  }
+
+  return {
+    async next(): Promise<IteratorResult<T>> {
+      while (queue.length === 0 && !done) {
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+        });
+        wake = null;
+      }
+      if (done) {
+        return { value: undefined, done: true };
+      }
+      return { value: queue.shift() as T, done: false };
+    },
+    return(): Promise<IteratorResult<T>> {
+      finish();
+      return Promise.resolve({ value: undefined, done: true });
+    },
+    [Symbol.asyncIterator]() {
+      return this;
+    },
+  };
+}

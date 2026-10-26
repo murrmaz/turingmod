@@ -1,5 +1,3 @@
-import type { ActivityLogEntry } from '../types/activity.js';
-
 /**
  * Base WebSocket message structure
  */
@@ -22,16 +20,7 @@ export interface IWebSocketMessage<T = unknown> {
  */
 export enum MessageType {
   // Served by the tRPC router (TRPC_PATH) instead: integrations, liveState, youtubeChat, commands,
-  // data
-
-  // Server → Client: Event notifications
-  EVENT_NOTIFICATION = 'event.notification',
-
-  // Client → Server: Activity log query
-  ACTIVITY_QUERY = 'activity.query',
-
-  // Server → Client: Activity log query response
-  ACTIVITY_LIST = 'activity.list',
+  // data, activity
 
   // Server → Client: Errors
   ERROR = 'error',
@@ -49,22 +38,6 @@ export enum MessageType {
 // in requests.ts.
 // ============================================================================
 
-/**
- * Event notification payload
- */
-export interface EventNotificationPayload {
-  /** The activity log entry to append to the live feed */
-  entry: ActivityLogEntry;
-}
-
-/**
- * Activity list payload (server → client)
- */
-export interface ActivityListPayload {
-  /** Matching activity log entries */
-  entries: ActivityLogEntry[];
-}
-
 /** Why a request got an error message instead of its response. */
 export type ErrorCode =
   /** The payload didn't have the shape its message type requires. */
@@ -75,7 +48,6 @@ export type ErrorCode =
   | 'HANDLER_ERROR'
   /** The message couldn't be read or routed at all (e.g. it wasn't JSON). */
   | 'MESSAGE_HANDLING_ERROR'
-  | 'ACTIVITY_QUERY_FAILED'
   /** Client side: the connection closed before the response arrived. */
   | 'CONNECTION_CLOSED';
 
@@ -135,25 +107,6 @@ export function createMessage<T>(type: MessageType, payload: T, id?: string): IW
     timestamp: Date.now(),
     payload,
   };
-}
-
-/**
- * Create an event notification message
- */
-export function createEventNotificationMessage(
-  entry: ActivityLogEntry
-): IWebSocketMessage<EventNotificationPayload> {
-  return createMessage(MessageType.EVENT_NOTIFICATION, { entry });
-}
-
-/**
- * Create an activity list message
- */
-export function createActivityListMessage(
-  entries: ActivityLogEntry[],
-  originalMessageId: string
-): IWebSocketMessage<ActivityListPayload> {
-  return createMessage(MessageType.ACTIVITY_LIST, { entries }, originalMessageId);
 }
 
 /**

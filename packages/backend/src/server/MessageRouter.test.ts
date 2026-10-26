@@ -68,7 +68,7 @@ describe('MessageRouter', () => {
   it('answers a type with no handler with UNKNOWN_MESSAGE_TYPE', async () => {
     const { router } = routerWithAuthUrlHandler();
 
-    const response = await router.route(message(MessageType.ACTIVITY_LIST, {}), 'c1');
+    const response = await router.route(message(MessageType.OAUTH_RESULT, {}), 'c1');
 
     expect(errorOf(response).code).toBe('UNKNOWN_MESSAGE_TYPE');
   });

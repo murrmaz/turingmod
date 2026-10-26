@@ -1,7 +1,5 @@
 import type {
-  ActivityListPayload,
   ErrorPayload,
-  EventNotificationPayload,
   MessageType,
   OAuthAuthUrlResponsePayload,
   OAuthResultPayload,
@@ -13,8 +11,6 @@ import type { RequestType } from './requests.js';
  * request or pushed unasked. The console reads a message's payload by its type through this map.
  */
 export interface ServerPayloads {
-  [MessageType.EVENT_NOTIFICATION]: EventNotificationPayload;
-  [MessageType.ACTIVITY_LIST]: ActivityListPayload;
   [MessageType.ERROR]: ErrorPayload;
   [MessageType.OAUTH_AUTH_URL_RESPONSE]: OAuthAuthUrlResponsePayload;
   [MessageType.OAUTH_RESULT]: OAuthResultPayload;
@@ -29,7 +25,6 @@ export type ServerMessageType = keyof ServerPayloads;
  */
 export interface ResponseTypes {
   [MessageType.OAUTH_GET_AUTH_URL]: MessageType.OAUTH_AUTH_URL_RESPONSE;
-  [MessageType.ACTIVITY_QUERY]: MessageType.ACTIVITY_LIST;
 }
 
 /**

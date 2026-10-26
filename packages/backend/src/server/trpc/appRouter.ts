@@ -1,13 +1,16 @@
 import type { DependencyContainer } from 'tsyringe';
+import { ActivityForwarder } from '../../activity/ActivityForwarder.js';
 import { CommandExecutor } from '../../commands/CommandExecutor.js';
 import { CommandRegistry } from '../../commands/CommandRegistry.js';
 import { EventBus } from '../../core/EventBus.js';
 import { DataInspector } from '../../database/DataInspector.js';
+import { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
 import { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { PlatformLiveStatus } from '../../live/PlatformLiveStatus.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { Logger } from '../../utils/Logger.js';
+import { createActivityRouter } from './activityRouter.js';
 import { createCommandsRouter } from './commandsRouter.js';
 import { createDataRouter } from './dataRouter.js';
 import { createIntegrationsRouter } from './integrationsRouter.js';
@@ -21,6 +24,10 @@ import { createYouTubeChatRouter } from './youtubeChatRouter.js';
  */
 export function createAppRouter(container: DependencyContainer) {
   return router({
+    activity: createActivityRouter(
+      container.resolve(ActivityForwarder),
+      container.resolve(ActivityLogRepository)
+    ),
     integrations: createIntegrationsRouter(
       container.resolve(IntegrationManager),
       container.resolve(EventBus),

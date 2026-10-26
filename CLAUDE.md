@@ -117,15 +117,15 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Manual trigger**: `packages/backend/src/commands/implementations/BreakCommand.ts` (`!break`)
 
 ### Activity Log
-- **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — maps EventBus events to activity categories (`EVENT_CATEGORIES`), broadcasts each to the console's live tail and persists all but chat and `LIVE_ONLY_EVENTS` (device messages)
+- **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — maps EventBus events to activity categories (`EVENT_CATEGORIES`), hands each to the console's live feed (`onEntry()`) and persists all but chat and `LIVE_ONLY_EVENTS` (device messages)
 - **Storage**: `packages/backend/src/database/repositories/ActivityLogRepository.ts` (capped at 5000 rows)
-- **Queries**: `packages/backend/src/server/handlers/ActivityHandler.ts` (`activity.query`, for the History page)
+- **Live feed**: `packages/backend/src/server/trpc/activityRouter.ts` (`activity.feed`: the stored recent entries, then each entry as it's made); the History page reads the stored log through the data inspector
 - **Frontend**: `features/dashboard/dashboard-page.tsx` + `hooks/useLiveLog.ts` (live feed, newest first), `features/history/history-page.tsx`; how an entry reads (feed category, badge, title, detail) is `constants/activityFormat.ts` (`toFeedRow`)
 
 ### Console ↔ Backend Protocol
-- **tRPC router**: `packages/backend/src/server/trpc/appRouter.ts` (`createAppRouter()`, `AppRouter` type) — one sub-router per area, e.g. `integrationsRouter.ts`; `trpc.ts` (instance), `watch.ts` (`watchable()`: current value, then again on each change, read once per change for every console)
+- **tRPC router**: `packages/backend/src/server/trpc/appRouter.ts` (`createAppRouter()`, `AppRouter` type) — one sub-router per area, e.g. `integrationsRouter.ts`; `trpc.ts` (instance), `watch.ts` (`watchable()`: current value, then again on each change, read once per change for every console; `events()`: a stream of events, subscribed at once so a snapshot read beside it misses nothing)
 - **tRPC endpoint**: `packages/backend/src/server/trpc/TrpcServer.ts` (`TRPC_PATH`); `HttpServer.routeUpgrades()` hands each WebSocket path its endpoint; `server/consoleSockets.ts` is what both endpoints share (console-only origin check, upgrades, closing with a grace period)
-- **tRPC client**: `packages/frontend/src/context/TrpcContext.tsx` (`TrpcProvider`, `useTrpc()`), `services/trpcLinks.ts` (fail requests while disconnected), `hooks/useSubscription.ts` (state kept current by a `watch` subscription), `hooks/useServerQuery.ts` (a query, read on connect and on each new input), `hooks/useConnection.ts`; `RouterInputs`/`RouterOutputs` (in `TrpcContext`) name a procedure's input and output types (both connections as one state, for the banner)
+- **tRPC client**: `packages/frontend/src/context/TrpcContext.tsx` (`TrpcProvider`, `useTrpc()`), `services/trpcLinks.ts` (fail requests while disconnected), `hooks/useSubscription.ts` (state kept current by a `watch` subscription, or built from an event stream with `reduce`), `hooks/useServerQuery.ts` (a query, read on connect and on each new input), `hooks/useConnection.ts`; `RouterInputs`/`RouterOutputs` (in `TrpcContext`) name a procedure's input and output types (both connections as one state, for the banner)
 - **Legacy server**: `packages/backend/src/server/WebSocketServer.ts`
 - **Router**: `packages/backend/src/server/MessageRouter.ts`
 - **Messages/Types**: `packages/shared/src/protocol/messages.ts`
@@ -184,7 +184,7 @@ Triggers (chat, redemptions, raids) go last in the list so they stop first: noth
 break or an effect while those are being restored. Each service keeps its bus subscriptions in a
 `Subscriptions` and clears them in `stop()`.
 
-**Message routing** (the legacy protocol, being replaced by tRPC; see Console ↔ Backend Protocol below): WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes (`OAuthHandler`, `ActivityHandler`, registered in `setup.ts`) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
+**Message routing** (the legacy protocol, being replaced by tRPC; see Console ↔ Backend Protocol below): WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes (`OAuthHandler`, registered in `setup.ts`) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
 
 **EventBus.** Integrations, services and the server communicate through `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
 `emit()` calls handlers in subscription order but runs async ones concurrently, and resolves once
@@ -228,10 +228,13 @@ requests move from the first to the second as the console is rebuilt:
   many consoles watch; tRPC resubscribes after a reconnect, so there's no separate read, and every
   console receives every change. A mutation answers with the state it left, which the console that
   asked shows at once (`useSubscription()`'s setter), so a spinner never stops on stale state;
-  other consoles get it through the subscription. A malformed input is a `BAD_REQUEST`; a handler that
+  other consoles get it through the subscription. A stream of events rather than state (the
+  activity feed) is built with `events()`: it sends a snapshot to start from, read in the same
+  synchronous step as subscribing so nothing falls between them, then each event; the console folds
+  them into its state with `useSubscription()`'s `reduce`. A malformed input is a `BAD_REQUEST`; a handler that
   throws reaches the console as its error message. Requests made while disconnected fail at once
   (`failWhileDisconnected`), as on the legacy client: a click during an outage never runs later.
-  Migrated so far: integrations, platform live state, YouTube chat, commands, the data inspector.
+  Migrated so far: everything but OAuth.
 - **Legacy** (`WS_PATH`, `/ws`) — everything not yet migrated, described below. Don't add new
   requests here; when migrating one, delete its `MessageType`, schema, payload types and handler.
 
@@ -435,7 +438,7 @@ there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 
-React Context for state management: `TrpcContext` (the tRPC client), `WebSocketContext` (legacy connection + send/subscribe) and `AppStateContext` (commands, integrations). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`); anything read with a tRPC query, with `useServerQuery()` (`hooks/useServerQuery.ts`): read whenever the connection comes up and whenever its input changes, a superseded read aborted. Anything still read over the legacy protocol goes through `useServerState()` (`hooks/useServerState.ts`): read on every connect and whenever its payload changes, stale replies dropped, kept current by an optional push message; don't hand-write either in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
+React Context for state management: `TrpcContext` (the tRPC client), `WebSocketContext` (legacy connection + send/subscribe) and `AppStateContext` (commands, integrations). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`); anything read with a tRPC query, with `useServerQuery()` (`hooks/useServerQuery.ts`): read whenever the connection comes up and whenever its input changes, a superseded read aborted. Don't hand-write either in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
 
 ### Console UI
 

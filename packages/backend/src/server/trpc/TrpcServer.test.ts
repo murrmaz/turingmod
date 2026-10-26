@@ -1,22 +1,17 @@
 import 'reflect-metadata';
 import type { AddressInfo } from 'node:net';
 import { type IntegrationInfo, IntegrationStatus, TRPC_PATH } from '@turingmod/shared';
-import { container } from 'tsyringe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
-import { CommandExecutor } from '../../commands/CommandExecutor.js';
-import { CommandRegistry } from '../../commands/CommandRegistry.js';
 import { EventBus } from '../../core/EventBus.js';
-import { DataInspector } from '../../database/DataInspector.js';
-import { IntegrationManager } from '../../integrations/IntegrationManager.js';
-import { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
+import type { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import type { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
-import { PlatformLiveStatus } from '../../live/PlatformLiveStatus.js';
-import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { Logger } from '../../utils/Logger.js';
 import { HttpServer } from '../HttpServer.js';
-import { createAppRouter } from './appRouter.js';
+import type { AppRouter } from './appRouter.js';
+import { createIntegrationsRouter } from './integrationsRouter.js';
 import { TrpcServer } from './TrpcServer.js';
+import { router } from './trpc.js';
 
 const CONSOLE = 'http://localhost:3000';
 const logger = new Logger({ level: 'silent' });
@@ -36,27 +31,24 @@ describe('TrpcServer', () => {
     stop = null;
   });
 
-  /** The tRPC endpoint on a real HTTP server, over a fake integration manager. */
+  /**
+   * The tRPC endpoint on a real HTTP server. What's tested is the endpoint, not the areas, so its
+   * router has only integrations, over a fake integration manager.
+   */
   async function start() {
     const manager = {
       getAllStatuses: () => [obs],
       enableIntegration: vi.fn(() => Promise.resolve()),
     };
-    const child = container.createChildContainer();
-    child.registerInstance(IntegrationManager, manager as unknown as IntegrationManager);
-    child.registerInstance(EventBus, new EventBus(logger));
-    child.registerInstance(Logger, logger);
-    // The router's other areas, which these tests don't call.
-    child.registerInstance(PlatformLiveStatus, {
-      onChange: () => () => {},
-    } as unknown as PlatformLiveStatus);
-    child.registerInstance(YouTubeChatIntegration, {} as YouTubeChatIntegration);
-    child.registerInstance(CommandExecutor, {} as CommandExecutor);
-    child.registerInstance(CommandRegistry, {} as CommandRegistry);
-    child.registerInstance(PlatformRegistry, {} as PlatformRegistry);
-    child.registerInstance(DataInspector, {} as DataInspector);
+    const appRouter = router({
+      integrations: createIntegrationsRouter(
+        manager as unknown as IntegrationManager,
+        new EventBus(logger),
+        logger
+      ),
+    });
 
-    const trpc = new TrpcServer(createAppRouter(child), [CONSOLE], logger);
+    const trpc = new TrpcServer(appRouter as unknown as AppRouter, [CONSOLE], logger);
     const oauthFlow = { getCallbackRoutes: () => [] } as unknown as OAuthFlowService;
     const http = new HttpServer(0, '127.0.0.1', '/nonexistent', oauthFlow, logger);
     trpc.start();

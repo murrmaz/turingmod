@@ -290,7 +290,21 @@ function IntegrationDetail({
         )}
         {integration.oauth && (
           <Detail label="Client credentials">
-            {integration.oauth.configured ? 'saved' : 'not set up yet'}
+            {integration.oauth.configured ? (
+              <span className="flex items-center gap-2">
+                saved
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 font-sans text-xs"
+                  onClick={() => actions.handleChangeCredentials(integration)}
+                >
+                  Change
+                </Button>
+              </span>
+            ) : (
+              'not set up yet'
+            )}
           </Detail>
         )}
         <Detail label="Enabled">

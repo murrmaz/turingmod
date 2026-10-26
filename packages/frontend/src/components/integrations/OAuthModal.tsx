@@ -21,6 +21,8 @@ export interface OAuthModalProps {
   onDismiss: () => void;
   /** The code was exchanged for tokens. */
   onSuccess: () => void;
+  /** Go back to entering the client credentials, for when the provider rejects the saved ones. */
+  onChangeCredentials: () => void;
 }
 
 type Step = 'loading' | 'waiting' | 'error';
@@ -48,7 +50,12 @@ function openPopup(url: string, name: string): Window | null {
  * for that. The flow doesn't depend on this dialog: closing it, or the console, mid sign-in still
  * connects the integration.
  */
-export function OAuthModal({ provider, onDismiss, onSuccess }: OAuthModalProps) {
+export function OAuthModal({
+  provider,
+  onDismiss,
+  onSuccess,
+  onChangeCredentials,
+}: OAuthModalProps) {
   const { request } = useWebSocketContext();
   const [step, setStep] = useState<Step>('loading');
   const [errorMessage, setErrorMessage] = useState('');
@@ -181,7 +188,10 @@ export function OAuthModal({ provider, onDismiss, onSuccess }: OAuthModalProps) 
               <AlertTitle>Authorization failed</AlertTitle>
               <AlertDescription>
                 <p>{errorMessage}</p>
-                <p>If it keeps failing, the backend logs have the details.</p>
+                <p>
+                  If {provider.displayName} rejected the client ID or secret, change them and try
+                  again. Otherwise, the backend logs have the details.
+                </p>
               </AlertDescription>
             </Alert>
           )}
@@ -197,7 +207,14 @@ export function OAuthModal({ provider, onDismiss, onSuccess }: OAuthModalProps) 
           <Button variant="ghost" onClick={onDismiss}>
             Cancel
           </Button>
-          {step === 'error' && <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>}
+          {step === 'error' && (
+            <>
+              <Button variant="outline" onClick={onChangeCredentials}>
+                Change credentials
+              </Button>
+              <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

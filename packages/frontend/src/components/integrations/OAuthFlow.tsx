@@ -19,6 +19,11 @@ interface OAuthFlowContextValue {
    * yet, so it starts at setup, which hands off to signing in once they're saved.
    */
   authorize: (integration: IntegrationInfo) => void;
+  /**
+   * Replace an OAuth integration's saved client credentials, e.g. ones the provider rejects, then
+   * authorize with the new ones.
+   */
+  changeCredentials: (integration: IntegrationInfo) => void;
 }
 
 const OAuthFlowContext = createContext<OAuthFlowContextValue | null>(null);
@@ -37,15 +42,16 @@ export function OAuthFlowProvider({ children }: { children: ReactNode }) {
   const [flow, setFlow] = useState<Flow | null>(null);
 
   const authorize = useCallback((integration: IntegrationInfo) => {
-    const provider = OAUTH_INTEGRATION_REGISTRY[integration.name];
-    if (!provider) {
-      reportActionError(
-        `Can't authorize ${integration.name}`,
-        new Error('The console has no sign-in flow for it')
-      );
-      return;
+    const provider = providerFor(integration);
+    if (provider) {
+      setFlow({ step: integration.oauth?.configured ? 'authorize' : 'setup', provider });
     }
-    setFlow({ step: integration.oauth?.configured ? 'authorize' : 'setup', provider });
+  }, []);
+  const changeCredentials = useCallback((integration: IntegrationInfo) => {
+    const provider = providerFor(integration);
+    if (provider) {
+      setFlow({ step: 'setup', provider });
+    }
   }, []);
 
   const close = useCallback(() => setFlow(null), []);
@@ -54,12 +60,15 @@ export function OAuthFlowProvider({ children }: { children: ReactNode }) {
     setFlow((current) => current && { ...current, step: 'authorize' });
     void refreshIntegrations();
   }, [refreshIntegrations]);
+  const editCredentials = useCallback(() => {
+    setFlow((current) => current && { ...current, step: 'setup' });
+  }, []);
   const authorized = useCallback(() => {
     setFlow(null);
     void refreshIntegrations();
   }, [refreshIntegrations]);
 
-  const value = useMemo(() => ({ authorize }), [authorize]);
+  const value = useMemo(() => ({ authorize, changeCredentials }), [authorize, changeCredentials]);
 
   return (
     <OAuthFlowContext.Provider value={value}>
@@ -73,8 +82,21 @@ export function OAuthFlowProvider({ children }: { children: ReactNode }) {
           provider={flow.provider}
           onDismiss={close}
           onSuccess={authorized}
+          onChangeCredentials={editCredentials}
         />
       )}
     </OAuthFlowContext.Provider>
   );
+}
+
+/** The console's sign-in flow for an integration; reported as an error if it has none. */
+function providerFor(integration: IntegrationInfo): OAuthProviderConfig | undefined {
+  const provider = OAUTH_INTEGRATION_REGISTRY[integration.name];
+  if (!provider) {
+    reportActionError(
+      `Can't authorize ${integration.name}`,
+      new Error('The console has no sign-in flow for it')
+    );
+  }
+  return provider;
 }

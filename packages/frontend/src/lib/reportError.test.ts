@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConnectionError } from '@/services/WebSocketClient';
+import { ConnectionError } from '@/services/connection';
 import { reportActionError, reportLoadError } from './reportError';
 
 const toastError = vi.hoisted(() => vi.fn());

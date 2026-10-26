@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { watch } from './watch.js';
+import { events, watch } from './watch.js';
 
 /** A value and a way to announce that it changed, as an event bus subscription would. */
 function changingValue(initial: number) {
@@ -57,6 +57,71 @@ describe('watch', () => {
     controller.abort();
 
     expect(await next).toEqual({ done: true, value: undefined });
+    expect(source.listenerCount()).toBe(0);
+  });
+});
+
+/** An event source, as an event bus subscription would be. */
+function eventSource<T>() {
+  const listeners = new Set<(event: T) => void>();
+  return {
+    emit: (event: T) => {
+      for (const listener of listeners) {
+        listener(event);
+      }
+    },
+    subscribe: (onEvent: (event: T) => void) => {
+      listeners.add(onEvent);
+      return () => listeners.delete(onEvent);
+    },
+    listenerCount: () => listeners.size,
+  };
+}
+
+describe('events', () => {
+  it('subscribes at once, so events before the first read are kept, in order', async () => {
+    const source = eventSource<number>();
+    const controller = new AbortController();
+    const stream = events(source.subscribe, controller.signal);
+
+    source.emit(1);
+    source.emit(2);
+
+    expect((await stream.next()).value).toBe(1);
+    expect((await stream.next()).value).toBe(2);
+    controller.abort();
+  });
+
+  it('waits for the next event when none is queued', async () => {
+    const source = eventSource<string>();
+    const controller = new AbortController();
+    const stream = events(source.subscribe, controller.signal);
+
+    const next = stream.next();
+    source.emit('raid');
+
+    expect(await next).toEqual({ value: 'raid', done: false });
+    controller.abort();
+  });
+
+  it('ends while waiting once aborted, and unsubscribes', async () => {
+    const source = eventSource<number>();
+    const controller = new AbortController();
+    const stream = events(source.subscribe, controller.signal);
+
+    const next = stream.next();
+    controller.abort();
+
+    expect(await next).toEqual({ value: undefined, done: true });
+    expect(source.listenerCount()).toBe(0);
+  });
+
+  it('unsubscribes when returned without ever being read', async () => {
+    const source = eventSource<number>();
+    const stream = events(source.subscribe, undefined);
+
+    await stream.return?.();
+
     expect(source.listenerCount()).toBe(0);
   });
 });

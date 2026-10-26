@@ -66,7 +66,7 @@ describe('HttpServer OAuth callback', () => {
   });
 
   it("shows a failure's message without letting it inject markup, and doesn't leave by itself", async () => {
-    const payload = '<script>new WebSocket("ws://127.0.0.1/ws")</script>';
+    const payload = '<script>new WebSocket("ws://127.0.0.1/trpc")</script>';
     const { body } = await page({
       result: 'failed',
       message: `access_denied: ${payload} <img src=x onerror=1>`,

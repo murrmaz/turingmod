@@ -1,6 +1,6 @@
 import { messageOf } from '@turingmod/shared';
 import { toast } from 'sonner';
-import { isConnectionError } from '@/services/WebSocketClient';
+import { isConnectionError } from '@/services/connection';
 
 /**
  * Something the streamer did failed: always say so, connection loss included, so a click is never

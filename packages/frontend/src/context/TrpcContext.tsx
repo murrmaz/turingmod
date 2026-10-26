@@ -1,4 +1,5 @@
 import { createTRPCClient, createWSClient, type TRPCClient, wsLink } from '@trpc/client';
+import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '@turingmod/backend/trpc';
 import { TRPC_PATH } from '@turingmod/shared';
 import type { ReactNode } from 'react';
@@ -11,29 +12,39 @@ import {
   useRef,
   useState,
 } from 'react';
+import { type ConnectionState, reconnectDelay } from '@/services/connection';
 import { failWhileDisconnected } from '@/services/trpcLinks';
-import { type ConnectionState, reconnectDelay } from '@/services/WebSocketClient';
 
 /** The backend's tRPC router, typed by the backend's own definition of it. */
 export type TrpcClient = TRPCClient<AppRouter>;
 
+/** Each procedure's input, e.g. `RouterInputs['data']['queryRows']`. */
+export type RouterInputs = inferRouterInputs<AppRouter>;
+
+/** What each procedure answers with, e.g. `RouterOutputs['commands']['simulate']`. */
+export type RouterOutputs = inferRouterOutputs<AppRouter>;
+
 const TrpcContext = createContext<TrpcClient | null>(null);
 
-/** The tRPC endpoint on the origin that served this page (see defaultWebSocketUrl). */
+/**
+ * The tRPC endpoint on the origin that served this page: the backend itself in production, or the
+ * Vite dev server in development, which proxies it to the backend. Either way the console never
+ * needs to know the backend's port.
+ */
 function trpcUrl(): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${protocol}//${window.location.host}${TRPC_PATH}`;
 }
 
-/** The tRPC connection, for showing the streamer where it stands. */
-export interface TrpcConnection {
-  /** As WebSocketClient reports it: `reconnecting` once a connection has failed or dropped. */
+/** The console's connection to the backend, for showing the streamer where it stands. */
+export interface Connection {
+  /** `reconnecting` once a connection has failed or dropped, until one opens again. */
   connectionState: ConnectionState;
   /** Try again now instead of waiting for the next attempt. Does nothing while connected. */
-  reconnect: () => void;
+  retry: () => void;
 }
 
-const TrpcConnectionContext = createContext<TrpcConnection | null>(null);
+const ConnectionContext = createContext<Connection | null>(null);
 
 /** Connects to the backend's tRPC endpoint, staying connected until unmounted. */
 export function TrpcProvider({ children }: { children: ReactNode }) {
@@ -71,21 +82,21 @@ export function TrpcProvider({ children }: { children: ReactNode }) {
     };
   }, [attempt]);
 
-  const reconnect = useCallback(() => {
+  const retry = useCallback(() => {
     if (stateRef.current !== 'connected') {
       setAttempt((current) => current + 1);
     }
   }, []);
-  const connection = useMemo(() => ({ connectionState, reconnect }), [connectionState, reconnect]);
+  const connection = useMemo(() => ({ connectionState, retry }), [connectionState, retry]);
 
   // Created in the effect so that unmounting closes it; that's only ever the first render.
   if (!client) {
     return null;
   }
   return (
-    <TrpcConnectionContext.Provider value={connection}>
+    <ConnectionContext.Provider value={connection}>
       <TrpcContext.Provider value={client}>{children}</TrpcContext.Provider>
-    </TrpcConnectionContext.Provider>
+    </ConnectionContext.Provider>
   );
 }
 
@@ -98,11 +109,14 @@ export function useTrpc(): TrpcClient {
   return client;
 }
 
-/** The tRPC connection's state. For what the streamer sees, use useConnection(), which covers both. */
-export function useTrpcConnection(): TrpcConnection {
-  const connection = useContext(TrpcConnectionContext);
+/**
+ * Where the console's connection to the backend stands, and Retry now. Nothing the console shows
+ * is current while it's `reconnecting`.
+ */
+export function useConnection(): Connection {
+  const connection = useContext(ConnectionContext);
   if (!connection) {
-    throw new Error('useTrpcConnection must be used within TrpcProvider');
+    throw new Error('useConnection must be used within TrpcProvider');
   }
   return connection;
 }

@@ -1,15 +1,9 @@
-import {
-  ActivityCategory,
-  type ActivityEventName,
-  type ActivityLogEntry,
-  createEventNotificationMessage,
-} from '@turingmod/shared';
+import { ActivityCategory, type ActivityEventName, type ActivityLogEntry } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { EventMap } from '../core/events.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { ActivityLogRepository } from '../database/repositories/ActivityLogRepository.js';
-import { WebSocketServer } from '../server/WebSocketServer.js';
 import { Logger } from '../utils/Logger.js';
 
 /**
@@ -46,17 +40,18 @@ const EVENT_CATEGORIES: Record<ActivityEventName, ActivityCategory> = {
 const LIVE_ONLY_EVENTS: ReadonlySet<ActivityEventName> = new Set(['arduino.message']);
 
 /**
- * Forwards EventBus activity to the live tail (broadcast) and, for non-chat categories, to the
- * persisted activity_log.
+ * Turns EventBus activity into activity log entries: each goes to the console's live feed
+ * (onEntry, which the `activity.feed` subscription listens to) and, for non-chat categories, to
+ * the persisted activity_log.
  */
 @singleton()
 export class ActivityForwarder implements IService {
   private subscriptions = new Subscriptions();
+  private entryListeners = new Set<(entry: ActivityLogEntry) => void>();
   private logger: Logger;
 
   constructor(
     private eventBus: EventBus,
-    private webSocketServer: WebSocketServer,
     private repo: ActivityLogRepository,
     logger: Logger
   ) {
@@ -78,6 +73,15 @@ export class ActivityForwarder implements IService {
     this.subscriptions.clear();
   }
 
+  /**
+   * Be told of every entry as it's made, chat and live-only events included, which the stored
+   * log leaves out. Returns the unsubscribe function.
+   */
+  onEntry(listener: (entry: ActivityLogEntry) => void): () => void {
+    this.entryListeners.add(listener);
+    return () => this.entryListeners.delete(listener);
+  }
+
   private handleEvent(event: ActivityEventName, category: ActivityCategory, data: unknown): void {
     // A platform that can't be asked isn't known to be offline, and its going unavailable is
     // already recorded as platform.availability; a stream ending is only what a platform reports.
@@ -95,7 +99,9 @@ export class ActivityForwarder implements IService {
       timestamp: Date.now(),
     };
 
-    this.webSocketServer.broadcast(createEventNotificationMessage(entry));
+    for (const listener of this.entryListeners) {
+      listener(entry);
+    }
 
     if (category === ActivityCategory.CHAT || LIVE_ONLY_EVENTS.has(event)) {
       return;

@@ -1,16 +1,17 @@
 import 'reflect-metadata';
 import type { AddressInfo } from 'node:net';
 import { type IntegrationInfo, IntegrationStatus, TRPC_PATH } from '@turingmod/shared';
-import { container } from 'tsyringe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import { EventBus } from '../../core/EventBus.js';
-import { IntegrationManager } from '../../integrations/IntegrationManager.js';
+import type { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import type { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
 import { Logger } from '../../utils/Logger.js';
 import { HttpServer } from '../HttpServer.js';
-import { createAppRouter } from './appRouter.js';
+import type { AppRouter } from './appRouter.js';
+import { createIntegrationsRouter } from './integrationsRouter.js';
 import { TrpcServer } from './TrpcServer.js';
+import { procedure, router } from './trpc.js';
 
 const CONSOLE = 'http://localhost:3000';
 const logger = new Logger({ level: 'silent' });
@@ -30,18 +31,26 @@ describe('TrpcServer', () => {
     stop = null;
   });
 
-  /** The tRPC endpoint on a real HTTP server, over a fake integration manager. */
+  /**
+   * The tRPC endpoint on a real HTTP server. What's tested is the endpoint, not the areas, so its
+   * router has only integrations, over a fake integration manager.
+   */
   async function start() {
     const manager = {
       getAllStatuses: () => [obs],
       enableIntegration: vi.fn(() => Promise.resolve()),
     };
-    const child = container.createChildContainer();
-    child.registerInstance(IntegrationManager, manager as unknown as IntegrationManager);
-    child.registerInstance(EventBus, new EventBus(logger));
-    child.registerInstance(Logger, logger);
+    const appRouter = router({
+      integrations: createIntegrationsRouter(
+        manager as unknown as IntegrationManager,
+        new EventBus(logger),
+        logger
+      ),
+      /** What the context says about the console, for the test below. */
+      consoleOrigin: procedure.query(({ ctx }) => ctx.consoleOrigin),
+    });
 
-    const trpc = new TrpcServer(createAppRouter(child), [CONSOLE], logger);
+    const trpc = new TrpcServer(appRouter as unknown as AppRouter, [CONSOLE], logger);
     const oauthFlow = { getCallbackRoutes: () => [] } as unknown as OAuthFlowService;
     const http = new HttpServer(0, '127.0.0.1', '/nonexistent', oauthFlow, logger);
     trpc.start();
@@ -110,6 +119,17 @@ describe('TrpcServer', () => {
     );
 
     expect(await first).toMatchObject({ result: { type: 'data', data: [obs] } });
+    socket.close();
+  });
+
+  it("tells procedures the console's origin, from its connection", async () => {
+    const { base } = await start();
+    const socket = await connect(`${base}${TRPC_PATH}`, CONSOLE);
+
+    const answer = reply(socket, 1);
+    socket.send(JSON.stringify({ id: 1, method: 'query', params: { path: 'consoleOrigin' } }));
+
+    expect(await answer).toMatchObject({ result: { type: 'data', data: CONSOLE } });
     socket.close();
   });
 

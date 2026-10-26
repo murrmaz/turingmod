@@ -1,10 +1,12 @@
 import type { ActivityLogEntry } from '@turingmod/shared';
-import { MessageType } from '@turingmod/shared';
 import { type FeedRow, toFeedRow } from '@/constants/activityFormat';
-import { useServerState } from './useServerState';
+import type { RouterOutputs } from '@/context/TrpcContext';
+import { useSubscription } from './useSubscription';
 
 const MAX_ENTRIES = 1000;
-const SEED_LIMIT = 200;
+
+/** What `activity.feed` sends: the stored log to start from, then each entry as it's made. */
+type FeedEvent = RouterOutputs['activity']['feed'] extends AsyncIterable<infer E> ? E : never;
 
 /** A feed row plus when this console received it, which the feed's pause and highlight use. */
 export interface LiveFeedRow extends FeedRow {
@@ -14,7 +16,13 @@ export interface LiveFeedRow extends FeedRow {
   receivedAt: number | null;
 }
 
-const NO_ROWS: LiveFeedRow[] = [];
+interface LiveLog {
+  rows: LiveFeedRow[];
+  /** Until the first seed arrives. */
+  loading: boolean;
+}
+
+const NOT_LOADED: LiveLog = { rows: [], loading: true };
 
 // Rows are numbered as they're made, inside state updates. React may run an update twice in
 // development, which skips numbers; only their order matters.
@@ -38,21 +46,28 @@ function withSeed(previous: LiveFeedRow[], entries: ActivityLogEntry[]): LiveFee
   return [...live, ...seeded].slice(0, MAX_ENTRIES);
 }
 
+/** The feed after one event from `activity.feed`. */
+function applyFeedEvent(current: LiveLog, event: FeedEvent): LiveLog {
+  if (event.type === 'seed') {
+    return { rows: withSeed(current.rows, event.entries), loading: false };
+  }
+  return {
+    ...current,
+    rows: [toLiveRow(event.entry, true), ...current.rows].slice(0, MAX_ENTRIES),
+  };
+}
+
 /**
- * Live activity feed for the Dashboard, newest first. Seeded on mount and on every reconnect from
- * the stored activity log, then prepended to from live EVENT_NOTIFICATION broadcasts (which, unlike
- * the stored log, include chat).
+ * Live activity feed for the Dashboard, newest first. Seeded on every subscribe, so on mount and
+ * on every reconnect, from the stored activity log, then prepended to with each entry as it's made
+ * (which, unlike the stored log, include chat).
  */
-export function useLiveLog() {
-  const { state: rows, loading } = useServerState(MessageType.ACTIVITY_QUERY, {
-    payload: { limit: SEED_LIMIT },
-    initial: NO_ROWS,
-    onReply: (reply, current) => withSeed(current, reply.entries),
-    push: {
-      type: MessageType.EVENT_NOTIFICATION,
-      apply: ({ entry }, current) => [toLiveRow(entry, true), ...current].slice(0, MAX_ENTRIES),
-    },
-    errorTitle: "Couldn't load recent activity",
-  });
-  return { rows, loading };
+export function useLiveLog(): LiveLog {
+  const [log] = useSubscription(
+    (trpc, on) => trpc.activity.feed.subscribe(undefined, on),
+    NOT_LOADED,
+    "Couldn't load recent activity",
+    applyFeedEvent
+  );
+  return log;
 }

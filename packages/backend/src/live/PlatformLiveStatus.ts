@@ -1,20 +1,14 @@
-import {
-  createPlatformLiveStateMessage,
-  messageOf,
-  type PlatformLiveState,
-  StreamingPlatform,
-} from '@turingmod/shared';
+import { messageOf, type PlatformLiveState, StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { PlatformLiveStateEvent } from '../core/events.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
-import { WebSocketServer } from '../server/WebSocketServer.js';
 import { Logger } from '../utils/Logger.js';
 
 /**
- * Whether each platform is broadcasting and since when, for the console's header badges. Pushed
- * to the console on every change, and read by it on connect; going live or offline is also
+ * Whether each platform is broadcasting and since when, for the console's header badges, which
+ * follow it through the `liveState.watch` subscription (onChange); going live or offline is also
  * published as `platform.liveState`.
  *
  * Event-driven, never polled: a platform is asked when it becomes usable, and again whenever it
@@ -27,12 +21,12 @@ export class PlatformLiveStatus implements IService {
   private states = new Map<StreamingPlatform, PlatformLiveState>();
   /** Bumped per refresh, so an answer that arrives after a newer one is dropped. */
   private generations = new Map<StreamingPlatform, number>();
+  private changeListeners = new Set<() => void>();
   private logger: Logger;
 
   constructor(
     private eventBus: EventBus,
     private registry: PlatformRegistry,
-    private webSocketServer: WebSocketServer,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'PlatformLiveStatus' });
@@ -73,6 +67,16 @@ export class PlatformLiveStatus implements IService {
 
   stop(): void {
     this.subscriptions.clear();
+  }
+
+  /**
+   * Be told whenever any platform's state changes, a start time included, which
+   * `platform.liveState` (going live or offline only) doesn't cover. Returns the unsubscribe
+   * function.
+   */
+  onChange(listener: () => void): () => void {
+    this.changeListeners.add(listener);
+    return () => this.changeListeners.delete(listener);
   }
 
   /** Every platform's current state, in registry order. */
@@ -120,7 +124,9 @@ export class PlatformLiveStatus implements IService {
       return;
     }
     this.states.set(state.platform, state);
-    this.webSocketServer.broadcast(createPlatformLiveStateMessage(this.getStates()));
+    for (const listener of this.changeListeners) {
+      listener();
+    }
     if (current?.live !== state.live) {
       void this.eventBus.emit('platform.liveState', { ...state, cause });
     }

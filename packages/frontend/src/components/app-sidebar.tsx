@@ -18,8 +18,8 @@ import {
 } from '@/components/ui/sidebar';
 import { PAGES, pageAt } from '@/constants/pages';
 import { useAppState } from '@/context/AppStateContext';
+import { useConnection } from '@/context/TrpcContext';
 import { useDataTables } from '@/features/data/useDataTables';
-import { useConnection } from '@/hooks/useConnection';
 import { describeIntegration } from '@/lib/integrationStatus';
 
 export function AppSidebar() {

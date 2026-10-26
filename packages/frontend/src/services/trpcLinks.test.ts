@@ -2,8 +2,8 @@ import { createTRPCUntypedClient, TRPCClientError, type TRPCLink } from '@trpc/c
 import type { AnyRouter } from '@trpc/server';
 import { observable } from '@trpc/server/observable';
 import { describe, expect, it } from 'vitest';
+import { ConnectionError } from './connection';
 import { failWhileDisconnected } from './trpcLinks';
-import { ConnectionError } from './WebSocketClient';
 
 type State = 'idle' | 'connecting' | 'pending';
 

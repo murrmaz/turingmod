@@ -1,11 +1,5 @@
 import 'reflect-metadata';
-import {
-  type CommandListPayload,
-  MessageType,
-  PermissionLevel,
-  PlatformCapability,
-  StreamingPlatform,
-} from '@turingmod/shared';
+import { PermissionLevel, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { OwnChatMessages } from '../../chat/OwnChatMessages.js';
 import type { CommandExecutor } from '../../commands/CommandExecutor.js';
@@ -20,7 +14,8 @@ import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { TwitchPlatform } from '../../platforms/TwitchPlatform.js';
 import { YouTubePlatform } from '../../platforms/YouTubePlatform.js';
 import { Logger } from '../../utils/Logger.js';
-import { CommandHandler } from './CommandHandler.js';
+import { createCommandsRouter } from './commandsRouter.js';
+import { createCallerFactory } from './trpc.js';
 
 const command = (name: string, requiredCapabilities: PlatformCapability[]) =>
   ({
@@ -33,7 +28,7 @@ const command = (name: string, requiredCapabilities: PlatformCapability[]) =>
     execute: () => Promise.resolve({ success: true, message: '' }),
   }) as unknown as ICommand;
 
-describe('CommandHandler.handleList', () => {
+describe('commands.list', () => {
   it("lists each command's platforms from the façades' capabilities", async () => {
     const logger = new Logger({ level: 'silent' });
     const commands = new CommandRegistry(logger);
@@ -54,17 +49,12 @@ describe('CommandHandler.handleList', () => {
         {} as YouTubeChatIntegration
       )
     );
-    const handler = new CommandHandler({} as CommandExecutor, commands, platforms, logger);
-
-    const response = await handler.handleList({
-      id: '1',
-      type: MessageType.COMMAND_LIST,
-      timestamp: 0,
-      payload: {},
-    });
+    const caller = createCallerFactory(
+      createCommandsRouter({} as CommandExecutor, commands, platforms, logger)
+    )({ consoleOrigin: null });
 
     const available = Object.fromEntries(
-      (response.payload as CommandListPayload).commands.map((c) => [c.name, c.availableOn])
+      (await caller.list({})).map((c) => [c.name, c.availableOn])
     );
     expect(available).toEqual({
       uptime: [StreamingPlatform.TWITCH, StreamingPlatform.YOUTUBE],
@@ -73,25 +63,22 @@ describe('CommandHandler.handleList', () => {
   });
 });
 
-describe('CommandHandler.handleSimulate', () => {
+describe('commands.simulate', () => {
   const simulate = (commandText: string) => {
     const execute = vi.fn(() => Promise.resolve({ success: true, message: 'ok' }));
     const logger = new Logger({ level: 'silent' });
-    const handler = new CommandHandler(
-      { execute } as unknown as CommandExecutor,
-      new CommandRegistry(logger),
-      new PlatformRegistry(),
-      logger
-    );
-    const response = handler.handleSimulate({
-      id: '1',
-      type: MessageType.COMMAND_SIMULATE,
-      timestamp: 0,
-      payload: {
-        commandText,
-        simulatedUser: { username: 'someone', permissionLevel: PermissionLevel.VIEWER },
-        platform: StreamingPlatform.TWITCH,
-      },
+    const caller = createCallerFactory(
+      createCommandsRouter(
+        { execute } as unknown as CommandExecutor,
+        new CommandRegistry(logger),
+        new PlatformRegistry(),
+        logger
+      )
+    )({ consoleOrigin: null });
+    const response = caller.simulate({
+      commandText,
+      simulatedUser: { username: 'someone', permissionLevel: PermissionLevel.VIEWER },
+      platform: StreamingPlatform.TWITCH,
     });
     return { execute, response };
   };
@@ -108,7 +95,7 @@ describe('CommandHandler.handleSimulate', () => {
   it('runs nothing for text chat would not treat as a command', async () => {
     const { execute, response } = simulate('so @coolraider');
 
-    expect(errorCodeOf((await response).payload.result)).toBe('INVALID_INPUT');
+    expect(errorCodeOf(await response)).toBe('INVALID_INPUT');
     expect(execute).not.toHaveBeenCalled();
   });
 });

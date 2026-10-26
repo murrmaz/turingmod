@@ -1,15 +1,13 @@
 import type { DataTableInfo } from '@turingmod/shared';
-import { MessageType } from '@turingmod/shared';
-import { useServerState } from '@/hooks/useServerState';
+import { useServerQuery } from '@/hooks/useServerQuery';
 
 const NO_TABLES: DataTableInfo[] = [];
 
 /** The tables the Data page can show, with their row counts. */
 export function useDataTables() {
-  const { state, error } = useServerState(MessageType.DATA_LIST_TABLES, {
-    payload: {},
-    initial: NO_TABLES,
-    onReply: (reply) => reply.tables,
-  });
-  return { tables: state, error };
+  const { data, error } = useServerQuery(
+    (trpc, _input, opts) => trpc.data.listTables.query(undefined, opts),
+    { input: undefined, initial: NO_TABLES }
+  );
+  return { tables: data, error };
 }

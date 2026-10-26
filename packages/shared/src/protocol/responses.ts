@@ -6,8 +6,6 @@ import type {
   DataTablesPayload,
   ErrorPayload,
   EventNotificationPayload,
-  IntegrationListPayload,
-  IntegrationStatusPayload,
   MessageType,
   OAuthAuthUrlResponsePayload,
   OAuthResultPayload,
@@ -23,8 +21,6 @@ import type { RequestType } from './requests.js';
 export interface ServerPayloads {
   [MessageType.COMMAND_RESULT]: CommandResultPayload;
   [MessageType.COMMAND_LIST]: CommandListPayload;
-  [MessageType.INTEGRATION_STATUS]: IntegrationStatusPayload;
-  [MessageType.INTEGRATION_LIST]: IntegrationListPayload;
   [MessageType.EVENT_NOTIFICATION]: EventNotificationPayload;
   [MessageType.ACTIVITY_LIST]: ActivityListPayload;
   [MessageType.ERROR]: ErrorPayload;
@@ -46,10 +42,6 @@ export type ServerMessageType = keyof ServerPayloads;
 export interface ResponseTypes {
   [MessageType.COMMAND_SIMULATE]: MessageType.COMMAND_RESULT;
   [MessageType.COMMAND_LIST]: MessageType.COMMAND_LIST;
-  [MessageType.INTEGRATION_START]: MessageType.INTEGRATION_STATUS;
-  [MessageType.INTEGRATION_STOP]: MessageType.INTEGRATION_STATUS;
-  [MessageType.INTEGRATION_LIST]: MessageType.INTEGRATION_LIST;
-  [MessageType.INTEGRATION_CONFIGURE]: MessageType.INTEGRATION_STATUS;
   [MessageType.OAUTH_GET_AUTH_URL]: MessageType.OAUTH_AUTH_URL_RESPONSE;
   [MessageType.ACTIVITY_QUERY]: MessageType.ACTIVITY_LIST;
   [MessageType.YOUTUBE_GO_LIVE]: MessageType.YOUTUBE_CHAT_STATE;

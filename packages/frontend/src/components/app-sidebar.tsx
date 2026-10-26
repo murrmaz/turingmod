@@ -18,8 +18,8 @@ import {
 } from '@/components/ui/sidebar';
 import { PAGES, pageAt } from '@/constants/pages';
 import { useAppState } from '@/context/AppStateContext';
-import { useWebSocketContext } from '@/context/WebSocketContext';
 import { useDataTables } from '@/features/data/useDataTables';
+import { useConnection } from '@/hooks/useConnection';
 import { describeIntegration } from '@/lib/integrationStatus';
 
 export function AppSidebar() {
@@ -122,7 +122,7 @@ function DataTablesGroup() {
  * the page says so too); Retry now skips the wait.
  */
 function ConnectionStatus() {
-  const { connectionState, connect } = useWebSocketContext();
+  const { connectionState, retry } = useConnection();
 
   if (connectionState === 'connected' || connectionState === 'connecting') {
     const connected = connectionState === 'connected';
@@ -144,7 +144,7 @@ function ConnectionStatus() {
       <Button
         size="sm"
         variant="outline"
-        onClick={connect}
+        onClick={retry}
         className="group-data-[collapsible=icon]:hidden"
       >
         Retry now

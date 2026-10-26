@@ -79,7 +79,7 @@ npm start               # Start production server on :8080 (SERVER_PORT)
 
 ```bash
 npm run check           # Biome lint + format check (check:fix to apply fixes)
-npm run type-check      # TypeScript type checking (run build:shared first on a fresh checkout)
+npm run type-check      # TypeScript type checking (run build:backend first on a fresh checkout)
 npm test                # Vitest in every workspace
 npm run clean           # Clean build outputs
 ```

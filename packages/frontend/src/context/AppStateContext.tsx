@@ -3,13 +3,15 @@ import { MessageType } from '@turingmod/shared';
 import type { ReactNode } from 'react';
 import { createContext, useContext } from 'react';
 import { useServerState } from '@/hooks/useServerState';
+import { useSubscription } from '@/hooks/useSubscription';
 
 /** The integrations and commands, which most of the console needs. */
 export interface AppStateContextValue {
+  /** Every integration, kept current by the backend as any of them changes. */
   integrations: IntegrationInfo[];
+  /** Show the integrations as a mutation left them, ahead of the subscription's copy. */
+  showIntegrations: (integrations: IntegrationInfo[]) => void;
   commands: CommandInfo[];
-  /** Read the integrations again, e.g. after starting one, without waiting for its push. */
-  refreshIntegrations: () => Promise<void>;
 }
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
@@ -17,27 +19,12 @@ const AppStateContext = createContext<AppStateContextValue | null>(null);
 const NO_INTEGRATIONS: IntegrationInfo[] = [];
 const NO_COMMANDS: CommandInfo[] = [];
 
-/** One integration's new state, replacing its entry or added if it's new. */
-function withIntegration(
-  integrations: IntegrationInfo[],
-  integration: IntegrationInfo
-): IntegrationInfo[] {
-  return integrations.some((i) => i.name === integration.name)
-    ? integrations.map((i) => (i.name === integration.name ? integration : i))
-    : [...integrations, integration];
-}
-
 export function AppStateProvider({ children }: { children: ReactNode }) {
-  const integrations = useServerState(MessageType.INTEGRATION_LIST, {
-    payload: {},
-    initial: NO_INTEGRATIONS,
-    onReply: (reply) => reply.integrations,
-    push: {
-      type: MessageType.INTEGRATION_STATUS,
-      apply: ({ integration }, current) => withIntegration(current, integration),
-    },
-    errorTitle: "Couldn't load integrations",
-  });
+  const [integrations, showIntegrations] = useSubscription(
+    (trpc, on) => trpc.integrations.watch.subscribe(undefined, on),
+    NO_INTEGRATIONS,
+    "Couldn't load integrations"
+  );
   const commands = useServerState(MessageType.COMMAND_LIST, {
     payload: {},
     initial: NO_COMMANDS,
@@ -46,9 +33,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   });
 
   const value: AppStateContextValue = {
-    integrations: integrations.state,
+    integrations,
+    showIntegrations,
     commands: commands.state,
-    refreshIntegrations: integrations.refresh,
   };
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

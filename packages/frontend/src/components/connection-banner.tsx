@@ -1,13 +1,13 @@
 import { CircleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useWebSocketContext } from '@/context/WebSocketContext';
+import { useConnection } from '@/hooks/useConnection';
 
 /**
  * Across the top of every page while the console has lost the backend: it retries by itself, but
  * nothing below updates until it's back, and on a second monitor a quiet indicator goes unseen.
  */
 export function ConnectionBanner() {
-  const { connectionState, connect } = useWebSocketContext();
+  const { connectionState, retry } = useConnection();
   if (connectionState !== 'reconnecting') {
     return null;
   }
@@ -23,7 +23,7 @@ export function ConnectionBanner() {
           Reconnecting… Everything below is as it was when the connection dropped.
         </span>
       </p>
-      <Button size="sm" variant="outline" onClick={connect}>
+      <Button size="sm" variant="outline" onClick={retry}>
         Retry now
       </Button>
     </div>

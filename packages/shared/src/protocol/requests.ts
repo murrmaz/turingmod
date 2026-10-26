@@ -44,24 +44,6 @@ export const CommandListRequestPayloadSchema = z.strictObject({
 });
 export type CommandListRequestPayload = z.infer<typeof CommandListRequestPayloadSchema>;
 
-/** Start or stop one integration. */
-export const IntegrationNamePayloadSchema = z.strictObject({
-  integrationName: z.string().min(1),
-});
-export type IntegrationStartPayload = z.infer<typeof IntegrationNamePayloadSchema>;
-export type IntegrationStopPayload = z.infer<typeof IntegrationNamePayloadSchema>;
-
-/**
- * Save an integration's config. Its fields are checked against that integration's own schema on
- * the backend, before anything is stored.
- */
-export const IntegrationConfigurePayloadSchema = z.strictObject({
-  integrationName: z.string().min(1),
-  /** Configuration data (will be encrypted server-side) */
-  config: z.record(z.string(), z.unknown()),
-});
-export type IntegrationConfigurePayload = z.infer<typeof IntegrationConfigurePayloadSchema>;
-
 /** Ask for an OAuth integration's authorization URL. */
 export const OAuthGetAuthUrlPayloadSchema = z.strictObject({
   /** Integration name (e.g., 'twitch-auth') */
@@ -111,10 +93,6 @@ export type DataQueryRowsPayload = z.infer<typeof DataQueryRowsPayloadSchema>;
 export const REQUEST_PAYLOAD_SCHEMAS = {
   [MessageType.COMMAND_SIMULATE]: CommandSimulatePayloadSchema,
   [MessageType.COMMAND_LIST]: CommandListRequestPayloadSchema,
-  [MessageType.INTEGRATION_START]: IntegrationNamePayloadSchema,
-  [MessageType.INTEGRATION_STOP]: IntegrationNamePayloadSchema,
-  [MessageType.INTEGRATION_LIST]: EmptyPayloadSchema,
-  [MessageType.INTEGRATION_CONFIGURE]: IntegrationConfigurePayloadSchema,
   [MessageType.OAUTH_GET_AUTH_URL]: OAuthGetAuthUrlPayloadSchema,
   [MessageType.ACTIVITY_QUERY]: ActivityQueryPayloadSchema,
   [MessageType.YOUTUBE_GO_LIVE]: EmptyPayloadSchema,

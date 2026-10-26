@@ -1,7 +1,6 @@
 import type { StreamingPlatform } from '../constants/platform.js';
 import type { ActivityLogEntry } from '../types/activity.js';
 import type { CommandInfo, ExecutionResult } from '../types/command.js';
-import type { IntegrationInfo } from '../types/integration.js';
 
 /**
  * Base WebSocket message structure
@@ -31,14 +30,7 @@ export enum MessageType {
   COMMAND_RESULT = 'command.result',
   COMMAND_LIST = 'command.list',
 
-  // Client → Server: Integration control
-  INTEGRATION_START = 'integration.start',
-  INTEGRATION_STOP = 'integration.stop',
-  INTEGRATION_CONFIGURE = 'integration.configure',
-
-  // Server → Client: Integration updates
-  INTEGRATION_STATUS = 'integration.status',
-  INTEGRATION_LIST = 'integration.list',
+  // Integrations are served by the tRPC router (TRPC_PATH): integrations.watch/start/stop/configure
 
   // Server → Client: Event notifications
   EVENT_NOTIFICATION = 'event.notification',
@@ -94,14 +86,6 @@ export interface CommandResultPayload {
 
   /** Whether this was a simulation */
   isSimulation: boolean;
-}
-
-/**
- * Integration status payload
- */
-export interface IntegrationStatusPayload {
-  /** Integration information */
-  integration: IntegrationInfo;
 }
 
 /**
@@ -184,14 +168,6 @@ export interface CommandListPayload {
 }
 
 /**
- * Integration list payload
- */
-export interface IntegrationListPayload {
-  /** All integrations */
-  integrations: IntegrationInfo[];
-}
-
-/**
  * Event notification payload
  */
 export interface EventNotificationPayload {
@@ -217,9 +193,6 @@ export type ErrorCode =
   | 'HANDLER_ERROR'
   /** The message couldn't be read or routed at all (e.g. it wasn't JSON). */
   | 'MESSAGE_HANDLING_ERROR'
-  | 'INTEGRATION_START_FAILED'
-  | 'INTEGRATION_STOP_FAILED'
-  | 'INTEGRATION_CONFIGURE_FAILED'
   | 'ACTIVITY_QUERY_FAILED'
   /** The Data inspector couldn't read what was asked (unknown table or column, or a read error). */
   | 'DATA_QUERY_FAILED'
@@ -292,15 +265,6 @@ export function createCommandResultMessage(
   originalMessageId: string
 ): IWebSocketMessage<CommandResultPayload> {
   return createMessage(MessageType.COMMAND_RESULT, payload, originalMessageId);
-}
-
-/**
- * Create an integration status message
- */
-export function createIntegrationStatusMessage(
-  integration: IntegrationInfo
-): IWebSocketMessage<IntegrationStatusPayload> {
-  return createMessage(MessageType.INTEGRATION_STATUS, { integration });
 }
 
 /**

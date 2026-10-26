@@ -1,4 +1,4 @@
-import { MessageType, messageOf } from '@turingmod/shared';
+import { messageOf } from '@turingmod/shared';
 import { CircleAlert } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useWebSocketContext } from '@/context/WebSocketContext';
+import { useIntegrations } from '@/hooks/useIntegrations';
 import { cn } from '@/lib/utils';
 
 export interface IntegrationConfigDialogProps {
@@ -53,7 +53,7 @@ export function IntegrationConfigDialog({
   className,
   children,
 }: IntegrationConfigDialogProps) {
-  const { request } = useWebSocketContext();
+  const { configureIntegration } = useIntegrations();
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -64,7 +64,7 @@ export function IntegrationConfigDialog({
     setSaving(true);
     setErrorMessage('');
     try {
-      await request(MessageType.INTEGRATION_CONFIGURE, { integrationName, config });
+      await configureIntegration(integrationName, config);
       onSaved();
     } catch (error) {
       setErrorMessage(messageOf(error, failureMessage));

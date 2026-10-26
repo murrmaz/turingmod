@@ -1,27 +1,35 @@
-import { IntegrationStatus, MessageType } from '@turingmod/shared';
+import { IntegrationStatus } from '@turingmod/shared';
 import { useCallback } from 'react';
 import { useAppState } from '@/context/AppStateContext';
-import { useWebSocketContext } from '@/context/WebSocketContext';
+import { useTrpc } from '@/context/TrpcContext';
 
-/** The integrations, starting and stopping them, and what each is still waiting on. */
+/**
+ * The integrations, starting, stopping and configuring them, and what each is still waiting on.
+ * Each action resolves once the state it left is showing, so a view can stop its spinner then.
+ */
 export function useIntegrations() {
-  const { request } = useWebSocketContext();
-  const { integrations, refreshIntegrations } = useAppState();
+  const trpc = useTrpc();
+  const { integrations, showIntegrations } = useAppState();
 
   const startIntegration = useCallback(
     async (integrationName: string): Promise<void> => {
-      await request(MessageType.INTEGRATION_START, { integrationName });
-      await refreshIntegrations();
+      showIntegrations(await trpc.integrations.start.mutate({ integrationName }));
     },
-    [request, refreshIntegrations]
+    [trpc, showIntegrations]
   );
 
   const stopIntegration = useCallback(
     async (integrationName: string): Promise<void> => {
-      await request(MessageType.INTEGRATION_STOP, { integrationName });
-      await refreshIntegrations();
+      showIntegrations(await trpc.integrations.stop.mutate({ integrationName }));
     },
-    [request, refreshIntegrations]
+    [trpc, showIntegrations]
+  );
+
+  const configureIntegration = useCallback(
+    async (integrationName: string, config: Record<string, unknown>): Promise<void> => {
+      showIntegrations(await trpc.integrations.configure.mutate({ integrationName, config }));
+    },
+    [trpc, showIntegrations]
   );
 
   /** The dependencies of an integration that aren't connected yet. */
@@ -36,5 +44,11 @@ export function useIntegrations() {
     [integrations]
   );
 
-  return { integrations, startIntegration, stopIntegration, getMissingDependencies };
+  return {
+    integrations,
+    startIntegration,
+    stopIntegration,
+    configureIntegration,
+    getMissingDependencies,
+  };
 }

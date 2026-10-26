@@ -32,4 +32,14 @@ describe('reportError', () => {
 
     expect(toastError).not.toHaveBeenCalled();
   });
+
+  it('leaves a tRPC request that failed for want of a connection to the banner', () => {
+    const wrapped = new Error('Not connected to TuringMod', {
+      cause: new ConnectionError('Not connected to TuringMod'),
+    });
+
+    reportLoadError("Couldn't load integrations", wrapped);
+
+    expect(toastError).not.toHaveBeenCalled();
+  });
 });

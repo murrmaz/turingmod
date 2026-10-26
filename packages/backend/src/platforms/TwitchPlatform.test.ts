@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import type { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
-import { NotAuthenticatedError } from './errors.js';
+import { InvalidStreamInfoError, NotAuthenticatedError } from './errors.js';
 import { TwitchPlatform } from './TwitchPlatform.js';
 
 const BROADCASTER = 'broadcaster-id';
@@ -34,6 +34,7 @@ function setup() {
       sendChatMessage: vi.fn(() => Promise.resolve({ id: 'sent-id', isSent: true })),
       shoutoutUser: vi.fn(() => Promise.resolve()),
     },
+    callApi: vi.fn(() => Promise.resolve()),
   };
   const api = {
     request: vi.fn((call: (client: typeof twitch) => Promise<unknown>) => call(twitch)),
@@ -216,6 +217,39 @@ describe('TwitchPlatform', () => {
         'Game not found: Nope'
       );
       expect(twitch.channels.updateChannelInfo).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('setContentLabels', () => {
+    /** Every label sent to Helix, and which of them were on. */
+    const sentLabels = () => {
+      const [[options]] = twitch.callApi.mock.calls as unknown as [
+        [{ jsonBody: { content_classification_labels: { id: string; is_enabled: boolean }[] } }],
+      ];
+      const labels = options.jsonBody.content_classification_labels;
+      return {
+        sent: labels.length,
+        enabled: labels.filter((label) => label.is_enabled).map((label) => label.id),
+      };
+    };
+
+    it('sends every label, on for those asked for, whatever their case', async () => {
+      await platform.contentLabels.setContentLabels(['gambling', 'ProfanityVulgarity']);
+
+      expect(sentLabels()).toEqual({ sent: 6, enabled: ['Gambling', 'ProfanityVulgarity'] });
+    });
+
+    it('turns every label off for an empty list', async () => {
+      await platform.contentLabels.setContentLabels([]);
+
+      expect(sentLabels()).toEqual({ sent: 6, enabled: [] });
+    });
+
+    it('refuses an unknown label without calling Twitch', async () => {
+      await expect(platform.contentLabels.setContentLabels(['Spiders'])).rejects.toThrow(
+        InvalidStreamInfoError
+      );
+      expect(twitch.callApi).not.toHaveBeenCalled();
     });
   });
 

@@ -36,6 +36,30 @@ import type {
 import { TwitchShoutoutCooldowns } from './TwitchShoutoutCooldowns.js';
 
 /**
+ * The content classification labels a channel may set itself. Twitch applies MatureGame from
+ * the category, so it can be read back but not set.
+ */
+const TWITCH_CONTENT_LABELS = [
+  'DebatedSocialIssuesAndPolitics',
+  'DrugsIntoxication',
+  'SexualThemes',
+  'ViolentGraphic',
+  'Gambling',
+  'ProfanityVulgarity',
+] as const;
+
+/** A label as typed in chat, in any case, as Twitch's id for it. */
+function toContentLabelId(name: string): string {
+  const id = TWITCH_CONTENT_LABELS.find((label) => label.toLowerCase() === name.toLowerCase());
+  if (!id) {
+    throw new InvalidStreamInfoError(
+      `Unknown content label: ${name}. Labels: ${TWITCH_CONTENT_LABELS.join(', ')}`
+    );
+  }
+  return id;
+}
+
+/**
  * IStreamPlatform façade over the Twitch integration trio: everything TuringMod does on Twitch.
  *
  * Owns the Twitch endpoints it calls and the Twitch rules around them (category name → id,
@@ -224,9 +248,25 @@ export class TwitchPlatform implements IStreamPlatform {
     },
 
     setContentLabels: async (labels) => {
+      const wanted = new Set(labels.map(toContentLabelId));
       const userId = this.requireUserId();
+      // Twurple types this field as names, but Helix takes every label with an on/off flag and
+      // leaves the ones it isn't sent alone, so send them all to replace the set.
       await this.api.request((c) =>
-        c.channels.updateChannelInfo(userId, { contentClassificationLabels: labels })
+        c.callApi({
+          type: 'helix',
+          url: 'channels',
+          method: 'PATCH',
+          userId,
+          scopes: ['channel:manage:broadcast'],
+          query: { broadcaster_id: userId },
+          jsonBody: {
+            content_classification_labels: TWITCH_CONTENT_LABELS.map((id) => ({
+              id,
+              is_enabled: wanted.has(id),
+            })),
+          },
+        })
       );
     },
   };

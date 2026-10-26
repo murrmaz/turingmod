@@ -6,6 +6,7 @@ import type { DatabaseManager } from '../../database/DatabaseManager.js';
 import { COUNTERS, CounterRepository } from '../../database/repositories/CounterRepository.js';
 import { SuggestionRepository } from '../../database/repositories/SuggestionRepository.js';
 import { createTestDatabase } from '../../database/repositories/testDatabase.js';
+import { InvalidStreamInfoError } from '../../platforms/errors.js';
 import { fakeRequire } from '../../platforms/fakeRequire.js';
 import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import { raidShoutoutMessage } from '../../raids/RaidShoutout.js';
@@ -134,6 +135,40 @@ describe('reading with a trailing space', () => {
     await command.execute(commandContext('!cw ', moderator));
 
     expect(setContentLabels).not.toHaveBeenCalled();
+  });
+});
+
+describe('!cw', () => {
+  const moderator = { permissionLevel: PermissionLevel.MODERATOR };
+
+  it('clears the labels with none', async () => {
+    const setContentLabels = vi.fn(() => Promise.resolve());
+    const command = new ContentWarningCommand(
+      fakeStreamControl({ contentLabels: { setContentLabels, getContentLabels: vi.fn() } }),
+      logger
+    );
+
+    const result = await command.execute(commandContext('!cw None', moderator));
+
+    expect(setContentLabels).toHaveBeenCalledWith([]);
+    expect(result.message).toBe('Content labels cleared');
+  });
+
+  it('tells chat which label it does not know', async () => {
+    const setContentLabels = () =>
+      Promise.reject(new InvalidStreamInfoError('Unknown content label: Spiders'));
+    const command = new ContentWarningCommand(
+      fakeStreamControl({ contentLabels: { setContentLabels, getContentLabels: vi.fn() } }),
+      logger
+    );
+
+    const result = await command.execute(commandContext('!cw Spiders', moderator));
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { code: 'INVALID_INPUT' },
+      message: 'Unknown content label: Spiders',
+    });
   });
 });
 

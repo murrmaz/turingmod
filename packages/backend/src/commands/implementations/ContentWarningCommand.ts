@@ -11,13 +11,13 @@ import { ok } from '../utils/results.js';
 /**
  * !cw command
  * Shows or sets content classification labels (content warnings) on the platform the command
- * came from.
+ * came from. Setting replaces the whole set; `!cw none` clears it.
  */
 @injectable()
 export class ContentWarningCommand implements ICommand {
   readonly name = 'cw';
   readonly description = 'Show or set content classification labels';
-  readonly usage = '!cw [label1,label2,...]';
+  readonly usage = '!cw [label1,label2,... | none]';
   readonly permissions = [PermissionLevel.VIEWER];
   /** Per-viewer, to keep a Helix-backed read off the rate limit. Throttles the viewer-readable branch; moderators are exempt, so !cw <labels> stays responsive. */
   readonly cooldown = 30;
@@ -47,14 +47,17 @@ export class ContentWarningCommand implements ICommand {
           return permissionError;
         }
 
-        const labels = argText
-          .split(',')
-          .map((label) => label.trim())
-          .filter((label) => label !== '');
+        const labels =
+          argText.toLowerCase() === 'none'
+            ? []
+            : argText
+                .split(',')
+                .map((label) => label.trim())
+                .filter((label) => label !== '');
 
         await this.streamControl.require(platform, 'contentLabels').setContentLabels(labels);
 
-        return ok('Content labels updated');
+        return ok(labels.length === 0 ? 'Content labels cleared' : 'Content labels updated');
       }
 
       // Read mode: show current labels

@@ -139,7 +139,10 @@ export interface ScheduleApi {
 export interface ContentLabelsApi {
   /** Content classification labels currently set on the channel. */
   getContentLabels(): Promise<string[]>;
-  /** Replace the channel's content classification labels. */
+  /**
+   * Replace the channel's content classification labels; an empty list clears them. Throws
+   * InvalidStreamInfoError for a label the platform doesn't have.
+   */
   setContentLabels(labels: string[]): Promise<void>;
 }
 

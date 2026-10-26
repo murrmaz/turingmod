@@ -1,4 +1,4 @@
-import { PlatformCapability, StreamingPlatform } from '@turingmod/shared';
+import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import type { youtube_v3 } from 'googleapis';
 import { singleton } from 'tsyringe';
 import { toSafeChatText } from '../chat/chatMessage.js';
@@ -7,8 +7,10 @@ import {
   type BroadcastIdentity,
   YouTubeApiIntegration,
 } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
+import { YouTubeAuthIntegration } from '../integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import { YouTubeChatIntegration } from '../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { unavailableReason } from './availability.js';
+import { NotAuthenticatedError } from './errors.js';
 import type {
   ChannelPage,
   DeclaredCapability,
@@ -24,7 +26,9 @@ const KEPT_SNIPPET_FIELDS = ['description', 'scheduledStartTime', 'scheduledEndT
  *
  * Owns the YouTube endpoints it calls and the rules around them, and translates them into the
  * platform-agnostic types commands see. Connection health is not its concern: it makes every call
- * through YouTubeApiIntegration.request(). The live broadcast comes from YouTubeChatIntegration
+ * through YouTubeApiIntegration.request(), and is usable whenever YouTubeAuthIntegration is
+ * connected, which is what request() itself waits on. Each call checks that first and fails with
+ * NotAuthenticatedError, like Twitch's. The live broadcast comes from YouTubeChatIntegration
  * while chat is streaming, and from the API otherwise.
  *
  * YouTube has no game/category or tags model, so it declares only SEND_CHAT, SET_TITLE, and
@@ -41,20 +45,26 @@ export class YouTubePlatform implements IStreamPlatform {
   ]);
 
   constructor(
+    private auth: YouTubeAuthIntegration,
     private api: YouTubeApiIntegration,
     private ownMessages: OwnChatMessages,
     private chat: YouTubeChatIntegration
   ) {}
 
   getUnavailableReason(): string | null {
-    return unavailableReason(this.api, this.platform);
+    return unavailableReason(this.auth, this.platform);
   }
 
   async isLive(): Promise<boolean> {
+    // False rather than a throw while YouTube is unusable, as the interface defines it.
+    if (this.getUnavailableReason() !== null) {
+      return false;
+    }
     return (await this.liveBroadcast()) !== null;
   }
 
   async sendChatMessage(message: string): Promise<void> {
+    this.requireAvailable();
     const text = toSafeChatText(message);
     const liveChatId = (await this.liveBroadcast())?.liveChatId;
     if (!liveChatId) {
@@ -78,6 +88,7 @@ export class YouTubePlatform implements IStreamPlatform {
   }
 
   async getStreamInfo(): Promise<StreamInfo> {
+    this.requireAvailable();
     // Looked up afresh: the title can change mid-stream, so chat's copy of the broadcast has none.
     const broadcast = await this.api.getActiveBroadcast();
     if (!broadcast) {
@@ -92,6 +103,7 @@ export class YouTubePlatform implements IStreamPlatform {
     if (info.title === undefined) {
       return;
     }
+    this.requireAvailable();
     const broadcast = await this.liveBroadcast();
     if (!broadcast) {
       throw new Error('No active YouTube broadcast to update');
@@ -123,6 +135,10 @@ export class YouTubePlatform implements IStreamPlatform {
 
   /** Milliseconds the active broadcast has been live, or null if offline / no start time yet. */
   async getUptime(): Promise<number | null> {
+    // Null rather than a throw: "unusable" and "offline" are the same answer here, as on Twitch.
+    if (this.getUnavailableReason() !== null) {
+      return null;
+    }
     const broadcast = await this.liveBroadcast();
     if (!broadcast?.actualStartTime) {
       return null;
@@ -131,6 +147,7 @@ export class YouTubePlatform implements IStreamPlatform {
   }
 
   async getChannelPage(): Promise<ChannelPage> {
+    this.requireAvailable();
     const response = await this.api.request((youtube) =>
       youtube.channels.list({ part: ['snippet'], mine: true })
     );
@@ -159,5 +176,17 @@ export class YouTubePlatform implements IStreamPlatform {
    */
   private async liveBroadcast(): Promise<BroadcastIdentity | null> {
     return this.chat.getBroadcast() ?? (await this.api.getActiveBroadcast());
+  }
+
+  /** Throw NotAuthenticatedError, saying why, unless YouTube can be acted on. */
+  private requireAvailable(): void {
+    const reason = this.getUnavailableReason();
+    if (reason !== null) {
+      throw new NotAuthenticatedError(
+        this.platform,
+        this.auth.getStatus() === IntegrationStatus.NEEDS_REAUTH,
+        reason
+      );
+    }
   }
 }

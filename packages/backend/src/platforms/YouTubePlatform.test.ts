@@ -1,9 +1,11 @@
 import 'reflect-metadata';
-import { StreamingPlatform } from '@turingmod/shared';
+import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import type { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
+import type { YouTubeAuthIntegration } from '../integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import type { YouTubeChatIntegration } from '../integrations/implementations/youtube/YouTubeChatIntegration.js';
+import { NotAuthenticatedError } from './errors.js';
 import { YouTubePlatform } from './YouTubePlatform.js';
 
 /** The broadcast chat is streaming, as YouTubeChatIntegration.getBroadcast() reports it. */
@@ -16,6 +18,7 @@ const STREAMED = {
 };
 
 describe('YouTubePlatform', () => {
+  let authStatus: IntegrationStatus;
   let api: {
     getActiveBroadcast: ReturnType<typeof vi.fn>;
     request: ReturnType<typeof vi.fn>;
@@ -50,7 +53,10 @@ describe('YouTubePlatform', () => {
         send().then(() => undefined)
       ),
     };
+    authStatus = IntegrationStatus.CONNECTED;
+    const auth = { getStatus: () => authStatus, getErrorMessage: () => undefined };
     platform = new YouTubePlatform(
+      auth as unknown as YouTubeAuthIntegration,
       api as unknown as YouTubeApiIntegration,
       ownMessages as unknown as OwnChatMessages,
       chat as unknown as YouTubeChatIntegration
@@ -67,6 +73,27 @@ describe('YouTubePlatform', () => {
     const snippet = params?.requestBody?.snippet;
     return { liveChatId: snippet?.liveChatId, text: snippet?.textMessageDetails?.messageText };
   }
+
+  describe('while YouTube is unusable', () => {
+    it('answers not live and no uptime without calling YouTube', async () => {
+      authStatus = IntegrationStatus.DISCONNECTED;
+
+      expect(await platform.isLive()).toBe(false);
+      expect(await platform.getUptime()).toBeNull();
+      expect(api.getActiveBroadcast).not.toHaveBeenCalled();
+    });
+
+    it('fails other calls with NotAuthenticatedError, saying whether to re-authorize', async () => {
+      authStatus = IntegrationStatus.NEEDS_REAUTH;
+
+      const thrown = await platform.getStreamInfo().catch((error: unknown) => error);
+
+      expect(thrown).toBeInstanceOf(NotAuthenticatedError);
+      expect(thrown).toMatchObject({ needsReauth: true });
+      await expect(platform.sendChatMessage('hello')).rejects.toThrow(NotAuthenticatedError);
+      expect(api.request).not.toHaveBeenCalled();
+    });
+  });
 
   it('posts to the streamed chat without looking up the broadcast', async () => {
     chat.getBroadcast.mockReturnValue(STREAMED);

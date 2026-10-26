@@ -5,6 +5,7 @@ import type { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import type { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import type { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
+import type { YouTubeAuthIntegration } from '../integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import type { YouTubeChatIntegration } from '../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { capabilitiesOf } from './capabilities.js';
 import { TwitchPlatform } from './TwitchPlatform.js';
@@ -23,6 +24,7 @@ describe('capabilitiesOf', () => {
 
   it('gives YouTube only what it declares, since it has no capability objects', () => {
     const youtube = new YouTubePlatform(
+      {} as YouTubeAuthIntegration,
       {} as YouTubeApiIntegration,
       {} as OwnChatMessages,
       {} as YouTubeChatIntegration

@@ -1,11 +1,12 @@
 import type { CommandResult } from '@turingmod/shared';
-import { messageOf, PermissionLevel, PlatformCapability } from '@turingmod/shared';
+import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { formatDuration } from '../../utils/FormatHelpers.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
-import { fail, ok } from '../utils/results.js';
+import { toCommandError } from '../utils/commandErrors.js';
+import { ok } from '../utils/results.js';
 
 /**
  * !uptime command
@@ -43,7 +44,7 @@ export class UptimeCommand implements ICommand {
       return ok(`Stream has been live for ${formattedUptime}`);
     } catch (error) {
       this.logger.error('Error in uptime command', error);
-      return fail('API_ERROR', 'Failed to retrieve stream uptime', messageOf(error));
+      return toCommandError(error, 'Failed to retrieve stream uptime');
     }
   }
 }

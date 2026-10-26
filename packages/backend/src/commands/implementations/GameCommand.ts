@@ -1,11 +1,12 @@
 import type { CommandResult } from '@turingmod/shared';
-import { messageOf, PermissionLevel, PlatformCapability } from '@turingmod/shared';
+import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
+import { toCommandError } from '../utils/commandErrors.js';
 import { checkPermission } from '../utils/permissionChecks.js';
-import { fail, mirrorReply, ok } from '../utils/results.js';
+import { mirrorReply, ok } from '../utils/results.js';
 
 /**
  * !game command
@@ -65,7 +66,7 @@ export class GameCommand implements ICommand {
       return ok(`Current Game: ${info.game}`);
     } catch (error) {
       this.logger.error('Error in game command', error);
-      return fail('API_ERROR', 'Failed to get/set stream game', messageOf(error));
+      return toCommandError(error, 'Failed to get/set stream game');
     }
   }
 }

@@ -9,6 +9,7 @@ import { errorCodeOf } from '../../commands/testing.js';
 import type { TwitchApiIntegration } from '../../integrations/implementations/twitch/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import type { YouTubeApiIntegration } from '../../integrations/implementations/youtube/YouTubeApiIntegration.js';
+import type { YouTubeAuthIntegration } from '../../integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import type { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { TwitchPlatform } from '../../platforms/TwitchPlatform.js';
@@ -44,6 +45,7 @@ describe('commands.list', () => {
     );
     platforms.register(
       new YouTubePlatform(
+        {} as YouTubeAuthIntegration,
         {} as YouTubeApiIntegration,
         {} as OwnChatMessages,
         {} as YouTubeChatIntegration

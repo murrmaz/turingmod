@@ -28,7 +28,7 @@ npm test                   # Vitest in every workspace
 npm test -w @turingmod/backend   # one workspace (also @turingmod/frontend, @turingmod/shared)
 ```
 
-Vitest is configured in all three workspaces; tests live beside their subjects as `*.test.ts`. On a fresh checkout, run `npm run build:shared` before `type-check` or the frontend/backend tests, since both import `@turingmod/shared` from its `dist/` (if `dist/` was deleted but `tsconfig.tsbuildinfo` wasn't, `tsc --build` thinks it's up to date and does nothing: `npm run clean` first). There is no CI: run `check`, `type-check` and `test` before considering work done.
+Vitest is configured in all three workspaces; tests live beside their subjects as `*.test.ts`. On a fresh checkout, run `npm run build:backend` (which builds shared too) before `type-check` or the frontend/backend tests: both import `@turingmod/shared` from its `dist/`, and the frontend type-checks its tRPC client against the backend's router type in `packages/backend/dist/` (`@turingmod/backend/trpc`), so a backend change to a procedure reaches the console's types only once the backend is rebuilt (if `dist/` was deleted but `tsconfig.tsbuildinfo` wasn't, `tsc --build` thinks it's up to date and does nothing: `npm run clean` first). There is no CI: run `check`, `type-check` and `test` before considering work done.
 
 ## Quick Reference: File Locations
 
@@ -50,7 +50,8 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Implementations**: `packages/backend/src/integrations/implementations/*/` (Twitch, YouTube, Spotify, OBS, Sound, Discord, Arduino)
 - **Arduino**: `packages/backend/src/integrations/implementations/arduino/ArduinoIntegration.ts` (WebSocket client to a Wi-Fi board) + `arduinoProtocol.ts` (message schemas); the protocol spec and a reference ESP32 sketch for the firmware side are in `firmware/` (`firmware/README.md`)
 - **YouTube chat stream client**: `packages/backend/src/integrations/implementations/youtube/YouTubeChatStream.ts` + the response frame splitter `parseJsonFrames.ts` beside it
-- **WebSocket Handlers**: `packages/backend/src/server/handlers/IntegrationHandler.ts`, `OAuthHandler.ts`, `YouTubeHandler.ts`, `PlatformHandler.ts` (live state)
+- **Console API**: `packages/backend/src/server/trpc/integrationsRouter.ts` (tRPC: `integrations.watch` subscription, `start`/`stop`/`configure`)
+- **WebSocket Handlers**: `packages/backend/src/server/handlers/OAuthHandler.ts`, `YouTubeHandler.ts`, `PlatformHandler.ts` (live state)
 - **Types & Enums**: `packages/shared/src/types/integration.ts`
 
 ### Commands System
@@ -121,8 +122,11 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Queries**: `packages/backend/src/server/handlers/ActivityHandler.ts` (`activity.query`, for the History page)
 - **Frontend**: `features/dashboard/dashboard-page.tsx` + `hooks/useLiveLog.ts` (live feed, newest first), `features/history/history-page.tsx`; how an entry reads (feed category, badge, title, detail) is `constants/activityFormat.ts` (`toFeedRow`)
 
-### WebSocket Protocol
-- **Server**: `packages/backend/src/server/WebSocketServer.ts`
+### Console ↔ Backend Protocol
+- **tRPC router**: `packages/backend/src/server/trpc/appRouter.ts` (`createAppRouter()`, `AppRouter` type) — one sub-router per area, e.g. `integrationsRouter.ts`; `trpc.ts` (instance), `watch.ts` (`watchable()`: current value, then again on each change, read once per change for every console)
+- **tRPC endpoint**: `packages/backend/src/server/trpc/TrpcServer.ts` (`TRPC_PATH`); `HttpServer.routeUpgrades()` hands each WebSocket path its endpoint; `server/consoleSockets.ts` is what both endpoints share (console-only origin check, upgrades, closing with a grace period)
+- **tRPC client**: `packages/frontend/src/context/TrpcContext.tsx` (`TrpcProvider`, `useTrpc()`), `services/trpcLinks.ts` (fail requests while disconnected), `hooks/useSubscription.ts` (state kept current by a `watch` subscription), `hooks/useConnection.ts` (both connections as one state, for the banner)
+- **Legacy server**: `packages/backend/src/server/WebSocketServer.ts`
 - **Router**: `packages/backend/src/server/MessageRouter.ts`
 - **Messages/Types**: `packages/shared/src/protocol/messages.ts`
 - **Request schemas**: `packages/shared/src/protocol/requests.ts` — Zod schema per client → server payload (`REQUEST_PAYLOAD_SCHEMAS`), types inferred from them
@@ -180,7 +184,7 @@ Triggers (chat, redemptions, raids) go last in the list so they stop first: noth
 break or an effect while those are being restored. Each service keeps its bus subscriptions in a
 `Subscriptions` and clears them in `stop()`.
 
-**Message routing**: WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes (`CommandHandler`, `IntegrationHandler`, `OAuthHandler`, `ActivityHandler`, `YouTubeHandler`, `PlatformHandler`, `DataHandler`, registered in `setup.ts`) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
+**Message routing** (the legacy protocol, being replaced by tRPC; see Console ↔ Backend Protocol below): WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes (`CommandHandler`, `OAuthHandler`, `ActivityHandler`, `YouTubeHandler`, `PlatformHandler`, `DataHandler`, registered in `setup.ts`) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
 
 **EventBus.** Integrations, services and the server communicate through `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
 `emit()` calls handlers in subscription order but runs async ones concurrently, and resolves once
@@ -198,7 +202,8 @@ All integrations extend `BaseIntegration` (OAuth providers extend `OAuthIntegrat
 dependents and brings them back when it recovers. **Twitch** and **YouTube** are each split into auth
 → API → real-time (`TwitchEventSubIntegration`, `YouTubeChatIntegration`), Spotify into auth → API;
 OBS, Sound, Discord and Arduino are single integrations. The status an
-integration sets is what the console shows (`integration.status` → `INTEGRATION_STATUS`).
+integration sets is what the console shows (`integration.status` → the `integrations.watch`
+subscription).
 
 How all of this works (stored configs and their schemas, `enabled`, dependency cascades and
 `dependencyFailurePolicy`, resolving clients on access, YouTube's chat stream, OAuth and token
@@ -207,9 +212,34 @@ refresh, integration events) is in
 Claude Code loads when you work in that directory. Read it before changing an integration or
 anything that holds one of their clients.
 
-### WebSocket Protocol
+### Console ↔ Backend Protocol
 
-All messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/messages.ts`: `{ id, type, timestamp, payload }`. Message IDs are UUIDs used for request/response correlation. Use `createMessage()` and typed creator functions (e.g., `createCommandResultMessage()`) to construct messages.
+The console talks to the backend over two WebSocket endpoints on the backend's one port, while
+requests move from the first to the second as the console is rebuilt:
+
+- **tRPC** (`TRPC_PATH`, `/trpc`) — the target for everything. A request is one procedure in a
+  sub-router of `createAppRouter()` (`server/trpc/`): its Zod input schema, its handler, and the
+  output type inferred from what the handler returns. That is the whole contract; nothing is
+  declared in `shared`. The console imports only the router's *type*
+  (`import type { AppRouter } from '@turingmod/backend/trpc'`, the backend package's one export),
+  so `useTrpc().integrations.start.mutate({ integrationName })` is checked against the backend's
+  definition. State the console shows is a subscription built with `watchable()`, which sends
+  the current value on subscribing and again after each change, reading it once per change however
+  many consoles watch; tRPC resubscribes after a reconnect, so there's no separate read, and every
+  console receives every change. A mutation answers with the state it left, which the console that
+  asked shows at once (`useSubscription()`'s setter), so a spinner never stops on stale state;
+  other consoles get it through the subscription. A malformed input is a `BAD_REQUEST`; a handler that
+  throws reaches the console as its error message. Requests made while disconnected fail at once
+  (`failWhileDisconnected`), as on the legacy client: a click during an outage never runs later.
+  Migrated so far: integrations.
+- **Legacy** (`WS_PATH`, `/ws`) — everything not yet migrated, described below. Don't add new
+  requests here; when migrating one, delete its `MessageType`, schema, payload types and handler.
+
+The two connections retry on the same schedule (`reconnectDelay()`) but separately, so they can be
+apart for a moment: the connection banner, the sidebar's status and the "reconnecting" dimming
+follow `useConnection()`, which is the worse of the two, and its Retry now retries both.
+
+All legacy messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/messages.ts`: `{ id, type, timestamp, payload }`. Message IDs are UUIDs used for request/response correlation. Use `createMessage()` and typed creator functions (e.g., `createCommandResultMessage()`) to construct messages.
 
 ### Database
 
@@ -405,7 +435,7 @@ there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 
-React Context for state management: `WebSocketContext` (connection + send/subscribe) and `AppStateContext` (commands, integrations). Anything read from the backend goes through `useServerState()` (`hooks/useServerState.ts`): read on every connect and whenever its payload changes, stale replies dropped, kept current by an optional push message; don't hand-write that in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
+React Context for state management: `TrpcContext` (the tRPC client), `WebSocketContext` (legacy connection + send/subscribe) and `AppStateContext` (commands, integrations). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`). Anything still read over the legacy protocol goes through `useServerState()` (`hooks/useServerState.ts`): read on every connect and whenever its payload changes, stale replies dropped, kept current by an optional push message; don't hand-write either in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
 
 ### Console UI
 
@@ -464,7 +494,7 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 ## Key Conventions
 
 - **Localhost only** — all servers bind to 127.0.0.1, never 0.0.0.0.
-- **No REST API** — all frontend-backend communication is WebSocket. HTTP server is only for static files and OAuth callbacks.
+- **No REST API** — all frontend-backend communication is WebSocket: new requests are tRPC procedures (see Console ↔ Backend Protocol). HTTP server is only for static files and OAuth callbacks.
 - **IntegrationStatus enum** — never use string literals for integration status.
 - **`getDependencies()` returns integration instances**, not names — return the constructor-injected
   objects so the graph can't drift. Unmet dependencies are `BLOCKED`, not `ERROR`.

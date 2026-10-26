@@ -3,16 +3,16 @@ import { createCommandResultMessage, createMessage, MessageType } from './messag
 
 describe('createMessage', () => {
   it('stamps a generated id, type, and payload', () => {
-    const message = createMessage(MessageType.INTEGRATION_LIST, { integrations: [] });
+    const message = createMessage(MessageType.COMMAND_LIST, { commands: [] });
 
-    expect(message.type).toBe(MessageType.INTEGRATION_LIST);
-    expect(message.payload).toEqual({ integrations: [] });
+    expect(message.type).toBe(MessageType.COMMAND_LIST);
+    expect(message.payload).toEqual({ commands: [] });
     expect(message.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(typeof message.timestamp).toBe('number');
   });
 
   it('uses the provided id instead of generating one', () => {
-    const message = createMessage(MessageType.INTEGRATION_LIST, { integrations: [] }, 'fixed-id');
+    const message = createMessage(MessageType.COMMAND_LIST, { commands: [] }, 'fixed-id');
     expect(message.id).toBe('fixed-id');
   });
 });

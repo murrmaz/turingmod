@@ -2,8 +2,10 @@ import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, isAbsolute, join, relative, sep } from 'node:path';
+import type { Duplex } from 'node:stream';
 import type { OAuthFlowService } from '../integrations/OAuthFlowService.js';
 import type { Logger } from '../utils/Logger.js';
+import { rejectUpgrade } from './consoleSockets.js';
 
 const HTML_ESCAPES: Readonly<Record<string, string>> = {
   '&': '&amp;',
@@ -69,10 +71,16 @@ function sendPage(res: ServerResponse, status: number, page: CallbackPage): void
     </html>`);
 }
 
+/** A WebSocket endpoint, given the upgrade requests for its path. */
+export interface UpgradeHandler {
+  handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void;
+}
+
 /**
  * HTTP server
- * Serves static files and handles health checks
- * WebSocket server attaches to this
+ * Serves static files and handles health checks, and hands WebSocket upgrades to the endpoint
+ * registered for their path. The `ws` library can't share one server between two endpoints by
+ * itself: each would reject the other's upgrades.
  */
 export class HttpServer {
   private server: Server | null = null;
@@ -80,6 +88,9 @@ export class HttpServer {
 
   /** OAuth callback path -> integration name, from OAuthFlowService.getCallbackRoutes() */
   private oauthCallbackRoutes = new Map<string, string>();
+
+  /** WebSocket path -> the endpoint that accepts upgrades on it */
+  private upgradeRoutes = new Map<string, UpgradeHandler>();
 
   constructor(
     private port: number,
@@ -89,6 +100,14 @@ export class HttpServer {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'HttpServer' });
+  }
+
+  /** Hand WebSocket upgrades on `path` to `handler`. */
+  routeUpgrades(path: string, handler: UpgradeHandler): void {
+    if (this.upgradeRoutes.has(path)) {
+      throw new Error(`WebSocket path already routed: ${path}`);
+    }
+    this.upgradeRoutes.set(path, handler);
   }
 
   /**
@@ -105,6 +124,16 @@ export class HttpServer {
 
     this.server = createServer(async (req, res) => {
       await this.handleRequest(req, res);
+    });
+    this.server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+      const pathname = (req.url ?? '/').split('?')[0] ?? '/';
+      const handler = this.upgradeRoutes.get(pathname);
+      if (handler) {
+        handler.handleUpgrade(req, socket, head);
+        return;
+      }
+      this.logger.warn('Rejected WebSocket upgrade: no endpoint at path', { pathname });
+      rejectUpgrade(socket, 404, 'Not Found');
     });
 
     await new Promise<void>((resolve, reject) => {

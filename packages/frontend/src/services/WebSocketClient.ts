@@ -16,6 +16,14 @@ export interface WebSocketClientConfig {
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 
+/**
+ * How long to wait before the next connection attempt, after `failedAttempts` in a row. The
+ * tRPC client retries on the same schedule, so the two connections recover together.
+ */
+export function reconnectDelay(failedAttempts: number): number {
+  return Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** failedAttempts);
+}
+
 export const NOT_CONNECTED_MESSAGE = 'Not connected to TuringMod';
 
 /**
@@ -24,6 +32,14 @@ export const NOT_CONNECTED_MESSAGE = 'Not connected to TuringMod';
  */
 export class ConnectionError extends Error {
   override name = 'ConnectionError';
+}
+
+/** Whether a request failed for want of a connection, from either client (tRPC's wraps it). */
+export function isConnectionError(error: unknown): boolean {
+  return (
+    error instanceof ConnectionError ||
+    (error instanceof Error && error.cause instanceof ConnectionError)
+  );
 }
 
 /**
@@ -210,7 +226,7 @@ export class WebSocketClient {
   private handleLoss(): void {
     this.rejectPending('Connection closed');
     this.setState('reconnecting');
-    const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** this.failedAttempts);
+    const delay = reconnectDelay(this.failedAttempts);
     this.failedAttempts += 1;
     console.log(`[WebSocket] Reconnecting in ${delay / 1000}s`);
     this.retryTimer = setTimeout(() => {

@@ -1,6 +1,12 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { DEFAULT_FRONTEND_DEV_PORT, DEFAULT_HOST, DEFAULT_SERVER_PORT, WS_PATH } from '@turingmod/shared';
+import {
+  DEFAULT_FRONTEND_DEV_PORT,
+  DEFAULT_HOST,
+  DEFAULT_SERVER_PORT,
+  TRPC_PATH,
+  WS_PATH,
+} from '@turingmod/shared';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
@@ -31,8 +37,14 @@ export default defineConfig({
     // to another port when this one is taken.
     strictPort: true,
     proxy: {
-      // The console connects to /ws on the page's own origin; in development that's this server.
+      // The console connects to /ws and /trpc on the page's own origin; in development that's
+      // this server.
       [WS_PATH]: {
+        target: `ws://${backendHost}:${backendPort}`,
+        ws: true,
+        changeOrigin: true,
+      },
+      [TRPC_PATH]: {
         target: `ws://${backendHost}:${backendPort}`,
         ws: true,
         changeOrigin: true,

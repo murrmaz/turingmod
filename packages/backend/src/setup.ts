@@ -52,11 +52,12 @@ import { HttpServer } from './server/HttpServer.js';
 import { ActivityHandler } from './server/handlers/ActivityHandler.js';
 import { CommandHandler } from './server/handlers/CommandHandler.js';
 import { DataHandler } from './server/handlers/DataHandler.js';
-import { IntegrationHandler } from './server/handlers/IntegrationHandler.js';
 import { OAuthHandler } from './server/handlers/OAuthHandler.js';
 import { PlatformHandler } from './server/handlers/PlatformHandler.js';
 import { YouTubeHandler } from './server/handlers/YouTubeHandler.js';
 import { MessageRouter } from './server/MessageRouter.js';
+import { createAppRouter } from './server/trpc/appRouter.js';
+import { TrpcServer } from './server/trpc/TrpcServer.js';
 import { WebSocketServer } from './server/WebSocketServer.js';
 import { SOUND_SETTINGS } from './sounds/soundSettings.js';
 import { TuringModConfig } from './utils/Config.js';
@@ -112,18 +113,38 @@ export function registerRootFactories(): void {
   });
 
   container.register(WebSocketServer, {
-    useFactory: instanceCachingFactory((c) => {
-      const config = c.resolve(TuringModConfig);
-      // The console served by the backend itself, or by the Vite dev server in development — the
-      // only pages ever allowed to open a WS connection to us. Either may be opened as localhost
-      // or 127.0.0.1 (both reach the same loopback server, whatever HOST is), and the browser
-      // sends whichever was typed as the origin.
-      const allowedOrigins = ['127.0.0.1', 'localhost'].flatMap((host) =>
-        [config.serverPort, DEFAULT_FRONTEND_DEV_PORT].map((port) => `http://${host}:${port}`)
-      );
-      return new WebSocketServer(c.resolve(MessageRouter), allowedOrigins, c.resolve(Logger));
-    }),
+    useFactory: instanceCachingFactory(
+      (c) =>
+        new WebSocketServer(
+          c.resolve(MessageRouter),
+          consoleOrigins(c.resolve(TuringModConfig)),
+          c.resolve(Logger)
+        )
+    ),
   });
+
+  container.register(TrpcServer, {
+    useFactory: instanceCachingFactory(
+      (c) =>
+        new TrpcServer(
+          createAppRouter(c),
+          consoleOrigins(c.resolve(TuringModConfig)),
+          c.resolve(Logger)
+        )
+    ),
+  });
+}
+
+/**
+ * The console served by the backend itself, or by the Vite dev server in development: the only
+ * pages ever allowed to open a WebSocket connection to us. Either may be opened as localhost or
+ * 127.0.0.1 (both reach the same loopback server, whatever HOST is), and the browser sends
+ * whichever was typed as the origin.
+ */
+function consoleOrigins(config: TuringModConfig): string[] {
+  return ['127.0.0.1', 'localhost'].flatMap((host) =>
+    [config.serverPort, DEFAULT_FRONTEND_DEV_PORT].map((port) => `http://${host}:${port}`)
+  );
 }
 
 /**
@@ -245,7 +266,6 @@ export async function initializeComponents(): Promise<void> {
   // Register message handlers
   const messageRouter = container.resolve(MessageRouter);
   const commandHandler = container.resolve(CommandHandler);
-  const integrationHandler = container.resolve(IntegrationHandler);
   const oauthHandler = container.resolve(OAuthHandler);
   const webSocketServer = container.resolve(WebSocketServer);
   const activityHandler = container.resolve(ActivityHandler);
@@ -258,22 +278,6 @@ export async function initializeComponents(): Promise<void> {
   );
 
   messageRouter.registerHandler(MessageType.COMMAND_LIST, (msg) => commandHandler.handleList(msg));
-
-  messageRouter.registerHandler(MessageType.INTEGRATION_START, (msg) =>
-    integrationHandler.handleStart(msg)
-  );
-
-  messageRouter.registerHandler(MessageType.INTEGRATION_STOP, (msg) =>
-    integrationHandler.handleStop(msg)
-  );
-
-  messageRouter.registerHandler(MessageType.INTEGRATION_LIST, (msg) =>
-    integrationHandler.handleList(msg)
-  );
-
-  messageRouter.registerHandler(MessageType.INTEGRATION_CONFIGURE, (msg) =>
-    integrationHandler.handleConfigure(msg)
-  );
 
   // The console's origin is where the callback page sends the streamer back to.
   messageRouter.registerHandler(MessageType.OAUTH_GET_AUTH_URL, (msg, clientId) =>

@@ -1,6 +1,5 @@
 import type { IntegrationInfo } from '@turingmod/shared';
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react';
-import { useAppState } from '@/context/AppStateContext';
 import { reportActionError } from '@/lib/reportError';
 import { OAuthModal } from './OAuthModal';
 import { OAUTH_INTEGRATION_REGISTRY } from './oauthIntegrationRegistry';
@@ -38,7 +37,6 @@ export function useOAuthFlow(): OAuthFlowContextValue {
 
 /** The OAuth setup and sign-in dialogs, which any page can start through useOAuthFlow(). */
 export function OAuthFlowProvider({ children }: { children: ReactNode }) {
-  const { refreshIntegrations } = useAppState();
   const [flow, setFlow] = useState<Flow | null>(null);
 
   const authorize = useCallback((integration: IntegrationInfo) => {
@@ -55,18 +53,13 @@ export function OAuthFlowProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const close = useCallback(() => setFlow(null), []);
-  // Refreshed so the integration reports itself configured, then connected.
   const credentialsSaved = useCallback(() => {
     setFlow((current) => current && { ...current, step: 'authorize' });
-    void refreshIntegrations();
-  }, [refreshIntegrations]);
+  }, []);
   const editCredentials = useCallback(() => {
     setFlow((current) => current && { ...current, step: 'setup' });
   }, []);
-  const authorized = useCallback(() => {
-    setFlow(null);
-    void refreshIntegrations();
-  }, [refreshIntegrations]);
+  const authorized = useCallback(() => setFlow(null), []);
 
   const value = useMemo(() => ({ authorize, changeCredentials }), [authorize, changeCredentials]);
 

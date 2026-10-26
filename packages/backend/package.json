@@ -4,7 +4,11 @@
   "description": "TuringMod backend server",
   "type": "module",
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "exports": {
+    "./trpc": {
+      "types": "./dist/server/trpc/appRouter.d.ts"
+    }
+  },
   "scripts": {
     "dev": "tsc --build && concurrently -n tsc,run -c blue,green \"tsc --build --watch --preserveWatchOutput\" \"node --watch dist/index.js\"",
     "build": "tsc --build",
@@ -26,6 +30,7 @@
   "license": "MIT",
   "dependencies": {
     "@spotify/web-api-ts-sdk": "^1.2.0",
+    "@trpc/server": "11.19.0",
     "@turingmod/shared": "*",
     "@twurple/api": "^8.0.0",
     "@twurple/api-call": "^8.0.0",

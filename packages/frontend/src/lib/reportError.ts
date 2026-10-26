@@ -1,6 +1,6 @@
 import { messageOf } from '@turingmod/shared';
 import { toast } from 'sonner';
-import { ConnectionError } from '@/services/WebSocketClient';
+import { isConnectionError } from '@/services/WebSocketClient';
 
 /**
  * Something the streamer did failed: always say so, connection loss included, so a click is never
@@ -18,7 +18,7 @@ export function reportActionError(title: string, error: unknown): void {
  */
 export function reportLoadError(title: string, error: unknown): void {
   console.error(`[console] ${title}`, error);
-  if (error instanceof ConnectionError) {
+  if (isConnectionError(error)) {
     return;
   }
   toast.error(title, { id: title, description: messageOf(error) });

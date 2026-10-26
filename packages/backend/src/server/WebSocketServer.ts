@@ -1,16 +1,20 @@
-import type { Server as HttpServer } from 'node:http';
+import type { IncomingMessage } from 'node:http';
+import type { Duplex } from 'node:stream';
 import type { IWebSocketMessage } from '@turingmod/shared';
 import { createErrorMessage, messageOf, WebSocketMessageSchema } from '@turingmod/shared';
-import { WebSocket, WebSocketServer as WSServer } from 'ws';
+import { WebSocket, type WebSocketServer as WSServer } from 'ws';
 import { z } from 'zod';
 import type { Logger } from '../utils/Logger.js';
+import { closeConsoleWss, createConsoleWss, upgradeInto } from './consoleSockets.js';
+import type { UpgradeHandler } from './HttpServer.js';
 import type { MessageRouter } from './MessageRouter.js';
 
 /**
- * WebSocket server
- * Handles WebSocket connections and message routing
+ * WebSocket server (WS_PATH)
+ * Handles WebSocket connections and message routing. HttpServer hands it the upgrade requests
+ * for its path.
  */
-export class WebSocketServer {
+export class WebSocketServer implements UpgradeHandler {
   private wss: WSServer | null = null;
   private clients = new Map<string, WebSocket>();
   /** Each connected client's Origin header, which verifyClient has already allowed. */
@@ -19,13 +23,7 @@ export class WebSocketServer {
 
   constructor(
     private messageRouter: MessageRouter,
-    /**
-     * Origins allowed to open a WebSocket connection. Browsers don't apply
-     * same-origin restrictions to WebSocket connections, so without this
-     * check any page open in the user's browser — regardless of which site
-     * served it — could connect and receive broadcasts (cross-site
-     * WebSocket hijacking). Binding to localhost does not prevent this.
-     */
+    /** Origins allowed to open a WebSocket connection (see allowOnlyOrigins). */
     private allowedOrigins: string[],
     logger: Logger
   ) {
@@ -33,30 +31,22 @@ export class WebSocketServer {
   }
 
   /**
-   * Start the WebSocket server attached to HTTP server
+   * Start the WebSocket server
    */
-  start(httpServer: HttpServer): void {
+  start(): void {
     this.logger.debug('Starting WebSocket server', { allowedOrigins: this.allowedOrigins });
 
-    this.wss = new WSServer({
-      server: httpServer,
-      path: '/ws',
-      verifyClient: ({ origin }, callback) => {
-        if (origin && this.allowedOrigins.includes(origin)) {
-          callback(true);
-          return;
-        }
-
-        this.logger.warn('Rejected WebSocket connection: disallowed origin', { origin });
-        callback(false, 403, 'Forbidden');
-      },
-    });
+    this.wss = createConsoleWss(this.allowedOrigins, this.logger);
 
     this.wss.on('connection', (ws: WebSocket, request) => {
       this.handleConnection(ws, request.headers.origin);
     });
 
     this.logger.info('WebSocket server started');
+  }
+
+  handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void {
+    upgradeInto(this.wss, request, socket, head);
   }
 
   /**
@@ -191,19 +181,12 @@ export class WebSocketServer {
   async stop(): Promise<void> {
     this.logger.info('Stopping WebSocket server');
 
-    // Close all client connections
-    for (const client of this.clients.values()) {
-      client.close();
+    const wss = this.wss;
+    this.wss = null;
+    if (wss) {
+      await closeConsoleWss(wss);
     }
     this.clients.clear();
-
-    // Close server
-    if (this.wss) {
-      await new Promise<void>((resolve) => {
-        this.wss?.close(() => resolve());
-      });
-      this.wss = null;
-    }
 
     this.logger.info('WebSocket server stopped');
   }

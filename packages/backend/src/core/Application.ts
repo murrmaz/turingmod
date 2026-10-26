@@ -1,12 +1,14 @@
 import {
-  createIntegrationStatusMessage,
   createOAuthResultMessage,
   createYouTubeChatStateMessage,
+  TRPC_PATH,
+  WS_PATH,
 } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { DatabaseManager } from '../database/DatabaseManager.js';
 import { IntegrationManager } from '../integrations/IntegrationManager.js';
 import { HttpServer } from '../server/HttpServer.js';
+import { TrpcServer } from '../server/trpc/TrpcServer.js';
 import { WebSocketServer } from '../server/WebSocketServer.js';
 import { Logger } from '../utils/Logger.js';
 import { EventBus } from './EventBus.js';
@@ -24,6 +26,7 @@ export class Application {
     private databaseManager: DatabaseManager,
     private httpServer: HttpServer,
     private webSocketServer: WebSocketServer,
+    private trpcServer: TrpcServer,
     private integrationManager: IntegrationManager,
     private eventBus: EventBus,
     private services: ServiceLifecycle,
@@ -54,22 +57,21 @@ export class Application {
   async start(): Promise<void> {
     this.logger.info('Starting TuringMod...');
 
-    // 1. Forward events to the console before anything can emit them. A console left open
-    //    across a restart reconnects as soon as the WebSocket server is up and fetches the
-    //    integration list then; the status changes from integrations connecting come after,
-    //    and reach it only if this is already listening.
+    // 1. Forward events to the console before anything can emit them: a console left open
+    //    across a restart reconnects as soon as the HTTP server is up.
     this.setupEventHandlers();
 
-    // 2. Start HTTP server
+    // 2. Start the WebSocket endpoints, then the HTTP server that hands them their upgrades
+    this.webSocketServer.start();
+    this.trpcServer.start();
+    this.httpServer.routeUpgrades(WS_PATH, this.webSocketServer);
+    this.httpServer.routeUpgrades(TRPC_PATH, this.trpcServer);
     await this.httpServer.start();
 
-    // 3. Attach WebSocket server to HTTP server
-    this.webSocketServer.start(this.httpServer.getServer());
-
-    // 4. Start feature services, before integrations so they see what connecting changes
+    // 3. Start feature services, before integrations so they see what connecting changes
     await this.services.startAll();
 
-    // 5. Start enabled integrations
+    // 4. Start enabled integrations
     this.logger.info('Starting enabled integrations');
     await this.integrationManager.startEnabledIntegrations();
 
@@ -80,18 +82,8 @@ export class Application {
    * Set up global event handlers
    */
   private setupEventHandlers(): void {
-    // Integration status changes
-    this.eventBus.on('integration.status', (data) => {
-      this.logger.debug('Integration status changed', data);
-
-      // Get full integration info with metadata from IntegrationManager
-      const integrationInfo = this.integrationManager.getStatus(data.name);
-
-      if (integrationInfo) {
-        // Broadcast complete status to all WebSocket clients (using protocol contract)
-        this.webSocketServer.broadcast(createIntegrationStatusMessage(integrationInfo));
-      }
-    });
+    // Integration status changes reach the console through the `integrations.watch`
+    // subscription (server/trpc/integrationsRouter.ts).
 
     // YouTube chat lifecycle: idle → resolving → streaming. Broadcast so the console's go-live
     // control shows whether chat actually connected, not just that the request was accepted.
@@ -124,8 +116,8 @@ export class Application {
     // 2. Stop integrations
     await this.integrationManager.stopAll();
 
-    // 3. Stop WebSocket server
-    await this.webSocketServer.stop();
+    // 3. Stop the WebSocket endpoints
+    await Promise.all([this.webSocketServer.stop(), this.trpcServer.stop()]);
 
     // 4. Stop HTTP server
     await this.httpServer.stop();

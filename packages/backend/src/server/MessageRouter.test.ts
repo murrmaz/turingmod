@@ -19,18 +19,18 @@ function errorOf(response: IWebSocketMessage | null): ErrorPayload {
   return response.payload as ErrorPayload;
 }
 
-function routerWithStartHandler() {
+function routerWithAuthUrlHandler() {
   const router = new MessageRouter(new Logger({ level: 'silent' }));
   const handler = vi.fn((_message: IWebSocketMessage, _clientId: string) => Promise.resolve(null));
-  router.registerHandler(MessageType.INTEGRATION_START, handler);
+  router.registerHandler(MessageType.OAUTH_GET_AUTH_URL, handler);
   return { router, handler };
 }
 
 describe('MessageRouter', () => {
   it('hands a valid payload to its handler', async () => {
-    const { router, handler } = routerWithStartHandler();
+    const { router, handler } = routerWithAuthUrlHandler();
 
-    await router.route(message(MessageType.INTEGRATION_START, { integrationName: 'obs' }), 'c1');
+    await router.route(message(MessageType.OAUTH_GET_AUTH_URL, { integrationName: 'obs' }), 'c1');
 
     expect(handler).toHaveBeenCalledWith(
       expect.objectContaining({ payload: { integrationName: 'obs' } }),
@@ -39,10 +39,10 @@ describe('MessageRouter', () => {
   });
 
   it('answers a malformed payload with INVALID_PAYLOAD naming the field, without calling the handler', async () => {
-    const { router, handler } = routerWithStartHandler();
+    const { router, handler } = routerWithAuthUrlHandler();
 
     const response = await router.route(
-      message(MessageType.INTEGRATION_START, { integrationName: 42 }),
+      message(MessageType.OAUTH_GET_AUTH_URL, { integrationName: 42 }),
       'c1'
     );
 
@@ -54,10 +54,10 @@ describe('MessageRouter', () => {
   });
 
   it('rejects a payload carrying a field its schema does not declare', async () => {
-    const { router, handler } = routerWithStartHandler();
+    const { router, handler } = routerWithAuthUrlHandler();
 
     const response = await router.route(
-      message(MessageType.INTEGRATION_START, { integrationName: 'obs', force: true }),
+      message(MessageType.OAUTH_GET_AUTH_URL, { integrationName: 'obs', force: true }),
       'c1'
     );
 
@@ -66,7 +66,7 @@ describe('MessageRouter', () => {
   });
 
   it('answers a type with no handler with UNKNOWN_MESSAGE_TYPE', async () => {
-    const { router } = routerWithStartHandler();
+    const { router } = routerWithAuthUrlHandler();
 
     const response = await router.route(message(MessageType.COMMAND_RESULT, {}), 'c1');
 

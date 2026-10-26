@@ -29,7 +29,7 @@ export function useIntegrationActions() {
   const { integrations, startIntegration, stopIntegration, getMissingDependencies } =
     useIntegrations();
 
-  const { authorize: handleAuthorize } = useOAuthFlow();
+  const { authorize: handleAuthorize, changeCredentials: handleChangeCredentials } = useOAuthFlow();
   const [loadingIntegration, setLoadingIntegration] = useState<string | null>(null);
 
   const handleStart = useCallback(
@@ -92,6 +92,7 @@ export function useIntegrationActions() {
 
   return {
     handleAuthorize,
+    handleChangeCredentials,
     handleStart,
     handleStop,
     getActionState,

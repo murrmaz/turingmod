@@ -1,5 +1,5 @@
 import { OAuthClientCredentialsSchema } from '@turingmod/shared';
-import { ExternalLink, ShieldCheck } from 'lucide-react';
+import { ExternalLink, Info, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,9 +23,10 @@ export function SetupModal({ provider, onDismiss, onSaved }: SetupModalProps) {
   const { integrations } = useAppState();
   // Reported by the backend, which derives it from its own port and the one loopback host each
   // provider accepts for plain HTTP; never built or sent back by the console.
-  const redirectUri =
-    integrations.find((integration) => integration.name === provider.integrationName)?.oauth
-      ?.redirectUri ?? 'unavailable until the backend is connected';
+  const oauth = integrations.find(
+    (integration) => integration.name === provider.integrationName
+  )?.oauth;
+  const redirectUri = oauth?.redirectUri ?? 'unavailable until the backend is connected';
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const parsed = OAuthClientCredentialsSchema.safeParse({
@@ -42,11 +43,20 @@ export function SetupModal({ provider, onDismiss, onSaved }: SetupModalProps) {
       saveLabel="Save & continue"
       failureMessage="Failed to save credentials"
       footnote={
-        <p className="flex gap-2 text-xs text-muted-foreground">
-          <ShieldCheck className="size-4 shrink-0" />
-          Credentials are encrypted with AES-256-GCM and stored on this computer, and only ever sent
-          to {provider.displayName}'s official API.
-        </p>
+        <>
+          {oauth?.configured && (
+            <p className="flex gap-2 text-xs text-muted-foreground">
+              <Info className="size-4 shrink-0" />
+              Saving replaces the credentials already saved and signs TuringMod out of{' '}
+              {provider.displayName}, so you'll authorize again with the new ones.
+            </p>
+          )}
+          <p className="flex gap-2 text-xs text-muted-foreground">
+            <ShieldCheck className="size-4 shrink-0" />
+            Credentials are encrypted with AES-256-GCM and stored on this computer, and only ever
+            sent to {provider.displayName}'s official API.
+          </p>
+        </>
       }
       onDismiss={onDismiss}
       onSaved={onSaved}

@@ -79,6 +79,14 @@ describe('ObsIntegration', () => {
     vi.useRealTimers();
   });
 
+  it("reports the address it connects to for the setup dialog, and OBS's default without one", async () => {
+    expect(integration.getAddress()).toBe('ws://127.0.0.1:4455');
+
+    await integration.initialize({ url: 'ws://192.168.1.20:4455', password: 'hunter2' });
+
+    expect(integration.getAddress()).toBe('ws://192.168.1.20:4455');
+  });
+
   it('forwards each OBS event once, however often it has reconnected', async () => {
     const changed = vi.fn();
     eventBus.on('obs.scene.changed', changed);

@@ -14,6 +14,7 @@ export * from './types/data.js';
 export * from './types/discord.js';
 export * from './types/integration.js';
 export * from './types/live.js';
+export * from './types/obs.js';
 // Types
 export * from './types/user.js';
 // Utilities

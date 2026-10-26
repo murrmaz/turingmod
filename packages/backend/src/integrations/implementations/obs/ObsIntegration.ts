@@ -1,7 +1,12 @@
-import { IntegrationName, IntegrationStatus, messageOf } from '@turingmod/shared';
+import {
+  IntegrationName,
+  IntegrationStatus,
+  messageOf,
+  type ObsConfig,
+  ObsConfigSchema,
+} from '@turingmod/shared';
 import OBSWebSocket, { type OBSResponseTypes } from 'obs-websocket-js';
 import { singleton } from 'tsyringe';
-import { z } from 'zod';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
@@ -56,17 +61,6 @@ export interface ObsSceneItem {
   groupUuid: string | undefined;
 }
 
-const DEFAULT_OBS_URL = 'ws://127.0.0.1:4455';
-
-const ObsConfigSchema = z.strictObject({
-  /** obs-websocket's address. Omitted = OBS's default on this machine. */
-  url: z.url({ protocol: /^wss?$/ }).default(DEFAULT_OBS_URL),
-  /** obs-websocket's server password. Omitted = authentication is off in OBS. */
-  password: z.string().min(1).exactOptional(),
-});
-
-type ObsConfig = z.infer<typeof ObsConfigSchema>;
-
 /** obs-websocket RequestStatus.UnknownRequestType: the connected OBS predates the request. */
 const OBS_UNKNOWN_REQUEST_TYPE = 204;
 
@@ -113,6 +107,11 @@ export class ObsIntegration extends BaseIntegration {
 
     this.logger.debug('OBS integration initialized', { url: this.config.url });
     return Promise.resolve();
+  }
+
+  /** obs-websocket's address, so the setup dialog can show the one in use. Never the password. */
+  override getAddress(): string {
+    return this.config.url;
   }
 
   /**
@@ -191,8 +190,8 @@ export class ObsIntegration extends BaseIntegration {
     switch (error.code) {
       case OBS_CLOSE_AUTHENTICATION_FAILED:
         return this.config.password === undefined
-          ? "OBS requires a password, and TuringMod's OBS settings have none"
-          : 'OBS rejected the password: check the obs-websocket password';
+          ? 'OBS requires a password: enter the obs-websocket password in Set up'
+          : 'OBS rejected the password: check the obs-websocket password in Set up';
       case OBS_CLOSE_UNSUPPORTED_RPC_VERSION:
         return "OBS's obs-websocket is too old for TuringMod: update OBS";
       case OBS_CLOSE_SESSION_INVALIDATED:

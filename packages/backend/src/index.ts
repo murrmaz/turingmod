@@ -17,6 +17,7 @@ async function main(): Promise<void> {
 
   // Get logger
   const logger = container.resolve(Logger);
+  handleProcessEvents(logger);
 
   logger.info('========================================');
   logger.info('               TuringMod                ');
@@ -30,34 +31,51 @@ async function main(): Promise<void> {
   await initializeComponents();
 
   // Get application instance
-  const app = container.resolve(Application);
+  const application = container.resolve(Application);
+  app = application;
 
-  // Initialize application (load integrations from database)
-  await app.initialize();
+  // Initialize application (load integrations from database), then start it (servers,
+  // integrations)
+  startup = application.initialize().then(() => application.start());
+  await startup;
+}
 
-  // Start application (servers, integrations)
-  await app.start();
+/** The application, once resolved, and its startup, so a signal can wait for what's starting. */
+let app: Application | null = null;
+let startup: Promise<void> = Promise.resolve();
+let shuttingDown = false;
 
-  // Graceful shutdown handlers
-  process.on('SIGINT', async () => {
-    logger.info('Received SIGINT, shutting down gracefully...');
-    await app.stop();
-    process.exit(0);
-  });
+/**
+ * Shut down gracefully on SIGINT/SIGTERM, and exit on a crash. Installed before anything starts,
+ * so a signal during startup still stops what has started (once it has), rather than killing the
+ * process with a break or effect half applied. Stops once: a second signal while stopping exits
+ * at once, for a shutdown that hangs.
+ */
+function handleProcessEvents(logger: Logger): void {
+  const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
+    if (shuttingDown) {
+      logger.warn(`Received ${signal} again, exiting without finishing shutdown`);
+      process.exit(1);
+    }
+    shuttingDown = true;
+    logger.info(`Received ${signal}, shutting down gracefully...`);
+    try {
+      await startup.catch(() => undefined);
+      await app?.stop();
+      process.exit(0);
+    } catch (error) {
+      logger.fatal('Shutdown failed', error);
+      process.exit(1);
+    }
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 
-  process.on('SIGTERM', async () => {
-    logger.info('Received SIGTERM, shutting down gracefully...');
-    await app.stop();
-    process.exit(0);
-  });
-
-  // Uncaught exception handler
   process.on('uncaughtException', (error: Error) => {
     logger.fatal('Uncaught exception', error);
     process.exit(1);
   });
 
-  // Unhandled rejection handler
   process.on('unhandledRejection', (reason: unknown) => {
     logger.fatal('Unhandled rejection', reason);
     process.exit(1);

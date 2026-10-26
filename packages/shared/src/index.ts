@@ -16,6 +16,7 @@ export * from './types/arduino.js';
 export * from './types/command.js';
 export * from './types/discord.js';
 export * from './types/integration.js';
+export * from './types/live.js';
 // Types
 export * from './types/user.js';
 // Utilities

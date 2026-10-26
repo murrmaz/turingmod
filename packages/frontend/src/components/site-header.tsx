@@ -15,7 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { formatUptime } from '@/constants/activityFormat';
 import { pageAt } from '@/constants/pages';
-import { useWebSocketContext } from '@/context/WebSocketContext';
+import { useTrpcConnection } from '@/context/TrpcContext';
 import { useNow, usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import { useYouTubeChat } from '@/hooks/useYouTubeChat';
 import { reportActionError } from '@/lib/reportError';
@@ -61,7 +61,7 @@ export function SiteHeader({ onOpenPalette }: { onOpenPalette: () => void }) {
  * it says so rather than showing the last state with an uptime still counting.
  */
 function BadgeBody({ state, now }: { state: PlatformLiveState; now: number }) {
-  const { isConnected } = useWebSocketContext();
+  const isConnected = useTrpcConnection().connectionState === 'connected';
   if (!isConnected) {
     return (
       <>
@@ -108,7 +108,7 @@ const CHAT_STATE_TEXT = {
  */
 function YouTubeBadge({ state, now }: { state: PlatformLiveState; now: number }) {
   const chat = useYouTubeChat();
-  const { isConnected } = useWebSocketContext();
+  const isConnected = useTrpcConnection().connectionState === 'connected';
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className={cn(BADGE_CLASS, 'hover:bg-accent')}>

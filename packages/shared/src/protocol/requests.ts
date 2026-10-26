@@ -95,10 +95,6 @@ export const REQUEST_PAYLOAD_SCHEMAS = {
   [MessageType.COMMAND_LIST]: CommandListRequestPayloadSchema,
   [MessageType.OAUTH_GET_AUTH_URL]: OAuthGetAuthUrlPayloadSchema,
   [MessageType.ACTIVITY_QUERY]: ActivityQueryPayloadSchema,
-  [MessageType.YOUTUBE_GO_LIVE]: EmptyPayloadSchema,
-  [MessageType.YOUTUBE_GO_OFFLINE]: EmptyPayloadSchema,
-  [MessageType.YOUTUBE_GET_CHAT_STATE]: EmptyPayloadSchema,
-  [MessageType.PLATFORM_GET_LIVE_STATE]: EmptyPayloadSchema,
   [MessageType.DATA_LIST_TABLES]: EmptyPayloadSchema,
   [MessageType.DATA_QUERY_ROWS]: DataQueryRowsPayloadSchema,
 } as const satisfies Partial<Record<MessageType, z.ZodType>>;

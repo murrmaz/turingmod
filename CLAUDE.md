@@ -50,8 +50,8 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Implementations**: `packages/backend/src/integrations/implementations/*/` (Twitch, YouTube, Spotify, OBS, Sound, Discord, Arduino)
 - **Arduino**: `packages/backend/src/integrations/implementations/arduino/ArduinoIntegration.ts` (WebSocket client to a Wi-Fi board) + `arduinoProtocol.ts` (message schemas); the protocol spec and a reference ESP32 sketch for the firmware side are in `firmware/` (`firmware/README.md`)
 - **YouTube chat stream client**: `packages/backend/src/integrations/implementations/youtube/YouTubeChatStream.ts` + the response frame splitter `parseJsonFrames.ts` beside it
-- **Console API**: `packages/backend/src/server/trpc/integrationsRouter.ts` (tRPC: `integrations.watch` subscription, `start`/`stop`/`configure`)
-- **WebSocket Handlers**: `packages/backend/src/server/handlers/OAuthHandler.ts`, `YouTubeHandler.ts`, `PlatformHandler.ts` (live state)
+- **Console API**: `packages/backend/src/server/trpc/integrationsRouter.ts` (tRPC: `integrations.watch` subscription, `start`/`stop`/`configure`), `youtubeChatRouter.ts` (`youtubeChat.watch`, `goLive`/`goOffline`), `liveStateRouter.ts` (`liveState.watch`)
+- **WebSocket Handlers**: `packages/backend/src/server/handlers/OAuthHandler.ts`
 - **Types & Enums**: `packages/shared/src/types/integration.ts`
 
 ### Commands System
@@ -104,7 +104,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 ### Going Live
 - **OBS stream state**: `packages/backend/src/live/ObsStreamState.ts` — whether OBS is streaming; publishes `stream.output.changed`, platform-neutral
 - **YouTube chat auto-connect**: `packages/backend/src/live/YouTubeChatAutoConnect.ts` — connects YouTube chat while OBS streams
-- **Platform live state**: `packages/backend/src/live/PlatformLiveStatus.ts` — whether each platform is live and since when, pushed to the console as `platform.liveState` and published on the bus as `platform.liveState` on going live/offline; event-driven, never polled
+- **Platform live state**: `packages/backend/src/live/PlatformLiveStatus.ts` — whether each platform is live and since when, sent to the console through `liveState.watch` (`onChange()`) and published on the bus as `platform.liveState` on going live/offline; event-driven, never polled
 - **Discord go-live post**: `packages/backend/src/live/GoLiveAnnouncer.ts` (when to post, edit and end) + `goLivePost.ts` (what it says, and the stored shape); the open post is kept by `database/repositories/GoLivePostRepository.ts`; sent through `integrations/implementations/discord/DiscordIntegration.ts` (bot token over REST)
 
 ### Stream Breaks
@@ -155,7 +155,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Integration actions**: `packages/frontend/src/hooks/useIntegrationActions.ts` (Start/Stop/OAuth/Reconnect decisions, shared by the Integrations page and the dashboard)
 - **Command Hooks**: `packages/frontend/src/hooks/useCommands.ts`
 - **YouTube chat control**: `packages/frontend/src/hooks/useYouTubeChat.ts`, in the YouTube badge's menu in `components/site-header.tsx`
-- **Platform live badges**: `packages/frontend/src/hooks/usePlatformLiveState.ts`; backend `live/PlatformLiveStatus.ts` (pushes `platform.liveState`) + `server/handlers/PlatformHandler.ts`
+- **Platform live badges**: `packages/frontend/src/hooks/usePlatformLiveState.ts`; backend `live/PlatformLiveStatus.ts` + `server/trpc/liveStateRouter.ts`
 
 ## Architecture
 
@@ -184,7 +184,7 @@ Triggers (chat, redemptions, raids) go last in the list so they stop first: noth
 break or an effect while those are being restored. Each service keeps its bus subscriptions in a
 `Subscriptions` and clears them in `stop()`.
 
-**Message routing** (the legacy protocol, being replaced by tRPC; see Console ↔ Backend Protocol below): WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes (`CommandHandler`, `OAuthHandler`, `ActivityHandler`, `YouTubeHandler`, `PlatformHandler`, `DataHandler`, registered in `setup.ts`) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
+**Message routing** (the legacy protocol, being replaced by tRPC; see Console ↔ Backend Protocol below): WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes (`CommandHandler`, `OAuthHandler`, `ActivityHandler`, `DataHandler`, registered in `setup.ts`) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
 
 **EventBus.** Integrations, services and the server communicate through `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
 `emit()` calls handlers in subscription order but runs async ones concurrently, and resolves once
@@ -231,7 +231,7 @@ requests move from the first to the second as the console is rebuilt:
   other consoles get it through the subscription. A malformed input is a `BAD_REQUEST`; a handler that
   throws reaches the console as its error message. Requests made while disconnected fail at once
   (`failWhileDisconnected`), as on the legacy client: a click during an outage never runs later.
-  Migrated so far: integrations.
+  Migrated so far: integrations, platform live state, YouTube chat.
 - **Legacy** (`WS_PATH`, `/ws`) — everything not yet migrated, described below. Don't add new
   requests here; when migrating one, delete its `MessageType`, schema, payload types and handler.
 

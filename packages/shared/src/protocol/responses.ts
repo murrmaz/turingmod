@@ -9,8 +9,6 @@ import type {
   MessageType,
   OAuthAuthUrlResponsePayload,
   OAuthResultPayload,
-  PlatformLiveStatePayload,
-  YouTubeChatStatePayload,
 } from './messages.js';
 import type { RequestType } from './requests.js';
 
@@ -26,8 +24,6 @@ export interface ServerPayloads {
   [MessageType.ERROR]: ErrorPayload;
   [MessageType.OAUTH_AUTH_URL_RESPONSE]: OAuthAuthUrlResponsePayload;
   [MessageType.OAUTH_RESULT]: OAuthResultPayload;
-  [MessageType.YOUTUBE_CHAT_STATE]: YouTubeChatStatePayload;
-  [MessageType.PLATFORM_LIVE_STATE]: PlatformLiveStatePayload;
   [MessageType.DATA_TABLES]: DataTablesPayload;
   [MessageType.DATA_ROWS]: DataRowsPayload;
 }
@@ -44,10 +40,6 @@ export interface ResponseTypes {
   [MessageType.COMMAND_LIST]: MessageType.COMMAND_LIST;
   [MessageType.OAUTH_GET_AUTH_URL]: MessageType.OAUTH_AUTH_URL_RESPONSE;
   [MessageType.ACTIVITY_QUERY]: MessageType.ACTIVITY_LIST;
-  [MessageType.YOUTUBE_GO_LIVE]: MessageType.YOUTUBE_CHAT_STATE;
-  [MessageType.YOUTUBE_GO_OFFLINE]: MessageType.YOUTUBE_CHAT_STATE;
-  [MessageType.YOUTUBE_GET_CHAT_STATE]: MessageType.YOUTUBE_CHAT_STATE;
-  [MessageType.PLATFORM_GET_LIVE_STATE]: MessageType.PLATFORM_LIVE_STATE;
   [MessageType.DATA_LIST_TABLES]: MessageType.DATA_TABLES;
   [MessageType.DATA_QUERY_ROWS]: MessageType.DATA_ROWS;
 }

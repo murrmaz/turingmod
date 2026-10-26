@@ -1,19 +1,17 @@
 import type { PlatformLiveState } from '@turingmod/shared';
-import { MessageType } from '@turingmod/shared';
 import { useEffect, useState } from 'react';
-import { useServerState } from './useServerState';
+import { useSubscription } from './useSubscription';
 
 const NO_PLATFORMS: PlatformLiveState[] = [];
 
-/** Whether each platform is live and since when, as the backend last pushed it. */
+/** Whether each platform is live and since when, as the backend last sent it. */
 export function usePlatformLiveState(): PlatformLiveState[] {
-  return useServerState(MessageType.PLATFORM_GET_LIVE_STATE, {
-    payload: {},
-    initial: NO_PLATFORMS,
-    onReply: (reply) => reply.platforms,
-    push: { type: MessageType.PLATFORM_LIVE_STATE, apply: (payload) => payload.platforms },
-    errorTitle: "Couldn't read whether you're live",
-  }).state;
+  const [platforms] = useSubscription(
+    (trpc, on) => trpc.liveState.watch.subscribe(undefined, on),
+    NO_PLATFORMS,
+    "Couldn't read whether you're live"
+  );
+  return platforms;
 }
 
 /** The current time, updated every second, for uptimes that tick. */

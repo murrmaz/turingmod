@@ -1,8 +1,7 @@
 import type { YouTubeChatState } from '@turingmod/shared';
-import { MessageType } from '@turingmod/shared';
 import { useCallback, useState } from 'react';
-import { useWebSocketContext } from '@/context/WebSocketContext';
-import { useServerState } from './useServerState';
+import { useTrpc } from '@/context/TrpcContext';
+import { useSubscription } from './useSubscription';
 
 const NOT_CONNECTED: YouTubeChatState = 'idle';
 
@@ -13,34 +12,36 @@ const NOT_CONNECTED: YouTubeChatState = 'idle';
  * server, so the backend idles until something tells it to look for one. OBS does that
  * automatically when it starts streaming; this hook is the manual path for when OBS isn't running.
  *
- * The backend broadcasts every lifecycle transition, so `state` tracks whether chat is actually
+ * The backend sends every lifecycle transition, so `state` tracks whether chat is actually
  * connected rather than just whether the request was accepted.
  */
 export function useYouTubeChat() {
-  const { request } = useWebSocketContext();
+  const trpc = useTrpc();
   const [pending, setPending] = useState(false);
-  const { state } = useServerState(MessageType.YOUTUBE_GET_CHAT_STATE, {
-    payload: {},
-    initial: NOT_CONNECTED,
-    onReply: (reply) => reply.state,
-    push: { type: MessageType.YOUTUBE_CHAT_STATE, apply: (payload) => payload.state },
-    errorTitle: "Couldn't read the YouTube chat state",
-  });
+  const [state, showState] = useSubscription(
+    (client, on) => client.youtubeChat.watch.subscribe(undefined, on),
+    NOT_CONNECTED,
+    "Couldn't read the YouTube chat state"
+  );
 
+  /** Run a request, showing the state it answers with as soon as it does. */
   const send = useCallback(
-    async (type: MessageType.YOUTUBE_GO_LIVE | MessageType.YOUTUBE_GO_OFFLINE): Promise<void> => {
+    async (mutate: () => Promise<YouTubeChatState>): Promise<void> => {
       setPending(true);
       try {
-        await request(type, {});
+        showState(await mutate());
       } finally {
         setPending(false);
       }
     },
-    [request]
+    [showState]
   );
 
-  const goLive = useCallback(() => send(MessageType.YOUTUBE_GO_LIVE), [send]);
-  const goOffline = useCallback(() => send(MessageType.YOUTUBE_GO_OFFLINE), [send]);
+  const goLive = useCallback(() => send(() => trpc.youtubeChat.goLive.mutate()), [send, trpc]);
+  const goOffline = useCallback(
+    () => send(() => trpc.youtubeChat.goOffline.mutate()),
+    [send, trpc]
+  );
 
   return { state, pending, goLive, goOffline };
 }

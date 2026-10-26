@@ -53,8 +53,6 @@ import { ActivityHandler } from './server/handlers/ActivityHandler.js';
 import { CommandHandler } from './server/handlers/CommandHandler.js';
 import { DataHandler } from './server/handlers/DataHandler.js';
 import { OAuthHandler } from './server/handlers/OAuthHandler.js';
-import { PlatformHandler } from './server/handlers/PlatformHandler.js';
-import { YouTubeHandler } from './server/handlers/YouTubeHandler.js';
 import { MessageRouter } from './server/MessageRouter.js';
 import { createAppRouter } from './server/trpc/appRouter.js';
 import { TrpcServer } from './server/trpc/TrpcServer.js';
@@ -269,8 +267,6 @@ export async function initializeComponents(): Promise<void> {
   const oauthHandler = container.resolve(OAuthHandler);
   const webSocketServer = container.resolve(WebSocketServer);
   const activityHandler = container.resolve(ActivityHandler);
-  const youtubeHandler = container.resolve(YouTubeHandler);
-  const platformHandler = container.resolve(PlatformHandler);
   const dataHandler = container.resolve(DataHandler);
 
   messageRouter.registerHandler(MessageType.COMMAND_SIMULATE, (msg) =>
@@ -286,22 +282,6 @@ export async function initializeComponents(): Promise<void> {
 
   messageRouter.registerHandler(MessageType.ACTIVITY_QUERY, (msg) =>
     activityHandler.handleQuery(msg)
-  );
-
-  messageRouter.registerHandler(MessageType.YOUTUBE_GO_LIVE, (msg) =>
-    youtubeHandler.handleGoLive(msg)
-  );
-
-  messageRouter.registerHandler(MessageType.YOUTUBE_GO_OFFLINE, (msg) =>
-    youtubeHandler.handleGoOffline(msg)
-  );
-
-  messageRouter.registerHandler(MessageType.YOUTUBE_GET_CHAT_STATE, (msg) =>
-    youtubeHandler.handleGetState(msg)
-  );
-
-  messageRouter.registerHandler(MessageType.PLATFORM_GET_LIVE_STATE, (msg) =>
-    platformHandler.handleGetLiveState(msg)
   );
 
   messageRouter.registerHandler(MessageType.DATA_LIST_TABLES, (msg) =>

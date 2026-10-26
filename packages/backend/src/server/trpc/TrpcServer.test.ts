@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import { EventBus } from '../../core/EventBus.js';
 import { IntegrationManager } from '../../integrations/IntegrationManager.js';
+import { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import type { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
+import { PlatformLiveStatus } from '../../live/PlatformLiveStatus.js';
 import { Logger } from '../../utils/Logger.js';
 import { HttpServer } from '../HttpServer.js';
 import { createAppRouter } from './appRouter.js';
@@ -40,6 +42,11 @@ describe('TrpcServer', () => {
     child.registerInstance(IntegrationManager, manager as unknown as IntegrationManager);
     child.registerInstance(EventBus, new EventBus(logger));
     child.registerInstance(Logger, logger);
+    // The router's other areas, which these tests don't call.
+    child.registerInstance(PlatformLiveStatus, {
+      onChange: () => () => {},
+    } as unknown as PlatformLiveStatus);
+    child.registerInstance(YouTubeChatIntegration, {} as YouTubeChatIntegration);
 
     const trpc = new TrpcServer(createAppRouter(child), [CONSOLE], logger);
     const oauthFlow = { getCallbackRoutes: () => [] } as unknown as OAuthFlowService;

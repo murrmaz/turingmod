@@ -1,4 +1,3 @@
-import type { StreamingPlatform } from '../constants/platform.js';
 import type { ActivityLogEntry } from '../types/activity.js';
 import type { CommandInfo, ExecutionResult } from '../types/command.js';
 
@@ -30,7 +29,7 @@ export enum MessageType {
   COMMAND_RESULT = 'command.result',
   COMMAND_LIST = 'command.list',
 
-  // Integrations are served by the tRPC router (TRPC_PATH): integrations.watch/start/stop/configure
+  // Served by the tRPC router (TRPC_PATH) instead: integrations, liveState, youtubeChat
 
   // Server → Client: Event notifications
   EVENT_NOTIFICATION = 'event.notification',
@@ -48,17 +47,6 @@ export enum MessageType {
   OAUTH_GET_AUTH_URL = 'oauth.getAuthUrl',
   OAUTH_AUTH_URL_RESPONSE = 'oauth.authUrlResponse',
   OAUTH_RESULT = 'oauth.result', // Server → Client (broadcast): an authorization finished
-
-  // YouTube chat go-live control. YouTube has no push notification for "a broadcast started"
-  // (see YouTubeChatIntegration), so the console can tell the backend to go look for one.
-  YOUTUBE_GO_LIVE = 'youtube.goLive', // Client → Server: connect to the active broadcast's chat
-  YOUTUBE_GO_OFFLINE = 'youtube.goOffline', // Client → Server: disconnect from chat
-  YOUTUBE_GET_CHAT_STATE = 'youtube.getChatState', // Client → Server: read current state on load
-  YOUTUBE_CHAT_STATE = 'youtube.chatState', // Server → Client: idle / resolving / streaming
-
-  // Whether each platform is broadcasting, and since when, for the console's header badges.
-  PLATFORM_GET_LIVE_STATE = 'platform.getLiveState', // Client → Server: read current state on load
-  PLATFORM_LIVE_STATE = 'platform.liveState', // Server → Client: pushed on every change
 
   // Read-only database inspector (the console's Data page).
   DATA_LIST_TABLES = 'data.listTables', // Client → Server
@@ -86,38 +74,6 @@ export interface CommandResultPayload {
 
   /** Whether this was a simulation */
   isSimulation: boolean;
-}
-
-/**
- * Where the YouTube chat integration is in its lifecycle. `IntegrationStatus` only says whether the
- * integration is enabled; this says whether chat is actually connected.
- *
- * - `idle` — running, but waiting for a go-live signal
- * - `resolving` — a signal arrived; looking for an active broadcast's liveChatId
- * - `streaming` — connected to live chat and receiving messages
- */
-export type YouTubeChatState = 'idle' | 'resolving' | 'streaming';
-
-/**
- * YouTube chat state payload (server → client).
- */
-export interface YouTubeChatStatePayload {
-  state: YouTubeChatState;
-}
-
-/**
- * Whether one platform is broadcasting. `startedAt` (epoch ms) is null when offline, or when the
- * platform hasn't reported a start time yet.
- */
-export interface PlatformLiveState {
-  platform: StreamingPlatform;
-  live: boolean;
-  startedAt: number | null;
-}
-
-/** Live state of every platform (server → client). */
-export interface PlatformLiveStatePayload {
-  platforms: PlatformLiveState[];
 }
 
 /** One column of an inspectable table. */
@@ -333,24 +289,4 @@ export function createOAuthResultMessage(
     payload.errorMessage = errorMessage;
   }
   return createMessage(MessageType.OAUTH_RESULT, payload);
-}
-
-/**
- * Create a YouTube chat state message
- */
-export function createYouTubeChatStateMessage(
-  state: YouTubeChatState,
-  originalMessageId?: string
-): IWebSocketMessage<YouTubeChatStatePayload> {
-  return createMessage(MessageType.YOUTUBE_CHAT_STATE, { state }, originalMessageId);
-}
-
-/**
- * Create a platform live state message, pushed on every change or answering a request
- */
-export function createPlatformLiveStateMessage(
-  platforms: PlatformLiveState[],
-  originalMessageId?: string
-): IWebSocketMessage<PlatformLiveStatePayload> {
-  return createMessage(MessageType.PLATFORM_LIVE_STATE, { platforms }, originalMessageId);
 }

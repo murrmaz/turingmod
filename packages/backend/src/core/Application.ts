@@ -1,9 +1,4 @@
-import {
-  createOAuthResultMessage,
-  createYouTubeChatStateMessage,
-  TRPC_PATH,
-  WS_PATH,
-} from '@turingmod/shared';
+import { createOAuthResultMessage, TRPC_PATH, WS_PATH } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { DatabaseManager } from '../database/DatabaseManager.js';
 import { IntegrationManager } from '../integrations/IntegrationManager.js';
@@ -85,11 +80,9 @@ export class Application {
     // Integration status changes reach the console through the `integrations.watch`
     // subscription (server/trpc/integrationsRouter.ts).
 
-    // YouTube chat lifecycle: idle → resolving → streaming. Broadcast so the console's go-live
-    // control shows whether chat actually connected, not just that the request was accepted.
+    // Logged only: the console follows YouTube chat's state through `youtubeChat.watch`.
     this.eventBus.on('youtube.chat.state', (data) => {
       this.logger.info('YouTube chat state changed', data);
-      this.webSocketServer.broadcast(createYouTubeChatStateMessage(data.state));
     });
 
     // An authorization finished. The backend exchanged the code itself, so the result carries

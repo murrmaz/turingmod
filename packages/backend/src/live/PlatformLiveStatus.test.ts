@@ -1,10 +1,9 @@
 import 'reflect-metadata';
-import { MessageType, StreamingPlatform } from '@turingmod/shared';
+import { StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import type { IStreamPlatform } from '../platforms/interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
-import type { WebSocketServer } from '../server/WebSocketServer.js';
 import { Logger } from '../utils/Logger.js';
 import { PlatformLiveStatus } from './PlatformLiveStatus.js';
 
@@ -21,7 +20,7 @@ describe('PlatformLiveStatus', () => {
   let eventBus: EventBus;
   let twitch: ReturnType<typeof fakePlatform>;
   let youtube: ReturnType<typeof fakePlatform>;
-  let broadcast: ReturnType<typeof vi.fn>;
+  let changed: ReturnType<typeof vi.fn<() => void>>;
   let service: PlatformLiveStatus;
 
   beforeEach(() => {
@@ -31,13 +30,9 @@ describe('PlatformLiveStatus', () => {
     const registry = new PlatformRegistry();
     registry.register(twitch as unknown as IStreamPlatform);
     registry.register(youtube as unknown as IStreamPlatform);
-    broadcast = vi.fn();
-    service = new PlatformLiveStatus(
-      eventBus,
-      registry,
-      { broadcast } as unknown as WebSocketServer,
-      new Logger({ level: 'silent' })
-    );
+    service = new PlatformLiveStatus(eventBus, registry, new Logger({ level: 'silent' }));
+    changed = vi.fn<() => void>();
+    service.onChange(changed);
     service.start();
   });
 
@@ -51,7 +46,7 @@ describe('PlatformLiveStatus', () => {
     ]);
   });
 
-  it('asks a platform when it becomes available, and pushes the answer', async () => {
+  it('asks a platform when it becomes available, and announces the answer', async () => {
     twitch.getUptime.mockResolvedValue(60_000);
 
     await eventBus.emit('platform.availability', {
@@ -62,9 +57,7 @@ describe('PlatformLiveStatus', () => {
 
     expect(twitchState()?.live).toBe(true);
     expect(twitchState()?.startedAt).toBeGreaterThan(Date.now() - 61_000);
-    expect(broadcast).toHaveBeenCalledWith(
-      expect.objectContaining({ type: MessageType.PLATFORM_LIVE_STATE })
-    );
+    expect(changed).toHaveBeenCalled();
   });
 
   it('counts a live broadcast without a start time as live', async () => {
@@ -202,11 +195,11 @@ describe('PlatformLiveStatus', () => {
     );
   });
 
-  it('pushes only changes', async () => {
+  it('announces only changes', async () => {
     await service.refresh(StreamingPlatform.TWITCH);
     await service.refresh(StreamingPlatform.TWITCH);
 
-    expect(broadcast).not.toHaveBeenCalled();
+    expect(changed).not.toHaveBeenCalled();
   });
 
   it('keeps its last answer when asking fails', async () => {

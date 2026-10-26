@@ -154,8 +154,8 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 
 npm workspaces monorepo with three packages:
 
-- **`packages/shared`** (`@turingmod/shared`) — WebSocket protocol types, message creators, shared enums (IntegrationStatus, PermissionLevel, MessageType). Must be built first since both other packages depend on it.
-- **`packages/backend`** (`@turingmod/backend`) — Node.js server with WebSocket + HTTP. Dev mode runs `tsc --build --watch` and `node --watch dist/index.js` concurrently (not `tsx`: esbuild's TS transform — what `tsx` uses — doesn't emit `emitDecoratorMetadata`, which tsyringe's constructor injection needs).
+- **`packages/shared`** (`@turingmod/shared`) — what the backend and the console both run or both name: enums (`IntegrationStatus`, `PermissionLevel`, `StreamingPlatform`), Zod schemas both sides validate with (setup-dialog configs, `ActivityLogEntrySchema`), constants and small helpers (`TRPC_PATH`, `platformDisplayName()`, `messageOf()`), and the domain types procedures return (`IntegrationInfo`, `DataTableInfo`). Not the protocol: request and response shapes are tRPC procedures in the backend. Must be built first since both other packages depend on it.
+- **`packages/backend`** (`@turingmod/backend`) — Node.js server with WebSocket + HTTP. Its package exports only the tRPC router's type (`@turingmod/backend/trpc`), so the console never bundles backend code. Dev mode runs `tsc --build --watch` and `node --watch dist/index.js` concurrently (not `tsx`: esbuild's TS transform — what `tsx` uses — doesn't emit `emitDecoratorMetadata`, which tsyringe's constructor injection needs).
 - **`packages/frontend`** (`@turingmod/frontend`) — React 19 + React Router 7 + Vite 8 + shadcn/ui on Tailwind CSS v4 + TanStack Table. Dev server proxies `/trpc` to backend.
 
 ### Backend Core Flow
@@ -495,6 +495,13 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 - **Localhost only** — all servers bind to 127.0.0.1, never 0.0.0.0.
 - **No REST API** — all frontend-backend communication is WebSocket: new requests are tRPC procedures (see Console ↔ Backend Protocol). HTTP server is only for static files and OAuth callbacks.
 - **IntegrationStatus enum** — never use string literals for integration status.
+- **What goes in `shared`.** Only what both packages need: values the console and the backend
+  both execute (enums, Zod schemas, constants, small pure helpers) and domain types both name. A
+  request's input and output belong to its tRPC procedure, never `shared`; the console infers them
+  (`RouterInputs`/`RouterOutputs`). Something only one side uses stays on that side. `shared` must
+  stay runtime-neutral, no Node or browser APIs, since it runs in both. The console can't take a
+  value from the backend package instead: it exports types only, and importing backend code would
+  pull Node-only dependencies into the browser bundle.
 - **`getDependencies()` returns integration instances**, not names — return the constructor-injected
   objects so the graph can't drift. Unmet dependencies are `BLOCKED`, not `ERROR`.
 - **A new integration with a dependency should consider `dependencyFailurePolicy`.** It defaults to

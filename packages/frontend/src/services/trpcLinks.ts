@@ -1,11 +1,10 @@
 import { TRPCClientError, type TRPCLink, type TRPCWebSocketClient } from '@trpc/client';
 import type { AnyRouter } from '@trpc/server';
 import { observable } from '@trpc/server/observable';
-import { ConnectionError, NOT_CONNECTED_MESSAGE } from '@/services/WebSocketClient';
+import { ConnectionError, NOT_CONNECTED_MESSAGE } from '@/services/connection';
 
 /**
- * Fail a query or mutation at once while disconnected, as WebSocketClient does, rather than let
- * tRPC queue it: an action the streamer clicked during an outage must not run later, after
+ * Fail a query or mutation at once while disconnected, rather than let tRPC queue it: an action the streamer clicked during an outage must not run later, after
  * they've given up on it. A request the connection was lost under fails as a ConnectionError,
  * which the connection banner already reports. Subscriptions are left to tRPC, which starts
  * them once connected and resubscribes after every reconnect.

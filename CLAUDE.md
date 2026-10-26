@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Development (starts both backend + frontend via concurrently)
-npm run dev                # Backend on :8080 (SERVER_PORT), Frontend on :3000 (proxies /ws)
+npm run dev                # Backend on :8080 (SERVER_PORT), Frontend on :3000 (proxies /trpc)
 npm run dev:backend        # Backend only (tsc --watch + node --watch)
 npm run dev:frontend       # Frontend only (Vite dev server)
 
@@ -122,16 +122,10 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Frontend**: `features/dashboard/dashboard-page.tsx` + `hooks/useLiveLog.ts` (live feed, newest first), `features/history/history-page.tsx`; how an entry reads (feed category, badge, title, detail) is `constants/activityFormat.ts` (`toFeedRow`)
 
 ### Console ↔ Backend Protocol
-- **tRPC router**: `packages/backend/src/server/trpc/appRouter.ts` (`createAppRouter()`, `AppRouter` type) — one sub-router per area, e.g. `integrationsRouter.ts`; `trpc.ts` (instance), `watch.ts` (`watchable()`: current value, then again on each change, read once per change for every console; `events()`: a stream of events, subscribed at once so a snapshot read beside it misses nothing)
-- **tRPC endpoint**: `packages/backend/src/server/trpc/TrpcServer.ts` (`TRPC_PATH`); `HttpServer.routeUpgrades()` hands each WebSocket path its endpoint; `server/consoleSockets.ts` is what both endpoints share (console-only origin check, upgrades, closing with a grace period)
-- **tRPC client**: `packages/frontend/src/context/TrpcContext.tsx` (`TrpcProvider`, `useTrpc()`), `services/trpcLinks.ts` (fail requests while disconnected), `hooks/useSubscription.ts` (state kept current by a `watch` subscription, or built from an event stream with `reduce`), `hooks/useServerQuery.ts` (a query, read on connect and on each new input), `hooks/useConnection.ts`; `RouterInputs`/`RouterOutputs` (in `TrpcContext`) name a procedure's input and output types (both connections as one state, for the banner)
-- **Legacy server**: `packages/backend/src/server/WebSocketServer.ts`
-- **Router**: `packages/backend/src/server/MessageRouter.ts`
-- **Messages/Types**: `packages/shared/src/protocol/messages.ts`
-- **Request schemas**: `packages/shared/src/protocol/requests.ts` — Zod schema per client → server payload (`REQUEST_PAYLOAD_SCHEMAS`), types inferred from them
-- **Responses**: `packages/shared/src/protocol/responses.ts` — `ServerPayloads` (payload per server → client type) and `ResponseTypes` (what each request is answered with); `MessageRouter` handlers must return it, and the console's `request(type, payload)` (`WebSocketContext`) infers it
-- **Frontend Context**: `packages/frontend/src/context/WebSocketContext.tsx`
-- **Frontend Hooks**: `packages/frontend/src/hooks/useWebSocket.ts` (`useWebSocket()`, `useWebSocketMessage()`)
+- **tRPC router**: `packages/backend/src/server/trpc/appRouter.ts` (`createAppRouter()`, `AppRouter` type) — one sub-router per area, e.g. `integrationsRouter.ts`; `trpc.ts` (instance and `TrpcContext`), `watch.ts` (`watchable()`: current value, then again on each change, read once per change for every console; `events()`: a stream of events, subscribed at once so a snapshot read beside it misses nothing)
+- **tRPC endpoint**: `packages/backend/src/server/trpc/TrpcServer.ts` (`TRPC_PATH`); `HttpServer.routeUpgrades()` hands a WebSocket path its endpoint; `server/consoleSockets.ts` (console-only origin check, upgrades, closing with a grace period)
+- **tRPC client**: `packages/frontend/src/context/TrpcContext.tsx` (`TrpcProvider`, `useTrpc()`, `useConnection()`; `RouterInputs`/`RouterOutputs` name a procedure's input and output types), `services/trpcLinks.ts` (fail requests while disconnected), `services/connection.ts` (connection state, retry schedule, `ConnectionError`)
+- **Reading from the backend**: `packages/frontend/src/hooks/useSubscription.ts` (state kept current by a `watch` subscription, or built from an event stream with `reduce`), `hooks/useServerQuery.ts` (a query, read on connect and on each new input)
 
 ### Database
 - **Manager**: `packages/backend/src/database/DatabaseManager.ts`
@@ -162,7 +156,7 @@ npm workspaces monorepo with three packages:
 
 - **`packages/shared`** (`@turingmod/shared`) — WebSocket protocol types, message creators, shared enums (IntegrationStatus, PermissionLevel, MessageType). Must be built first since both other packages depend on it.
 - **`packages/backend`** (`@turingmod/backend`) — Node.js server with WebSocket + HTTP. Dev mode runs `tsc --build --watch` and `node --watch dist/index.js` concurrently (not `tsx`: esbuild's TS transform — what `tsx` uses — doesn't emit `emitDecoratorMetadata`, which tsyringe's constructor injection needs).
-- **`packages/frontend`** (`@turingmod/frontend`) — React 19 + React Router 7 + Vite 8 + shadcn/ui on Tailwind CSS v4 + TanStack Table. Dev server proxies `/ws` to backend.
+- **`packages/frontend`** (`@turingmod/frontend`) — React 19 + React Router 7 + Vite 8 + shadcn/ui on Tailwind CSS v4 + TanStack Table. Dev server proxies `/trpc` to backend.
 
 ### Backend Core Flow
 
@@ -170,7 +164,7 @@ Entry point: `packages/backend/src/index.ts` → calls `registerRootFactories()`
 
 **Dependency injection** uses [tsyringe](https://github.com/microsoft/tsyringe), Microsoft's lightweight constructor-injection container. App-lifetime classes (integrations, services, façades, handlers — effectively everything) are decorated `@singleton()` alone, which makes a class injectable and registers it as a singleton, so adding `@injectable()` beside it is redundant; commands and reward handlers, which their loaders resolve once each, are `@injectable()`; tsyringe resolves a class's dependencies by reading its constructor's typed parameters via `reflect-metadata` — no string tokens, and a typo'd dependency is a compile error, not a runtime "Service not registered" failure. This reflection-based inference requires TypeScript's real compiler (`emitDecoratorMetadata`) to emit `design:paramtypes` — esbuild does not support this, which is why dev mode runs through `tsc --watch` rather than `tsx` (see above).
 
-A handful of classes take primitives or derived values rather than other injectable classes (e.g. `Logger`'s log level, `DatabaseManager`'s file path, `Encryption`'s master password + DB-stored salt, `HttpServer`/`WebSocketServer`'s port/host/allowed-origins) — these can't be auto-constructed from decorated parameters, so they're registered via `container.register(Token, { useFactory: instanceCachingFactory(...) })` in `registerRootFactories()` (`setup.ts`) instead. `instanceCachingFactory` makes each factory lazy and run-once, like a singleton, which matters for `Encryption`: its factory reads a salt from the database and must not run before `initializeDatabase()` has created the schema.
+A handful of classes take primitives or derived values rather than other injectable classes (e.g. `Logger`'s log level, `DatabaseManager`'s file path, `Encryption`'s master password + DB-stored salt, `HttpServer`'s port/host and `TrpcServer`'s router/allowed-origins) — these can't be auto-constructed from decorated parameters, so they're registered via `container.register(Token, { useFactory: instanceCachingFactory(...) })` in `registerRootFactories()` (`setup.ts`) instead. `instanceCachingFactory` makes each factory lazy and run-once, like a singleton, which matters for `Encryption`: its factory reads a salt from the database and must not run before `initializeDatabase()` has created the schema.
 
 Commands are auto-discovered by directory scan (`loadCommands.ts`): each file's default-exported class is `@injectable()`, and the loader calls `container.resolve(mod.default)` instead of registering it anywhere — tsyringe can construct any `@injectable()` class on demand, so dropping a new command file in `commands/implementations/` requires no other wiring. Reward handlers are loaded the same way (`loadRewardHandlers.ts`).
 
@@ -183,7 +177,7 @@ Triggers (chat, redemptions, raids) go last in the list so they stop first: noth
 break or an effect while those are being restored. Each service keeps its bus subscriptions in a
 `Subscriptions` and clears them in `stop()`.
 
-**Message routing** (the legacy protocol, being replaced by tRPC; see Console ↔ Backend Protocol below): WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes registered in `setup.ts` (none are left) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
+**Console requests**: the console calls procedures on the tRPC router (`server/trpc/appRouter.ts`), served at `TRPC_PATH` by `TrpcServer`; each procedure's Zod input schema is checked before it runs, so procedures never check input shape themselves, and a malformed input is a `BAD_REQUEST` naming the bad fields. See Console ↔ Backend Protocol below.
 
 **EventBus.** Integrations, services and the server communicate through `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
 `emit()` calls handlers in subscription order but runs async ones concurrently, and resolves once
@@ -213,38 +207,37 @@ anything that holds one of their clients.
 
 ### Console ↔ Backend Protocol
 
-The console talks to the backend over two WebSocket endpoints on the backend's one port, while
-requests move from the first to the second as the console is rebuilt:
+The console talks to the backend over one WebSocket, the tRPC router at `TRPC_PATH` (`/trpc`) on
+the backend's one port. A request is one procedure in a sub-router of `createAppRouter()`
+(`server/trpc/`): its Zod input schema, its handler, and the output type inferred from what the
+handler returns. That is the whole contract; nothing is declared in `shared` beyond the domain types
+procedures return. The console imports only the router's *type*
+(`import type { AppRouter } from '@turingmod/backend/trpc'`, the backend package's one export), so
+`useTrpc().integrations.start.mutate({ integrationName })` is checked against the backend's
+definition.
 
-- **tRPC** (`TRPC_PATH`, `/trpc`) — the target for everything. A request is one procedure in a
-  sub-router of `createAppRouter()` (`server/trpc/`): its Zod input schema, its handler, and the
-  output type inferred from what the handler returns. That is the whole contract; nothing is
-  declared in `shared`. The console imports only the router's *type*
-  (`import type { AppRouter } from '@turingmod/backend/trpc'`, the backend package's one export),
-  so `useTrpc().integrations.start.mutate({ integrationName })` is checked against the backend's
-  definition. State the console shows is a subscription built with `watchable()`, which sends
-  the current value on subscribing and again after each change, reading it once per change however
-  many consoles watch; tRPC resubscribes after a reconnect, so there's no separate read, and every
-  console receives every change. A mutation answers with the state it left, which the console that
-  asked shows at once (`useSubscription()`'s setter), so a spinner never stops on stale state;
-  other consoles get it through the subscription. A stream of events rather than state (the
-  activity feed) is built with `events()`: it sends a snapshot to start from, read in the same
-  synchronous step as subscribing so nothing falls between them, then each event; the console folds
-  them into its state with `useSubscription()`'s `reduce`. A malformed input is a `BAD_REQUEST`; a handler that
-  throws reaches the console as its error message. Requests made while disconnected fail at once
-  (`failWhileDisconnected`), as on the legacy client: a click during an outage never runs later.
-  Every procedure gets the calling console's origin as `ctx.consoleOrigin` (`TrpcContext`, read
-  from the connection's Origin header once the origin check has allowed it), which OAuth keeps
-  with an attempt so the callback page can send the streamer back. Migrated so far: everything;
-  the legacy endpoint still runs but answers nothing.
-- **Legacy** (`WS_PATH`, `/ws`) — everything not yet migrated, described below. Don't add new
-  requests here; when migrating one, delete its `MessageType`, schema, payload types and handler.
-
-The two connections retry on the same schedule (`reconnectDelay()`) but separately, so they can be
-apart for a moment: the connection banner, the sidebar's status and the "reconnecting" dimming
-follow `useConnection()`, which is the worse of the two, and its Retry now retries both.
-
-All legacy messages follow `IWebSocketMessage<T>` from `packages/shared/src/protocol/messages.ts`: `{ id, type, timestamp, payload }`. Message IDs are UUIDs used for request/response correlation. Use `createMessage()` and typed creator functions (e.g., `createCommandResultMessage()`) to construct messages.
+- **State** the console shows is a subscription built with `watchable()`, which sends the current
+  value on subscribing and again after each change, reading it once per change however many
+  consoles watch; tRPC resubscribes after a reconnect, so there's no separate read, and every
+  console receives every change. The console reads it with `useSubscription()`.
+- **Mutations** answer with the state they left, which the console that asked shows at once
+  (`useSubscription()`'s setter), so a spinner never stops on stale state; other consoles get it
+  through the subscription.
+- **Queries** (the command table, the data inspector) are read with `useServerQuery()`: on every
+  connect and whenever the input changes, a superseded read aborted.
+- **Streams of events** rather than state (the activity feed, OAuth results) are built with
+  `events()`. The activity feed sends a snapshot to start from, read in the same synchronous step
+  as subscribing so nothing falls between them, then each event; the console folds them into its
+  state with `useSubscription()`'s `reduce`.
+- **Errors**: a malformed input is a `BAD_REQUEST`; a handler that throws reaches the console as
+  its error message.
+- **Context**: every procedure gets the calling console's origin as `ctx.consoleOrigin`
+  (`TrpcContext`), read from the connection's Origin header once the origin check has allowed it.
+  OAuth keeps it with an attempt so the callback page can send the streamer back.
+- **Connection**: requests made while disconnected fail at once (`failWhileDisconnected`) rather
+  than being queued, so a click during an outage never runs later. The client retries with backoff
+  (`reconnectDelay()`); the connection banner, the sidebar's status and the "reconnecting" dimming
+  follow `useConnection()`, whose Retry now skips the wait.
 
 ### Database
 
@@ -440,7 +433,7 @@ there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 
-React Context for state management: `TrpcContext` (the tRPC client), `WebSocketContext` (legacy connection + send/subscribe) and `AppStateContext` (commands, integrations). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`); anything read with a tRPC query, with `useServerQuery()` (`hooks/useServerQuery.ts`): read whenever the connection comes up and whenever its input changes, a superseded read aborted. Don't hand-write either in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
+React Context for state management: `TrpcContext` (the tRPC client and its connection) and `AppStateContext` (commands, integrations). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`); anything read with a tRPC query, with `useServerQuery()` (`hooks/useServerQuery.ts`): read whenever the connection comes up and whenever its input changes, a superseded read aborted. Don't hand-write either in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
 
 ### Console UI
 
@@ -470,7 +463,7 @@ its value can't be guessed one query at a time.
 
 ### HTTP Server
 
-Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which also hosts the WebSocket endpoint (`/ws`) — the backend has one port. The console connects to `/ws` on its own origin; in development Vite proxies that to the backend. Serves static frontend build in production. OAuth callback routes (`/callback/twitch`, `/callback/spotify`, `/callback/youtube`) are built from each `IOAuthIntegration.getCallbackPath()` via `OAuthFlowService.getCallbackRoutes()`, not hardcoded; it refuses two integrations claiming one path. Redirect URIs are derived, never stored or sent by the console: `getRedirectUri()` combines the callback path, `SERVER_PORT`, and the one loopback host each provider accepts for plain HTTP (Twitch `localhost`; Spotify and Google `127.0.0.1`). Health check at `/health`. Localhost-only binding enforced.
+Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which also hosts the console's WebSocket endpoint (`/trpc`) — the backend has one port. The console connects to `/trpc` on its own origin; in development Vite proxies that to the backend. Serves static frontend build in production. OAuth callback routes (`/callback/twitch`, `/callback/spotify`, `/callback/youtube`) are built from each `IOAuthIntegration.getCallbackPath()` via `OAuthFlowService.getCallbackRoutes()`, not hardcoded; it refuses two integrations claiming one path. Redirect URIs are derived, never stored or sent by the console: `getRedirectUri()` combines the callback path, `SERVER_PORT`, and the one loopback host each provider accepts for plain HTTP (Twitch `localhost`; Spotify and Google `127.0.0.1`). Health check at `/health`. Localhost-only binding enforced.
 
 ## Code Style
 
@@ -519,4 +512,4 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 - **A new platform capability** is a `PlatformCapability` value, an object type in `CapabilityApis`, its `CAPABILITY_OF_API` entry, and the façades' implementations; the compiler holds those together. Don't add a pass-through to `StreamControlService` — callers use `require()`.
 - **Every outgoing chat message goes through `toSafeChatText()` and `OwnChatMessages.record()`** inside the platform façade — a new `IStreamPlatform` (or a new send method) must apply both, so the bot can never post a command or act on what it posted (see Chat Pipeline).
 - **API-backed read commands need a cooldown.** `ICommand.cooldown` is per-viewer seconds; `CommandExecutor` exempts moderators and above, so a shared read/write command (`!game`, `!tags`, `!cw`) can be throttled for viewers without blocking a moderator's write.
-- **New integrations** extend `BaseIntegration`, get decorated `@singleton()`, get registered with `IntegrationManager` in `setup.ts`'s `initializeComponents()`, and need a `MessageRouter` handler if they accept WebSocket messages. OAuth-capable integrations extend `OAuthIntegration` instead, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.
+- **New integrations** extend `BaseIntegration`, get decorated `@singleton()`, get registered with `IntegrationManager` in `setup.ts`'s `initializeComponents()`, and need a procedure in the tRPC router (`server/trpc/`) if the console controls them. OAuth-capable integrations extend `OAuthIntegration` instead, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.

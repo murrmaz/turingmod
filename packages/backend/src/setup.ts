@@ -49,10 +49,8 @@ import { RewardRegistry } from './rewards/RewardRegistry.js';
 import { RewardRouter } from './rewards/RewardRouter.js';
 import { RewardSync } from './rewards/RewardSync.js';
 import { HttpServer } from './server/HttpServer.js';
-import { MessageRouter } from './server/MessageRouter.js';
 import { createAppRouter } from './server/trpc/appRouter.js';
 import { TrpcServer } from './server/trpc/TrpcServer.js';
-import { WebSocketServer } from './server/WebSocketServer.js';
 import { SOUND_SETTINGS } from './sounds/soundSettings.js';
 import { TuringModConfig } from './utils/Config.js';
 import { Encryption } from './utils/Encryption.js';
@@ -104,17 +102,6 @@ export function registerRootFactories(): void {
         c.resolve(Logger)
       );
     }),
-  });
-
-  container.register(WebSocketServer, {
-    useFactory: instanceCachingFactory(
-      (c) =>
-        new WebSocketServer(
-          c.resolve(MessageRouter),
-          consoleOrigins(c.resolve(TuringModConfig)),
-          c.resolve(Logger)
-        )
-    ),
   });
 
   container.register(TrpcServer, {

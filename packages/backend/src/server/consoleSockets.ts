@@ -4,8 +4,8 @@ import { type VerifyClientCallbackAsync, WebSocketServer as WSServer } from 'ws'
 import type { Logger } from '../utils/Logger.js';
 
 /**
- * The plumbing both WebSocket endpoints (WS_PATH and TRPC_PATH) share: who may connect, how an
- * upgrade reaches an endpoint, and how an endpoint closes.
+ * The plumbing of a WebSocket endpoint for the console (TrpcServer, at TRPC_PATH): who may
+ * connect, how an upgrade reaches it, and how it closes.
  */
 
 /** How long a console gets to close its connection at shutdown before it's cut off. */

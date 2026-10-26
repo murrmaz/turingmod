@@ -1,6 +1,6 @@
 import { messageOf } from '@turingmod/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type TrpcClient, useTrpc, useTrpcConnection } from '@/context/TrpcContext';
+import { type TrpcClient, useConnection, useTrpc } from '@/context/TrpcContext';
 import { reportLoadError } from '@/lib/reportError';
 
 export interface ServerQueryOptions<I, T> {
@@ -30,7 +30,7 @@ export function useServerQuery<I, T>(
   options: ServerQueryOptions<I, T>
 ) {
   const trpc = useTrpc();
-  const connected = useTrpcConnection().connectionState === 'connected';
+  const connected = useConnection().connectionState === 'connected';
   const [data, setData] = useState(options.initial);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

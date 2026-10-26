@@ -1,10 +1,9 @@
-import { TRPC_PATH, WS_PATH } from '@turingmod/shared';
+import { TRPC_PATH } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { DatabaseManager } from '../database/DatabaseManager.js';
 import { IntegrationManager } from '../integrations/IntegrationManager.js';
 import { HttpServer } from '../server/HttpServer.js';
 import { TrpcServer } from '../server/trpc/TrpcServer.js';
-import { WebSocketServer } from '../server/WebSocketServer.js';
 import { Logger } from '../utils/Logger.js';
 import { EventBus } from './EventBus.js';
 import { ServiceLifecycle } from './ServiceLifecycle.js';
@@ -20,7 +19,6 @@ export class Application {
   constructor(
     private databaseManager: DatabaseManager,
     private httpServer: HttpServer,
-    private webSocketServer: WebSocketServer,
     private trpcServer: TrpcServer,
     private integrationManager: IntegrationManager,
     private eventBus: EventBus,
@@ -52,14 +50,11 @@ export class Application {
   async start(): Promise<void> {
     this.logger.info('Starting TuringMod...');
 
-    // 1. Forward events to the console before anything can emit them: a console left open
-    //    across a restart reconnects as soon as the HTTP server is up.
+    // 1. Subscribe to what's logged here before anything can emit it
     this.setupEventHandlers();
 
-    // 2. Start the WebSocket endpoints, then the HTTP server that hands them their upgrades
-    this.webSocketServer.start();
+    // 2. Start the console's endpoint, then the HTTP server that hands it its upgrades
     this.trpcServer.start();
-    this.httpServer.routeUpgrades(WS_PATH, this.webSocketServer);
     this.httpServer.routeUpgrades(TRPC_PATH, this.trpcServer);
     await this.httpServer.start();
 
@@ -74,12 +69,10 @@ export class Application {
   }
 
   /**
-   * Set up global event handlers
+   * Set up global event handlers. Everything the console shows reaches it through the tRPC
+   * router's subscriptions (server/trpc/), not from here.
    */
   private setupEventHandlers(): void {
-    // Integration status changes reach the console through the `integrations.watch`
-    // subscription (server/trpc/integrationsRouter.ts).
-
     // Logged only: the console follows YouTube chat's state through `youtubeChat.watch`.
     this.eventBus.on('youtube.chat.state', (data) => {
       this.logger.info('YouTube chat state changed', data);
@@ -101,8 +94,8 @@ export class Application {
     // 2. Stop integrations
     await this.integrationManager.stopAll();
 
-    // 3. Stop the WebSocket endpoints
-    await Promise.all([this.webSocketServer.stop(), this.trpcServer.stop()]);
+    // 3. Stop the console's endpoint
+    await this.trpcServer.stop();
 
     // 4. Stop HTTP server
     await this.httpServer.stop();

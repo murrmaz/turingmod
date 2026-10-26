@@ -11,10 +11,8 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AppStateProvider } from '@/context/AppStateContext';
-import { TrpcProvider } from '@/context/TrpcContext';
-import { WebSocketProvider } from '@/context/WebSocketContext';
+import { TrpcProvider, useConnection } from '@/context/TrpcContext';
 import { SimulatorProvider } from '@/features/commands/simulator';
-import { useConnection } from '@/hooks/useConnection';
 import { cn } from '@/lib/utils';
 
 const DashboardPage = lazy(() =>
@@ -74,31 +72,29 @@ export function App() {
     // The last resort, for a crash outside any page (the sidebar, header or providers).
     <ErrorBoundary className="min-h-svh">
       <BrowserRouter>
-        <WebSocketProvider>
-          <TrpcProvider>
-            <AppStateProvider>
-              <TooltipProvider delayDuration={300}>
-                <SimulatorProvider>
-                  <OAuthFlowProvider>
-                    <Routes>
-                      <Route path="/" element={<Shell />}>
-                        <Route index element={<Navigate to="/dashboard" replace />} />
-                        <Route path="dashboard" element={<DashboardPage />} />
-                        <Route path="commands" element={<CommandsPage />} />
-                        <Route path="integrations" element={<IntegrationsPage />} />
-                        <Route path="history" element={<HistoryPage />} />
-                        <Route path="data" element={<DataPage />} />
-                        <Route path="data/:table" element={<DataPage />} />
-                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                      </Route>
-                    </Routes>
-                    <Toaster position="bottom-right" />
-                  </OAuthFlowProvider>
-                </SimulatorProvider>
-              </TooltipProvider>
-            </AppStateProvider>
-          </TrpcProvider>
-        </WebSocketProvider>
+        <TrpcProvider>
+          <AppStateProvider>
+            <TooltipProvider delayDuration={300}>
+              <SimulatorProvider>
+                <OAuthFlowProvider>
+                  <Routes>
+                    <Route path="/" element={<Shell />}>
+                      <Route index element={<Navigate to="/dashboard" replace />} />
+                      <Route path="dashboard" element={<DashboardPage />} />
+                      <Route path="commands" element={<CommandsPage />} />
+                      <Route path="integrations" element={<IntegrationsPage />} />
+                      <Route path="history" element={<HistoryPage />} />
+                      <Route path="data" element={<DataPage />} />
+                      <Route path="data/:table" element={<DataPage />} />
+                      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                    </Route>
+                  </Routes>
+                  <Toaster position="bottom-right" />
+                </OAuthFlowProvider>
+              </SimulatorProvider>
+            </TooltipProvider>
+          </AppStateProvider>
+        </TrpcProvider>
       </BrowserRouter>
     </ErrorBoundary>
   );

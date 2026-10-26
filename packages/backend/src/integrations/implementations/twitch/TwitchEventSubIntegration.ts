@@ -358,7 +358,9 @@ export class TwitchEventSubIntegration extends BaseIntegration {
     // Parse permission level from badges
     const isBroadcaster = event.broadcasterId === event.chatterId;
     const badgeNames = Object.keys(event.badges);
-    const permissionLevel = this.getPermissionFromBadges(badgeNames, isBroadcaster);
+    const permissionLevel = isBroadcaster
+      ? PermissionLevel.BROADCASTER
+      : permissionFromBadges(badgeNames);
 
     // OwnChatMessages republishes this as `chat.message`, minus TuringMod's own messages.
     // Commands are parsed out by ChatRouter, after moderation.
@@ -375,19 +377,21 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       channelName: event.broadcasterName,
     });
   }
+}
 
-  /**
-   * Get permission level from Twitch badges
-   */
-  private getPermissionFromBadges(badgeNames: string[], isBroadcaster: boolean): PermissionLevel {
-    if (isBroadcaster) return PermissionLevel.BROADCASTER;
+/**
+ * A chatter's permission from the badges on their message. Twitch shows one badge per role, so
+ * some roles arrive under another name: a lead moderator wears `lead_moderator` instead of
+ * `moderator`, and one of a channel's first subscribers `founder` instead of `subscriber`.
+ */
+export function permissionFromBadges(badgeNames: readonly string[]): PermissionLevel {
+  const has = (...names: string[]) => names.some((name) => badgeNames.includes(name));
 
-    if (badgeNames.includes('moderator')) return PermissionLevel.MODERATOR;
-    if (badgeNames.includes('vip')) return PermissionLevel.VIP;
-    if (badgeNames.includes('subscriber')) return PermissionLevel.SUBSCRIBER;
+  if (has('moderator', 'lead_moderator')) return PermissionLevel.MODERATOR;
+  if (has('vip')) return PermissionLevel.VIP;
+  if (has('subscriber', 'founder')) return PermissionLevel.SUBSCRIBER;
 
-    return PermissionLevel.VIEWER;
-  }
+  return PermissionLevel.VIEWER;
 }
 
 /**

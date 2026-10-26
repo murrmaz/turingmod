@@ -1,4 +1,5 @@
 import { createTRPCClient, createWSClient, type TRPCClient, wsLink } from '@trpc/client';
+import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '@turingmod/backend/trpc';
 import { TRPC_PATH } from '@turingmod/shared';
 import type { ReactNode } from 'react';
@@ -16,6 +17,12 @@ import { type ConnectionState, reconnectDelay } from '@/services/WebSocketClient
 
 /** The backend's tRPC router, typed by the backend's own definition of it. */
 export type TrpcClient = TRPCClient<AppRouter>;
+
+/** Each procedure's input, e.g. `RouterInputs['data']['queryRows']`. */
+export type RouterInputs = inferRouterInputs<AppRouter>;
+
+/** What each procedure answers with, e.g. `RouterOutputs['commands']['simulate']`. */
+export type RouterOutputs = inferRouterOutputs<AppRouter>;
 
 const TrpcContext = createContext<TrpcClient | null>(null);
 

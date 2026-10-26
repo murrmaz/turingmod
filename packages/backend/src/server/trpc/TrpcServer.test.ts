@@ -4,11 +4,15 @@ import { type IntegrationInfo, IntegrationStatus, TRPC_PATH } from '@turingmod/s
 import { container } from 'tsyringe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
+import { CommandExecutor } from '../../commands/CommandExecutor.js';
+import { CommandRegistry } from '../../commands/CommandRegistry.js';
 import { EventBus } from '../../core/EventBus.js';
+import { DataInspector } from '../../database/DataInspector.js';
 import { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import type { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
 import { PlatformLiveStatus } from '../../live/PlatformLiveStatus.js';
+import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { Logger } from '../../utils/Logger.js';
 import { HttpServer } from '../HttpServer.js';
 import { createAppRouter } from './appRouter.js';
@@ -47,6 +51,10 @@ describe('TrpcServer', () => {
       onChange: () => () => {},
     } as unknown as PlatformLiveStatus);
     child.registerInstance(YouTubeChatIntegration, {} as YouTubeChatIntegration);
+    child.registerInstance(CommandExecutor, {} as CommandExecutor);
+    child.registerInstance(CommandRegistry, {} as CommandRegistry);
+    child.registerInstance(PlatformRegistry, {} as PlatformRegistry);
+    child.registerInstance(DataInspector, {} as DataInspector);
 
     const trpc = new TrpcServer(createAppRouter(child), [CONSOLE], logger);
     const oauthFlow = { getCallbackRoutes: () => [] } as unknown as OAuthFlowService;

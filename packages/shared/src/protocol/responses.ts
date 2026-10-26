@@ -1,9 +1,5 @@
 import type {
   ActivityListPayload,
-  CommandListPayload,
-  CommandResultPayload,
-  DataRowsPayload,
-  DataTablesPayload,
   ErrorPayload,
   EventNotificationPayload,
   MessageType,
@@ -17,15 +13,11 @@ import type { RequestType } from './requests.js';
  * request or pushed unasked. The console reads a message's payload by its type through this map.
  */
 export interface ServerPayloads {
-  [MessageType.COMMAND_RESULT]: CommandResultPayload;
-  [MessageType.COMMAND_LIST]: CommandListPayload;
   [MessageType.EVENT_NOTIFICATION]: EventNotificationPayload;
   [MessageType.ACTIVITY_LIST]: ActivityListPayload;
   [MessageType.ERROR]: ErrorPayload;
   [MessageType.OAUTH_AUTH_URL_RESPONSE]: OAuthAuthUrlResponsePayload;
   [MessageType.OAUTH_RESULT]: OAuthResultPayload;
-  [MessageType.DATA_TABLES]: DataTablesPayload;
-  [MessageType.DATA_ROWS]: DataRowsPayload;
 }
 
 /** A message type the server sends. */
@@ -36,12 +28,8 @@ export type ServerMessageType = keyof ServerPayloads;
  * is answered with an ERROR instead.
  */
 export interface ResponseTypes {
-  [MessageType.COMMAND_SIMULATE]: MessageType.COMMAND_RESULT;
-  [MessageType.COMMAND_LIST]: MessageType.COMMAND_LIST;
   [MessageType.OAUTH_GET_AUTH_URL]: MessageType.OAUTH_AUTH_URL_RESPONSE;
   [MessageType.ACTIVITY_QUERY]: MessageType.ACTIVITY_LIST;
-  [MessageType.DATA_LIST_TABLES]: MessageType.DATA_TABLES;
-  [MessageType.DATA_QUERY_ROWS]: MessageType.DATA_ROWS;
 }
 
 /**

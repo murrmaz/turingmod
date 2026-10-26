@@ -50,8 +50,6 @@ import { RewardRouter } from './rewards/RewardRouter.js';
 import { RewardSync } from './rewards/RewardSync.js';
 import { HttpServer } from './server/HttpServer.js';
 import { ActivityHandler } from './server/handlers/ActivityHandler.js';
-import { CommandHandler } from './server/handlers/CommandHandler.js';
-import { DataHandler } from './server/handlers/DataHandler.js';
 import { OAuthHandler } from './server/handlers/OAuthHandler.js';
 import { MessageRouter } from './server/MessageRouter.js';
 import { createAppRouter } from './server/trpc/appRouter.js';
@@ -263,17 +261,9 @@ export async function initializeComponents(): Promise<void> {
 
   // Register message handlers
   const messageRouter = container.resolve(MessageRouter);
-  const commandHandler = container.resolve(CommandHandler);
   const oauthHandler = container.resolve(OAuthHandler);
   const webSocketServer = container.resolve(WebSocketServer);
   const activityHandler = container.resolve(ActivityHandler);
-  const dataHandler = container.resolve(DataHandler);
-
-  messageRouter.registerHandler(MessageType.COMMAND_SIMULATE, (msg) =>
-    commandHandler.handleSimulate(msg)
-  );
-
-  messageRouter.registerHandler(MessageType.COMMAND_LIST, (msg) => commandHandler.handleList(msg));
 
   // The console's origin is where the callback page sends the streamer back to.
   messageRouter.registerHandler(MessageType.OAUTH_GET_AUTH_URL, (msg, clientId) =>
@@ -282,14 +272,6 @@ export async function initializeComponents(): Promise<void> {
 
   messageRouter.registerHandler(MessageType.ACTIVITY_QUERY, (msg) =>
     activityHandler.handleQuery(msg)
-  );
-
-  messageRouter.registerHandler(MessageType.DATA_LIST_TABLES, (msg) =>
-    dataHandler.handleListTables(msg)
-  );
-
-  messageRouter.registerHandler(MessageType.DATA_QUERY_ROWS, (msg) =>
-    dataHandler.handleQueryRows(msg)
   );
 
   logger.info('Components initialized');

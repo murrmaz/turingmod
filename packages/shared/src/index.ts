@@ -14,6 +14,7 @@ export * from './protocol/responses.js';
 export * from './types/activity.js';
 export * from './types/arduino.js';
 export * from './types/command.js';
+export * from './types/data.js';
 export * from './types/discord.js';
 export * from './types/integration.js';
 export * from './types/live.js';

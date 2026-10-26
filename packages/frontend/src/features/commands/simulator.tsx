@@ -135,12 +135,12 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     setOutcome(null);
     let next: Outcome;
     try {
-      const response = await simulateCommand(
+      const result = await simulateCommand(
         commandText.trim(),
         { username: username.trim() || 'TestUser', permissionLevel },
         platform
       );
-      next = toOutcome(response.result);
+      next = toOutcome(result);
     } catch (error) {
       next = { success: false, title: 'Simulation failed', message: messageOf(error) };
     } finally {

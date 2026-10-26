@@ -1,9 +1,15 @@
 import type { DependencyContainer } from 'tsyringe';
+import { CommandExecutor } from '../../commands/CommandExecutor.js';
+import { CommandRegistry } from '../../commands/CommandRegistry.js';
 import { EventBus } from '../../core/EventBus.js';
+import { DataInspector } from '../../database/DataInspector.js';
 import { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { PlatformLiveStatus } from '../../live/PlatformLiveStatus.js';
+import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { Logger } from '../../utils/Logger.js';
+import { createCommandsRouter } from './commandsRouter.js';
+import { createDataRouter } from './dataRouter.js';
 import { createIntegrationsRouter } from './integrationsRouter.js';
 import { createLiveStateRouter } from './liveStateRouter.js';
 import { router } from './trpc.js';
@@ -20,6 +26,13 @@ export function createAppRouter(container: DependencyContainer) {
       container.resolve(EventBus),
       container.resolve(Logger)
     ),
+    commands: createCommandsRouter(
+      container.resolve(CommandExecutor),
+      container.resolve(CommandRegistry),
+      container.resolve(PlatformRegistry),
+      container.resolve(Logger)
+    ),
+    data: createDataRouter(container.resolve(DataInspector)),
     liveState: createLiveStateRouter(container.resolve(PlatformLiveStatus)),
     youtubeChat: createYouTubeChatRouter(
       container.resolve(YouTubeChatIntegration),

@@ -5,13 +5,8 @@ import {
   useReactTable,
   type VisibilityState,
 } from '@tanstack/react-table';
-import type {
-  DataCell,
-  DataColumnInfo,
-  DataQueryRowsPayload,
-  DataTableInfo,
-} from '@turingmod/shared';
-import { ActivityCategory, MAX_DATA_PAGE_SIZE, MessageType, messageOf } from '@turingmod/shared';
+import type { DataCell, DataColumnInfo, DataRowsQuery, DataTableInfo } from '@turingmod/shared';
+import { ActivityCategory, MAX_DATA_PAGE_SIZE, messageOf } from '@turingmod/shared';
 import { Copy, Download, Lock, Search, Shield, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
@@ -27,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { formatDateTime } from '@/constants/activityFormat';
-import { useWebSocketContext } from '@/context/WebSocketContext';
+import { useTrpc } from '@/context/TrpcContext';
 import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
 import { useDebounced } from '@/hooks/useDebounced';
 import { copyToClipboard } from '@/lib/reportError';
@@ -74,7 +69,7 @@ export function DataPage() {
 }
 
 function TableInspector({ info }: { info: DataTableInfo }) {
-  const { request } = useWebSocketContext();
+  const trpc = useTrpc();
   const [search, setSearch] = useState('');
   const [facets, setFacets] = useState<Record<string, Set<string>>>({});
   const [range, setRange] = useState<DateRange>('all');
@@ -95,7 +90,7 @@ function TableInspector({ info }: { info: DataTableInfo }) {
       .map(([column, values]) => [column, [...values]])
   );
   const sort = sorting[0];
-  const query: Omit<DataQueryRowsPayload, 'page' | 'pageSize'> = {
+  const query: Omit<DataRowsQuery, 'page' | 'pageSize'> = {
     table: info.name,
     ...(sort ? { sort: { column: sort.id, direction: sort.desc ? 'desc' : 'asc' } } : {}),
     ...(Object.keys(filters).length > 0 ? { filters } : {}),
@@ -151,7 +146,7 @@ function TableInspector({ info }: { info: DataTableInfo }) {
     try {
       const all: Record<string, DataCell>[] = [];
       for (let next = 0; all.length < total && next < 50; next++) {
-        const { rows } = await request(MessageType.DATA_QUERY_ROWS, {
+        const { rows } = await trpc.data.queryRows.query({
           ...query,
           page: next,
           pageSize: MAX_DATA_PAGE_SIZE,

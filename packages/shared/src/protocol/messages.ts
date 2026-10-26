@@ -1,5 +1,4 @@
 import type { ActivityLogEntry } from '../types/activity.js';
-import type { CommandInfo, ExecutionResult } from '../types/command.js';
 
 /**
  * Base WebSocket message structure
@@ -22,14 +21,8 @@ export interface IWebSocketMessage<T = unknown> {
  * All possible message types
  */
 export enum MessageType {
-  // Client → Server: Commands
-  COMMAND_SIMULATE = 'command.simulate',
-
-  // Server → Client: Command responses
-  COMMAND_RESULT = 'command.result',
-  COMMAND_LIST = 'command.list',
-
-  // Served by the tRPC router (TRPC_PATH) instead: integrations, liveState, youtubeChat
+  // Served by the tRPC router (TRPC_PATH) instead: integrations, liveState, youtubeChat, commands,
+  // data
 
   // Server → Client: Event notifications
   EVENT_NOTIFICATION = 'event.notification',
@@ -47,12 +40,6 @@ export enum MessageType {
   OAUTH_GET_AUTH_URL = 'oauth.getAuthUrl',
   OAUTH_AUTH_URL_RESPONSE = 'oauth.authUrlResponse',
   OAUTH_RESULT = 'oauth.result', // Server → Client (broadcast): an authorization finished
-
-  // Read-only database inspector (the console's Data page).
-  DATA_LIST_TABLES = 'data.listTables', // Client → Server
-  DATA_TABLES = 'data.tables', // Server → Client
-  DATA_QUERY_ROWS = 'data.queryRows', // Client → Server
-  DATA_ROWS = 'data.rows', // Server → Client
 }
 
 // ============================================================================
@@ -61,67 +48,6 @@ export enum MessageType {
 // What the server sends. Request payloads (client → server) are inferred from their schemas
 // in requests.ts.
 // ============================================================================
-
-/**
- * Command result payload
- */
-export interface CommandResultPayload {
-  /** Original command name */
-  command: string;
-
-  /** Execution result */
-  result: ExecutionResult;
-
-  /** Whether this was a simulation */
-  isSimulation: boolean;
-}
-
-/** One column of an inspectable table. */
-export interface DataColumnInfo {
-  name: string;
-  /** SQLite declared type, e.g. TEXT or INTEGER */
-  type: string;
-  /** The value is never sent: a masked column reads as its size instead. */
-  masked: boolean;
-  /** The values this column can take, for columns the console offers as a filter. */
-  enumValues?: string[];
-  /** Holds epoch-millisecond timestamps. */
-  isTimestamp: boolean;
-  /** Holds JSON text. */
-  isJson: boolean;
-}
-
-/** One inspectable table. */
-export interface DataTableInfo {
-  name: string;
-  rowCount: number;
-  columns: DataColumnInfo[];
-  /** The column rows are ordered by when no sort is given (newest first if it's a timestamp). */
-  defaultSort: string;
-}
-
-/** Every inspectable table (server → client). */
-export interface DataTablesPayload {
-  tables: DataTableInfo[];
-}
-
-/** A cell as sent to the console: masked columns arrive as a description of their size. */
-export type DataCell = string | number | null;
-
-/** One page of a table's rows (server → client). */
-export interface DataRowsPayload {
-  rows: Record<string, DataCell>[];
-  /** Rows matching the filters, across all pages */
-  total: number;
-}
-
-/**
- * Command list payload
- */
-export interface CommandListPayload {
-  /** All available commands */
-  commands: CommandInfo[];
-}
 
 /**
  * Event notification payload
@@ -150,8 +76,6 @@ export type ErrorCode =
   /** The message couldn't be read or routed at all (e.g. it wasn't JSON). */
   | 'MESSAGE_HANDLING_ERROR'
   | 'ACTIVITY_QUERY_FAILED'
-  /** The Data inspector couldn't read what was asked (unknown table or column, or a read error). */
-  | 'DATA_QUERY_FAILED'
   /** Client side: the connection closed before the response arrived. */
   | 'CONNECTION_CLOSED';
 
@@ -211,16 +135,6 @@ export function createMessage<T>(type: MessageType, payload: T, id?: string): IW
     timestamp: Date.now(),
     payload,
   };
-}
-
-/**
- * Create a command result message
- */
-export function createCommandResultMessage(
-  payload: CommandResultPayload,
-  originalMessageId: string
-): IWebSocketMessage<CommandResultPayload> {
-  return createMessage(MessageType.COMMAND_RESULT, payload, originalMessageId);
 }
 
 /**

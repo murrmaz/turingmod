@@ -1,8 +1,7 @@
 import type { CommandInfo, IntegrationInfo } from '@turingmod/shared';
-import { MessageType } from '@turingmod/shared';
 import type { ReactNode } from 'react';
 import { createContext, useContext } from 'react';
-import { useServerState } from '@/hooks/useServerState';
+import { useServerQuery } from '@/hooks/useServerQuery';
 import { useSubscription } from '@/hooks/useSubscription';
 
 /** The integrations and commands, which most of the console needs. */
@@ -25,17 +24,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     NO_INTEGRATIONS,
     "Couldn't load integrations"
   );
-  const commands = useServerState(MessageType.COMMAND_LIST, {
-    payload: {},
-    initial: NO_COMMANDS,
-    onReply: (reply) => reply.commands,
-    errorTitle: "Couldn't load commands",
-  });
+  const { data: commands } = useServerQuery(
+    (trpc, input, opts) => trpc.commands.list.query(input, opts),
+    { input: {}, initial: NO_COMMANDS, errorTitle: "Couldn't load commands" }
+  );
 
   const value: AppStateContextValue = {
     integrations,
     showIntegrations,
-    commands: commands.state,
+    commands,
   };
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

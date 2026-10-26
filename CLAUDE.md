@@ -60,7 +60,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Loader**: `packages/backend/src/commands/loadCommands.ts`
 - **Results**: `packages/backend/src/commands/utils/results.ts` — `ok()`, `fail()`, and `mirrorReply()` for title/game/tags writes
 - **Parser**: `packages/backend/src/commands/parseCommand.ts` — the one place command text becomes a name and arguments, for chat and the simulator alike
-- **WebSocket Handler**: `packages/backend/src/server/handlers/CommandHandler.ts`
+- **Console API**: `packages/backend/src/server/trpc/commandsRouter.ts` (tRPC: `commands.list`, `commands.simulate`)
 
 ### Platform Provider Layer
 - **Interface**: `packages/backend/src/platforms/interfaces/IStreamPlatform.ts` — platform-agnostic façade; per-capability objects (`CapabilityApis`) are optional
@@ -125,7 +125,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 ### Console ↔ Backend Protocol
 - **tRPC router**: `packages/backend/src/server/trpc/appRouter.ts` (`createAppRouter()`, `AppRouter` type) — one sub-router per area, e.g. `integrationsRouter.ts`; `trpc.ts` (instance), `watch.ts` (`watchable()`: current value, then again on each change, read once per change for every console)
 - **tRPC endpoint**: `packages/backend/src/server/trpc/TrpcServer.ts` (`TRPC_PATH`); `HttpServer.routeUpgrades()` hands each WebSocket path its endpoint; `server/consoleSockets.ts` is what both endpoints share (console-only origin check, upgrades, closing with a grace period)
-- **tRPC client**: `packages/frontend/src/context/TrpcContext.tsx` (`TrpcProvider`, `useTrpc()`), `services/trpcLinks.ts` (fail requests while disconnected), `hooks/useSubscription.ts` (state kept current by a `watch` subscription), `hooks/useConnection.ts` (both connections as one state, for the banner)
+- **tRPC client**: `packages/frontend/src/context/TrpcContext.tsx` (`TrpcProvider`, `useTrpc()`), `services/trpcLinks.ts` (fail requests while disconnected), `hooks/useSubscription.ts` (state kept current by a `watch` subscription), `hooks/useServerQuery.ts` (a query, read on connect and on each new input), `hooks/useConnection.ts`; `RouterInputs`/`RouterOutputs` (in `TrpcContext`) name a procedure's input and output types (both connections as one state, for the banner)
 - **Legacy server**: `packages/backend/src/server/WebSocketServer.ts`
 - **Router**: `packages/backend/src/server/MessageRouter.ts`
 - **Messages/Types**: `packages/shared/src/protocol/messages.ts`
@@ -138,7 +138,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Manager**: `packages/backend/src/database/DatabaseManager.ts`
 - **Repositories**: `packages/backend/src/database/repositories/*.ts`
 - **Migrations**: `packages/backend/src/database/migrations/*.ts`, listed in `migrations/index.ts` (`ALL_MIGRATIONS`), run automatically on startup
-- **Read-only inspector**: `packages/backend/src/database/DataInspector.ts` (allow-listed tables, masked secrets) + `server/handlers/DataHandler.ts`; console side `packages/frontend/src/features/data/`
+- **Read-only inspector**: `packages/backend/src/database/DataInspector.ts` (allow-listed tables, masked secrets) + `server/trpc/dataRouter.ts`; query shape and result types in `shared/src/types/data.ts`; console side `packages/frontend/src/features/data/`
 
 ### Core Infrastructure
 - **DI**: [tsyringe](https://github.com/microsoft/tsyringe) — `@singleton()` on app-lifetime classes, `@injectable()` on commands and reward handlers; `registerRootFactories()` in `setup.ts` for the handful of classes tsyringe can't auto-construct
@@ -184,7 +184,7 @@ Triggers (chat, redemptions, raids) go last in the list so they stop first: noth
 break or an effect while those are being restored. Each service keeps its bus subscriptions in a
 `Subscriptions` and clears them in `stop()`.
 
-**Message routing** (the legacy protocol, being replaced by tRPC; see Console ↔ Backend Protocol below): WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes (`CommandHandler`, `OAuthHandler`, `ActivityHandler`, `DataHandler`, registered in `setup.ts`) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
+**Message routing** (the legacy protocol, being replaced by tRPC; see Console ↔ Backend Protocol below): WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes (`OAuthHandler`, `ActivityHandler`, registered in `setup.ts`) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
 
 **EventBus.** Integrations, services and the server communicate through `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
 `emit()` calls handlers in subscription order but runs async ones concurrently, and resolves once
@@ -231,7 +231,7 @@ requests move from the first to the second as the console is rebuilt:
   other consoles get it through the subscription. A malformed input is a `BAD_REQUEST`; a handler that
   throws reaches the console as its error message. Requests made while disconnected fail at once
   (`failWhileDisconnected`), as on the legacy client: a click during an outage never runs later.
-  Migrated so far: integrations, platform live state, YouTube chat.
+  Migrated so far: integrations, platform live state, YouTube chat, commands, the data inspector.
 - **Legacy** (`WS_PATH`, `/ws`) — everything not yet migrated, described below. Don't add new
   requests here; when migrating one, delete its `MessageType`, schema, payload types and handler.
 
@@ -256,7 +256,7 @@ which returns that platform's capability object, typed, or throws. What only som
 is an optional capability object on `IStreamPlatform` (all listed in `CapabilityApis`). A command
 lists the capabilities it uses in `requiredCapabilities` and is hidden on platforms without them
 (`CommandExecutor` treats hidden as `COMMAND_NOT_FOUND`); the console gets each command's
-`availableOn` in `COMMAND_LIST`. Every endpoint and platform rule lives in the façade
+`availableOn` from `commands.list`. Every endpoint and platform rule lives in the façade
 (`TwitchPlatform`, `YouTubePlatform`), never in a command or in an API integration. How the façades
 and their capability sets are built, and how to add a capability, is in
 [`packages/backend/src/platforms/CLAUDE.md`](packages/backend/src/platforms/CLAUDE.md).
@@ -435,7 +435,7 @@ there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 
-React Context for state management: `TrpcContext` (the tRPC client), `WebSocketContext` (legacy connection + send/subscribe) and `AppStateContext` (commands, integrations). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`). Anything still read over the legacy protocol goes through `useServerState()` (`hooks/useServerState.ts`): read on every connect and whenever its payload changes, stale replies dropped, kept current by an optional push message; don't hand-write either in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
+React Context for state management: `TrpcContext` (the tRPC client), `WebSocketContext` (legacy connection + send/subscribe) and `AppStateContext` (commands, integrations). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`); anything read with a tRPC query, with `useServerQuery()` (`hooks/useServerQuery.ts`): read whenever the connection comes up and whenever its input changes, a superseded read aborted. Anything still read over the legacy protocol goes through `useServerState()` (`hooks/useServerState.ts`): read on every connect and whenever its payload changes, stale replies dropped, kept current by an optional push message; don't hand-write either in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useWebSocket()`, `useWebSocketMessage()`, `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
 
 ### Console UI
 
@@ -453,7 +453,8 @@ data inspector (below), paged and filtered on the server.
 ### Data Inspector
 
 The Data page reads the database through `DataInspector` (`database/DataInspector.ts`) over
-`data.listTables` / `data.queryRows`, served by `server/handlers/DataHandler.ts`. It opens its own
+the tRPC queries `data.listTables` / `data.queryRows` (`server/trpc/dataRouter.ts`), which report
+what it refuses (an unknown table or column) as a `BAD_REQUEST` with its reason. It opens its own
 `readOnly` connection, reads only the tables in its `TABLES` allow-list, checks every table and
 column name against the schema SQLite reports, and binds every value; there is no free-form SQL.
 `integration_state.config` is never selected (only its length, shown as `encrypted · N B`) and the

@@ -46,7 +46,7 @@ class MockWebSocket {
   /** Test helper: simulate the server pushing a response for a given message id. */
   respondTo(originalId: string, payload: Record<string, unknown> = {}): void {
     this.onmessage?.({
-      data: JSON.stringify(createMessage(MessageType.COMMAND_RESULT, payload, originalId)),
+      data: JSON.stringify(createMessage(MessageType.ACTIVITY_LIST, payload, originalId)),
     });
   }
 }
@@ -93,7 +93,7 @@ describe('WebSocketClient', () => {
   });
 
   it('rejects a pending sendAndWaitForResponse immediately when disconnect() is called', async () => {
-    const message = createMessage(MessageType.COMMAND_SIMULATE, {});
+    const message = createMessage(MessageType.ACTIVITY_QUERY, {});
     const promise = client.sendAndWaitForResponse(message);
 
     client.disconnect();
@@ -102,7 +102,7 @@ describe('WebSocketClient', () => {
   });
 
   it('rejects a pending sendAndWaitForResponse when the socket closes unexpectedly', async () => {
-    const message = createMessage(MessageType.COMMAND_SIMULATE, {});
+    const message = createMessage(MessageType.ACTIVITY_QUERY, {});
     const promise = client.sendAndWaitForResponse(message);
 
     latest().simulateClose(1006, 'abnormal closure');
@@ -113,7 +113,7 @@ describe('WebSocketClient', () => {
   it('rejects a request made while disconnected at once, and never sends it later', async () => {
     latest().simulateClose(1006, 'abnormal closure');
 
-    const promise = client.sendAndWaitForResponse(createMessage(MessageType.COMMAND_SIMULATE, {}));
+    const promise = client.sendAndWaitForResponse(createMessage(MessageType.ACTIVITY_QUERY, {}));
     await expect(promise).rejects.toThrow(NOT_CONNECTED_MESSAGE);
 
     vi.advanceTimersByTime(1000);
@@ -122,7 +122,7 @@ describe('WebSocketClient', () => {
   });
 
   it('tells connection failures apart from errors the backend answered with', async () => {
-    const answered = createMessage(MessageType.COMMAND_SIMULATE, {});
+    const answered = createMessage(MessageType.ACTIVITY_QUERY, {});
     const refused = client.sendAndWaitForResponse(answered);
     latest().onmessage?.({
       data: JSON.stringify({
@@ -134,11 +134,11 @@ describe('WebSocketClient', () => {
     expect(refusal).toBeInstanceOf(Error);
     expect(refusal).not.toBeInstanceOf(ConnectionError);
 
-    const lost = client.sendAndWaitForResponse(createMessage(MessageType.COMMAND_SIMULATE, {}));
+    const lost = client.sendAndWaitForResponse(createMessage(MessageType.ACTIVITY_QUERY, {}));
     latest().simulateClose(1006, 'abnormal closure');
     await expect(lost).rejects.toBeInstanceOf(ConnectionError);
 
-    const never = client.sendAndWaitForResponse(createMessage(MessageType.COMMAND_SIMULATE, {}));
+    const never = client.sendAndWaitForResponse(createMessage(MessageType.ACTIVITY_QUERY, {}));
     await expect(never).rejects.toBeInstanceOf(ConnectionError);
   });
 
@@ -215,7 +215,7 @@ describe('WebSocketClient', () => {
     client.connect();
     latest().simulateOpen();
 
-    const message = createMessage(MessageType.COMMAND_SIMULATE, {});
+    const message = createMessage(MessageType.ACTIVITY_QUERY, {});
     const promise = client.sendAndWaitForResponse(message);
     old.onclose?.({ code: 1006, reason: 'late close' });
 
@@ -225,14 +225,14 @@ describe('WebSocketClient', () => {
   });
 
   it('still resolves new requests normally after a reconnect', async () => {
-    const first = client.sendAndWaitForResponse(createMessage(MessageType.COMMAND_SIMULATE, {}));
+    const first = client.sendAndWaitForResponse(createMessage(MessageType.ACTIVITY_QUERY, {}));
     latest().simulateClose(1006, 'abnormal closure');
     await expect(first).rejects.toThrow('Connection closed');
 
     vi.advanceTimersByTime(1000);
     latest().simulateOpen();
 
-    const message = createMessage(MessageType.COMMAND_SIMULATE, {});
+    const message = createMessage(MessageType.ACTIVITY_QUERY, {});
     const second = client.sendAndWaitForResponse(message);
     latest().respondTo(message.id, { result: 'ok' });
 

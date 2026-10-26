@@ -1,7 +1,5 @@
 import { z } from 'zod';
-import { StreamingPlatform } from '../constants/platform.js';
 import { ActivityCategory } from '../types/activity.js';
-import { SimulatedUserSchema } from '../types/user.js';
 import { MessageType } from './messages.js';
 
 /**
@@ -23,27 +21,6 @@ export const WebSocketMessageSchema = z.strictObject({
 export const EmptyPayloadSchema = z.strictObject({});
 export type EmptyPayload = z.infer<typeof EmptyPayloadSchema>;
 
-/**
- * Run a command typed into the console's simulator. The text is parsed exactly as chat is, so
- * anything chat wouldn't run as a command is answered as not being one.
- */
-export const CommandSimulatePayloadSchema = z.strictObject({
-  /** Full command text (e.g., "!bonk @username") */
-  commandText: z.string().min(1),
-  /** Simulated user information */
-  simulatedUser: SimulatedUserSchema,
-  /** Platform to simulate */
-  platform: z.enum(StreamingPlatform),
-});
-export type CommandSimulatePayload = z.infer<typeof CommandSimulatePayloadSchema>;
-
-/** List commands, optionally only those available on one platform. */
-export const CommandListRequestPayloadSchema = z.strictObject({
-  /** Platform to filter commands by. Omitted = all registered commands. */
-  platform: z.enum(StreamingPlatform).exactOptional(),
-});
-export type CommandListRequestPayload = z.infer<typeof CommandListRequestPayloadSchema>;
-
 /** Ask for an OAuth integration's authorization URL. */
 export const OAuthGetAuthUrlPayloadSchema = z.strictObject({
   /** Integration name (e.g., 'twitch-auth') */
@@ -62,41 +39,10 @@ export const ActivityQueryPayloadSchema = z.strictObject({
 });
 export type ActivityQueryPayload = z.infer<typeof ActivityQueryPayloadSchema>;
 
-/** Most rows one data page may return. */
-export const MAX_DATA_PAGE_SIZE = 200;
-
-/**
- * Read a page of one table for the Data inspector. Table and column names are checked against the
- * tables the backend allows inspecting; values are only ever bound as parameters.
- */
-export const DataQueryRowsPayloadSchema = z.strictObject({
-  table: z.string().min(1),
-  /** Zero-based page number */
-  page: z.int().nonnegative(),
-  pageSize: z.int().positive().max(MAX_DATA_PAGE_SIZE),
-  sort: z
-    .strictObject({
-      column: z.string().min(1),
-      direction: z.enum(['asc', 'desc']),
-    })
-    .exactOptional(),
-  /** Keep rows whose column equals one of the listed values, per column */
-  filters: z.record(z.string(), z.array(z.string()).min(1)).exactOptional(),
-  /** Text matched anywhere in the table's unmasked text columns */
-  search: z.string().exactOptional(),
-  /** Only rows at or after this epoch-ms time, on the table's timestamp column */
-  since: z.number().exactOptional(),
-});
-export type DataQueryRowsPayload = z.infer<typeof DataQueryRowsPayloadSchema>;
-
 /** Every request the backend accepts, and the schema its payload must match. */
 export const REQUEST_PAYLOAD_SCHEMAS = {
-  [MessageType.COMMAND_SIMULATE]: CommandSimulatePayloadSchema,
-  [MessageType.COMMAND_LIST]: CommandListRequestPayloadSchema,
   [MessageType.OAUTH_GET_AUTH_URL]: OAuthGetAuthUrlPayloadSchema,
   [MessageType.ACTIVITY_QUERY]: ActivityQueryPayloadSchema,
-  [MessageType.DATA_LIST_TABLES]: EmptyPayloadSchema,
-  [MessageType.DATA_QUERY_ROWS]: DataQueryRowsPayloadSchema,
 } as const satisfies Partial<Record<MessageType, z.ZodType>>;
 
 /** A message type the backend accepts as a request, as its MessageType member. */

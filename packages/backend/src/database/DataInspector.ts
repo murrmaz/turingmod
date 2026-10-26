@@ -3,8 +3,8 @@ import {
   ActivityCategory,
   type DataCell,
   type DataColumnInfo,
-  type DataQueryRowsPayload,
-  type DataRowsPayload,
+  type DataRowsPage,
+  type DataRowsQuery,
   type DataTableInfo,
 } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
@@ -88,7 +88,7 @@ export class DataInspector implements IService {
       .map((name) => this.describe(name));
   }
 
-  queryRows(request: DataQueryRowsPayload): DataRowsPayload {
+  queryRows(request: DataRowsQuery): DataRowsPage {
     const table = this.describe(request.table);
     const policy = policyOf(table.name);
     const columns = new Map(table.columns.map((column) => [column.name, column]));

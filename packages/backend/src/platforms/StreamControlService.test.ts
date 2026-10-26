@@ -8,6 +8,7 @@ import type {
   ChannelPage,
   DeclaredCapability,
   IStreamPlatform,
+  LiveBroadcast,
   StreamInfo,
 } from './interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from './PlatformRegistry.js';
@@ -37,8 +38,8 @@ class FakePlatform implements IStreamPlatform {
   getStreamInfo(): Promise<StreamInfo> {
     return Promise.resolve({ title: 'x' });
   }
-  getUptime(): Promise<number | null> {
-    return Promise.resolve(null);
+  getLiveBroadcast(): Promise<LiveBroadcast | null> {
+    return Promise.resolve(this.live ? { startedAt: null } : null);
   }
   getChannelPage(): Promise<ChannelPage> {
     return Promise.resolve({ displayName: 'x', url: 'https://example.com/x' });

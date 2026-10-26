@@ -25,6 +25,7 @@ import type {
   DeclaredCapability,
   FollowInfoApi,
   IStreamPlatform,
+  LiveBroadcast,
   MarkersApi,
   ModerationApi,
   ScheduleApi,
@@ -103,14 +104,7 @@ export class TwitchPlatform implements IStreamPlatform {
   }
 
   async isLive(): Promise<boolean> {
-    // Defined to answer false rather than throw, so StreamControlService can skip an
-    // unauthenticated platform while mirroring instead of recording it as a failure.
-    const userId = this.authenticatedUserId();
-    if (!userId) {
-      return false;
-    }
-    const stream = await this.liveStream(userId);
-    return stream !== null;
+    return (await this.getLiveBroadcast()) !== null;
   }
 
   async sendChatMessage(message: string): Promise<void> {
@@ -163,17 +157,15 @@ export class TwitchPlatform implements IStreamPlatform {
     }
   }
 
-  async getUptime(): Promise<number | null> {
-    // Null rather than a throw: "not authenticated" and "offline" are the same answer here.
+  async getLiveBroadcast(): Promise<LiveBroadcast | null> {
+    // Null rather than a throw, so StreamControlService can skip an unauthenticated platform
+    // while mirroring instead of recording it as a failure.
     const userId = this.authenticatedUserId();
     if (!userId) {
       return null;
     }
     const stream = await this.liveStream(userId);
-    if (!stream) {
-      return null;
-    }
-    return Date.now() - stream.startDate.getTime();
+    return stream ? { startedAt: stream.startDate } : null;
   }
 
   async getChannelPage(): Promise<ChannelPage> {

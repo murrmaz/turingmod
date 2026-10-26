@@ -97,13 +97,15 @@ export class PlatformLiveStatus implements IService {
     }
 
     try {
-      const uptime = await facade.getUptime();
-      // A live broadcast may not have reported a start time yet, which reads as no uptime.
-      const live = uptime !== null || (await facade.isLive());
+      const broadcast = await facade.getLiveBroadcast();
       if (this.generations.get(platform) !== generation) {
         return;
       }
-      this.set({ platform, live, startedAt: uptime === null ? null : Date.now() - uptime });
+      this.set({
+        platform,
+        live: broadcast !== null,
+        startedAt: broadcast?.startedAt?.getTime() ?? null,
+      });
     } catch (error) {
       this.logger.warn('Could not read whether a platform is live', {
         platform,

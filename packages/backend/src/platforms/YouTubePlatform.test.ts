@@ -79,7 +79,7 @@ describe('YouTubePlatform', () => {
       authStatus = IntegrationStatus.DISCONNECTED;
 
       expect(await platform.isLive()).toBe(false);
-      expect(await platform.getUptime()).toBeNull();
+      expect(await platform.getLiveBroadcast()).toBeNull();
       expect(api.getActiveBroadcast).not.toHaveBeenCalled();
     });
 
@@ -197,11 +197,12 @@ describe('YouTubePlatform', () => {
     expect(youtube.liveBroadcasts.update).not.toHaveBeenCalled();
   });
 
-  it("reports the streamed broadcast's uptime without looking it up", async () => {
-    vi.useFakeTimers({ now: new Date('2026-10-14T19:00:00Z') });
+  it('reports when the streamed broadcast started without looking it up', async () => {
     chat.getBroadcast.mockReturnValue(STREAMED);
 
-    await expect(platform.getUptime()).resolves.toBe(60 * 60 * 1000);
+    await expect(platform.getLiveBroadcast()).resolves.toEqual({
+      startedAt: new Date(STREAMED.actualStartTime),
+    });
     expect(api.getActiveBroadcast).not.toHaveBeenCalled();
   });
 

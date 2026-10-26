@@ -15,6 +15,7 @@ import type {
   ChannelPage,
   DeclaredCapability,
   IStreamPlatform,
+  LiveBroadcast,
   StreamInfo,
 } from './interfaces/IStreamPlatform.js';
 
@@ -56,11 +57,7 @@ export class YouTubePlatform implements IStreamPlatform {
   }
 
   async isLive(): Promise<boolean> {
-    // False rather than a throw while YouTube is unusable, as the interface defines it.
-    if (this.getUnavailableReason() !== null) {
-      return false;
-    }
-    return (await this.liveBroadcast()) !== null;
+    return (await this.getLiveBroadcast()) !== null;
   }
 
   async sendChatMessage(message: string): Promise<void> {
@@ -133,17 +130,17 @@ export class YouTubePlatform implements IStreamPlatform {
     );
   }
 
-  /** Milliseconds the active broadcast has been live, or null if offline / no start time yet. */
-  async getUptime(): Promise<number | null> {
-    // Null rather than a throw: "unusable" and "offline" are the same answer here, as on Twitch.
+  async getLiveBroadcast(): Promise<LiveBroadcast | null> {
+    // Null rather than a throw while YouTube is unusable, as on Twitch.
     if (this.getUnavailableReason() !== null) {
       return null;
     }
     const broadcast = await this.liveBroadcast();
-    if (!broadcast?.actualStartTime) {
+    if (!broadcast) {
       return null;
     }
-    return Date.now() - new Date(broadcast.actualStartTime).getTime();
+    const { actualStartTime } = broadcast;
+    return { startedAt: actualStartTime ? new Date(actualStartTime) : null };
   }
 
   async getChannelPage(): Promise<ChannelPage> {

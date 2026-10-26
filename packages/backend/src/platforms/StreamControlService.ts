@@ -112,8 +112,9 @@ export class StreamControlService {
   }
 
   /** Read current broadcast uptime (ms) from a specific platform, or null if offline. */
-  getUptime(platform: StreamingPlatform): Promise<number | null> {
-    return this.target(platform).getUptime();
+  async getUptime(platform: StreamingPlatform): Promise<number | null> {
+    const startedAt = (await this.target(platform).getLiveBroadcast())?.startedAt;
+    return startedAt ? Date.now() - startedAt.getTime() : null;
   }
 
   /** Every registered platform, in registry order. */

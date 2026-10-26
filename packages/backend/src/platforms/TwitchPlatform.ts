@@ -10,7 +10,7 @@ import { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import { unavailableReason } from './availability.js';
-import { NotAuthenticatedError } from './errors.js';
+import { InvalidStreamInfoError, NotAuthenticatedError } from './errors.js';
 import type {
   AccountAgeApi,
   AdsApi,
@@ -127,7 +127,7 @@ export class TwitchPlatform implements IStreamPlatform {
       const gameName = info.game;
       const game = await this.api.request((c) => c.games.getGameByName(gameName));
       if (!game) {
-        throw new Error(`Game not found: ${gameName}`);
+        throw new InvalidStreamInfoError(`Game not found: ${gameName}`);
       }
       update.gameId = game.id;
     }

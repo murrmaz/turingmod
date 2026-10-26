@@ -4,6 +4,7 @@ import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { Logger } from '../utils/Logger.js';
 import { CAPABILITY_OF_API, capabilitiesOf } from './capabilities.js';
+import { InvalidStreamInfoError } from './errors.js';
 import type {
   CapabilityApiName,
   CapabilityApis,
@@ -21,7 +22,18 @@ export interface MirrorResult {
   /** Platforms the change was successfully applied to. */
   updated: StreamingPlatform[];
   /** Per-platform failures encountered while mirroring. */
-  failures: { platform: StreamingPlatform; error: string }[];
+  failures: MirrorFailure[];
+}
+
+export interface MirrorFailure {
+  platform: StreamingPlatform;
+  /** What went wrong, for the streamer: the platform's own error text. */
+  error: string;
+  /**
+   * The platform has no such value as the one asked for (InvalidStreamInfoError), so `error` is
+   * written for whoever asked and may be repeated in chat. Absent for any other failure.
+   */
+  invalidValue?: true;
 }
 
 /**
@@ -220,7 +232,11 @@ export class StreamControlService {
         }
       } catch (error) {
         this.logger.error(`Failed to apply ${capability} on ${platform.platform}`, error);
-        result.failures.push({ platform: platform.platform, error: messageOf(error) });
+        result.failures.push({
+          platform: platform.platform,
+          error: messageOf(error),
+          ...(error instanceof InvalidStreamInfoError ? { invalidValue: true } : {}),
+        });
       }
     }
 

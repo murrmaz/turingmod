@@ -25,7 +25,7 @@ describe('command results', () => {
     expect(result).toEqual({ success: true, message: 'Title updated on Twitch' });
   });
 
-  it('fails a mirrored write no platform took, with the first error as its reason', () => {
+  it('fails a mirrored write no platform took, keeping the platform error out of chat', () => {
     const result = mirrorReply(
       {
         updated: [],
@@ -36,12 +36,23 @@ describe('command results', () => {
     );
 
     expect(result).toEqual(
-      fail(
-        'API_ERROR',
-        'Failed to update title: Helix rejected the update',
-        'Helix rejected the update'
-      )
+      fail('API_ERROR', 'Failed to update title on Twitch', 'Helix rejected the update')
     );
+  });
+
+  it('repeats in chat a failure about the value asked for', () => {
+    const result = mirrorReply(
+      {
+        updated: [],
+        failures: [
+          { platform: StreamingPlatform.TWITCH, error: 'Game not found: Nope', invalidValue: true },
+        ],
+      },
+      'game',
+      () => 'unused'
+    );
+
+    expect(result).toEqual(fail('INVALID_INPUT', 'Game not found: Nope', 'Game not found: Nope'));
   });
 
   it('fails a mirrored write when no platform is live', () => {

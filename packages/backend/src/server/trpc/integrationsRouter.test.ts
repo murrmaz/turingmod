@@ -30,7 +30,7 @@ function setup() {
   // The signal ends a subscription, as the console unsubscribing does.
   const caller = createCallerFactory(
     createIntegrationsRouter(manager as unknown as IntegrationManager, eventBus, logger)
-  )({}, { signal: controller.signal });
+  )({ consoleOrigin: null }, { signal: controller.signal });
   return {
     controller,
     eventBus,

@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { MessageType, TRPC_PATH, WS_PATH } from '@turingmod/shared';
+import { TRPC_PATH, WS_PATH } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { DatabaseManager } from '../database/DatabaseManager.js';
 import type { IntegrationManager } from '../integrations/IntegrationManager.js';
@@ -15,13 +15,10 @@ function startableApp() {
   const logger = new Logger({ level: 'silent' });
   const eventBus = new EventBus(logger);
   const integrationManager = {
-    // An authorization can finish while integrations are starting.
-    startEnabledIntegrations: vi.fn(async () => {
-      await eventBus.emit('oauth.completed', { integrationName: 'twitch-auth', success: true });
-    }),
+    startEnabledIntegrations: vi.fn(),
   } as unknown as IntegrationManager;
   const httpServer = { start: vi.fn(), routeUpgrades: vi.fn() };
-  const webSocketServer = { start: vi.fn(), broadcast: vi.fn() };
+  const webSocketServer = { start: vi.fn() };
   const trpcServer = { start: vi.fn() };
   const app = new Application(
     {} as DatabaseManager,
@@ -37,19 +34,6 @@ function startableApp() {
 }
 
 describe('Application', () => {
-  it('forwards events that happen while integrations are starting up', async () => {
-    const { app, webSocketServer } = startableApp();
-
-    await app.start();
-
-    expect(webSocketServer.broadcast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: MessageType.OAUTH_RESULT,
-        payload: { integrationName: 'twitch-auth', success: true },
-      })
-    );
-  });
-
   it('routes each WebSocket path to its endpoint before the HTTP server listens', async () => {
     const { app, httpServer, webSocketServer, trpcServer } = startableApp();
 

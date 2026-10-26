@@ -1,4 +1,4 @@
-import { createOAuthResultMessage, TRPC_PATH, WS_PATH } from '@turingmod/shared';
+import { TRPC_PATH, WS_PATH } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { DatabaseManager } from '../database/DatabaseManager.js';
 import { IntegrationManager } from '../integrations/IntegrationManager.js';
@@ -83,14 +83,6 @@ export class Application {
     // Logged only: the console follows YouTube chat's state through `youtubeChat.watch`.
     this.eventBus.on('youtube.chat.state', (data) => {
       this.logger.info('YouTube chat state changed', data);
-    });
-
-    // An authorization finished. The backend exchanged the code itself, so the result carries
-    // none and goes to every console: whichever one asked may have reconnected or closed since.
-    this.eventBus.on('oauth.completed', (data) => {
-      this.webSocketServer.broadcast(
-        createOAuthResultMessage(data.integrationName, data.success, data.errorMessage)
-      );
     });
   }
 

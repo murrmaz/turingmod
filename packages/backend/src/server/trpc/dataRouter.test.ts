@@ -4,7 +4,7 @@ import { createDataRouter } from './dataRouter.js';
 import { createCallerFactory } from './trpc.js';
 
 const caller = (inspector: Partial<DataInspector>) =>
-  createCallerFactory(createDataRouter(inspector as DataInspector))({});
+  createCallerFactory(createDataRouter(inspector as DataInspector))({ consoleOrigin: null });
 
 describe('data router', () => {
   it('answers with the page the inspector read', async () => {

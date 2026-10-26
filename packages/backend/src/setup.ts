@@ -1,4 +1,4 @@
-import { DEFAULT_FRONTEND_DEV_PORT, MessageType } from '@turingmod/shared';
+import { DEFAULT_FRONTEND_DEV_PORT } from '@turingmod/shared';
 import { container, instanceCachingFactory } from 'tsyringe';
 import { ActivityForwarder } from './activity/ActivityForwarder.js';
 import { AdWarningScheduler } from './breaks/AdWarningScheduler.js';
@@ -49,7 +49,6 @@ import { RewardRegistry } from './rewards/RewardRegistry.js';
 import { RewardRouter } from './rewards/RewardRouter.js';
 import { RewardSync } from './rewards/RewardSync.js';
 import { HttpServer } from './server/HttpServer.js';
-import { OAuthHandler } from './server/handlers/OAuthHandler.js';
 import { MessageRouter } from './server/MessageRouter.js';
 import { createAppRouter } from './server/trpc/appRouter.js';
 import { TrpcServer } from './server/trpc/TrpcServer.js';
@@ -257,16 +256,6 @@ export async function initializeComponents(): Promise<void> {
   services.add(container.resolve(RewardRouter));
   services.add(container.resolve(OwnChatMessages));
   services.add(container.resolve(ChatRouter));
-
-  // Register message handlers
-  const messageRouter = container.resolve(MessageRouter);
-  const oauthHandler = container.resolve(OAuthHandler);
-  const webSocketServer = container.resolve(WebSocketServer);
-
-  // The console's origin is where the callback page sends the streamer back to.
-  messageRouter.registerHandler(MessageType.OAUTH_GET_AUTH_URL, (msg, clientId) =>
-    oauthHandler.handleGetAuthUrl(msg, webSocketServer.originOf(clientId))
-  );
 
   logger.info('Components initialized');
 }

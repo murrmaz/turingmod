@@ -1,4 +1,4 @@
-import { MessageType, messageOf } from '@turingmod/shared';
+import { messageOf } from '@turingmod/shared';
 import { CircleAlert, Info, Loader2, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -11,8 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useWebSocketContext } from '@/context/WebSocketContext';
-import { useWebSocketMessage } from '@/hooks/useWebSocket';
+import { useTrpc } from '@/context/TrpcContext';
 import type { OAuthProviderConfig } from './oauthProviders';
 
 export interface OAuthModalProps {
@@ -46,8 +45,8 @@ function openPopup(url: string, name: string): Window | null {
  *
  * An attempt asks the backend for the provider's authorization URL and opens it in a popup. The
  * provider redirects to the backend's own callback (whose URI the backend derives), where the
- * backend exchanges the code itself and broadcasts how it went (`oauth.result`); this only waits
- * for that. The flow doesn't depend on this dialog: closing it, or the console, mid sign-in still
+ * backend exchanges the code itself and announces how it went (`oauth.results`); this only waits
+ * for that, subscribed before it asks for the URL so a result can't come first. The flow doesn't depend on this dialog: closing it, or the console, mid sign-in still
  * connects the integration.
  */
 export function OAuthModal({
@@ -56,7 +55,7 @@ export function OAuthModal({
   onSuccess,
   onChangeCredentials,
 }: OAuthModalProps) {
-  const { request } = useWebSocketContext();
+  const trpc = useTrpc();
   const [step, setStep] = useState<Step>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   /** Bumped by Try again, which starts a new attempt. */
@@ -77,6 +76,30 @@ export function OAuthModal({
     }
   }, []);
 
+  // Kept current for the subscription below, which is made once per client.
+  const onResult = useRef({ onSuccess, fail, closePopup });
+  onResult.current = { onSuccess, fail, closePopup };
+
+  // Declared before the effect that asks for the URL, so React subscribes first and the
+  // subscription goes out on the socket ahead of the request.
+  useEffect(() => {
+    const subscription = trpc.oauth.results.subscribe(undefined, {
+      onData: (result) => {
+        if (result.integrationName !== integrationName) {
+          return;
+        }
+        onResult.current.closePopup();
+        if (result.success) {
+          onResult.current.onSuccess();
+        } else {
+          onResult.current.fail(result.errorMessage || 'Authorization failed');
+        }
+      },
+      onError: (error) => onResult.current.fail(messageOf(error)),
+    });
+    return () => subscription.unsubscribe();
+  }, [trpc, integrationName]);
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: attempt starts a new attempt on Try again
   useEffect(() => {
     let cancelled = false;
@@ -84,8 +107,9 @@ export function OAuthModal({
     setStep('loading');
     setErrorMessage('');
 
-    request(MessageType.OAUTH_GET_AUTH_URL, { integrationName })
-      .then(({ authUrl }) => {
+    trpc.oauth.authorizationUrl
+      .mutate({ integrationName })
+      .then((authUrl) => {
         if (cancelled) {
           return;
         }
@@ -124,25 +148,7 @@ export function OAuthModal({
       window.clearInterval(watcher);
       closePopup();
     };
-  }, [request, integrationName, popupWindowName, fail, closePopup, attempt]);
-
-  useWebSocketMessage(
-    MessageType.OAUTH_RESULT,
-    useCallback(
-      (result) => {
-        if (result.integrationName !== integrationName) {
-          return;
-        }
-        closePopup();
-        if (result.success) {
-          onSuccess();
-        } else {
-          fail(result.errorMessage || 'Authorization failed');
-        }
-      },
-      [integrationName, closePopup, onSuccess, fail]
-    )
-  );
+  }, [trpc, integrationName, popupWindowName, fail, closePopup, attempt]);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onDismiss()}>

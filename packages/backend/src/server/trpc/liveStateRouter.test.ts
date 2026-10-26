@@ -20,7 +20,7 @@ describe('liveState router', () => {
     const controller = new AbortController();
     const caller = createCallerFactory(
       createLiveStateRouter(liveStatus as unknown as PlatformLiveStatus)
-    )({}, { signal: controller.signal });
+    )({ consoleOrigin: null }, { signal: controller.signal });
     const updates = (await caller.watch())[Symbol.asyncIterator]();
     expect((await updates.next()).value).toEqual(states);
 

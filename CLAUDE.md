@@ -42,7 +42,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **OAuth Provider Configs**: `packages/frontend/src/components/integrations/oauthProviders.tsx` (per-provider content) + `oauthIntegrationRegistry.tsx` (name → provider config lookup)
 - **Non-OAuth setup dialogs**: `packages/frontend/src/components/integrations/configIntegrationRegistry.tsx` (name → dialog, shown as Set up on the Integrations page), e.g. `DiscordSetupModal.tsx`; every setup dialog, OAuth credentials included, is built on `IntegrationConfigDialog.tsx` (form, save, error, Cancel/Save)
 - **Backend Manager**: `packages/backend/src/integrations/IntegrationManager.ts`
-- **OAuth flow**: `packages/backend/src/integrations/OAuthFlowService.ts` — authorization URL, single-use `state`, callback routes, and `handleCallback()`, which exchanges the code on the backend when the provider redirects (no console needs to be open) and broadcasts `oauth.result` to every console; the callback page then closes itself (popup) or returns to the console that asked. Client credentials come only from the console's setup dialog (stored encrypted), never from `.env`; `IntegrationInfo.oauth.configured` tells the console whether to open setup or authorization
+- **OAuth flow**: `packages/backend/src/integrations/OAuthFlowService.ts` — authorization URL, single-use `state`, callback routes, and `handleCallback()`, which exchanges the code on the backend when the provider redirects (no console needs to be open) and announces the result to every console (`oauth.results`, tRPC); the callback page then closes itself (popup) or returns to the console that asked. Client credentials come only from the console's setup dialog (stored encrypted), never from `.env`; `IntegrationInfo.oauth.configured` tells the console whether to open setup or authorization
 - **Dependency graph**: `packages/backend/src/integrations/DependencyGraph.ts` — pure sort/levels/dependents/validate queries over the registered integrations
 - **Base Class**: `packages/backend/src/integrations/BaseIntegration.ts` — shared status/error/event-emitter plumbing; all integrations extend this
 - **OAuth base class**: `packages/backend/src/integrations/OAuthIntegration.ts` — `OAuthIntegration<TConfig>` (extends `BaseIntegration`): credentials, redirect URI, token persistence, and the no-token / missing-scope checks before connecting
@@ -50,8 +50,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Implementations**: `packages/backend/src/integrations/implementations/*/` (Twitch, YouTube, Spotify, OBS, Sound, Discord, Arduino)
 - **Arduino**: `packages/backend/src/integrations/implementations/arduino/ArduinoIntegration.ts` (WebSocket client to a Wi-Fi board) + `arduinoProtocol.ts` (message schemas); the protocol spec and a reference ESP32 sketch for the firmware side are in `firmware/` (`firmware/README.md`)
 - **YouTube chat stream client**: `packages/backend/src/integrations/implementations/youtube/YouTubeChatStream.ts` + the response frame splitter `parseJsonFrames.ts` beside it
-- **Console API**: `packages/backend/src/server/trpc/integrationsRouter.ts` (tRPC: `integrations.watch` subscription, `start`/`stop`/`configure`), `youtubeChatRouter.ts` (`youtubeChat.watch`, `goLive`/`goOffline`), `liveStateRouter.ts` (`liveState.watch`)
-- **WebSocket Handlers**: `packages/backend/src/server/handlers/OAuthHandler.ts`
+- **Console API**: `packages/backend/src/server/trpc/integrationsRouter.ts` (tRPC: `integrations.watch` subscription, `start`/`stop`/`configure`), `youtubeChatRouter.ts` (`youtubeChat.watch`, `goLive`/`goOffline`), `liveStateRouter.ts` (`liveState.watch`), `oauthRouter.ts` (`oauth.authorizationUrl`, `oauth.results`)
 - **Types & Enums**: `packages/shared/src/types/integration.ts`
 
 ### Commands System
@@ -184,7 +183,7 @@ Triggers (chat, redemptions, raids) go last in the list so they stop first: noth
 break or an effect while those are being restored. Each service keeps its bus subscriptions in a
 `Subscriptions` and clears them in `stop()`.
 
-**Message routing** (the legacy protocol, being replaced by tRPC; see Console ↔ Backend Protocol below): WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes (`OAuthHandler`, registered in `setup.ts`) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
+**Message routing** (the legacy protocol, being replaced by tRPC; see Console ↔ Backend Protocol below): WebSocket messages arrive at `WebSocketServer`, which checks the envelope against `WebSocketMessageSchema` → `MessageRouter` parses the payload against its type's schema in `REQUEST_PAYLOAD_SCHEMAS` and dispatches by `MessageType` → handler classes registered in `setup.ts` (none are left) receive a typed, valid payload and return response messages. A malformed payload is answered with `INVALID_PAYLOAD` naming the bad fields; handlers never check payload shape themselves.
 
 **EventBus.** Integrations, services and the server communicate through `EventBus` (`core/EventBus.ts`) — a simple pub/sub with sync and async emit.
 `emit()` calls handlers in subscription order but runs async ones concurrently, and resolves once
@@ -234,7 +233,10 @@ requests move from the first to the second as the console is rebuilt:
   them into its state with `useSubscription()`'s `reduce`. A malformed input is a `BAD_REQUEST`; a handler that
   throws reaches the console as its error message. Requests made while disconnected fail at once
   (`failWhileDisconnected`), as on the legacy client: a click during an outage never runs later.
-  Migrated so far: everything but OAuth.
+  Every procedure gets the calling console's origin as `ctx.consoleOrigin` (`TrpcContext`, read
+  from the connection's Origin header once the origin check has allowed it), which OAuth keeps
+  with an attempt so the callback page can send the streamer back. Migrated so far: everything;
+  the legacy endpoint still runs but answers nothing.
 - **Legacy** (`WS_PATH`, `/ws`) — everything not yet migrated, described below. Don't add new
   requests here; when migrating one, delete its `MessageType`, schema, payload types and handler.
 

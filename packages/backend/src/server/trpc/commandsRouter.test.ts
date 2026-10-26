@@ -51,7 +51,7 @@ describe('commands.list', () => {
     );
     const caller = createCallerFactory(
       createCommandsRouter({} as CommandExecutor, commands, platforms, logger)
-    )({});
+    )({ consoleOrigin: null });
 
     const available = Object.fromEntries(
       (await caller.list({})).map((c) => [c.name, c.availableOn])
@@ -74,7 +74,7 @@ describe('commands.simulate', () => {
         new PlatformRegistry(),
         logger
       )
-    )({});
+    )({ consoleOrigin: null });
     const response = caller.simulate({
       commandText,
       simulatedUser: { username: 'someone', permissionLevel: PermissionLevel.VIEWER },

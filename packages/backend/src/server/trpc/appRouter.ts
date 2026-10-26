@@ -7,6 +7,7 @@ import { DataInspector } from '../../database/DataInspector.js';
 import { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
 import { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
+import { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
 import { PlatformLiveStatus } from '../../live/PlatformLiveStatus.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { Logger } from '../../utils/Logger.js';
@@ -15,6 +16,7 @@ import { createCommandsRouter } from './commandsRouter.js';
 import { createDataRouter } from './dataRouter.js';
 import { createIntegrationsRouter } from './integrationsRouter.js';
 import { createLiveStateRouter } from './liveStateRouter.js';
+import { createOAuthRouter } from './oauthRouter.js';
 import { router } from './trpc.js';
 import { createYouTubeChatRouter } from './youtubeChatRouter.js';
 
@@ -40,6 +42,11 @@ export function createAppRouter(container: DependencyContainer) {
       container.resolve(Logger)
     ),
     data: createDataRouter(container.resolve(DataInspector)),
+    oauth: createOAuthRouter(
+      container.resolve(OAuthFlowService),
+      container.resolve(EventBus),
+      container.resolve(Logger)
+    ),
     liveState: createLiveStateRouter(container.resolve(PlatformLiveStatus)),
     youtubeChat: createYouTubeChatRouter(
       container.resolve(YouTubeChatIntegration),

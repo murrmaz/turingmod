@@ -27,7 +27,7 @@ function setup(running: boolean) {
   const controller = new AbortController();
   const caller = createCallerFactory(
     createYouTubeChatRouter(integration as unknown as YouTubeChatIntegration, eventBus, logger)
-  )({}, { signal: controller.signal });
+  )({ consoleOrigin: null }, { signal: controller.signal });
   return { caller, controller, integration };
 }
 

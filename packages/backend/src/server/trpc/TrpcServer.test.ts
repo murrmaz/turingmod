@@ -11,7 +11,7 @@ import { HttpServer } from '../HttpServer.js';
 import type { AppRouter } from './appRouter.js';
 import { createIntegrationsRouter } from './integrationsRouter.js';
 import { TrpcServer } from './TrpcServer.js';
-import { router } from './trpc.js';
+import { procedure, router } from './trpc.js';
 
 const CONSOLE = 'http://localhost:3000';
 const logger = new Logger({ level: 'silent' });
@@ -46,6 +46,8 @@ describe('TrpcServer', () => {
         new EventBus(logger),
         logger
       ),
+      /** What the context says about the console, for the test below. */
+      consoleOrigin: procedure.query(({ ctx }) => ctx.consoleOrigin),
     });
 
     const trpc = new TrpcServer(appRouter as unknown as AppRouter, [CONSOLE], logger);
@@ -117,6 +119,17 @@ describe('TrpcServer', () => {
     );
 
     expect(await first).toMatchObject({ result: { type: 'data', data: [obs] } });
+    socket.close();
+  });
+
+  it("tells procedures the console's origin, from its connection", async () => {
+    const { base } = await start();
+    const socket = await connect(`${base}${TRPC_PATH}`, CONSOLE);
+
+    const answer = reply(socket, 1);
+    socket.send(JSON.stringify({ id: 1, method: 'query', params: { path: 'consoleOrigin' } }));
+
+    expect(await answer).toMatchObject({ result: { type: 'data', data: CONSOLE } });
     socket.close();
   });
 

@@ -28,7 +28,7 @@ function setup(stored: ActivityLogEntry[]) {
       forwarder as unknown as ActivityForwarder,
       repo as unknown as ActivityLogRepository
     )
-  )({}, { signal: controller.signal });
+  )({ consoleOrigin: null }, { signal: controller.signal });
   const emit = (made: ActivityLogEntry) => {
     for (const listener of listeners) {
       listener(made);

@@ -28,6 +28,8 @@ export class TrpcServer implements UpgradeHandler {
     applyWSSHandler({
       wss,
       router: this.appRouter,
+      // Read once per connection; createConsoleWss has already allowed the origin.
+      createContext: ({ req }) => ({ consoleOrigin: req.headers.origin ?? null }),
       onError: ({ path, error }) => {
         // A malformed input is the console's mistake; anything else is a procedure failing.
         if (error.code === 'BAD_REQUEST') {

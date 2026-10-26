@@ -33,11 +33,15 @@ const EVENT_CATEGORIES: Record<ActivityEventName, ActivityCategory> = {
 };
 
 /**
- * Events shown in the live tail but not stored, besides chat: what a device sends is only worth
- * seeing as it happens, and a chatty one would otherwise push the stream's real history out of
- * the capped log.
+ * Events shown in the live tail but not stored, besides chat: they are only worth seeing as they
+ * happen, and come in bursts that would push the stream's real history out of the capped log. A
+ * device can be chatty, and every break shows and hides a source in every scene on every canvas,
+ * which the break's own start and end entries already record.
  */
-const LIVE_ONLY_EVENTS: ReadonlySet<ActivityEventName> = new Set(['arduino.message']);
+const LIVE_ONLY_EVENTS: ReadonlySet<ActivityEventName> = new Set([
+  'arduino.message',
+  'obs.sceneItem.stateChanged',
+]);
 
 /**
  * Turns EventBus activity into activity log entries: each goes to the console's live feed

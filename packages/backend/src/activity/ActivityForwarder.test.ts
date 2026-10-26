@@ -32,6 +32,20 @@ describe('ActivityForwarder', () => {
     expect(repo.create).not.toHaveBeenCalled();
   });
 
+  it("sends a break's scene item changes to the live feed without storing them", async () => {
+    const { eventBus, repo, entries } = setup();
+
+    await eventBus.emit('obs.sceneItem.stateChanged', {
+      sceneName: 'Gameplay',
+      sceneUuid: 'g',
+      sceneItemId: 3,
+      sceneItemEnabled: false,
+    });
+
+    expect(entries.map((entry) => entry.event)).toEqual(['obs.sceneItem.stateChanged']);
+    expect(repo.create).not.toHaveBeenCalled();
+  });
+
   it('sends other activity to the live feed and stores it', async () => {
     const { eventBus, repo, entries } = setup();
 

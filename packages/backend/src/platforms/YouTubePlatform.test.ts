@@ -23,7 +23,7 @@ describe('YouTubePlatform', () => {
   // The slice of the googleapis client these tests touch; request() runs each call against it.
   let youtube: {
     liveChatMessages: { insert: ReturnType<typeof vi.fn> };
-    liveBroadcasts: { update: ReturnType<typeof vi.fn> };
+    liveBroadcasts: { list: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   };
   let chat: { getBroadcast: ReturnType<typeof vi.fn> };
   let ownMessages: { record: ReturnType<typeof vi.fn> };
@@ -32,7 +32,13 @@ describe('YouTubePlatform', () => {
   beforeEach(() => {
     youtube = {
       liveChatMessages: { insert: vi.fn().mockResolvedValue({ data: { id: 'message-1' } }) },
-      liveBroadcasts: { update: vi.fn().mockResolvedValue({}) },
+      liveBroadcasts: {
+        // The broadcast's snippet as YouTube has it, read before each rename.
+        list: vi.fn().mockResolvedValue({
+          data: { items: [{ snippet: { scheduledStartTime: '2026-10-14T17:55:00Z' } }] },
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
     };
     api = {
       getActiveBroadcast: vi.fn().mockResolvedValue({ id: 'b1', liveChatId: 'looked-up-chat' }),
@@ -102,26 +108,50 @@ describe('YouTubePlatform', () => {
     expect(api.getActiveBroadcast).toHaveBeenCalledOnce();
   });
 
-  it('renames the broadcast, keeping its scheduled start time', async () => {
-    api.getActiveBroadcast.mockResolvedValue({ id: 'b1', scheduledStartTime: '2026-10-14T18:00Z' });
+  it("renames the broadcast, keeping the snippet's other fields, which an update would erase", async () => {
+    youtube.liveBroadcasts.list.mockResolvedValue({
+      data: {
+        items: [
+          {
+            snippet: {
+              title: 'Old title',
+              description: 'Playing through the DLC',
+              scheduledStartTime: '2026-10-14T18:00Z',
+              scheduledEndTime: '2026-10-14T21:00Z',
+              channelId: 'UC_broadcaster',
+            },
+          },
+        ],
+      },
+    });
 
     await platform.setStreamInfo({ title: 'New title' });
 
+    expect(youtube.liveBroadcasts.list).toHaveBeenCalledWith({ part: ['snippet'], id: ['b1'] });
     expect(youtube.liveBroadcasts.update).toHaveBeenCalledWith({
       part: ['snippet'],
       requestBody: {
         id: 'b1',
-        snippet: { title: 'New title', scheduledStartTime: '2026-10-14T18:00Z' },
+        snippet: {
+          title: 'New title',
+          description: 'Playing through the DLC',
+          scheduledStartTime: '2026-10-14T18:00Z',
+          scheduledEndTime: '2026-10-14T21:00Z',
+        },
       },
     });
   });
 
-  it('renames the streamed broadcast without looking it up', async () => {
+  it('renames the streamed broadcast without looking for the active one', async () => {
     chat.getBroadcast.mockReturnValue(STREAMED);
 
     await platform.setStreamInfo({ title: 'New title' });
 
     expect(api.getActiveBroadcast).not.toHaveBeenCalled();
+    expect(youtube.liveBroadcasts.list).toHaveBeenCalledWith({
+      part: ['snippet'],
+      id: ['streamed-broadcast'],
+    });
     expect(youtube.liveBroadcasts.update).toHaveBeenCalledWith({
       part: ['snippet'],
       requestBody: {
@@ -129,6 +159,15 @@ describe('YouTubePlatform', () => {
         snippet: { title: 'New title', scheduledStartTime: '2026-10-14T17:55:00Z' },
       },
     });
+  });
+
+  it('refuses to rename a broadcast YouTube no longer has', async () => {
+    youtube.liveBroadcasts.list.mockResolvedValue({ data: { items: [] } });
+
+    await expect(platform.setStreamInfo({ title: 'New title' })).rejects.toThrow(
+      'no longer exists'
+    );
+    expect(youtube.liveBroadcasts.update).not.toHaveBeenCalled();
   });
 
   it("reports the streamed broadcast's uptime without looking it up", async () => {

@@ -16,6 +16,9 @@ import type {
   StreamInfo,
 } from './interfaces/IStreamPlatform.js';
 
+/** A broadcast snippet's mutable fields besides the title, carried over when the title changes. */
+const KEPT_SNIPPET_FIELDS = ['description', 'scheduledStartTime', 'scheduledEndTime'] as const;
+
 /**
  * IStreamPlatform façade over the YouTube integration trio: everything TuringMod does on YouTube.
  *
@@ -94,10 +97,21 @@ export class YouTubePlatform implements IStreamPlatform {
       throw new Error('No active YouTube broadcast to update');
     }
 
-    // liveBroadcasts.update replaces the snippet, and requires scheduledStartTime, so keep it.
+    // liveBroadcasts.update replaces every mutable field of the snippet: one left out is erased.
+    // So read the snippet as it is now and send its other mutable fields back unchanged.
+    const current = await this.api.request((youtube) =>
+      youtube.liveBroadcasts.list({ part: ['snippet'], id: [broadcast.id] })
+    );
+    const existing = current.data.items?.[0]?.snippet;
+    if (!existing) {
+      throw new Error('The YouTube broadcast to update no longer exists');
+    }
     const snippet: youtube_v3.Schema$LiveBroadcastSnippet = { title: info.title };
-    if (broadcast.scheduledStartTime !== null) {
-      snippet.scheduledStartTime = broadcast.scheduledStartTime;
+    for (const field of KEPT_SNIPPET_FIELDS) {
+      const value = existing[field];
+      if (value !== null && value !== undefined) {
+        snippet[field] = value;
+      }
     }
     await this.api.request((youtube) =>
       youtube.liveBroadcasts.update({

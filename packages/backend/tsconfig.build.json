@@ -1,0 +1,13 @@
+// What `build` and `dev` emit to dist/: everything but tests and their helpers. tsconfig.json
+// covers those too, for type-check and the editor.
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/*.test.ts",
+    "src/**/testing.ts",
+    "src/database/repositories/testDatabase.ts"
+  ],
+  "references": [{ "path": "../shared/tsconfig.build.json" }]
+}

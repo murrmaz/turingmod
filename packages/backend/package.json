@@ -10,8 +10,8 @@
     }
   },
   "scripts": {
-    "dev": "tsc --build && concurrently -n tsc,run -c blue,green \"tsc --build --watch --preserveWatchOutput\" \"node --watch dist/index.js\"",
-    "build": "tsc --build",
+    "dev": "tsc --build tsconfig.build.json && concurrently -n tsc,run -c blue,green \"tsc --build tsconfig.build.json --watch --preserveWatchOutput\" \"node --watch dist/index.js\"",
+    "build": "tsc --build tsconfig.build.json",
     "start": "node dist/index.js",
     "clean": "rm -rf dist *.tsbuildinfo",
     "type-check": "tsc --noEmit",

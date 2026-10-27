@@ -3,13 +3,13 @@ import { StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import { NotAuthenticatedError } from '../platforms/errors.js';
-import { fakeRequire } from '../platforms/fakeRequire.js';
 import type {
   ChannelPointsApi,
   ChannelReward,
   ChannelRewardSettings,
 } from '../platforms/interfaces/IStreamPlatform.js';
 import type { StreamControlService } from '../platforms/StreamControlService.js';
+import { fakeRequire } from '../platforms/testing.js';
 import type { Logger } from '../utils/Logger.js';
 import type { IRewardHandler, RewardDefinition } from './interfaces/IRewardHandler.js';
 import { RewardRegistry } from './RewardRegistry.js';

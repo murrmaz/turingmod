@@ -59,4 +59,22 @@ describe('ReconnectBackoff', () => {
     expect(attempt).not.toHaveBeenCalled();
     expect(backoff.schedule(() => {})).toBe(2_000);
   });
+
+  it('counts attempts until the delays start over', () => {
+    delays(3);
+    expect(backoff.attempts).toBe(3);
+
+    backoff.connected();
+    backoff.disconnected();
+    expect(backoff.attempts).toBe(3);
+
+    backoff.connected();
+    vi.advanceTimersByTime(30_000);
+    backoff.disconnected();
+    expect(backoff.attempts).toBe(0);
+
+    delays(2);
+    backoff.reset();
+    expect(backoff.attempts).toBe(0);
+  });
 });

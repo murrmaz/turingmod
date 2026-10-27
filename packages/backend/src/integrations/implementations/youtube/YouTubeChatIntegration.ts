@@ -12,6 +12,7 @@ import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IIntegration } from '../../interfaces/IIntegration.js';
+import { ReconnectBackoff } from '../../ReconnectBackoff.js';
 import { type BroadcastIdentity, YouTubeApiIntegration } from './YouTubeApiIntegration.js';
 import { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
 import {
@@ -30,9 +31,6 @@ const RESOLVE_RETRY_INTERVAL_MS = 5_000;
  */
 const RESOLVE_TIMEOUT_MS = 120_000;
 
-/** Reconnect backoff bounds for a dropped stream. */
-const RECONNECT_BASE_DELAY_MS = 1_000;
-const RECONNECT_MAX_DELAY_MS = 30_000;
 /**
  * Give up reconnecting after this many consecutive failures and return to idle. Without a cap, a
  * broadcast that ends by closing the stream cleanly would reconnect forever while still reporting
@@ -149,8 +147,8 @@ export class YouTubeChatIntegration extends BaseIntegration {
 
   private resolveTimer: NodeJS.Timeout | null = null;
   private resolveDeadline = 0;
-  private reconnectTimer: NodeJS.Timeout | null = null;
-  private reconnectAttempts = 0;
+  /** When to reopen a dropped stream. A working response, or a new broadcast, starts it over. */
+  private readonly backoff = new ReconnectBackoff();
 
   /**
    * Bumped by every teardown. Async work captures it and bails if it changed while awaiting, so a
@@ -292,7 +290,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
         this.broadcast = { ...identity, liveChatId: broadcast.liveChatId };
         this.nextPageToken = undefined;
         this.primed = false;
-        this.reconnectAttempts = 0;
+        this.backoff.reset();
         this.logger.info('Resolved active YouTube live chat', {
           liveChatId: broadcast.liveChatId,
         });
@@ -364,7 +362,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
 
   private handleResponse(response: LiveChatMessageListResponse): void {
     // A working response clears both failure counters: later trouble starts from scratch.
-    this.reconnectAttempts = 0;
+    this.backoff.reset();
     this.authRetried = false;
 
     // The first response of a fresh resolve is chat backlog — take the cursor, drop the messages.
@@ -460,26 +458,17 @@ export class YouTubeChatIntegration extends BaseIntegration {
       return;
     }
 
-    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    if (this.backoff.attempts >= MAX_RECONNECT_ATTEMPTS) {
       // Bounded on purpose: a broadcast that has ended tends to close the stream immediately every
       // time, which would otherwise be an endless reconnect loop still reporting `streaming`.
       this.logger.warn(
-        `YouTube chat stream failed ${this.reconnectAttempts} times in a row; returning to idle`
+        `YouTube chat stream failed ${this.backoff.attempts} times in a row; returning to idle`
       );
       this.teardown();
       return;
     }
 
-    const delay = Math.min(
-      RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempts,
-      RECONNECT_MAX_DELAY_MS
-    );
-    this.reconnectAttempts += 1;
-
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      this.openStream();
-    }, delay);
+    this.backoff.schedule(() => this.openStream());
   }
 
   /**
@@ -522,10 +511,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
       clearTimeout(this.resolveTimer);
       this.resolveTimer = null;
     }
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+    this.backoff.reset();
 
     // Detach before cancelling so any abort fallout is recognized as belonging to a call we've
     // already abandoned, rather than kicking off a reconnect.
@@ -539,7 +525,6 @@ export class YouTubeChatIntegration extends BaseIntegration {
     this.broadcast = null;
     this.nextPageToken = undefined;
     this.primed = false;
-    this.reconnectAttempts = 0;
     this.authRetried = false;
     this.setState('idle');
   }

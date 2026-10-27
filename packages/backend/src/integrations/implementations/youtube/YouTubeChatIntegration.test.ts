@@ -10,6 +10,8 @@ import type { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
 import { YouTubeChatIntegration } from './YouTubeChatIntegration.js';
 import type { LiveChatMessageListResponse } from './YouTubeChatStream.js';
 
+/** ReconnectBackoff's first delay: how long a dropped stream waits before reopening. */
+const FIRST_RECONNECT_MS = 2_000;
 /** The integration's reconnect backoff ceiling; long enough to step past any scheduled retry. */
 const RECONNECT_CEILING_MS = 30_000;
 
@@ -321,7 +323,7 @@ describe('YouTubeChatIntegration', () => {
       await connect();
 
       call.emitError(503);
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(FIRST_RECONNECT_MS);
 
       expect(streamMock.stream).toHaveBeenLastCalledWith('chat-1', authClient, 'page-1');
       expect(integration.getState()).toBe('streaming');
@@ -335,7 +337,7 @@ describe('YouTubeChatIntegration', () => {
 
       await connect();
       call.emitError(503);
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(FIRST_RECONNECT_MS);
 
       // The reconnect resumes from nextPageToken, so its first response is real traffic, not
       // backlog — dropping it would silently lose messages.
@@ -349,13 +351,13 @@ describe('YouTubeChatIntegration', () => {
       await connect();
 
       call.emitError(503);
-      await vi.advanceTimersByTimeAsync(999);
+      await vi.advanceTimersByTimeAsync(FIRST_RECONNECT_MS - 1);
       expect(streamMock.stream).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(1);
       expect(streamMock.stream).toHaveBeenCalledTimes(2);
 
       call.emitError(503);
-      await vi.advanceTimersByTimeAsync(1_999);
+      await vi.advanceTimersByTimeAsync(2 * FIRST_RECONNECT_MS - 1);
       expect(streamMock.stream).toHaveBeenCalledTimes(2);
       await vi.advanceTimersByTimeAsync(1);
       expect(streamMock.stream).toHaveBeenCalledTimes(3);
@@ -365,7 +367,7 @@ describe('YouTubeChatIntegration', () => {
       await connect();
 
       call.emitEnd();
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(FIRST_RECONNECT_MS);
 
       expect(streamMock.stream).toHaveBeenCalledTimes(2);
     });
@@ -405,7 +407,7 @@ describe('YouTubeChatIntegration', () => {
       // The likeliest failure by far: the status arrives once at the start, so everything that goes
       // wrong for the rest of a multi-hour stream is a socket error with no status at all.
       call.emitTransportError('ECONNRESET');
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(FIRST_RECONNECT_MS);
 
       expect(streamMock.stream).toHaveBeenLastCalledWith('chat-1', authClient, 'page-1');
       expect(integration.getState()).toBe('streaming');
@@ -415,7 +417,7 @@ describe('YouTubeChatIntegration', () => {
       await connect();
 
       call.emitError(429);
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(FIRST_RECONNECT_MS);
 
       expect(integration.getState()).toBe('streaming');
       expect(streamMock.stream).toHaveBeenCalledTimes(2);
@@ -450,7 +452,7 @@ describe('YouTubeChatIntegration', () => {
       // Ordinary hourly expiry: a request's authorization is fixed when it opens, so a long stream
       // will be rejected eventually. That is not a re-authorization.
       call.emitError(401);
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(FIRST_RECONNECT_MS);
 
       expect(auth.markAuthRequired).not.toHaveBeenCalled();
       expect(streamMock.stream).toHaveBeenCalledTimes(2);
@@ -461,7 +463,7 @@ describe('YouTubeChatIntegration', () => {
       await connect();
 
       call.emitError(401);
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(FIRST_RECONNECT_MS);
       call.emitError(401);
       await flush();
 
@@ -473,14 +475,14 @@ describe('YouTubeChatIntegration', () => {
       await connect();
 
       call.emitError(401);
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(FIRST_RECONNECT_MS);
       call.emitData({ items: [textMessage('still here')] });
       await flush();
 
       // The successful response clears the retry flag, so the next expiry is not mistaken for a
       // dead grant an hour later.
       call.emitError(401);
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(FIRST_RECONNECT_MS);
 
       expect(auth.markAuthRequired).not.toHaveBeenCalled();
       expect(integration.getState()).toBe('streaming');

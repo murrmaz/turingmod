@@ -12,18 +12,26 @@ const STABLE_AFTER_MS = 30_000;
 
 /**
  * When to try reconnecting, for an integration that keeps a connection up while it is started
- * (OBS, the Arduino). It only times attempts; the integration still decides what failed and
- * whether it can be retried at all.
+ * (OBS, the Arduino, YouTube's chat stream). It only times attempts and counts them; the
+ * integration still decides what failed, whether it can be retried at all, when to give up, and
+ * what counts as working again (`connected()`/`disconnected()` for a connection that must last,
+ * `reset()` for anything else).
  */
 export class ReconnectBackoff {
   private delayMs = INITIAL_DELAY_MS;
   private timer: NodeJS.Timeout | null = null;
   private connectedAt: number | null = null;
+  private attemptCount = 0;
+
+  /** Attempts scheduled since the delays last started over: for an integration that gives up. */
+  get attempts(): number {
+    return this.attemptCount;
+  }
 
   /** Start over, for a fresh `start()`: no attempt pending, and the shortest delay next. */
   reset(): void {
     this.cancel();
-    this.delayMs = INITIAL_DELAY_MS;
+    this.startOver();
     this.connectedAt = null;
   }
 
@@ -38,7 +46,7 @@ export class ReconnectBackoff {
    */
   disconnected(): void {
     if (this.connectedAt !== null && Date.now() - this.connectedAt >= STABLE_AFTER_MS) {
-      this.delayMs = INITIAL_DELAY_MS;
+      this.startOver();
     }
     this.connectedAt = null;
   }
@@ -48,11 +56,18 @@ export class ReconnectBackoff {
     this.cancel();
     const delayMs = this.delayMs;
     this.delayMs = Math.min(delayMs * 2, MAX_DELAY_MS);
+    this.attemptCount += 1;
     this.timer = setTimeout(() => {
       this.timer = null;
       attempt();
     }, delayMs);
     return delayMs;
+  }
+
+  /** The shortest delay next, and no attempts counted. */
+  private startOver(): void {
+    this.delayMs = INITIAL_DELAY_MS;
+    this.attemptCount = 0;
   }
 
   /** Drop the pending attempt, if any. */

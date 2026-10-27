@@ -32,13 +32,14 @@ dependencies being CONNECTED, and beyond that the manager reacts to status chang
     dependency failure is evidence about the environment, not just about a token, so a socket
     established under the old conditions can't be assumed valid. Those reconnect and resubscribe
     from scratch.
-  - `BLOCK` leaves it running and reports `BLOCKED`. Used by the three API layers, which hold
-    nothing bound to the grant, so stopping them would tear down nothing; `BLOCKED` also says more
-    plainly than `DISCONNECTED` that they are waiting on something else.
-  - A `BLOCK`-policy integration **must refuse to act while its dependency isn't CONNECTED**, which
-    their `request()` gates on. Resolving a client on access protects against holding the *wrong*
-    object; it does nothing about holding the right object with dead credentials —
-    `markAuthRequired()` sets NEEDS_REAUTH *without* discarding the provider/client.
+  - `BLOCK` leaves it running and reports `BLOCKED`. Used by the API layers (`AuthorizedApiIntegration`),
+    which hold nothing bound to the grant, so stopping them would tear down nothing; `BLOCKED` also
+    says more plainly than `DISCONNECTED` that they are waiting on something else.
+  - A `BLOCK`-policy integration **must refuse to act while its dependency isn't CONNECTED**.
+    `AuthorizedApiIntegration` enforces this for every API layer: no client is handed out and no
+    `request()` made unless auth is CONNECTED. Resolving a client on access protects against
+    holding the *wrong* object; it does nothing about holding the right object with dead
+    credentials — `markAuthRequired()` sets NEEDS_REAUTH *without* discarding the provider/client.
 - A dependency returning to CONNECTED triggers a `reconcile()` pass that recovers both the stopped
   and the blocked dependents — so completing OAuth brings the whole group back on its own. A
   `BLOCKED` integration is started rather than flipped to CONNECTED, which covers "was running" and
@@ -66,11 +67,24 @@ Startup and shutdown both work in dependency *levels* (`DependencyGraph.levels()
 a level and reversed for shutdown, with a per-integration start timeout
 (`IntegrationManager.START_TIMEOUT_MS`) so one integration that never settles can't hang boot.
 
+**An API that calls on behalf of a separate auth integration extends
+`AuthorizedApiIntegration<TAuth, TClient>`** (`integrations/AuthorizedApiIntegration.ts`), which
+supplies the auth dependency, the `BLOCK` policy and its CONNECTED gate, `start()`/`stop()`,
+and `request()`. A subclass supplies `resolveClient()`, and overrides `onRequestFailure()` for how
+its provider says a grant is gone: Twitch marks itself NEEDS_REAUTH and publishes
+`twitch.authorizationRevoked`, YouTube marks its auth integration, and Spotify refreshes the token
+and retries once. A new OAuth-backed API is one of these, as would be an API-key service split
+into a credentials integration and an API integration. An API with no auth integration to depend
+on — a public one, or one whose token is in its own config, like Discord — extends `BaseIntegration`
+directly: none of this applies to it.
+
 **API-layer integrations resolve their dependency's client on access, not at `start()`.**
-`TwitchApiIntegration` and `YouTubeApiIntegration` compare the auth integration's current
-provider/client against the one their cached client was built on and rebuild when it changed, so a
-stale reference can't exist in the first place. `SpotifyApiIntegration` needs no rebuild: its SDK
-asks `SpotifyAuthIntegration.getAccessToken()` for the token on every call. This makes the
+`resolveClient()` runs on every access. `TwitchApiIntegration` and `YouTubeApiIntegration` (and
+`YouTubeChatStream`) keep their client in a `ClientCache` (`integrations/ClientCache.ts`), which
+rebuilds it when the auth integration's provider/client is a different object from the one it was
+built on, so a stale reference can't exist in the first place. `SpotifyApiIntegration` needs no
+rebuild: its SDK asks `SpotifyAuthIntegration.getAccessToken()` for the token on every call. This
+makes the
 auth accessors (`getAuthProvider()`, `getAuthClient()`) contractually obliged to return a *stable*
 instance rather than a new object per call. The cascade above still matters for the long-lived
 listeners — `TwitchEventSubIntegration`'s EventSub WebSocket and `YouTubeChatIntegration`'s stream

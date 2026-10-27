@@ -67,7 +67,7 @@ describe('TwitchApiIntegration', () => {
     );
     expect(reauthing.getApiClient()).toBeNull();
     await expect(reauthing.request((c) => c.users.getUserByName('someone'))).rejects.toThrow(
-      /client not initialized/
+      'Twitch is not connected'
     );
   });
 

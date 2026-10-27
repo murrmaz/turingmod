@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import type { Readable } from 'node:stream';
 import { google, type youtube_v3 } from 'googleapis';
+import { ClientCache } from '../../ClientCache.js';
 import { JsonFrameParser } from './parseJsonFrames.js';
 import type { YouTubeOAuth2Client } from './YouTubeAuthIntegration.js';
 
@@ -87,8 +88,9 @@ class StreamCall extends EventEmitter implements LiveChatStreamCall {
  * response and deliver messages only once the broadcast ended.
  */
 export class YouTubeChatStream {
-  private client: youtube_v3.Youtube | null = null;
-  private clientAuth: YouTubeOAuth2Client | null = null;
+  private readonly clients = new ClientCache((auth: YouTubeOAuth2Client) =>
+    google.youtube({ version: 'v3', auth })
+  );
 
   /**
    * Open a server stream of live chat messages.
@@ -103,14 +105,13 @@ export class YouTubeChatStream {
     pageToken?: string
   ): LiveChatStreamCall {
     const call = new StreamCall();
-    void this.pump(this.getClient(authClient), call, liveChatId, pageToken);
+    void this.pump(this.clients.get(authClient), call, liveChatId, pageToken);
     return call;
   }
 
   /** Drop the cached client. Safe to call when none was ever built. */
   close(): void {
-    this.client = null;
-    this.clientAuth = null;
+    this.clients.clear();
   }
 
   private async pump(
@@ -167,19 +168,5 @@ export class YouTubeChatStream {
     } catch (error) {
       call.emitError(error);
     }
-  }
-
-  /**
-   * Build (or reuse) the API client. Keyed on the auth client's identity so a re-authorization,
-   * which replaces the OAuth2 client, doesn't leave us streaming with a dead one.
-   */
-  private getClient(authClient: YouTubeOAuth2Client): youtube_v3.Youtube {
-    if (this.client && this.clientAuth === authClient) {
-      return this.client;
-    }
-
-    this.client = google.youtube({ version: 'v3', auth: authClient });
-    this.clientAuth = authClient;
-    return this.client;
   }
 }

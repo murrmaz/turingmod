@@ -39,17 +39,6 @@ export const FEED_CATEGORY_LABELS: Record<FeedCategory, string> = {
 };
 
 /**
- * Events the log once recorded and no longer does, still described for the entries stored then.
- * Twitch's stream online/offline became `platform.liveState`, which covers every platform.
- */
-const RETIRED_EVENTS = ['twitch.stream.online', 'twitch.stream.offline'] as const;
-type RetiredEventName = (typeof RETIRED_EVENTS)[number];
-
-function isRetiredEventName(event: string): event is RetiredEventName {
-  return (RETIRED_EVENTS as readonly string[]).includes(event);
-}
-
-/**
  * A stream that started this long before TuringMod saw it go live was already running (TuringMod
  * restarted, or the platform came back), so its entry says when it started instead.
  */
@@ -59,17 +48,12 @@ const STARTED_JUST_NOW_MS = 5 * 60_000;
  * The stored events in each category, for filtering the stored log by category on the server.
  * Chat isn't stored. Kept in step with `toFeedRow` by a test.
  */
-export const FEED_CATEGORY_EVENTS: Record<
-  Exclude<FeedCategory, 'chat'>,
-  (ActivityEventName | RetiredEventName)[]
-> = {
+export const FEED_CATEGORY_EVENTS: Record<Exclude<FeedCategory, 'chat'>, ActivityEventName[]> = {
   command: ['command.executed'],
   reward: ['twitch.channelPoint.redemption'],
   viewer: ['twitch.follow', 'twitch.subscribe', 'twitch.raid', 'twitch.cheer'],
   system: [
     'platform.liveState',
-    'twitch.stream.online',
-    'twitch.stream.offline',
     'twitch.ad.break',
     'stream.break.started',
     'stream.break.ended',
@@ -135,15 +119,10 @@ function system(label: string, title: string, detail = '', tone: FeedTone = 'sys
 
 /**
  * How each recorded event reads. Every name in ACTIVITY_EVENTS needs a case, which the compiler
- * enforces (the switch must return on every path); a retired event reads as it did, and anything
- * else, such as an event stored before it was renamed, shows as its bare name.
+ * enforces (the switch must return on every path); anything else shows as its bare name.
  */
 function describe(entry: ActivityLogEntry): Described {
   const { event, data } = entry;
-  if (isRetiredEventName(event)) {
-    const title = event === 'twitch.stream.online' ? 'Stream started' : 'Stream ended';
-    return { ...system('Stream', title), platform: StreamingPlatform.TWITCH };
-  }
   if (!isActivityEventName(event)) {
     return system('Event', event);
   }

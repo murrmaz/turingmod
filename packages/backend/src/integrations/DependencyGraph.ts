@@ -70,7 +70,7 @@ export class DependencyGraph<T extends DependencyNode> {
   /**
    * `names` grouped into dependency levels: everything in a level depends only
    * on earlier levels, so a level's members can be started concurrently and
-   * one slow integration no longer delays an unrelated one. Levels preserve
+   * one slow integration doesn't delay an unrelated one. Levels preserve
    * the ordering guarantee `sort()` gives — flattening them yields a valid
    * startup order.
    */

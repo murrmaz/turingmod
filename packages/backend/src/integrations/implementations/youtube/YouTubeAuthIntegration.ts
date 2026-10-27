@@ -22,7 +22,7 @@ export type YouTubeAuthConfig = z.infer<typeof YouTubeAuthConfigSchema>;
 
 /**
  * Required OAuth scopes for the YouTube integration.
- * Single source of truth — the frontend and OAuthHandler should not specify scopes.
+ * Single source of truth: nothing else names them, the authorization URL included.
  * `force-ssl` is required to insert live chat messages and update broadcasts.
  */
 const YOUTUBE_REQUIRED_SCOPES = [

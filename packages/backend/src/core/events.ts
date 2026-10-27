@@ -99,7 +99,7 @@ export interface IntegrationErrorEvent {
   error: Error;
 }
 
-/** An OAuth redirect reached the HTTP server; `clientId` is the console client that started it. */
+/** An OAuth redirect reached the HTTP server, and how the authorization ended. */
 export interface OAuthCompletedEvent {
   integrationName: string;
   success: boolean;

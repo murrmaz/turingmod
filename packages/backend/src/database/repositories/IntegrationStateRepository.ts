@@ -137,9 +137,8 @@ export class IntegrationStateRepository {
       // a different key from the one the config was saved with.
       throw new Error(
         `Could not decrypt the stored configuration for ${name} (${messageOf(error)}). ` +
-          'It was most likely saved with a different MASTER_PASSWORD; until MASTER_PASSWORD was ' +
-          'required, TuringMod used a built-in default. Set it up again from the console, or ' +
-          'restore the MASTER_PASSWORD it was saved with.'
+          'It was most likely saved with a different MASTER_PASSWORD. Set it up again from the ' +
+          'console, or restore the MASTER_PASSWORD it was saved with.'
       );
     }
   }

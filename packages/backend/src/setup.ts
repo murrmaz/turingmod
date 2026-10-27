@@ -61,12 +61,11 @@ import { Logger } from './utils/Logger.js';
  * parameters alone, because their constructors take primitives/derived values (a log level, a
  * db path, a master password + salt, an allowed-origins list) rather than other injectable
  * classes. Everything else is wired implicitly via @singleton() (or @injectable()) on the class
- * itself — this is deliberately the only "wiring" code left; it replaces what used to be a
- * 554-line registerSingleton call per service.
+ * itself — this is deliberately the only "wiring" code.
  *
- * instanceCachingFactory makes each factory lazy-once, matching the old Container's singleton
- * semantics — in particular, Encryption's factory must not run until after the database has been
- * initialized and migrated (see initializeDatabase below), since it reads a DB-stored salt.
+ * instanceCachingFactory makes each factory lazy and run-once, like a singleton — in particular,
+ * Encryption's factory must not run until after the database has been initialized and migrated
+ * (see initializeDatabase below), since it reads a DB-stored salt.
  */
 export function registerRootFactories(): void {
   container.register(Logger, {

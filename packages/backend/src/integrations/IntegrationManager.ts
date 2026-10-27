@@ -162,7 +162,7 @@ export class IntegrationManager {
     );
 
     // Each level depends only on earlier ones, so its members start
-    // concurrently; a slow OBS connect no longer delays Twitch.
+    // concurrently; a slow OBS connect doesn't delay Twitch.
     for (const level of levels) {
       await Promise.allSettled(
         level.map((name) =>

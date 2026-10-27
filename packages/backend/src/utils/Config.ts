@@ -117,12 +117,6 @@ export function parseEnvironment(
 ): Configuration {
   const problems: string[] = [];
 
-  if (env.WS_PORT !== undefined && env.SERVER_PORT === undefined) {
-    // Renamed because it was never only the WebSocket's port. Refuse rather than ignore it, so
-    // a customized port can't silently fall back to the default.
-    problems.push('WS_PORT has been renamed to SERVER_PORT; set SERVER_PORT instead.');
-  }
-
   const parsed = EnvironmentSchema.safeParse(env);
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {

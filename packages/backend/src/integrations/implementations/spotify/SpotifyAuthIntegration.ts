@@ -13,7 +13,7 @@ import {
 
 /**
  * Required OAuth scopes for the Spotify integration.
- * Single source of truth — the frontend and OAuthHandler should not specify scopes.
+ * Single source of truth: nothing else names them, the authorization URL included.
  */
 const SPOTIFY_REQUIRED_SCOPES = [
   'user-read-currently-playing',

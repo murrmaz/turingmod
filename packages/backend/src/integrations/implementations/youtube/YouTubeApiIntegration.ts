@@ -8,8 +8,8 @@ import { YouTubeAuthIntegration, type YouTubeOAuth2Client } from './YouTubeAuthI
 
 /**
  * Normalized view of the broadcaster's currently active live broadcast. `liveChatId` and the
- * start times are only present while a broadcast is active/upcoming (see multi-platform-chat.md
- * §11), so the Chat integration must idle when this is null.
+ * start times are only present while a broadcast is active or upcoming, so the Chat integration
+ * must idle when this is null.
  */
 export interface ActiveBroadcast {
   id: string;

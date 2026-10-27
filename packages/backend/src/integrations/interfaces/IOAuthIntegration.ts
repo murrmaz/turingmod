@@ -19,7 +19,7 @@ export interface IOAuthIntegration extends IIntegration {
    * credentials, requesting the integration's required scopes. `state`
    * is an opaque, server-generated, single-use value that must be echoed
    * back unmodified by the provider on the callback — it's how the callback
-   * gets correlated back to the WebSocket client that started the flow.
+   * is matched to the authorization attempt that started it.
    */
   getAuthorizationUrl(state: string): string;
 

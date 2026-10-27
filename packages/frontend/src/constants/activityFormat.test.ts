@@ -166,13 +166,6 @@ describe('stream entries', () => {
   it('says a stream ended', () => {
     expect(toFeedRow(live({ live: false, startedAt: null }, 0)).title).toBe('Stream ended');
   });
-
-  it('still reads the Twitch-only entries stored before them', () => {
-    expect(toFeedRow(entry('twitch.stream.online', {}))).toMatchObject({
-      title: 'Stream started',
-      platform: StreamingPlatform.TWITCH,
-    });
-  });
 });
 
 describe('day dividers', () => {

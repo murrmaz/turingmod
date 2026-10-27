@@ -6,6 +6,7 @@ import { IntegrationStateRepository } from '../../../database/repositories/Integ
 import { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
 import { OAuthConfigBaseSchema, OAuthIntegration, parseScopes } from '../../OAuthIntegration.js';
+import { httpStatusOf } from './googleErrors.js';
 
 /**
  * YouTube Auth Configuration
@@ -116,10 +117,7 @@ export class YouTubeAuthIntegration extends OAuthIntegration<YouTubeAuthConfig> 
    * only ever surfaces this way — there's no separate refresh-failure event to listen for.
    */
   isAuthError(error: unknown): boolean {
-    const status = (error as { code?: number; response?: { status?: number } } | null)?.code;
-    const responseStatus = (error as { response?: { status?: number } } | null)?.response?.status;
-    const message = messageOf(error);
-    return status === 401 || responseStatus === 401 || message.includes('invalid_grant');
+    return httpStatusOf(error) === 401 || messageOf(error).includes('invalid_grant');
   }
 
   /**

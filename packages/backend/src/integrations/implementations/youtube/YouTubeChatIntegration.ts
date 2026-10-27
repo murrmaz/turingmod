@@ -3,6 +3,7 @@ import {
   IntegrationGroup,
   IntegrationName,
   IntegrationStatus,
+  messageOf,
   PermissionLevel,
   StreamingPlatform,
 } from '@turingmod/shared';
@@ -12,6 +13,7 @@ import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IIntegration } from '../../interfaces/IIntegration.js';
 import { ReconnectBackoff } from '../../ReconnectBackoff.js';
+import { connectionErrorCodeOf, httpStatusOf } from './googleErrors.js';
 import { type BroadcastIdentity, YouTubeApiIntegration } from './YouTubeApiIntegration.js';
 import { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
 import {
@@ -83,38 +85,14 @@ const TRANSPORT_ERROR_CODES: ReadonlySet<string> = new Set([
   'UND_ERR_BODY_TIMEOUT',
 ]);
 
-/**
- * The HTTP status of a failed request, or undefined when the failure never got that far. Gaxios
- * puts it on the error's `response`, and also mirrors it onto `status` on newer errors.
- */
-function getHttpStatus(error: unknown): number | undefined {
-  if (typeof error !== 'object' || error === null) {
-    return undefined;
-  }
-
-  const { status, response } = error as {
-    status?: unknown;
-    response?: { status?: unknown } | undefined;
-  };
-
-  if (typeof response?.status === 'number') {
-    return response.status;
-  }
-  return typeof status === 'number' ? status : undefined;
-}
-
 /** Whether a status-less failure is a dropped connection rather than a genuine surprise. */
 function isTransportError(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) {
-    return false;
-  }
-
-  const { code, message } = error as { code?: unknown; message?: unknown };
-  if (typeof code === 'string' && TRANSPORT_ERROR_CODES.has(code)) {
+  const code = connectionErrorCodeOf(error);
+  if (code !== undefined && TRANSPORT_ERROR_CODES.has(code)) {
     return true;
   }
   // Node reports a server closing a keep-alive connection with this message and no useful code.
-  return typeof message === 'string' && message.includes('socket hang up');
+  return messageOf(error).includes('socket hang up');
 }
 
 /**
@@ -395,7 +373,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
       return;
     }
 
-    const status = getHttpStatus(error);
+    const status = httpStatusOf(error);
 
     if (status === 401) {
       // Access tokens last about an hour and a request's authorization is fixed when it opens, so

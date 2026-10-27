@@ -574,7 +574,6 @@ export class IntegrationManager {
       name: integration.name,
       status: integration.getStatus(),
       enabled: this.isEnabled(integration.name),
-      placeholder: integration.placeholder,
       ...(errorMessage ? { errorMessage } : {}),
       metadata: {
         dependencies,

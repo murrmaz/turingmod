@@ -76,9 +76,6 @@ export abstract class BaseIntegration implements IIntegration {
     return null;
   }
 
-  /** Implemented; a placeholder overrides this. */
-  readonly placeholder: boolean = false;
-
   /** Not in a group; an integration that belongs to one overrides this. */
   getGroup(): IntegrationGroup | null {
     return null;

@@ -10,9 +10,6 @@ export interface IntegrationDisplay {
 }
 
 export function describeIntegration(integration: IntegrationInfo): IntegrationDisplay {
-  if (integration.placeholder) {
-    return { label: 'planned', tone: 'idle', needsAttention: false };
-  }
   switch (integration.status) {
     case IntegrationStatus.CONNECTED:
       return { label: 'connected', tone: 'viewer', needsAttention: false };
@@ -81,8 +78,6 @@ export function inDisplayOrder(integrations: IntegrationInfo[]): IntegrationInfo
     ),
     ...integrations
       .filter((integration) => !integration.group)
-      .sort(
-        (a, b) => Number(a.placeholder) - Number(b.placeholder) || a.name.localeCompare(b.name)
-      ),
+      .sort((a, b) => a.name.localeCompare(b.name)),
   ];
 }

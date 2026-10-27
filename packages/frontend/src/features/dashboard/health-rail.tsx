@@ -18,9 +18,7 @@ export function HealthRail() {
   const actions = useIntegrationActions();
   const navigate = useNavigate();
   const broken = integrations.filter((i) => describeIntegration(i).needsAttention);
-  const live = integrations.filter((i) => !i.placeholder);
-  const up = live.filter((i) => i.status === IntegrationStatus.CONNECTED).length;
-  const planned = integrations.length - live.length;
+  const up = integrations.filter((i) => i.status === IntegrationStatus.CONNECTED).length;
 
   return (
     <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto">
@@ -37,9 +35,7 @@ export function HealthRail() {
       <section className="rounded-xl border">
         <header className="flex items-baseline justify-between px-4 pt-4 pb-2">
           <h2 className="text-sm font-semibold">Integrations</h2>
-          <span className="text-xs text-muted-foreground">
-            {up} up{planned > 0 && ` · ${planned} planned`}
-          </span>
+          <span className="text-xs text-muted-foreground">{up} up</span>
         </header>
         <ul className="pb-2">
           {inDisplayOrder(integrations).map((integration) => {

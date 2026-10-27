@@ -193,58 +193,52 @@ function IntegrationDetail({
         <p className="text-sm text-muted-foreground">{integration.errorMessage}</p>
       )}
 
-      {integration.placeholder ? (
-        <p className="text-sm text-muted-foreground">Not implemented yet.</p>
-      ) : (
-        <div className="grid grid-cols-2 gap-2">
-          {state.isOAuthIntegration && (!state.isConnected || state.needsReauth) && (
-            <Button
-              onClick={() => actions.handleAuthorize(integration)}
-              disabled={state.isLoading}
-              className="col-span-1"
-            >
-              <KeyRound />
-              {state.needsReauth ? 'Reconnect' : 'Authorize'}
-            </Button>
-          )}
-          {!(state.isOAuthIntegration || canStop) && (
-            <Button
-              onClick={() => void actions.handleStart(integration.name)}
-              disabled={state.isLoading}
-            >
-              <Play />
-              Start
-            </Button>
-          )}
-          {!state.isOAuthIntegration &&
-            integration.status === IntegrationStatus.ERROR &&
-            canStop && (
-              <Button
-                onClick={() => void actions.handleStart(integration.name)}
-                disabled={state.isLoading}
-              >
-                <Play />
-                Retry
-              </Button>
-            )}
-          {canStop && (
-            <Button
-              variant="outline"
-              onClick={() => void actions.handleStop(integration.name)}
-              disabled={state.isLoading}
-            >
-              <Square />
-              Stop
-            </Button>
-          )}
-          {SetupModal && (
-            <Button variant="outline" onClick={() => setSetupOpen(true)}>
-              <Settings />
-              Set up
-            </Button>
-          )}
-        </div>
-      )}
+      <div className="grid grid-cols-2 gap-2">
+        {state.isOAuthIntegration && (!state.isConnected || state.needsReauth) && (
+          <Button
+            onClick={() => actions.handleAuthorize(integration)}
+            disabled={state.isLoading}
+            className="col-span-1"
+          >
+            <KeyRound />
+            {state.needsReauth ? 'Reconnect' : 'Authorize'}
+          </Button>
+        )}
+        {!(state.isOAuthIntegration || canStop) && (
+          <Button
+            onClick={() => void actions.handleStart(integration.name)}
+            disabled={state.isLoading}
+          >
+            <Play />
+            Start
+          </Button>
+        )}
+        {!state.isOAuthIntegration && integration.status === IntegrationStatus.ERROR && canStop && (
+          <Button
+            onClick={() => void actions.handleStart(integration.name)}
+            disabled={state.isLoading}
+          >
+            <Play />
+            Retry
+          </Button>
+        )}
+        {canStop && (
+          <Button
+            variant="outline"
+            onClick={() => void actions.handleStop(integration.name)}
+            disabled={state.isLoading}
+          >
+            <Square />
+            Stop
+          </Button>
+        )}
+        {SetupModal && (
+          <Button variant="outline" onClick={() => setSetupOpen(true)}>
+            <Settings />
+            Set up
+          </Button>
+        )}
+      </div>
 
       {SetupModal && setupOpen && (
         <SetupModal
@@ -260,7 +254,7 @@ function IntegrationDetail({
         />
       )}
 
-      {state.hasUnmetDependencies && !integration.placeholder && (
+      {state.hasUnmetDependencies && (
         <p className="text-xs text-muted-foreground">
           Runs once {state.missingDependencies.join(', ')}{' '}
           {state.missingDependencies.length === 1 ? 'connects' : 'connect'}.

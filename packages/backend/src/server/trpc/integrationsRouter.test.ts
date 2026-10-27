@@ -10,7 +10,7 @@ import { createCallerFactory } from './trpc.js';
 const logger = new Logger({ level: 'silent' });
 
 function info(status: IntegrationStatus, enabled = true): IntegrationInfo {
-  return { name: 'obs', status, enabled, placeholder: false, metadata: { dependencies: [] } };
+  return { name: 'obs', status, enabled, metadata: { dependencies: [] } };
 }
 
 function setup() {

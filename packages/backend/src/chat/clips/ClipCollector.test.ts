@@ -68,9 +68,8 @@ describe('ClipCollector', () => {
     if (!result) throw new Error('stop should have ended the collection');
     written.push(result.path);
     expect(result.count).toBe(1);
-    expect(collector.isCollecting()).toBe(false);
 
-    collector.begin();
+    expect(collector.begin()).toBe(true);
     await eventBus.emit('chat.message', chatMessage('https://clips.twitch.tv/Late'));
     expect(getClip).toHaveBeenCalledTimes(1);
   });
@@ -79,7 +78,7 @@ describe('ClipCollector', () => {
     await eventBus.emit('chat.message', chatMessage('https://clips.twitch.tv/Early'));
 
     expect(getClip).not.toHaveBeenCalled();
-    expect(collector.isCollecting()).toBe(false);
+    expect(await collector.end()).toBeNull();
   });
 
   it('keeps each real clip once and writes them to a page when collection ends', async () => {
@@ -100,7 +99,6 @@ describe('ClipCollector', () => {
     const page = await readFile(result.path, 'utf8');
     expect(page).toContain('Clip &lt;First&gt;');
     expect(page.indexOf('First')).toBeLessThan(page.indexOf('Second'));
-    expect(collector.isCollecting()).toBe(false);
     expect(await collector.end()).toBeNull();
   });
 

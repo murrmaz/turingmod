@@ -2,12 +2,17 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:
 import type { DatabaseManager } from '../database/DatabaseManager.js';
 
 /**
+ * The `settings` row holding this install's salt. Exported for DataInspector, which must hide it:
+ * with the master password, it derives the key every integration config is encrypted with.
+ */
+export const ENCRYPTION_SALT_SETTINGS_KEY = 'encryption_salt';
+
+/**
  * Encryption utility for securing API tokens and sensitive data
  * Uses AES-256-GCM for authenticated encryption
  */
 export class Encryption {
   private static readonly SALT_LENGTH = 32;
-  private static readonly SALT_SETTINGS_KEY = 'encryption_salt';
 
   private readonly algorithm = 'aes-256-gcm';
   private readonly keyLength = 32; // 256 bits
@@ -28,7 +33,7 @@ export class Encryption {
    */
   static getOrCreateSalt(db: DatabaseManager): Buffer {
     const row = db.queryOne<{ value: string }>('SELECT value FROM settings WHERE key = ?', [
-      Encryption.SALT_SETTINGS_KEY,
+      ENCRYPTION_SALT_SETTINGS_KEY,
     ]);
     if (row) {
       return Buffer.from(row.value, 'base64');
@@ -36,7 +41,7 @@ export class Encryption {
 
     const salt = randomBytes(Encryption.SALT_LENGTH);
     db.run('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)', [
-      Encryption.SALT_SETTINGS_KEY,
+      ENCRYPTION_SALT_SETTINGS_KEY,
       salt.toString('base64'),
       Date.now(),
     ]);

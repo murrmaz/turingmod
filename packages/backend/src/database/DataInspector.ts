@@ -10,6 +10,7 @@ import {
 import { singleton } from 'tsyringe';
 import type { IService } from '../core/ServiceLifecycle.js';
 import { TuringModConfig } from '../utils/Config.js';
+import { ENCRYPTION_SALT_SETTINGS_KEY } from '../utils/Encryption.js';
 
 /** What the inspector may show of one table, beyond the columns SQLite reports. */
 interface TablePolicy {
@@ -47,7 +48,7 @@ const TABLES: Readonly<Record<string, TablePolicy>> = {
     timestamps: ['updated_at'],
     json: ['value'],
     // Half of what derives the encryption key.
-    maskedRows: { column: 'key', keys: ['encryption_salt'] },
+    maskedRows: { column: 'key', keys: [ENCRYPTION_SALT_SETTINGS_KEY] },
   },
   banned_words: { defaultSort: 'banned_at', timestamps: ['banned_at'] },
   counters: { defaultSort: 'name', timestamps: ['updated_at'] },

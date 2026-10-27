@@ -36,7 +36,6 @@ export function createCommandsRouter(
           usage: cmd.usage,
           permissions: cmd.permissions,
           cooldown: cmd.cooldown,
-          requiredCapabilities: cmd.requiredCapabilities,
           availableOn: commandAvailability.platformsFor(cmd),
         }));
       }),

@@ -1,36 +1,3 @@
-import type { PermissionLevel } from '../constants/permissions.js';
-import type { PlatformCapability, StreamingPlatform } from '../constants/platform.js';
-
-/**
- * Command metadata exposed to clients
- * Derived from code-defined commands at runtime
- */
-export interface CommandInfo {
-  /** Command name (without ! prefix) */
-  name: string;
-
-  /** Human-readable description */
-  description: string;
-
-  /** Usage examples */
-  usage: string;
-
-  /** Required permission levels */
-  permissions: PermissionLevel[];
-
-  /** Cooldown in seconds (0 = no cooldown) */
-  cooldown: number;
-
-  /** Platform capabilities this command requires (empty = available on every platform) */
-  requiredCapabilities: PlatformCapability[];
-
-  /**
-   * The platforms whose capabilities cover `requiredCapabilities`, worked out by the backend
-   * from its platform façades, so clients never keep their own copy of each platform's set.
-   */
-  availableOn: StreamingPlatform[];
-}
-
 /**
  * Failures a command reports about its own work. Its `message` is written for the viewer, so
  * chat gets it as a reply.

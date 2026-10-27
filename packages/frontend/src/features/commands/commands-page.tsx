@@ -9,7 +9,6 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import {
-  type CommandInfo,
   formatPlatformList,
   PERMISSION_HIERARCHY,
   PermissionLevel,
@@ -33,7 +32,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 
-import { useAppState } from '@/context/AppStateContext';
+import { type CommandInfo, useAppState } from '@/context/AppStateContext';
 import { copyToClipboard } from '@/lib/reportError';
 import { PERMISSION_LABELS, useSimulator } from './simulator';
 

@@ -102,6 +102,11 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Clip collection**: `chat/clips/ClipCollector.ts`
 - **Lurk list**: `chat/lurk/LurkTracker.ts` (in memory; welcomes lurkers back when they chat)
 
+### Suggestions
+- **Box**: `packages/backend/src/suggestions/SuggestionBox.ts` — add/list/delete with change listeners; everything that writes a suggestion (`!sg`, the console) goes through it so the console hears about it. Storage in `database/repositories/SuggestionRepository.ts`
+- **Console API**: `packages/backend/src/server/trpc/suggestionsRouter.ts` (`suggestions.watch`, `delete`)
+- **Frontend**: `features/suggestions/suggestions-page.tsx` + `hooks/useSuggestions.ts`; Undo is console-side: a delete is hidden at once and sent when its toast closes (or the page is left), bookkept by `lib/pendingDeletes.ts`
+
 ### Going Live
 - **OBS stream state**: `packages/backend/src/live/ObsStreamState.ts` — whether OBS is streaming; publishes `stream.output.changed`, platform-neutral
 - **YouTube chat auto-connect**: `packages/backend/src/live/YouTubeChatAutoConnect.ts` — connects YouTube chat while OBS streams
@@ -436,7 +441,7 @@ there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 
-React Context for state management: `TrpcContext` (the tRPC client and its connection) and `AppStateContext` (commands, integrations). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`); anything read with a tRPC query, with `useServerQuery()` (`hooks/useServerQuery.ts`): read whenever the connection comes up and whenever its input changes, a superseded read aborted. Don't hand-write either in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, History, Data.
+React Context for state management: `TrpcContext` (the tRPC client and its connection) and `AppStateContext` (commands, integrations). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`); anything read with a tRPC query, with `useServerQuery()` (`hooks/useServerQuery.ts`): read whenever the connection comes up and whenever its input changes, a superseded read aborted. Don't hand-write either in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`, `useSuggestions()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, Suggestions, History, Data.
 
 ### Console UI
 

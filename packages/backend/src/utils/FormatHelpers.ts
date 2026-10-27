@@ -1,9 +1,10 @@
 /**
- * Format duration in milliseconds to human-readable string
- * Examples: "2h 34m", "45m", "1h 2m"
+ * Format how long something has lasted, in whole minutes rounded down, as elapsed time reads.
+ * Examples: "2h 34m", "45m", "1h 0m". A negative span (clock skew) is "0m". For a countdown to
+ * something imminent, use formatCountdown().
  */
 export function formatDuration(ms: number): string {
-  const totalMinutes = Math.floor(ms / 60000);
+  const totalMinutes = Math.max(0, Math.floor(ms / 60_000));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 

@@ -13,6 +13,7 @@ import { raidShoutoutMessage } from '../../raids/RaidShoutout.js';
 import type { SoundLibrary } from '../../sounds/SoundLibrary.js';
 import { Logger } from '../../utils/Logger.js';
 import { commandContext } from '../testing.js';
+import { AdCommand } from './AdCommand.js';
 import { BonkCommand } from './BonkCommand.js';
 import { ContentWarningCommand } from './ContentWarningCommand.js';
 import { DelvodCommand } from './DelvodCommand.js';
@@ -187,6 +188,24 @@ describe('!quiet', () => {
     expect(quiet).toBe(true);
     expect((await command.execute(commandContext('!quiet'))).message).toContain('disabled');
     expect(quiet).toBe(false);
+  });
+});
+
+describe('!ad', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('counts down to the next ad to the second, never as 0m', async () => {
+    vi.useFakeTimers({ now: 0 });
+    const getNextAdBreak = vi
+      .fn()
+      .mockResolvedValueOnce({ nextAdDate: new Date(45_000) })
+      .mockResolvedValueOnce({ nextAdDate: new Date(4 * 60_000 + 50_000) });
+    const command = new AdCommand(fakeStreamControl({ ads: { getNextAdBreak } }), logger);
+
+    expect((await command.execute(commandContext('!ad'))).message).toBe('Next ad in 45s');
+    expect((await command.execute(commandContext('!ad'))).message).toBe('Next ad in 4m 50s');
   });
 });
 

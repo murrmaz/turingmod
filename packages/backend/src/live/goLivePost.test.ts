@@ -1,11 +1,6 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
-import {
-  formatDuration,
-  renderEndedPost,
-  renderLivePost,
-  type StreamSummary,
-} from './goLivePost.js';
+import { renderEndedPost, renderLivePost, type StreamSummary } from './goLivePost.js';
 
 const { TWITCH, YOUTUBE } = StreamingPlatform;
 
@@ -76,13 +71,5 @@ describe('renderEndedPost', () => {
     expect(message.content).toContain('YouTube: <https://www.youtube.com/watch?v=abc>');
     expect(message.embeds[0]?.image).toBeUndefined();
     expect(message.embeds[0]?.footer).toEqual({ text: 'Stream ended' });
-  });
-});
-
-describe('formatDuration', () => {
-  it('shows hours only when there are some', () => {
-    expect(formatDuration(45 * 60_000)).toBe('45m');
-    expect(formatDuration(60 * 60_000)).toBe('1h 0m');
-    expect(formatDuration(-5)).toBe('0m');
   });
 });

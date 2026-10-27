@@ -1,6 +1,6 @@
 import { access } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
-import { IntegrationStatus, messageOf } from '@turingmod/shared';
+import { IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import { SoundIntegration } from '../integrations/implementations/sound/SoundIntegration.js';
@@ -58,7 +58,7 @@ export class SoundLibrary {
     try {
       await this.play(name, options);
     } catch (error) {
-      this.logger.warn(`Could not play "${name}": ${messageOf(error)}`);
+      this.logger.warn(`Could not play "${name}"`, error);
     }
   }
 

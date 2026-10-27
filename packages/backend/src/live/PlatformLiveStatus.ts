@@ -1,4 +1,4 @@
-import { messageOf, type PlatformLiveState, StreamingPlatform } from '@turingmod/shared';
+import { type PlatformLiveState, StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { PlatformLiveStateEvent } from '../core/events.js';
@@ -109,7 +109,7 @@ export class PlatformLiveStatus implements IService {
     } catch (error) {
       this.logger.warn('Could not read whether a platform is live', {
         platform,
-        error: messageOf(error),
+        error,
       });
     }
   }

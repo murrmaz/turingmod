@@ -1,4 +1,4 @@
-import { messageOf, StreamingPlatform } from '@turingmod/shared';
+import { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
@@ -113,7 +113,7 @@ export class AdWarningScheduler implements IService {
       return adBreak?.nextAdDate?.getTime() ?? null;
     } catch (error) {
       this.logger.warn('Could not read the Twitch ad schedule', {
-        error: messageOf(error),
+        error,
       });
       return null;
     }

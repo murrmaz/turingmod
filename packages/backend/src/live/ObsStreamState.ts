@@ -1,4 +1,4 @@
-import { IntegrationStatus, messageOf } from '@turingmod/shared';
+import { IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
@@ -65,7 +65,7 @@ export class ObsStreamState implements IService {
     try {
       await this.update(await this.obs.isStreaming());
     } catch (error) {
-      this.logger.warn('Could not ask OBS whether it is streaming', { error: messageOf(error) });
+      this.logger.warn('Could not ask OBS whether it is streaming', { error });
     }
   }
 

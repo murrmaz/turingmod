@@ -113,7 +113,7 @@ export class DiscordIntegration extends BaseIntegration {
       await this.request('GET', `/channels/${notificationChannelId}`);
     } catch (error) {
       // request() has reported it as ERROR; failing start() too would only log it twice.
-      this.logger.warn('Could not reach the Discord channel', { error: messageOf(error) });
+      this.logger.warn('Could not reach the Discord channel', { error });
     }
   }
 

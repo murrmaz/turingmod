@@ -485,7 +485,10 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 - **Errors**: throw only `Error`s, with a message (Biome's `useThrowOnlyError` and `useErrorMessage`
   enforce it). A caught value is still `unknown`, because dependencies can throw anything: narrow it
   where it's caught with `messageOf()` or `toError()` (`shared/src/utils/errors.ts`) rather than
-  repeating `instanceof Error` checks or passing `unknown` on.
+  repeating `instanceof Error` checks or passing `unknown` on. A log call takes the caught value
+  itself (`logger.error(message, error)`, or `logger.warn(message, { platform, error })`), never
+  `messageOf(error)`: `Logger` writes an Error with its stack and `cause`, which the message alone
+  loses. `messageOf()` is for text a person reads, such as a chat reply.
 
 ## TypeScript
 

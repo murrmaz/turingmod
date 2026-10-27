@@ -1,4 +1,3 @@
-import { messageOf } from '@turingmod/shared';
 import type { ObsIntegration, ObsScene, ObsSceneItem } from './ObsIntegration.js';
 
 /**
@@ -101,6 +100,5 @@ export async function listPlacements(
 export function warnSkipped(logger: {
   warn(message: string, ...args: unknown[]): void;
 }): OnSkipped {
-  return (what, error) =>
-    logger.warn(`Could not read ${what} from OBS`, { error: messageOf(error) });
+  return (what, error) => logger.warn(`Could not read ${what} from OBS`, { error });
 }

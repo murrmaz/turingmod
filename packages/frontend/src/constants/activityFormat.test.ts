@@ -1,4 +1,9 @@
-import { ActivityCategory, type ActivityLogEntry, StreamingPlatform } from '@turingmod/shared';
+import {
+  ActivityCategory,
+  type ActivityEventName,
+  type ActivityLogEntry,
+  StreamingPlatform,
+} from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
 import {
   dayDivider,
@@ -10,7 +15,7 @@ import {
 } from './activityFormat';
 
 const entry = (
-  event: string,
+  event: ActivityEventName,
   data: Record<string, unknown>,
   category = ActivityCategory.EVENT
 ): ActivityLogEntry => ({ id: '1', category, event, data, timestamp: 0 });
@@ -66,7 +71,12 @@ describe('toFeedRow', () => {
   });
 
   it('files follows, subs, raids and cheers under viewers', () => {
-    for (const event of ['twitch.follow', 'twitch.subscribe', 'twitch.raid', 'twitch.cheer']) {
+    for (const event of [
+      'twitch.follow',
+      'twitch.subscribe',
+      'twitch.raid',
+      'twitch.cheer',
+    ] as const) {
       expect(toFeedRow(entry(event, {})).category).toBe('viewer');
     }
     expect(toFeedRow(entry('twitch.subscribe', { tier: '2000' })).detail).toBe('Tier 2');

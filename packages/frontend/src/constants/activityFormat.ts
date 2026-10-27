@@ -1,5 +1,5 @@
 import type { ActivityEventName, ActivityLogEntry } from '@turingmod/shared';
-import { IntegrationStatus, isActivityEventName, StreamingPlatform } from '@turingmod/shared';
+import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
 
 /**
  * The feed's own categories, which the console filters by. Finer than the backend's
@@ -119,17 +119,9 @@ function system(label: string, title: string, detail = '', tone: FeedTone = 'sys
 
 /**
  * How each recorded event reads. Every name in ACTIVITY_EVENTS needs a case, which the compiler
- * enforces (the switch must return on every path); anything else shows as its bare name.
+ * enforces (the switch must return on every path).
  */
-function describe(entry: ActivityLogEntry): Described {
-  const { event, data } = entry;
-  if (!isActivityEventName(event)) {
-    return system('Event', event);
-  }
-  return describeEvent(event, data, entry.timestamp);
-}
-
-function describeEvent(
+function describe(
   event: ActivityEventName,
   data: Record<string, unknown>,
   timestamp: number
@@ -327,7 +319,12 @@ function describeEvent(
 
 /** Describe one activity entry for the feed. */
 export function toFeedRow(entry: ActivityLogEntry): FeedRow {
-  return { id: entry.id, timestamp: entry.timestamp, entry, ...describe(entry) };
+  return {
+    id: entry.id,
+    timestamp: entry.timestamp,
+    entry,
+    ...describe(entry.event, entry.data, entry.timestamp),
+  };
 }
 
 /** Whether a row matches the feed's text filter: event, detail and user, case-insensitively. */

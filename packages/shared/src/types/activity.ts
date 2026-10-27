@@ -40,10 +40,6 @@ export const ACTIVITY_EVENTS = [
 
 export type ActivityEventName = (typeof ACTIVITY_EVENTS)[number];
 
-export function isActivityEventName(event: string): event is ActivityEventName {
-  return (ACTIVITY_EVENTS as readonly string[]).includes(event);
-}
-
 /**
  * One row of the activity feed. Same shape whether it came from a live broadcast or the DB.
  */
@@ -55,10 +51,10 @@ export const ActivityLogEntrySchema = z.strictObject({
   category: z.enum(ActivityCategory),
 
   /**
-   * Fully-qualified source event name, e.g. 'twitch.follow'. One of ACTIVITY_EVENTS when it was
-   * written, but a stored entry can outlive a renamed or retired event, so it is read as a string.
+   * Fully-qualified source event name, e.g. 'twitch.follow'. Renaming or retiring an event takes a
+   * migration for the entries stored under it, since one the log no longer records fails the read.
    */
-  event: z.string().min(1),
+  event: z.enum(ACTIVITY_EVENTS),
 
   /** Category-specific payload (already serialized-safe: no Error objects, no functions) */
   data: z.record(z.string(), z.unknown()),

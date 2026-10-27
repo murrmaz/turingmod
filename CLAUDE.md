@@ -45,7 +45,8 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **OAuth flow**: `packages/backend/src/integrations/OAuthFlowService.ts` — authorization URL, single-use `state`, callback routes, and `handleCallback()`, which exchanges the code on the backend when the provider redirects (no console needs to be open) and announces the result to every console (`oauth.results`, tRPC); the callback page then closes itself (popup) or returns to the console that asked. Client credentials come only from the console's setup dialog (stored encrypted), never from `.env`; `IntegrationInfo.oauth.configured` tells the console whether to open setup or authorization
 - **Dependency graph**: `packages/backend/src/integrations/DependencyGraph.ts` — pure sort/levels/dependents/validate queries over the registered integrations
 - **Base Class**: `packages/backend/src/integrations/BaseIntegration.ts` — shared status/error/event-emitter plumbing; all integrations extend this
-- **OAuth base class**: `packages/backend/src/integrations/OAuthIntegration.ts` — `OAuthIntegration<TConfig>` (extends `BaseIntegration`): credentials, redirect URI, token persistence, and the no-token / missing-scope checks before connecting
+- **OAuth base class**: `packages/backend/src/integrations/OAuthIntegration.ts` — `OAuthIntegration<TConfig>` (extends `BaseIntegration`): credentials, redirect URI, token persistence, and the no-token / missing-scope checks before connecting; `StandardOAuthIntegration.ts` beneath it, for a provider used through its OAuth 2.0 endpoints (Twitch, Spotify): the authorization URL and code exchange from two endpoints, and the shared stored-token schema
+- **API layer base class**: `packages/backend/src/integrations/AuthorizedApiIntegration.ts` — `AuthorizedApiIntegration<TAuth, TClient>` (extends `BaseIntegration`): the auth dependency, `BLOCK` policy, refusing to call while auth isn't CONNECTED, and `request()`; `ClientCache.ts` rebuilds a client when its auth object is replaced
 - **Interfaces**: `packages/backend/src/integrations/interfaces/IIntegration.ts`, `IOAuthIntegration.ts` (extends `IIntegration` for OAuth-capable integrations)
 - **Implementations**: `packages/backend/src/integrations/implementations/*/` (Twitch, YouTube, Spotify, OBS, Sound, Discord, Arduino)
 - **Arduino**: `packages/backend/src/integrations/implementations/arduino/ArduinoIntegration.ts` (WebSocket client to a Wi-Fi board) + `arduinoProtocol.ts` (message schemas); the protocol spec and a reference ESP32 sketch for the firmware side are in `firmware/` (`firmware/README.md`)
@@ -58,6 +59,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Implementations**: `packages/backend/src/commands/implementations/*.ts`
 - **Loader**: `packages/backend/src/commands/loadCommands.ts`
 - **Results**: `packages/backend/src/commands/utils/results.ts` — `ok()`, `fail()`, and `mirrorReply()` for title/game/tags writes
+- **Availability**: `packages/backend/src/commands/CommandAvailability.ts` — which commands each platform offers (`requiredCapabilities` ⊆ the platform's capabilities), for the executor and `commands.list`
 - **Parser**: `packages/backend/src/commands/parseCommand.ts` — the one place command text becomes a name and arguments, for chat and the simulator alike
 - **Console API**: `packages/backend/src/server/trpc/commandsRouter.ts` (tRPC: `commands.list`, `commands.simulate`)
 
@@ -123,7 +125,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 
 ### Console ↔ Backend Protocol
 - **tRPC router**: `packages/backend/src/server/trpc/appRouter.ts` (`createAppRouter()`, `AppRouter` type) — one sub-router per area, e.g. `integrationsRouter.ts`; `trpc.ts` (instance and `TrpcContext`), `watch.ts` (`watchable()`: current value, then again on each change, read once per change for every console; `events()`: a stream of events, subscribed at once so a snapshot read beside it misses nothing)
-- **tRPC endpoint**: `packages/backend/src/server/trpc/TrpcServer.ts` (`TRPC_PATH`); `HttpServer.routeUpgrades()` hands a WebSocket path its endpoint; `server/consoleSockets.ts` (console-only origin check, upgrades, closing with a grace period)
+- **tRPC endpoint**: `packages/backend/src/server/trpc/TrpcServer.ts` (`TRPC_PATH`); `HttpServer.routeUpgrades()` hands it the upgrades on that path; `TrpcServer` lets only the console's origin connect and gives consoles a grace period to close at shutdown
 - **tRPC client**: `packages/frontend/src/context/TrpcContext.tsx` (`TrpcProvider`, `useTrpc()`, `useConnection()`; `RouterInputs`/`RouterOutputs` name a procedure's input and output types), `services/trpcLinks.ts` (fail requests while disconnected), `services/connection.ts` (connection state, retry schedule, `ConnectionError`)
 - **Reading from the backend**: `packages/frontend/src/hooks/useSubscription.ts` (state kept current by a `watch` subscription, or built from an event stream with `reduce`), `hooks/useServerQuery.ts` (a query, read on connect and on each new input)
 
@@ -252,9 +254,10 @@ Commands and features reach a platform only through `StreamControlService`: its 
 (`setTitle()`, `setGame()`, `setTags()`), `announce()`, and `require(platform, 'channelPoints')`,
 which returns that platform's capability object, typed, or throws. What only some platforms can do
 is an optional capability object on `IStreamPlatform` (all listed in `CapabilityApis`). A command
-lists the capabilities it uses in `requiredCapabilities` and is hidden on platforms without them
-(`CommandExecutor` treats hidden as `COMMAND_NOT_FOUND`); the console gets each command's
-`availableOn` from `commands.list`. Every endpoint and platform rule lives in the façade
+lists the capabilities it uses in `requiredCapabilities`, never platforms, and is offered wherever
+they are all present: `CommandAvailability` applies that rule for chat, the simulator and
+`commands.list` (each command's `availableOn`), and a command a platform doesn't offer is
+`COMMAND_NOT_FOUND` there, like an unknown one. Every endpoint and platform rule lives in the façade
 (`TwitchPlatform`, `YouTubePlatform`), never in a command or in an API integration. How the façades
 and their capability sets are built, and how to add a capability, is in
 [`packages/backend/src/platforms/CLAUDE.md`](packages/backend/src/platforms/CLAUDE.md).
@@ -519,4 +522,4 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 - **A new platform capability** is a `PlatformCapability` value, an object type in `CapabilityApis`, its `CAPABILITY_OF_API` entry, and the façades' implementations; the compiler holds those together. Don't add a pass-through to `StreamControlService` — callers use `require()`.
 - **Every outgoing chat message goes through `toSafeChatText()` and `OwnChatMessages.record()`** inside the platform façade — a new `IStreamPlatform` (or a new send method) must apply both, so the bot can never post a command or act on what it posted (see Chat Pipeline).
 - **API-backed read commands need a cooldown.** `ICommand.cooldown` is per-viewer seconds; `CommandExecutor` exempts moderators and above, so a shared read/write command (`!game`, `!tags`, `!cw`) can be throttled for viewers without blocking a moderator's write.
-- **New integrations** extend `BaseIntegration`, get decorated `@singleton()`, get registered with `IntegrationManager` in `setup.ts`'s `initializeComponents()`, and need a procedure in the tRPC router (`server/trpc/`) if the console controls them. OAuth-capable integrations extend `OAuthIntegration` instead, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.
+- **New integrations** extend `BaseIntegration`, get decorated `@singleton()`, get registered with `IntegrationManager` in `setup.ts`'s `initializeComponents()`, and need a procedure in the tRPC router (`server/trpc/`) if the console controls them. An API that calls on behalf of a separate auth integration extends `AuthorizedApiIntegration` instead (a public API, or one with its token in its own config, stays on `BaseIntegration`). OAuth-capable integrations extend `OAuthIntegration` instead, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.

@@ -89,6 +89,6 @@ describe('TitleCommand', () => {
     const result = await command.execute(contextFor('New', 'title'));
 
     expect(result.success).toBe(false);
-    expect(result.message).toBe('Failed to update title: Helix rejected the update');
+    expect(result.message).toBe('Failed to update title on Twitch');
   });
 });

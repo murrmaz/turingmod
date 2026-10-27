@@ -1,9 +1,9 @@
-import { IntegrationGroup, IntegrationName, IntegrationStatus, messageOf } from '@turingmod/shared';
+import { IntegrationName } from '@turingmod/shared';
 import { google, type youtube_v3 } from 'googleapis';
 import { singleton } from 'tsyringe';
 import { Logger } from '../../../utils/Logger.js';
-import { BaseIntegration } from '../../BaseIntegration.js';
-import { DependencyFailurePolicy, type IIntegration } from '../../interfaces/IIntegration.js';
+import { AuthorizedApiIntegration } from '../../AuthorizedApiIntegration.js';
+import { ClientCache } from '../../ClientCache.js';
 import { YouTubeAuthIntegration, type YouTubeOAuth2Client } from './YouTubeAuthIntegration.js';
 
 /**
@@ -29,98 +29,29 @@ export type BroadcastIdentity = Omit<ActiveBroadcast, 'title'>;
 
 /**
  * The YouTube Data API connection: a googleapis client kept in step with
- * YouTubeAuthIntegration, and the integration status that says whether it can
- * be used.
+ * YouTubeAuthIntegration (see AuthorizedApiIntegration).
  *
- * Owns connection health — which client to use, whether auth is usable, and
- * noticing a dead refresh token — plus getActiveBroadcast(), the one lookup
- * YouTubeChatIntegration needs as well. Everything else TuringMod does on
- * YouTube lives in YouTubePlatform, which makes its calls through request().
+ * Besides that, it notices a dead refresh token, and offers getActiveBroadcast(),
+ * the one lookup YouTubeChatIntegration needs as well. Everything else
+ * TuringMod does on YouTube lives in YouTubePlatform, which makes its calls
+ * through request().
  *
  * Depends on: YouTubeAuthIntegration
  */
 @singleton()
-export class YouTubeApiIntegration extends BaseIntegration {
+export class YouTubeApiIntegration extends AuthorizedApiIntegration<
+  YouTubeAuthIntegration,
+  youtube_v3.Youtube
+> {
   readonly name = IntegrationName.YOUTUBE_API;
 
-  private youtube: youtube_v3.Youtube | null = null;
-  /** The auth client `youtube` was built on, to detect it being replaced. */
-  private authClient: YouTubeOAuth2Client | null = null;
+  private readonly clients = new ClientCache(
+    (auth: YouTubeOAuth2Client) => google.youtube({ version: 'v3', auth }),
+    () => this.logger.info('YouTube auth client was replaced; rebuilding API client')
+  );
 
-  constructor(
-    logger: Logger,
-    private authIntegration: YouTubeAuthIntegration
-  ) {
-    super(logger, { component: 'YouTubeAPI' });
-  }
-
-  override getDependencies(): IIntegration[] {
-    return [this.authIntegration];
-  }
-
-  /**
-   * Resolves its client on access and holds nothing bound to the grant, so a
-   * YouTube auth failure blocks this integration rather than stopping it.
-   */
-  override get dependencyFailurePolicy(): DependencyFailurePolicy {
-    return DependencyFailurePolicy.BLOCK;
-  }
-
-  override getGroup(): IntegrationGroup {
-    return IntegrationGroup.YOUTUBE;
-  }
-
-  start(): Promise<void> {
-    this.logger.debug('Starting YouTube API integration');
-    this.setStatus(IntegrationStatus.CONNECTING);
-
-    try {
-      const youtube = this.resolveClient();
-      if (!youtube) {
-        throw new Error('YouTubeAuthIntegration must be started (and authorized) first');
-      }
-
-      this.setStatus(IntegrationStatus.CONNECTED);
-      this.logger.debug('YouTube API integration started successfully');
-
-      return Promise.resolve();
-    } catch (error) {
-      this.logger.error('Failed to start YouTube API integration', error);
-      this.setStatus(IntegrationStatus.ERROR, messageOf(error));
-      throw error;
-    }
-  }
-
-  stop(): Promise<void> {
-    this.logger.debug('Stopping YouTube API integration');
-
-    this.youtube = null;
-    this.authClient = null;
-    this.setStatus(IntegrationStatus.DISCONNECTED);
-
-    this.logger.debug('YouTube API integration stopped');
-    return Promise.resolve();
-  }
-
-  /**
-   * Run a YouTube Data API call through the current client. Throws if auth
-   * isn't connected. When the failure looks like a dead refresh token, flags
-   * the auth integration as needing re-authorization; the error is always
-   * rethrown.
-   */
-  async request<T>(call: (youtube: youtube_v3.Youtube) => Promise<T>): Promise<T> {
-    const youtube = this.resolveClient();
-    if (!youtube) {
-      throw new Error('YouTube API client not initialized');
-    }
-    try {
-      return await call(youtube);
-    } catch (error) {
-      if (this.authIntegration.isAuthError(error)) {
-        this.authIntegration.markAuthRequired();
-      }
-      throw error;
-    }
+  constructor(logger: Logger, authIntegration: YouTubeAuthIntegration) {
+    super(logger, 'YouTube', authIntegration);
   }
 
   /**
@@ -152,41 +83,23 @@ export class YouTubeApiIntegration extends BaseIntegration {
     };
   }
 
+  protected resolveClient(): youtube_v3.Youtube | null {
+    const authClient = this.auth.getAuthClient();
+    return authClient ? this.clients.get(authClient) : null;
+  }
+
+  protected override forgetClient(): void {
+    this.clients.clear();
+  }
+
   /**
-   * Return a client bound to the auth integration's *current* OAuth2 client,
-   * rebuilding it if that client has been replaced since.
-   *
-   * A client captured once at start() outlives the credentials it was built
-   * on — YouTubeAuthIntegration makes a new OAuth2 client each time it starts,
-   * so re-authorizing left this integration calling the API through the old
-   * one. Resolving on access removes that case instead of relying on the
-   * manager to stop this integration in time.
+   * When the failure looks like a dead refresh token, flags the auth
+   * integration as needing re-authorization. The error is always rethrown.
    */
-  private resolveClient(): youtube_v3.Youtube | null {
-    // markAuthRequired() sets NEEDS_REAUTH without discarding the OAuth2
-    // client, so a non-null client here says nothing about whether it can
-    // still refresh. Gate on the dependency's status, not just the reference.
-    const authClient =
-      this.authIntegration.getStatus() === IntegrationStatus.CONNECTED
-        ? this.authIntegration.getAuthClient()
-        : null;
-
-    if (!authClient) {
-      this.youtube = null;
-      this.authClient = null;
-      return null;
+  protected override onRequestFailure<T>(error: unknown): Promise<T> {
+    if (this.auth.isAuthError(error)) {
+      this.auth.markAuthRequired();
     }
-
-    if (this.youtube && this.authClient === authClient) {
-      return this.youtube;
-    }
-
-    if (this.authClient) {
-      this.logger.info('YouTube auth client was replaced; rebuilding API client');
-    }
-
-    this.authClient = authClient;
-    this.youtube = google.youtube({ version: 'v3', auth: authClient });
-    return this.youtube;
+    return Promise.reject(error);
   }
 }

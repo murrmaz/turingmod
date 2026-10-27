@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { formatCountdown, formatElapsed } from './FormatHelpers.js';
+import { formatCountdown, formatDuration, formatElapsed } from './FormatHelpers.js';
+
+describe('formatDuration', () => {
+  it.each([
+    [45 * 60_000, '45m'],
+    [60 * 60_000, '1h 0m'],
+    [(2 * 60 + 59) * 60_000 + 50_000, '2h 59m'],
+    [59_000, '0m'],
+    [-5, '0m'],
+  ])('formats %d ms as %s', (ms, expected) => {
+    expect(formatDuration(ms)).toBe(expected);
+  });
+});
 
 describe('formatCountdown', () => {
   it.each([

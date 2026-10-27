@@ -3,19 +3,22 @@ import {
   IntegrationGroup,
   IntegrationName,
   IntegrationStatus,
+  messageOf,
   PermissionLevel,
   StreamingPlatform,
 } from '@turingmod/shared';
-import type { youtube_v3 } from 'googleapis';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IIntegration } from '../../interfaces/IIntegration.js';
+import { ReconnectBackoff } from '../../ReconnectBackoff.js';
+import { connectionErrorCodeOf, httpStatusOf } from './googleErrors.js';
 import { type BroadcastIdentity, YouTubeApiIntegration } from './YouTubeApiIntegration.js';
 import { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
 import {
-  type LiveChatMessageListResponse,
+  type LiveChatFrame,
+  type LiveChatMessage,
   type LiveChatStreamCall,
   YouTubeChatStream,
 } from './YouTubeChatStream.js';
@@ -30,9 +33,6 @@ const RESOLVE_RETRY_INTERVAL_MS = 5_000;
  */
 const RESOLVE_TIMEOUT_MS = 120_000;
 
-/** Reconnect backoff bounds for a dropped stream. */
-const RECONNECT_BASE_DELAY_MS = 1_000;
-const RECONNECT_MAX_DELAY_MS = 30_000;
 /**
  * Give up reconnecting after this many consecutive failures and return to idle. Without a cap, a
  * broadcast that ends by closing the stream cleanly would reconnect forever while still reporting
@@ -85,38 +85,14 @@ const TRANSPORT_ERROR_CODES: ReadonlySet<string> = new Set([
   'UND_ERR_BODY_TIMEOUT',
 ]);
 
-/**
- * The HTTP status of a failed request, or undefined when the failure never got that far. Gaxios
- * puts it on the error's `response`, and also mirrors it onto `status` on newer errors.
- */
-function getHttpStatus(error: unknown): number | undefined {
-  if (typeof error !== 'object' || error === null) {
-    return undefined;
-  }
-
-  const { status, response } = error as {
-    status?: unknown;
-    response?: { status?: unknown } | undefined;
-  };
-
-  if (typeof response?.status === 'number') {
-    return response.status;
-  }
-  return typeof status === 'number' ? status : undefined;
-}
-
 /** Whether a status-less failure is a dropped connection rather than a genuine surprise. */
 function isTransportError(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) {
-    return false;
-  }
-
-  const { code, message } = error as { code?: unknown; message?: unknown };
-  if (typeof code === 'string' && TRANSPORT_ERROR_CODES.has(code)) {
+  const code = connectionErrorCodeOf(error);
+  if (code !== undefined && TRANSPORT_ERROR_CODES.has(code)) {
     return true;
   }
   // Node reports a server closing a keep-alive connection with this message and no useful code.
-  return typeof message === 'string' && message.includes('socket hang up');
+  return messageOf(error).includes('socket hang up');
 }
 
 /**
@@ -149,8 +125,8 @@ export class YouTubeChatIntegration extends BaseIntegration {
 
   private resolveTimer: NodeJS.Timeout | null = null;
   private resolveDeadline = 0;
-  private reconnectTimer: NodeJS.Timeout | null = null;
-  private reconnectAttempts = 0;
+  /** When to reopen a dropped stream. A working response, or a new broadcast, starts it over. */
+  private readonly backoff = new ReconnectBackoff();
 
   /**
    * Bumped by every teardown. Async work captures it and bails if it changed while awaiting, so a
@@ -292,7 +268,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
         this.broadcast = { ...identity, liveChatId: broadcast.liveChatId };
         this.nextPageToken = undefined;
         this.primed = false;
-        this.reconnectAttempts = 0;
+        this.backoff.reset();
         this.logger.info('Resolved active YouTube live chat', {
           liveChatId: broadcast.liveChatId,
         });
@@ -362,9 +338,9 @@ export class YouTubeChatIntegration extends BaseIntegration {
     this.logger.info('YouTube live chat stream open');
   }
 
-  private handleResponse(response: LiveChatMessageListResponse): void {
+  private handleResponse(response: LiveChatFrame): void {
     // A working response clears both failure counters: later trouble starts from scratch.
-    this.reconnectAttempts = 0;
+    this.backoff.reset();
     this.authRetried = false;
 
     // The first response of a fresh resolve is chat backlog — take the cursor, drop the messages.
@@ -397,7 +373,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
       return;
     }
 
-    const status = getHttpStatus(error);
+    const status = httpStatusOf(error);
 
     if (status === 401) {
       // Access tokens last about an hour and a request's authorization is fixed when it opens, so
@@ -460,26 +436,17 @@ export class YouTubeChatIntegration extends BaseIntegration {
       return;
     }
 
-    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    if (this.backoff.attempts >= MAX_RECONNECT_ATTEMPTS) {
       // Bounded on purpose: a broadcast that has ended tends to close the stream immediately every
       // time, which would otherwise be an endless reconnect loop still reporting `streaming`.
       this.logger.warn(
-        `YouTube chat stream failed ${this.reconnectAttempts} times in a row; returning to idle`
+        `YouTube chat stream failed ${this.backoff.attempts} times in a row; returning to idle`
       );
       this.teardown();
       return;
     }
 
-    const delay = Math.min(
-      RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempts,
-      RECONNECT_MAX_DELAY_MS
-    );
-    this.reconnectAttempts += 1;
-
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      this.openStream();
-    }, delay);
+    this.backoff.schedule(() => this.openStream());
   }
 
   /**
@@ -522,10 +489,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
       clearTimeout(this.resolveTimer);
       this.resolveTimer = null;
     }
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+    this.backoff.reset();
 
     // Detach before cancelling so any abort fallout is recognized as belonging to a call we've
     // already abandoned, rather than kicking off a reconnect.
@@ -539,7 +503,6 @@ export class YouTubeChatIntegration extends BaseIntegration {
     this.broadcast = null;
     this.nextPageToken = undefined;
     this.primed = false;
-    this.reconnectAttempts = 0;
     this.authRetried = false;
     this.setState('idle');
   }
@@ -560,7 +523,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
    * Normalize one live chat message into `chat.received`.
    * Payloads mirror TwitchEventSubIntegration.handleChatMessage() exactly.
    */
-  private handleMessage(item: youtube_v3.Schema$LiveChatMessage): void {
+  private handleMessage(item: LiveChatMessage): void {
     const author = item.authorDetails;
     const snippet = item.snippet;
     const messageText = snippet?.displayMessage ?? snippet?.textMessageDetails?.messageText ?? '';
@@ -596,7 +559,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
    * equivalent, and a channel "member" (sponsor) is treated as a subscriber.
    */
   private getPermissionFromAuthor(
-    author: youtube_v3.Schema$LiveChatMessageAuthorDetails
+    author: NonNullable<LiveChatMessage['authorDetails']>
   ): PermissionLevel {
     if (author.isChatOwner) return PermissionLevel.BROADCASTER;
     if (author.isChatModerator) return PermissionLevel.MODERATOR;
@@ -605,7 +568,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
   }
 
   /** Derive Twitch-badge-style role markers from YouTube author flags (parity only). */
-  private getBadgesFromAuthor(author: youtube_v3.Schema$LiveChatMessageAuthorDetails): string[] {
+  private getBadgesFromAuthor(author: NonNullable<LiveChatMessage['authorDetails']>): string[] {
     const badges: string[] = [];
     if (author.isChatOwner) badges.push('owner');
     if (author.isChatModerator) badges.push('moderator');

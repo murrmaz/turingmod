@@ -4,13 +4,14 @@ import { injectable } from 'tsyringe';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { ok } from '../utils/results.js';
 
-/** Where the streamer is (Chicagoland, per the original bot). */
-export const STREAMER_TIME_ZONE = 'America/Chicago';
-
-/** e.g. "3:05 PM CDT" — the zone abbreviation follows daylight saving. */
-export function streamerTime(now = new Date()): string {
+/**
+ * e.g. "3:05 PM CDT" — the zone abbreviation follows daylight saving. TuringMod only listens on
+ * localhost, so it runs on the streamer's own machine, and that machine's time zone is theirs;
+ * `timeZone` is for tests.
+ */
+export function streamerTime(now = new Date(), timeZone?: string): string {
   return now.toLocaleTimeString('en-US', {
-    timeZone: STREAMER_TIME_ZONE,
+    ...(timeZone === undefined ? {} : { timeZone }),
     hour: 'numeric',
     minute: '2-digit',
     timeZoneName: 'short',

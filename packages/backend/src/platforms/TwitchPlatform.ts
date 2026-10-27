@@ -10,7 +10,7 @@ import { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import { unavailableReason } from './availability.js';
-import { NotAuthenticatedError } from './errors.js';
+import { InvalidStreamInfoError, NotAuthenticatedError } from './errors.js';
 import type {
   AccountAgeApi,
   AdsApi,
@@ -25,6 +25,7 @@ import type {
   DeclaredCapability,
   FollowInfoApi,
   IStreamPlatform,
+  LiveBroadcast,
   MarkersApi,
   ModerationApi,
   ScheduleApi,
@@ -34,6 +35,30 @@ import type {
   VodsApi,
 } from './interfaces/IStreamPlatform.js';
 import { TwitchShoutoutCooldowns } from './TwitchShoutoutCooldowns.js';
+
+/**
+ * The content classification labels a channel may set itself. Twitch applies MatureGame from
+ * the category, so it can be read back but not set.
+ */
+const TWITCH_CONTENT_LABELS = [
+  'DebatedSocialIssuesAndPolitics',
+  'DrugsIntoxication',
+  'SexualThemes',
+  'ViolentGraphic',
+  'Gambling',
+  'ProfanityVulgarity',
+] as const;
+
+/** A label as typed in chat, in any case, as Twitch's id for it. */
+function toContentLabelId(name: string): string {
+  const id = TWITCH_CONTENT_LABELS.find((label) => label.toLowerCase() === name.toLowerCase());
+  if (!id) {
+    throw new InvalidStreamInfoError(
+      `Unknown content label: ${name}. Labels: ${TWITCH_CONTENT_LABELS.join(', ')}`
+    );
+  }
+  return id;
+}
 
 /**
  * IStreamPlatform façade over the Twitch integration trio: everything TuringMod does on Twitch.
@@ -79,14 +104,7 @@ export class TwitchPlatform implements IStreamPlatform {
   }
 
   async isLive(): Promise<boolean> {
-    // Defined to answer false rather than throw, so StreamControlService can skip an
-    // unauthenticated platform while mirroring instead of recording it as a failure.
-    const userId = this.authenticatedUserId();
-    if (!userId) {
-      return false;
-    }
-    const stream = await this.liveStream(userId);
-    return stream !== null;
+    return (await this.getLiveBroadcast()) !== null;
   }
 
   async sendChatMessage(message: string): Promise<void> {
@@ -127,7 +145,7 @@ export class TwitchPlatform implements IStreamPlatform {
       const gameName = info.game;
       const game = await this.api.request((c) => c.games.getGameByName(gameName));
       if (!game) {
-        throw new Error(`Game not found: ${gameName}`);
+        throw new InvalidStreamInfoError(`Game not found: ${gameName}`);
       }
       update.gameId = game.id;
     }
@@ -139,17 +157,15 @@ export class TwitchPlatform implements IStreamPlatform {
     }
   }
 
-  async getUptime(): Promise<number | null> {
-    // Null rather than a throw: "not authenticated" and "offline" are the same answer here.
+  async getLiveBroadcast(): Promise<LiveBroadcast | null> {
+    // Null rather than a throw, so StreamControlService can skip an unauthenticated platform
+    // while mirroring instead of recording it as a failure.
     const userId = this.authenticatedUserId();
     if (!userId) {
       return null;
     }
     const stream = await this.liveStream(userId);
-    if (!stream) {
-      return null;
-    }
-    return Date.now() - stream.startDate.getTime();
+    return stream ? { startedAt: stream.startDate } : null;
   }
 
   async getChannelPage(): Promise<ChannelPage> {
@@ -224,9 +240,25 @@ export class TwitchPlatform implements IStreamPlatform {
     },
 
     setContentLabels: async (labels) => {
+      const wanted = new Set(labels.map(toContentLabelId));
       const userId = this.requireUserId();
+      // Twurple types this field as names, but Helix takes every label with an on/off flag and
+      // leaves the ones it isn't sent alone, so send them all to replace the set.
       await this.api.request((c) =>
-        c.channels.updateChannelInfo(userId, { contentClassificationLabels: labels })
+        c.callApi({
+          type: 'helix',
+          url: 'channels',
+          method: 'PATCH',
+          userId,
+          scopes: ['channel:manage:broadcast'],
+          query: { broadcaster_id: userId },
+          jsonBody: {
+            content_classification_labels: TWITCH_CONTENT_LABELS.map((id) => ({
+              id,
+              is_enabled: wanted.has(id),
+            })),
+          },
+        })
       );
     },
   };

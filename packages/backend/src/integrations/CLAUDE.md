@@ -6,7 +6,7 @@ How the integration layer works: `BaseIntegration`/`OAuthIntegration`, `Integrat
 
 All integrations extend `BaseIntegration` (`integrations/BaseIntegration.ts`), which implements the `IIntegration` interface (`integrations/interfaces/IIntegration.ts`) and provides shared status/error/event-emitter plumbing. Concrete integrations implement `start()` → `stop()` and call `setStatus()` to report lifecycle transitions; `getStatus()` returns `IntegrationStatus` enum values.
 
-**An integration's stored config is parsed against its own Zod schema.** `initialize(stored)` receives the decrypted value as read, and an integration with a config overrides it to call `parseConfig(schema, stored)`, which throws naming every field that was wrong; its config type is `z.infer` of that schema (OAuth providers declare `configSchema`, extending `OAuthConfigBaseSchema`). An integration without a config keeps the base `initialize()`, which rejects anything stored for it. A stored config is applied once, at load (`loadIntegrations()`); after that the integration holds it. `IntegrationManager.configureIntegration()` applies a new config before storing it, so a bad one is never saved, and restarts the integration on it if it is enabled. One that fails at load is shown as the integration's ERROR status, and the integration refuses to start until it is given a config that fits, rather than running on its defaults. The console calls `integrations.configure` (tRPC) from the OAuth setup dialog (client id and secret) and from the setup dialogs in `configIntegrationRegistry.tsx` (Discord's bot token and channel, the Arduino's address); other configs, such as OBS's URL and password or the EventSub topics, have no UI yet.
+**An integration's stored config is parsed against its own Zod schema.** `initialize(stored)` receives the decrypted value as read, and an integration with a config overrides it to call `parseConfig(schema, stored)`, which throws naming every field that was wrong; its config type is `z.infer` of that schema (OAuth providers declare `configSchema`, extending `OAuthConfigBaseSchema`). An integration without a config keeps the base `initialize()`, which rejects anything stored for it. A stored config is applied once, at load (`loadIntegrations()`); after that the integration holds it. `IntegrationManager.configureIntegration()` applies a new config before storing it, so a bad one is never saved, and restarts the integration on it if it is enabled. One that fails at load is shown as the integration's ERROR status, and the integration refuses to start until it is given a config that fits, rather than running on its defaults. The console calls `integrations.configure` (tRPC) from the OAuth setup dialog (client id and secret) and from the setup dialogs in `configIntegrationRegistry.tsx` (Discord's bot token and channel, the Arduino's address, OBS's address and password); other configs, such as the EventSub topics, have no UI yet.
 
 **`enabled` is what the streamer wants running, and only the streamer changes it.** Starting an integration from the console (`enableIntegration()`) or completing its OAuth sets it; stopping it from the console (`disableIntegration()`) clears it (`IntegrationStateRepository.setEnabled()`, which creates the row for an integration with no config). Cascades, `BLOCKED` and shutdown never touch it. Boot starts every enabled integration, and `reconcile()` brings an enabled one back when its dependency recovers, so enabling one whose dependency is down isn't an error: it reports `BLOCKED` and starts once the dependency connects. `IntegrationInfo.enabled` tells the console which to offer, Start or Stop.
 
@@ -32,13 +32,14 @@ dependencies being CONNECTED, and beyond that the manager reacts to status chang
     dependency failure is evidence about the environment, not just about a token, so a socket
     established under the old conditions can't be assumed valid. Those reconnect and resubscribe
     from scratch.
-  - `BLOCK` leaves it running and reports `BLOCKED`. Used by the three API layers, which hold
-    nothing bound to the grant, so stopping them would tear down nothing; `BLOCKED` also says more
-    plainly than `DISCONNECTED` that they are waiting on something else.
-  - A `BLOCK`-policy integration **must refuse to act while its dependency isn't CONNECTED**, which
-    their `request()` gates on. Resolving a client on access protects against holding the *wrong*
-    object; it does nothing about holding the right object with dead credentials —
-    `markAuthRequired()` sets NEEDS_REAUTH *without* discarding the provider/client.
+  - `BLOCK` leaves it running and reports `BLOCKED`. Used by the API layers (`AuthorizedApiIntegration`),
+    which hold nothing bound to the grant, so stopping them would tear down nothing; `BLOCKED` also
+    says more plainly than `DISCONNECTED` that they are waiting on something else.
+  - A `BLOCK`-policy integration **must refuse to act while its dependency isn't CONNECTED**.
+    `AuthorizedApiIntegration` enforces this for every API layer: no client is handed out and no
+    `request()` made unless auth is CONNECTED. Resolving a client on access protects against
+    holding the *wrong* object; it does nothing about holding the right object with dead
+    credentials — `markAuthRequired()` sets NEEDS_REAUTH *without* discarding the provider/client.
 - A dependency returning to CONNECTED triggers a `reconcile()` pass that recovers both the stopped
   and the blocked dependents — so completing OAuth brings the whole group back on its own. A
   `BLOCKED` integration is started rather than flipped to CONNECTED, which covers "was running" and
@@ -66,11 +67,24 @@ Startup and shutdown both work in dependency *levels* (`DependencyGraph.levels()
 a level and reversed for shutdown, with a per-integration start timeout
 (`IntegrationManager.START_TIMEOUT_MS`) so one integration that never settles can't hang boot.
 
+**An API that calls on behalf of a separate auth integration extends
+`AuthorizedApiIntegration<TAuth, TClient>`** (`integrations/AuthorizedApiIntegration.ts`), which
+supplies the auth dependency, the `BLOCK` policy and its CONNECTED gate, `start()`/`stop()`,
+and `request()`. A subclass supplies `resolveClient()`, and overrides `onRequestFailure()` for how
+its provider says a grant is gone: Twitch marks itself NEEDS_REAUTH and publishes
+`twitch.authorizationRevoked`, YouTube marks its auth integration, and Spotify refreshes the token
+and retries once. A new OAuth-backed API is one of these, as would be an API-key service split
+into a credentials integration and an API integration. An API with no auth integration to depend
+on — a public one, or one whose token is in its own config, like Discord — extends `BaseIntegration`
+directly: none of this applies to it.
+
 **API-layer integrations resolve their dependency's client on access, not at `start()`.**
-`TwitchApiIntegration` and `YouTubeApiIntegration` compare the auth integration's current
-provider/client against the one their cached client was built on and rebuild when it changed, so a
-stale reference can't exist in the first place. `SpotifyApiIntegration` needs no rebuild: its SDK
-asks `SpotifyAuthIntegration.getAccessToken()` for the token on every call. This makes the
+`resolveClient()` runs on every access. `TwitchApiIntegration` and `YouTubeApiIntegration` (and
+`YouTubeChatStream`) keep their client in a `ClientCache` (`integrations/ClientCache.ts`), which
+rebuilds it when the auth integration's provider/client is a different object from the one it was
+built on, so a stale reference can't exist in the first place. `SpotifyApiIntegration` needs no
+rebuild: its SDK asks `SpotifyAuthIntegration.getAccessToken()` for the token on every call. This
+makes the
 auth accessors (`getAuthProvider()`, `getAuthClient()`) contractually obliged to return a *stable*
 instance rather than a new object per call. The cascade above still matters for the long-lived
 listeners — `TwitchEventSubIntegration`'s EventSub WebSocket and `YouTubeChatIntegration`'s stream
@@ -103,7 +117,7 @@ messages are parsed with `z.object`/`z.looseObject` like a third party's respons
 
 `YouTubeChatStream` requests it with `responseType: 'stream'` and `timeout: 0`, then splits the body with `JsonFrameParser` (`parseJsonFrames.ts`). Both details are load-bearing. Awaiting the ordinary overload buffers the whole response, so messages would only arrive once the broadcast ended; any timeout would cut a multi-hour stream short. Discovery types the response as a single `LiveChatMessageListResponse` — a code-generator artifact, since the generator emits `response.$ref` identically for unary and streaming methods — so that type describes **one frame** and says nothing about how frames are delimited. `JsonFrameParser` therefore scans for balanced top-level objects instead of assuming a delimiter, which decodes a chunked JSON array, newline-delimited JSON, and bare concatenated objects alike.
 
-`YouTubeChatIntegration` has no periodic timers and doesn't decide when the broadcaster is live. It idles until `connectChat()` is called — by `YouTubeChatAutoConnect` (see Going Live), or by `youtubeChat.goLive` from the console — then resolves the broadcast's `liveChatId` with a bounded retry (a broadcast doesn't expose one until YouTube transitions it to `live`) and opens the stream. Its `idle → resolving → streaming` transitions are broadcast to the frontend as `YOUTUBE_CHAT_STATE`. While streaming, `getBroadcast()` hands `YouTubePlatform` the broadcast it resolved, holding only the fields that can't change during a broadcast (`BroadcastIdentity`: no title), so replies, announcements, `!uptime` and title writes need no lookup of their own; reading the title always asks YouTube.
+`YouTubeChatIntegration` has no periodic timers and doesn't decide when the broadcaster is live. It idles until `connectChat()` is called — by `YouTubeChatAutoConnect` (see Going Live), or by `youtubeChat.goLive` from the console — then resolves the broadcast's `liveChatId` with a bounded retry (a broadcast doesn't expose one until YouTube transitions it to `live`) and opens the stream. A dropped stream reopens from its last page token on the same `ReconnectBackoff` as OBS and the Arduino, with its own policy around it: it gives up and returns to idle after 8 failures in a row (an ended broadcast closes the stream at once, every time), and any working response starts the delays over. Its `idle → resolving → streaming` transitions are broadcast to the frontend as `YOUTUBE_CHAT_STATE`. While streaming, `getBroadcast()` hands `YouTubePlatform` the broadcast it resolved, holding only the fields that can't change during a broadcast (`BroadcastIdentity`: no title), so replies, announcements, `!uptime` and title writes need no lookup of their own; reading the title always asks YouTube.
 
 ## OAuth
 
@@ -112,7 +126,20 @@ OAuth-capable integrations (`TwitchAuthIntegration`, `SpotifyAuthIntegration`, `
 `OAuthIntegration` owns what doesn't vary by provider. A subclass declares `requiredScopes`, `callbackPath`, `redirectHost` and `configSchema`, and implements `getAuthorizationUrl()`, `exchangeCode()`, `hasTokens()` and `connect()` (build its client); the base's `start()` runs the shared checks first — no token yet stays DISCONNECTED, and a stored `grantedScopes` missing a required scope is NEEDS_REAUTH rather than a failure on the first call that needs it. Refresh is deliberately left to each subclass, because each SDK does it differently (Twurple refreshes proactively, the googleapis client on demand). Spotify's SDK can't be trusted
 with it — its own refresh omits the client secret this grant needs — so `SpotifyAuthIntegration`
 refreshes before expiry in `getAccessToken()`, sharing one refresh between concurrent callers, and
-the SDK is never given the refresh token. A refresh listener that nothing awaits saves through `saveRefreshedTokens()`, which logs a failed write instead of leaving an unhandled rejection.
+the SDK is never given the refresh token.
+
+**A provider used through its OAuth 2.0 endpoints extends `StandardOAuthIntegration<TConfig,
+TTokenResponse>`** (`integrations/StandardOAuthIntegration.ts`) instead, as Twitch and Spotify do.
+It declares `authorizeUrl`, `tokenUrl`, `clientAuthentication` (credentials in the form `'body'`,
+Twitch, or as HTTP `'basic'` auth, Spotify: each provider documents one) and
+`tokenResponseSchema`, maps a token response to stored config in `toConfigPatch()`, and gets
+`getAuthorizationUrl()`, `exchangeCode()` and `hasTokens()` from the base, which requests exactly
+`requiredScopes` and sends the authorization's redirect URI with the exchange.
+`requestToken()` is for a subclass that refreshes itself (Spotify). Its stored config is
+`StandardOAuthConfigSchema`: the token fields as a token response gives them (`expiresIn` with
+`obtainmentTimestamp`). A provider whose SDK builds the URL and exchanges the code, like Google's
+for YouTube, extends `OAuthIntegration` directly; YouTube stores Google's absolute `expiryDate`
+instead. A new OAuth provider without an SDK of its own is a `StandardOAuthIntegration`. A refresh listener that nothing awaits saves through `saveRefreshedTokens()`, which logs a failed write instead of leaving an unhandled rejection.
 
 ## Integration events
 

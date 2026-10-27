@@ -3,10 +3,12 @@ import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turin
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import { Logger } from '../utils/Logger.js';
+import { InvalidStreamInfoError } from './errors.js';
 import type {
   ChannelPage,
   DeclaredCapability,
   IStreamPlatform,
+  LiveBroadcast,
   StreamInfo,
 } from './interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from './PlatformRegistry.js';
@@ -36,8 +38,8 @@ class FakePlatform implements IStreamPlatform {
   getStreamInfo(): Promise<StreamInfo> {
     return Promise.resolve({ title: 'x' });
   }
-  getUptime(): Promise<number | null> {
-    return Promise.resolve(null);
+  getLiveBroadcast(): Promise<LiveBroadcast | null> {
+    return Promise.resolve(this.live ? { startedAt: null } : null);
   }
   getChannelPage(): Promise<ChannelPage> {
     return Promise.resolve({ displayName: 'x', url: 'https://example.com/x' });
@@ -118,6 +120,22 @@ describe('StreamControlService mirroring', () => {
 
     expect(changed).toHaveBeenCalledTimes(1);
     expect(changed).toHaveBeenCalledWith({ platforms: [StreamingPlatform.TWITCH] });
+  });
+
+  it('marks a failure about the value asked for, and only that one', async () => {
+    const twitch = new FakePlatform(StreamingPlatform.TWITCH, null, true);
+    const youtube = new FakePlatform(StreamingPlatform.YOUTUBE, null, true);
+    twitch.setStreamInfo.mockRejectedValue(new InvalidStreamInfoError('Game not found: Nope'));
+    youtube.setStreamInfo.mockRejectedValue(new Error('quota exceeded'));
+    registry.register(twitch);
+    registry.register(youtube);
+
+    const result = await makeService(registry, logger).setTitle('New title');
+
+    expect(result.failures).toEqual([
+      { platform: StreamingPlatform.TWITCH, error: 'Game not found: Nope', invalidValue: true },
+      { platform: StreamingPlatform.YOUTUBE, error: 'quota exceeded' },
+    ]);
   });
 
   it('refuses a capability the platform does not have', () => {

@@ -2,7 +2,7 @@ import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
-import { formatDuration } from '../../utils/FormatHelpers.js';
+import { formatCountdown } from '../../utils/FormatHelpers.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { toCommandError } from '../utils/commandErrors.js';
@@ -49,7 +49,7 @@ export class AdCommand implements ICommand {
         return ok('Next ad break is scheduled now or has passed');
       }
 
-      return ok(`Next ad in ${formatDuration(timeUntilAd)}`);
+      return ok(`Next ad in ${formatCountdown(timeUntilAd)}`);
     } catch (error) {
       this.logger.error('Error in ad command', error);
       return toCommandError(error, 'Failed to retrieve ad schedule');

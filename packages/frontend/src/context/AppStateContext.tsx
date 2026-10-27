@@ -1,8 +1,12 @@
-import type { CommandInfo, IntegrationInfo } from '@turingmod/shared';
+import type { IntegrationInfo } from '@turingmod/shared';
 import type { ReactNode } from 'react';
 import { createContext, useContext } from 'react';
+import type { RouterOutputs } from '@/context/TrpcContext';
 import { useServerQuery } from '@/hooks/useServerQuery';
 import { useSubscription } from '@/hooks/useSubscription';
+
+/** One row of `commands.list`, as the backend returns it. */
+export type CommandInfo = RouterOutputs['commands']['list'][number];
 
 /** The integrations and commands, which most of the console needs. */
 export interface AppStateContextValue {

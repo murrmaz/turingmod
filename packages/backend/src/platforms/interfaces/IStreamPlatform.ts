@@ -9,6 +9,12 @@ export interface StreamInfo {
   tags?: string[];
 }
 
+/** A broadcast that is live now. */
+export interface LiveBroadcast {
+  /** When it went live, or null while the platform hasn't reported a start time yet. */
+  startedAt: Date | null;
+}
+
 /** Where viewers find the broadcaster on a platform. */
 export interface ChannelPage {
   /** The channel's name as viewers see it. */
@@ -139,7 +145,10 @@ export interface ScheduleApi {
 export interface ContentLabelsApi {
   /** Content classification labels currently set on the channel. */
   getContentLabels(): Promise<string[]>;
-  /** Replace the channel's content classification labels. */
+  /**
+   * Replace the channel's content classification labels; an empty list clears them. Throws
+   * InvalidStreamInfoError for a label the platform doesn't have.
+   */
   setContentLabels(labels: string[]): Promise<void>;
 }
 
@@ -288,8 +297,11 @@ export interface IStreamPlatform extends Partial<Readonly<CapabilityApis>> {
   /** Apply metadata changes the platform supports; ignores fields it can't set. */
   setStreamInfo(info: Partial<StreamInfo>): Promise<void>;
 
-  /** Milliseconds the current broadcast has been live, or null if offline. */
-  getUptime(): Promise<number | null>;
+  /**
+   * The live broadcast, or null if offline or not connected: whether the platform is live and
+   * since when, in one read.
+   */
+  getLiveBroadcast(): Promise<LiveBroadcast | null>;
 
   /** The broadcaster's channel and where to watch it. Throws if not connected. */
   getChannelPage(): Promise<ChannelPage>;

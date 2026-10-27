@@ -1,9 +1,11 @@
 import 'reflect-metadata';
-import { StreamingPlatform } from '@turingmod/shared';
+import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import type { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
+import type { YouTubeAuthIntegration } from '../integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import type { YouTubeChatIntegration } from '../integrations/implementations/youtube/YouTubeChatIntegration.js';
+import { NotAuthenticatedError } from './errors.js';
 import { YouTubePlatform } from './YouTubePlatform.js';
 
 /** The broadcast chat is streaming, as YouTubeChatIntegration.getBroadcast() reports it. */
@@ -16,6 +18,7 @@ const STREAMED = {
 };
 
 describe('YouTubePlatform', () => {
+  let authStatus: IntegrationStatus;
   let api: {
     getActiveBroadcast: ReturnType<typeof vi.fn>;
     request: ReturnType<typeof vi.fn>;
@@ -23,7 +26,7 @@ describe('YouTubePlatform', () => {
   // The slice of the googleapis client these tests touch; request() runs each call against it.
   let youtube: {
     liveChatMessages: { insert: ReturnType<typeof vi.fn> };
-    liveBroadcasts: { update: ReturnType<typeof vi.fn> };
+    liveBroadcasts: { list: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   };
   let chat: { getBroadcast: ReturnType<typeof vi.fn> };
   let ownMessages: { record: ReturnType<typeof vi.fn> };
@@ -32,7 +35,13 @@ describe('YouTubePlatform', () => {
   beforeEach(() => {
     youtube = {
       liveChatMessages: { insert: vi.fn().mockResolvedValue({ data: { id: 'message-1' } }) },
-      liveBroadcasts: { update: vi.fn().mockResolvedValue({}) },
+      liveBroadcasts: {
+        // The broadcast's snippet as YouTube has it, read before each rename.
+        list: vi.fn().mockResolvedValue({
+          data: { items: [{ snippet: { scheduledStartTime: '2026-10-14T17:55:00Z' } }] },
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
     };
     api = {
       getActiveBroadcast: vi.fn().mockResolvedValue({ id: 'b1', liveChatId: 'looked-up-chat' }),
@@ -44,7 +53,10 @@ describe('YouTubePlatform', () => {
         send().then(() => undefined)
       ),
     };
+    authStatus = IntegrationStatus.CONNECTED;
+    const auth = { getStatus: () => authStatus, getErrorMessage: () => undefined };
     platform = new YouTubePlatform(
+      auth as unknown as YouTubeAuthIntegration,
       api as unknown as YouTubeApiIntegration,
       ownMessages as unknown as OwnChatMessages,
       chat as unknown as YouTubeChatIntegration
@@ -61,6 +73,27 @@ describe('YouTubePlatform', () => {
     const snippet = params?.requestBody?.snippet;
     return { liveChatId: snippet?.liveChatId, text: snippet?.textMessageDetails?.messageText };
   }
+
+  describe('while YouTube is unusable', () => {
+    it('answers not live and no uptime without calling YouTube', async () => {
+      authStatus = IntegrationStatus.DISCONNECTED;
+
+      expect(await platform.isLive()).toBe(false);
+      expect(await platform.getLiveBroadcast()).toBeNull();
+      expect(api.getActiveBroadcast).not.toHaveBeenCalled();
+    });
+
+    it('fails other calls with NotAuthenticatedError, saying whether to re-authorize', async () => {
+      authStatus = IntegrationStatus.NEEDS_REAUTH;
+
+      const thrown = await platform.getStreamInfo().catch((error: unknown) => error);
+
+      expect(thrown).toBeInstanceOf(NotAuthenticatedError);
+      expect(thrown).toMatchObject({ needsReauth: true });
+      await expect(platform.sendChatMessage('hello')).rejects.toThrow(NotAuthenticatedError);
+      expect(api.request).not.toHaveBeenCalled();
+    });
+  });
 
   it('posts to the streamed chat without looking up the broadcast', async () => {
     chat.getBroadcast.mockReturnValue(STREAMED);
@@ -102,26 +135,50 @@ describe('YouTubePlatform', () => {
     expect(api.getActiveBroadcast).toHaveBeenCalledOnce();
   });
 
-  it('renames the broadcast, keeping its scheduled start time', async () => {
-    api.getActiveBroadcast.mockResolvedValue({ id: 'b1', scheduledStartTime: '2026-10-14T18:00Z' });
+  it("renames the broadcast, keeping the snippet's other fields, which an update would erase", async () => {
+    youtube.liveBroadcasts.list.mockResolvedValue({
+      data: {
+        items: [
+          {
+            snippet: {
+              title: 'Old title',
+              description: 'Playing through the DLC',
+              scheduledStartTime: '2026-10-14T18:00Z',
+              scheduledEndTime: '2026-10-14T21:00Z',
+              channelId: 'UC_broadcaster',
+            },
+          },
+        ],
+      },
+    });
 
     await platform.setStreamInfo({ title: 'New title' });
 
+    expect(youtube.liveBroadcasts.list).toHaveBeenCalledWith({ part: ['snippet'], id: ['b1'] });
     expect(youtube.liveBroadcasts.update).toHaveBeenCalledWith({
       part: ['snippet'],
       requestBody: {
         id: 'b1',
-        snippet: { title: 'New title', scheduledStartTime: '2026-10-14T18:00Z' },
+        snippet: {
+          title: 'New title',
+          description: 'Playing through the DLC',
+          scheduledStartTime: '2026-10-14T18:00Z',
+          scheduledEndTime: '2026-10-14T21:00Z',
+        },
       },
     });
   });
 
-  it('renames the streamed broadcast without looking it up', async () => {
+  it('renames the streamed broadcast without looking for the active one', async () => {
     chat.getBroadcast.mockReturnValue(STREAMED);
 
     await platform.setStreamInfo({ title: 'New title' });
 
     expect(api.getActiveBroadcast).not.toHaveBeenCalled();
+    expect(youtube.liveBroadcasts.list).toHaveBeenCalledWith({
+      part: ['snippet'],
+      id: ['streamed-broadcast'],
+    });
     expect(youtube.liveBroadcasts.update).toHaveBeenCalledWith({
       part: ['snippet'],
       requestBody: {
@@ -131,11 +188,21 @@ describe('YouTubePlatform', () => {
     });
   });
 
-  it("reports the streamed broadcast's uptime without looking it up", async () => {
-    vi.useFakeTimers({ now: new Date('2026-10-14T19:00:00Z') });
+  it('refuses to rename a broadcast YouTube no longer has', async () => {
+    youtube.liveBroadcasts.list.mockResolvedValue({ data: { items: [] } });
+
+    await expect(platform.setStreamInfo({ title: 'New title' })).rejects.toThrow(
+      'no longer exists'
+    );
+    expect(youtube.liveBroadcasts.update).not.toHaveBeenCalled();
+  });
+
+  it('reports when the streamed broadcast started without looking it up', async () => {
     chat.getBroadcast.mockReturnValue(STREAMED);
 
-    await expect(platform.getUptime()).resolves.toBe(60 * 60 * 1000);
+    await expect(platform.getLiveBroadcast()).resolves.toEqual({
+      startedAt: new Date(STREAMED.actualStartTime),
+    });
     expect(api.getActiveBroadcast).not.toHaveBeenCalled();
   });
 

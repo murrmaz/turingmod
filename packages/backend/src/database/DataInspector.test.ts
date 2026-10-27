@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TuringModConfig } from '../utils/Config.js';
+import { ENCRYPTION_SALT_SETTINGS_KEY, Encryption } from '../utils/Encryption.js';
 import type { DatabaseManager } from './DatabaseManager.js';
 import { DataInspector } from './DataInspector.js';
 import { createTestDatabase } from './repositories/testDatabase.js';
@@ -21,7 +22,7 @@ describe('DataInspector', () => {
       ['1', 'twitch-auth', 1, 'c2VjcmV0LWNpcGhlcnRleHQ=', 1, 2]
     );
     db.run('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)', [
-      'encryption_salt',
+      ENCRYPTION_SALT_SETTINGS_KEY,
       'c2FsdA==',
       5,
     ]);
@@ -67,12 +68,23 @@ describe('DataInspector', () => {
   it('hides the encryption salt but not other settings', () => {
     const { rows } = inspector.queryRows({ table: 'settings', page: 0, pageSize: 10 });
 
-    expect(rows.find((row) => row.key === 'encryption_salt')).toEqual({
-      key: 'encryption_salt',
+    expect(rows.find((row) => row.key === ENCRYPTION_SALT_SETTINGS_KEY)).toEqual({
+      key: ENCRYPTION_SALT_SETTINGS_KEY,
       value: 'hidden · 8 B',
       updated_at: 5,
     });
     expect(rows.find((row) => row.key === 'breaks')?.value).toBe('{}');
+  });
+
+  it('hides the salt Encryption actually stores', () => {
+    db.run('DELETE FROM settings WHERE key = ?', [ENCRYPTION_SALT_SETTINGS_KEY]);
+    const salt = Encryption.getOrCreateSalt(db);
+
+    const { rows } = inspector.queryRows({ table: 'settings', page: 0, pageSize: 10 });
+
+    const values = rows.map((row) => String(row.value));
+    expect(values).not.toContain(salt.toString('base64'));
+    expect(values.filter((value) => value.startsWith('hidden'))).toHaveLength(1);
   });
 
   it('leaves the salt out of any query that could test its value', () => {
@@ -88,7 +100,9 @@ describe('DataInspector', () => {
     expect(keys({ filters: { value: ['c2FsdA=='] } })).toEqual([]);
     expect(keys({ sort: { column: 'value', direction: 'asc' } })).toEqual(['breaks']);
     // Looking only at keys still lists it, value hidden.
-    expect(keys({ filters: { key: ['encryption_salt'] } })).toEqual(['encryption_salt']);
+    expect(keys({ filters: { key: [ENCRYPTION_SALT_SETTINGS_KEY] } })).toEqual([
+      ENCRYPTION_SALT_SETTINGS_KEY,
+    ]);
   });
 
   it('refuses to sort by an encrypted column', () => {

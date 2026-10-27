@@ -6,12 +6,14 @@ import type { DatabaseManager } from '../../database/DatabaseManager.js';
 import { COUNTERS, CounterRepository } from '../../database/repositories/CounterRepository.js';
 import { SuggestionRepository } from '../../database/repositories/SuggestionRepository.js';
 import { createTestDatabase } from '../../database/repositories/testDatabase.js';
+import { InvalidStreamInfoError } from '../../platforms/errors.js';
 import { fakeRequire } from '../../platforms/fakeRequire.js';
 import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import { raidShoutoutMessage } from '../../raids/RaidShoutout.js';
 import type { SoundLibrary } from '../../sounds/SoundLibrary.js';
 import { Logger } from '../../utils/Logger.js';
 import { commandContext } from '../testing.js';
+import { AdCommand } from './AdCommand.js';
 import { BonkCommand } from './BonkCommand.js';
 import { ContentWarningCommand } from './ContentWarningCommand.js';
 import { DelvodCommand } from './DelvodCommand.js';
@@ -137,6 +139,40 @@ describe('reading with a trailing space', () => {
   });
 });
 
+describe('!cw', () => {
+  const moderator = { permissionLevel: PermissionLevel.MODERATOR };
+
+  it('clears the labels with none', async () => {
+    const setContentLabels = vi.fn(() => Promise.resolve());
+    const command = new ContentWarningCommand(
+      fakeStreamControl({ contentLabels: { setContentLabels, getContentLabels: vi.fn() } }),
+      logger
+    );
+
+    const result = await command.execute(commandContext('!cw None', moderator));
+
+    expect(setContentLabels).toHaveBeenCalledWith([]);
+    expect(result.message).toBe('Content labels cleared');
+  });
+
+  it('tells chat which label it does not know', async () => {
+    const setContentLabels = () =>
+      Promise.reject(new InvalidStreamInfoError('Unknown content label: Spiders'));
+    const command = new ContentWarningCommand(
+      fakeStreamControl({ contentLabels: { setContentLabels, getContentLabels: vi.fn() } }),
+      logger
+    );
+
+    const result = await command.execute(commandContext('!cw Spiders', moderator));
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { code: 'INVALID_INPUT' },
+      message: 'Unknown content label: Spiders',
+    });
+  });
+});
+
 describe('!quiet', () => {
   it('toggles quiet mode', async () => {
     let quiet = false;
@@ -152,6 +188,24 @@ describe('!quiet', () => {
     expect(quiet).toBe(true);
     expect((await command.execute(commandContext('!quiet'))).message).toContain('disabled');
     expect(quiet).toBe(false);
+  });
+});
+
+describe('!ad', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('counts down to the next ad to the second, never as 0m', async () => {
+    vi.useFakeTimers({ now: 0 });
+    const getNextAdBreak = vi
+      .fn()
+      .mockResolvedValueOnce({ nextAdDate: new Date(45_000) })
+      .mockResolvedValueOnce({ nextAdDate: new Date(4 * 60_000 + 50_000) });
+    const command = new AdCommand(fakeStreamControl({ ads: { getNextAdBreak } }), logger);
+
+    expect((await command.execute(commandContext('!ad'))).message).toBe('Next ad in 45s');
+    expect((await command.execute(commandContext('!ad'))).message).toBe('Next ad in 4m 50s');
   });
 });
 
@@ -262,7 +316,7 @@ describe('!bonk', () => {
 
 describe('!time', () => {
   it("tells the time in the streamer's zone", () => {
-    expect(streamerTime(new Date('2026-01-15T18:05:00Z'))).toBe('12:05 PM CST');
-    expect(streamerTime(new Date('2026-07-15T18:05:00Z'))).toBe('1:05 PM CDT');
+    expect(streamerTime(new Date('2026-01-15T18:05:00Z'), 'America/Chicago')).toBe('12:05 PM CST');
+    expect(streamerTime(new Date('2026-07-15T18:05:00Z'), 'America/Chicago')).toBe('1:05 PM CDT');
   });
 });

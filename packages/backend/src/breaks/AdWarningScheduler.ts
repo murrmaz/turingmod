@@ -2,7 +2,6 @@ import { messageOf, StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
-import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
 import { formatCountdown } from '../utils/FormatHelpers.js';
 import { Logger } from '../utils/Logger.js';
@@ -40,7 +39,6 @@ export class AdWarningScheduler implements IService {
     private eventBus: EventBus,
     private breakService: BreakService,
     private streamControl: StreamControlService,
-    private platformRegistry: PlatformRegistry,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'AdWarningScheduler' });
@@ -105,8 +103,7 @@ export class AdWarningScheduler implements IService {
     if (!this.breakService.getSettings().enabled) {
       return null;
     }
-    const twitch = this.platformRegistry.get(StreamingPlatform.TWITCH);
-    if (!twitch || twitch.getUnavailableReason() !== null) {
+    if (this.streamControl.getUnavailableReason(StreamingPlatform.TWITCH) !== null) {
       return null;
     }
     try {

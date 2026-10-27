@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
-import type { IStreamPlatform } from '../platforms/interfaces/IStreamPlatform.js';
+import type { IStreamPlatform, LiveBroadcast } from '../platforms/interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { Logger } from '../utils/Logger.js';
 import { PlatformLiveStatus } from './PlatformLiveStatus.js';
@@ -11,8 +11,7 @@ function fakePlatform(platform: StreamingPlatform) {
   return {
     platform,
     getUnavailableReason: vi.fn<() => string | null>(() => null),
-    getUptime: vi.fn<() => Promise<number | null>>(async () => null),
-    isLive: vi.fn<() => Promise<boolean>>(async () => false),
+    getLiveBroadcast: vi.fn<() => Promise<LiveBroadcast | null>>(async () => null),
   };
 }
 
@@ -47,7 +46,7 @@ describe('PlatformLiveStatus', () => {
   });
 
   it('asks a platform when it becomes available, and announces the answer', async () => {
-    twitch.getUptime.mockResolvedValue(60_000);
+    twitch.getLiveBroadcast.mockResolvedValue({ startedAt: new Date(Date.now() - 60_000) });
 
     await eventBus.emit('platform.availability', {
       platform: StreamingPlatform.TWITCH,
@@ -61,7 +60,7 @@ describe('PlatformLiveStatus', () => {
   });
 
   it('counts a live broadcast without a start time as live', async () => {
-    youtube.isLive.mockResolvedValue(true);
+    youtube.getLiveBroadcast.mockResolvedValue({ startedAt: null });
 
     await eventBus.emit('youtube.chat.state', { state: 'streaming' });
 
@@ -92,7 +91,7 @@ describe('PlatformLiveStatus', () => {
       broadcasterDisplayName: 'B',
     });
     expect(twitchState()?.live).toBe(false);
-    expect(twitch.getUptime).not.toHaveBeenCalled();
+    expect(twitch.getLiveBroadcast).not.toHaveBeenCalled();
   });
 
   it('goes offline when a platform becomes unavailable', async () => {
@@ -113,8 +112,8 @@ describe('PlatformLiveStatus', () => {
   });
 
   it('drops an answer that a newer one overtook', async () => {
-    let resolveSlow: (uptime: number | null) => void = () => {};
-    twitch.getUptime.mockReturnValueOnce(
+    let resolveSlow: (broadcast: LiveBroadcast | null) => void = () => {};
+    twitch.getLiveBroadcast.mockReturnValueOnce(
       new Promise((resolve) => {
         resolveSlow = resolve;
       })
@@ -126,15 +125,15 @@ describe('PlatformLiveStatus', () => {
       broadcasterName: 'b',
       broadcasterDisplayName: 'B',
     });
-    resolveSlow(1000);
+    resolveSlow({ startedAt: new Date() });
     await slow;
 
     expect(twitchState()?.live).toBe(false);
   });
 
   it('stays offline when a refresh started before the platform became unavailable', async () => {
-    let resolveSlow: (uptime: number | null) => void = () => {};
-    twitch.getUptime.mockReturnValueOnce(
+    let resolveSlow: (broadcast: LiveBroadcast | null) => void = () => {};
+    twitch.getLiveBroadcast.mockReturnValueOnce(
       new Promise((resolve) => {
         resolveSlow = resolve;
       })
@@ -146,7 +145,7 @@ describe('PlatformLiveStatus', () => {
       available: false,
       reason: 'needs reauth',
     });
-    resolveSlow(1000);
+    resolveSlow({ startedAt: new Date() });
     await slow;
 
     expect(twitchState()?.live).toBe(false);
@@ -203,7 +202,7 @@ describe('PlatformLiveStatus', () => {
   });
 
   it('keeps its last answer when asking fails', async () => {
-    twitch.getUptime.mockRejectedValue(new Error('network'));
+    twitch.getLiveBroadcast.mockRejectedValue(new Error('network'));
 
     await expect(service.refresh(StreamingPlatform.TWITCH)).resolves.toBeUndefined();
     expect(twitchState()?.live).toBe(false);

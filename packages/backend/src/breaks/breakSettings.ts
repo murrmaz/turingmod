@@ -1,6 +1,7 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { z } from 'zod';
 import type { SettingsDefinition } from '../database/repositories/SettingsRepository.js';
+import { DEFAULT_FACECAM_SOURCE } from '../effects/effectSettings.js';
 
 /** A platform's override of a message's default wording. */
 const PLATFORM_OVERRIDES = {
@@ -32,8 +33,11 @@ const BreakSettingsSchema = z.strictObject({
 
   obs: z
     .strictObject({
-      /** Sources hidden for the break, in every scene of every canvas they appear in. */
-      hideSources: sourceNames(['Facecam']),
+      /**
+       * Sources hidden for the break, in every scene of every canvas they appear in. A list, since
+       * a break may hide more than the facecam the effects animate (`effects.facecamSource`).
+       */
+      hideSources: sourceNames([DEFAULT_FACECAM_SOURCE]),
       /** Sources shown for the break (e.g. a "taking a break" text source). */
       showSources: sourceNames(['Ads Text']),
       /** Audio inputs muted for the break. */

@@ -4,6 +4,7 @@ import type {
   DiscordEmbed,
   DiscordMessage,
 } from '../integrations/implementations/discord/DiscordIntegration.js';
+import { formatDuration } from '../utils/FormatHelpers.js';
 
 /** What a go-live post says about the stream. */
 export const StreamSummarySchema = z.strictObject({
@@ -91,14 +92,6 @@ export function renderEndedPost(stream: StreamSummary, endedAt: number): Discord
     timestamp: new Date(endedAt).toISOString(),
   };
   return { content, embeds: [embed], pingEveryone: false };
-}
-
-/** e.g. `3h 12m`, or `45m` under an hour. */
-export function formatDuration(ms: number): string {
-  const totalMinutes = Math.max(0, Math.round(ms / 60_000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
 function describeStream(stream: StreamSummary, url: string | undefined): DiscordEmbed {

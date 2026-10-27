@@ -20,3 +20,15 @@ export class NotAuthenticatedError extends Error {
     this.name = 'NotAuthenticatedError';
   }
 }
+
+/**
+ * Thrown by an IStreamPlatform when the platform has no such value as the one asked for (a game
+ * that doesn't exist). Nothing is wrong with the platform, and the message is written for whoever
+ * asked, so a command may repeat it in chat; any other platform error stays out of chat.
+ */
+export class InvalidStreamInfoError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidStreamInfoError';
+  }
+}

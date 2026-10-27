@@ -3,7 +3,6 @@ import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import { fakeRequire } from '../platforms/fakeRequire.js';
-import type { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import type { StreamControlService } from '../platforms/StreamControlService.js';
 import { Logger } from '../utils/Logger.js';
 import { AdWarningScheduler } from './AdWarningScheduler.js';
@@ -19,7 +18,9 @@ function setup(settings: BreakSettings = DEFAULT_BREAK_SETTINGS) {
   const getNextAdBreak = vi.fn(() =>
     Promise.resolve(nextAdAt === null ? null : { nextAdDate: new Date(nextAdAt) })
   );
+  let unavailable: string | null = null;
   const streamControl = {
+    getUnavailableReason: () => unavailable,
     require: fakeRequire(StreamingPlatform.TWITCH, { ads: { getNextAdBreak } }),
     announce: vi.fn((messageFor: (p: StreamingPlatform) => string | null) => {
       posted.push({
@@ -29,16 +30,11 @@ function setup(settings: BreakSettings = DEFAULT_BREAK_SETTINGS) {
       return Promise.resolve({ updated: [], failures: [] });
     }),
   };
-  let unavailable: string | null = null;
-  const registry = {
-    get: vi.fn(() => ({ getUnavailableReason: () => unavailable })),
-  };
   const breakService = { getSettings: () => settings };
   const scheduler = new AdWarningScheduler(
     eventBus,
     breakService as unknown as BreakService,
     streamControl as unknown as StreamControlService,
-    registry as unknown as PlatformRegistry,
     new Logger({ level: 'silent' })
   );
   return {

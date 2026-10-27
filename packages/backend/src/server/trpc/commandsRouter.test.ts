@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { PermissionLevel, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { OwnChatMessages } from '../../chat/OwnChatMessages.js';
+import { CommandAvailability } from '../../commands/CommandAvailability.js';
 import type { CommandExecutor } from '../../commands/CommandExecutor.js';
 import { CommandRegistry } from '../../commands/CommandRegistry.js';
 import type { ICommand } from '../../commands/interfaces/ICommand.js';
@@ -9,6 +10,7 @@ import { errorCodeOf } from '../../commands/testing.js';
 import type { TwitchApiIntegration } from '../../integrations/implementations/twitch/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import type { YouTubeApiIntegration } from '../../integrations/implementations/youtube/YouTubeApiIntegration.js';
+import type { YouTubeAuthIntegration } from '../../integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import type { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { TwitchPlatform } from '../../platforms/TwitchPlatform.js';
@@ -44,13 +46,19 @@ describe('commands.list', () => {
     );
     platforms.register(
       new YouTubePlatform(
+        {} as YouTubeAuthIntegration,
         {} as YouTubeApiIntegration,
         {} as OwnChatMessages,
         {} as YouTubeChatIntegration
       )
     );
     const caller = createCallerFactory(
-      createCommandsRouter({} as CommandExecutor, commands, platforms, logger)
+      createCommandsRouter(
+        {} as CommandExecutor,
+        commands,
+        new CommandAvailability(commands, platforms),
+        logger
+      )
     )({ consoleOrigin: null });
 
     const available = Object.fromEntries(
@@ -71,7 +79,7 @@ describe('commands.simulate', () => {
       createCommandsRouter(
         { execute } as unknown as CommandExecutor,
         new CommandRegistry(logger),
-        new PlatformRegistry(),
+        {} as CommandAvailability,
         logger
       )
     )({ consoleOrigin: null });

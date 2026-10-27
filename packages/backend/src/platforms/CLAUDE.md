@@ -33,5 +33,6 @@ capabilities no object stands for (`SEND_CHAT`, `UPTIME` and the `SET_*` fields 
 five, and `CAPABILITY_OF_API` pairs every other `PlatformCapability` with its object, so
 advertising a capability without implementing it, or adding a `PlatformCapability` with no object,
 is a compile error. A command declares `requiredCapabilities` and is hidden on platforms that don't
-satisfy them (`CommandExecutor` treats hidden as `COMMAND_NOT_FOUND`). The console gets each
-command's `availableOn` from `commands.list` rather than keeping its own copy of each platform's set.
+satisfy them (`CommandAvailability`, which `CommandExecutor` asks, so hidden is `COMMAND_NOT_FOUND`).
+The console gets each command's `availableOn` from `commands.list` rather than keeping its own copy
+of each platform's set.

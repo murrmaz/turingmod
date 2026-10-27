@@ -5,7 +5,6 @@ import { extname, isAbsolute, join, relative, sep } from 'node:path';
 import type { Duplex } from 'node:stream';
 import type { OAuthFlowService } from '../integrations/OAuthFlowService.js';
 import type { Logger } from '../utils/Logger.js';
-import { rejectUpgrade } from './consoleSockets.js';
 
 const HTML_ESCAPES: Readonly<Record<string, string>> = {
   '&': '&amp;',
@@ -71,16 +70,26 @@ function sendPage(res: ServerResponse, status: number, page: CallbackPage): void
     </html>`);
 }
 
-/** A WebSocket endpoint, given the upgrade requests for its path. */
+/** The WebSocket endpoint (TrpcServer), given the upgrade requests for its path. */
 export interface UpgradeHandler {
   handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void;
 }
 
 /**
+ * Answer an upgrade request with an HTTP error and close its socket. The socket gets its own
+ * error handler: Node stops handling errors on a socket once it's handed over for an upgrade, so
+ * a client resetting the connection here would otherwise crash the process.
+ */
+export function rejectUpgrade(socket: Duplex, status: 404 | 503, reason: string): void {
+  socket.on('error', () => socket.destroy());
+  socket.once('finish', () => socket.destroy());
+  socket.end(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\n\r\n`);
+}
+
+/**
  * HTTP server
- * Serves static files and handles health checks, and hands WebSocket upgrades to the endpoint
- * registered for their path. The `ws` library can't share one server between two endpoints by
- * itself: each would reject the other's upgrades.
+ * Serves static files and handles health checks, and hands WebSocket upgrades on the one
+ * WebSocket path to its endpoint, refusing them anywhere else.
  */
 export class HttpServer {
   private server: Server | null = null;
@@ -89,8 +98,8 @@ export class HttpServer {
   /** OAuth callback path -> integration name, from OAuthFlowService.getCallbackRoutes() */
   private oauthCallbackRoutes = new Map<string, string>();
 
-  /** WebSocket path -> the endpoint that accepts upgrades on it */
-  private upgradeRoutes = new Map<string, UpgradeHandler>();
+  /** The one WebSocket path, and the endpoint that accepts upgrades on it */
+  private upgrades: { path: string; handler: UpgradeHandler } | null = null;
 
   constructor(
     private port: number,
@@ -102,12 +111,12 @@ export class HttpServer {
     this.logger = logger.child({ component: 'HttpServer' });
   }
 
-  /** Hand WebSocket upgrades on `path` to `handler`. */
+  /** Hand WebSocket upgrades on `path` to `handler`. There is one WebSocket endpoint. */
   routeUpgrades(path: string, handler: UpgradeHandler): void {
-    if (this.upgradeRoutes.has(path)) {
-      throw new Error(`WebSocket path already routed: ${path}`);
+    if (this.upgrades) {
+      throw new Error(`WebSocket upgrades are already routed to ${this.upgrades.path}`);
     }
-    this.upgradeRoutes.set(path, handler);
+    this.upgrades = { path, handler };
   }
 
   /**
@@ -127,9 +136,8 @@ export class HttpServer {
     });
     this.server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
       const pathname = (req.url ?? '/').split('?')[0] ?? '/';
-      const handler = this.upgradeRoutes.get(pathname);
-      if (handler) {
-        handler.handleUpgrade(req, socket, head);
+      if (this.upgrades?.path === pathname) {
+        this.upgrades.handler.handleUpgrade(req, socket, head);
         return;
       }
       this.logger.warn('Rejected WebSocket upgrade: no endpoint at path', { pathname });

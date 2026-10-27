@@ -3,10 +3,11 @@ import { request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { OAuthCallbackOutcome, OAuthFlowService } from '../integrations/OAuthFlowService.js';
 import { Logger } from '../utils/Logger.js';
-import { escapeHtml, HttpServer } from './HttpServer.js';
+import { escapeHtml, HttpServer, rejectUpgrade } from './HttpServer.js';
 
 const logger = new Logger({ level: 'silent' });
 
@@ -147,5 +148,18 @@ describe('HttpServer static files', () => {
 
   it('refuses a path out of the build', async () => {
     expect((await get('/../secret.txt')).status).toBe(403);
+  });
+});
+
+describe('rejectUpgrade', () => {
+  it('answers with the status and survives the client resetting the connection', () => {
+    const socket = new PassThrough();
+    const written: string[] = [];
+    socket.on('data', (chunk: Buffer) => written.push(chunk.toString()));
+
+    rejectUpgrade(socket, 404, 'Not Found');
+
+    expect(written.join('')).toContain('HTTP/1.1 404 Not Found');
+    expect(() => socket.emit('error', new Error('read ECONNRESET'))).not.toThrow();
   });
 });

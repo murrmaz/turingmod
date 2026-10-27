@@ -2,9 +2,8 @@ import type { ExecutionResult, ExecutorErrorCode } from '@turingmod/shared';
 import { hasPermission, messageOf, PermissionLevel } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
-import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { Logger } from '../utils/Logger.js';
-import { CommandRegistry } from './CommandRegistry.js';
+import { CommandAvailability } from './CommandAvailability.js';
 import type { CommandContext, ICommand } from './interfaces/ICommand.js';
 
 /**
@@ -26,8 +25,7 @@ export class CommandExecutor {
   private logger: Logger;
 
   constructor(
-    private registry: CommandRegistry,
-    private platformRegistry: PlatformRegistry,
+    private availability: CommandAvailability,
     private eventBus: EventBus,
     logger: Logger
   ) {
@@ -46,16 +44,10 @@ export class CommandExecutor {
       isSimulation: context.isSimulation,
     });
 
-    // Get command. A command that exists but whose requiredCapabilities are not satisfied by the
-    // origin platform is treated as hidden — it returns the same COMMAND_NOT_FOUND result as an
-    // unknown command (design decision: hidden == unknown on that platform).
-    const command = this.registry.get(commandName);
-    const platformCapabilities = this.platformRegistry.capabilitiesFor(context.platform);
-    const isAvailable =
-      command?.requiredCapabilities.every((capability) => platformCapabilities.has(capability)) ??
-      false;
-
-    if (!(command && isAvailable)) {
+    // A command the origin platform doesn't offer gets the same COMMAND_NOT_FOUND as an unknown
+    // one (design decision: hidden == unknown on that platform).
+    const command = this.availability.find(commandName, context.platform);
+    if (!command) {
       const result = rejected(
         'COMMAND_NOT_FOUND',
         `Unknown command: ${commandName}`,

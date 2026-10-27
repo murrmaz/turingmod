@@ -11,6 +11,9 @@ export interface LoggerOptions {
 
   /** Whether to format logs for reading in a terminal rather than as JSON lines */
   pretty?: boolean;
+
+  /** Where JSON lines go instead of stdout, for tests that read them back. Ignored with `pretty`. */
+  destination?: pino.DestinationStream;
 }
 
 /**
@@ -23,6 +26,39 @@ export interface LoggerOptions {
 type NotPlainObject<T> = T extends Record<string, unknown> ? never : T;
 
 /**
+ * The fields a log line gets from what was passed beside its message: a plain object's own fields,
+ * an Error under `err` (serialized with its message and stack), or anything else under `detail`.
+ */
+function toFields(detail: unknown): Record<string, unknown> {
+  if (detail === undefined) {
+    return {};
+  }
+  if (detail instanceof Error) {
+    return { err: detail };
+  }
+  if (isPlainObject(detail)) {
+    return detail;
+  }
+  return { detail };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+/** The fields for a caught value: an Error under `err`, anything else under `error`. */
+function caughtFields(error: unknown): Record<string, unknown> {
+  if (error === undefined) {
+    return {};
+  }
+  return error instanceof Error ? { err: error } : { error };
+}
+
+/**
  * Application logger wrapper around Pino
  * Provides consistent logging across the application
  */
@@ -30,16 +66,19 @@ export class Logger {
   private logger: PinoLogger;
 
   constructor(options: LoggerOptions = {}) {
-    const { level = 'info', pretty = false } = options;
+    const { level = 'info', pretty = false, destination } = options;
 
     const config: pino.LoggerOptions = {
       level,
+      // Pino serializes only `err` as an Error by default; an Error under `error` (as in
+      // `{ error }` fields) would otherwise be written as `{}`, its message and stack lost.
+      serializers: { err: pino.stdSerializers.err, error: pino.stdSerializers.err },
     };
 
     // Built in-process (rather than via `transport`, which runs pino-pretty in a worker
     // thread and can only accept JSON-serializable options) so `messageFormat` can be a
     // function that folds `component` into the message line.
-    const prettyStream = pretty
+    const stream = pretty
       ? pinoPretty({
           colorize: true,
           translateTime: 'HH:MM:ss.l',
@@ -47,9 +86,9 @@ export class Logger {
           messageFormat: (log, messageKey) =>
             log.component ? `[${log.component}] ${log[messageKey]}` : String(log[messageKey]),
         })
-      : undefined;
+      : destination;
 
-    this.logger = prettyStream ? pino(config, prettyStream) : pino(config);
+    this.logger = stream ? pino(config, stream) : pino(config);
   }
 
   /**
@@ -62,31 +101,32 @@ export class Logger {
   }
 
   /**
-   * Log trace message
+   * Log trace message. `detail` is structured fields (a plain object), or a caught value.
    */
-  trace(message: string, ...args: unknown[]): void {
-    this.logger.trace(args.length > 0 ? { ...args } : {}, message);
+  trace(message: string, detail?: unknown): void {
+    this.logger.trace(toFields(detail), message);
   }
 
   /**
-   * Log debug message
+   * Log debug message. `detail` is structured fields (a plain object), or a caught value.
    */
-  debug(message: string, ...args: unknown[]): void {
-    this.logger.debug(args.length > 0 ? { ...args } : {}, message);
+  debug(message: string, detail?: unknown): void {
+    this.logger.debug(toFields(detail), message);
   }
 
   /**
-   * Log info message
+   * Log info message. `detail` is structured fields (a plain object), or a caught value.
    */
-  info(message: string, ...args: unknown[]): void {
-    this.logger.info(args.length > 0 ? { ...args } : {}, message);
+  info(message: string, detail?: unknown): void {
+    this.logger.info(toFields(detail), message);
   }
 
   /**
-   * Log warning message
+   * Log warning message. `detail` is structured fields (a plain object), or a caught value: an
+   * Error is logged with its message and stack.
    */
-  warn(message: string, ...args: unknown[]): void {
-    this.logger.warn(args.length > 0 ? { ...args } : {}, message);
+  warn(message: string, detail?: unknown): void {
+    this.logger.warn(toFields(detail), message);
   }
 
   /**
@@ -96,13 +136,7 @@ export class Logger {
    * here as a compile error, while still allowing a bare `unknown` through.
    */
   error<E>(message: string, error?: NotPlainObject<E>, meta?: Record<string, unknown>): void {
-    if (error instanceof Error) {
-      this.logger.error({ err: error, ...meta }, message);
-    } else if (error === undefined) {
-      this.logger.error(meta ?? {}, message);
-    } else {
-      this.logger.error({ error, ...meta }, message);
-    }
+    this.logger.error({ ...meta, ...caughtFields(error) }, message);
   }
 
   /**
@@ -112,12 +146,6 @@ export class Logger {
    * here as a compile error, while still allowing a bare `unknown` through.
    */
   fatal<E>(message: string, error?: NotPlainObject<E>, meta?: Record<string, unknown>): void {
-    if (error instanceof Error) {
-      this.logger.fatal({ err: error, ...meta }, message);
-    } else if (error === undefined) {
-      this.logger.fatal(meta ?? {}, message);
-    } else {
-      this.logger.fatal({ error, ...meta }, message);
-    }
+    this.logger.fatal({ ...meta, ...caughtFields(error) }, message);
   }
 }

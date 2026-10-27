@@ -19,7 +19,6 @@ const obs: IntegrationInfo = {
   name: 'obs',
   status: IntegrationStatus.CONNECTED,
   enabled: true,
-  placeholder: false,
   metadata: { dependencies: [] },
 };
 

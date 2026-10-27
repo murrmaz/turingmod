@@ -60,11 +60,4 @@ export const initialSchema: Migration = {
       ON activity_log(category, timestamp)
     `);
   },
-
-  down(db: DatabaseManager): void {
-    // Drop all tables in reverse order
-    db.exec('DROP TABLE IF EXISTS activity_log');
-    db.exec('DROP TABLE IF EXISTS settings');
-    db.exec('DROP TABLE IF EXISTS integration_state');
-  },
 };

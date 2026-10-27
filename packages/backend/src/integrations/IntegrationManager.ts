@@ -91,17 +91,11 @@ export class IntegrationManager {
       void this.onDependencyStatusChange(integration.name, status);
     });
 
-    // A token rotation isn't a status change, so it gets its own forward.
-    // Logged as well as published: that gives it at least one consumer today
-    // (answering "did my token refresh overnight?" from the log) rather than
-    // leaving another emit with nobody listening.
+    // A token rotation isn't a status change, and nothing needs to react to one, so it is only
+    // logged: enough to answer "did my token refresh overnight?".
     integration.on('tokenRefreshed', ({ expiresAt }) => {
       this.logger.info(`OAuth token refreshed: ${integration.name}`, {
         ...(expiresAt === undefined ? {} : { expiresAt: new Date(expiresAt).toISOString() }),
-      });
-      this.eventBus.emitSync('integration.tokenRefreshed', {
-        name: integration.name,
-        ...(expiresAt === undefined ? {} : { expiresAt }),
       });
     });
 
@@ -168,7 +162,7 @@ export class IntegrationManager {
     );
 
     // Each level depends only on earlier ones, so its members start
-    // concurrently; a slow OBS connect no longer delays Twitch.
+    // concurrently; a slow OBS connect doesn't delay Twitch.
     for (const level of levels) {
       await Promise.allSettled(
         level.map((name) =>
@@ -559,18 +553,6 @@ export class IntegrationManager {
   }
 
   /**
-   * Get integration status
-   */
-  getStatus(name: string): IntegrationInfo | null {
-    const integration = this.integrations.get(name);
-    if (!integration) {
-      return null;
-    }
-
-    return this.toIntegrationInfo(integration);
-  }
-
-  /**
    * Get all integration statuses
    */
   getAllStatuses(): IntegrationInfo[] {
@@ -592,7 +574,6 @@ export class IntegrationManager {
       name: integration.name,
       status: integration.getStatus(),
       enabled: this.isEnabled(integration.name),
-      placeholder: integration.placeholder,
       ...(errorMessage ? { errorMessage } : {}),
       metadata: {
         dependencies,

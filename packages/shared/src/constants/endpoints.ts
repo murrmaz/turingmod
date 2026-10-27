@@ -13,8 +13,3 @@ export const DEFAULT_FRONTEND_DEV_PORT = 3000;
 
 /** The console's WebSocket endpoint: the backend's tRPC router. */
 export const TRPC_PATH = '/trpc';
-
-/**
- * HTTP endpoints
- */
-export const HEALTH_PATH = '/health';

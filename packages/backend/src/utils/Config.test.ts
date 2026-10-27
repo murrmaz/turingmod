@@ -91,10 +91,6 @@ describe('parseEnvironment', () => {
     );
   });
 
-  it('refuses the old WS_PORT name', () => {
-    expect(() => parse({ WS_PORT: '9090' })).toThrow('WS_PORT has been renamed to SERVER_PORT');
-  });
-
   it('reports every problem at once, as a ConfigurationError', () => {
     const attempt = () => parseEnvironment({ SERVER_PORT: 'abc', LOG_LEVEL: 'verbose' }, envFile);
 

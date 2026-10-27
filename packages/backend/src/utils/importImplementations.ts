@@ -11,8 +11,8 @@ export type InjectableClass<T> = new (...args: any[]) => T;
  * is returned — other exports from the same file (helpers, types) are ignored. The caller resolves
  * the classes; this only finds them.
  *
- * Every non-test module is imported, so a file without a default export is a hard startup
- * failure, not a silently skipped file.
+ * Every module is imported, so a file without a default export is a hard startup failure, not a
+ * silently skipped file. Tests are never among them: the build leaves them out of dist/.
  *
  * @param dir - The directory as a file URL, with a trailing slash so files resolve inside it.
  * @param kind - What the files hold ("Command", "Reward handler"), for error messages.
@@ -34,10 +34,7 @@ export async function importImplementations<T>(
     throw error;
   }
 
-  // Tests live beside their subjects (repo convention), but these directories are imported
-  // wholesale at startup — importing a suite would run vitest outside the test runner and abort
-  // boot. Skip them rather than relocating the tests away from their subjects.
-  const moduleFiles = files.filter((file) => file.endsWith('.js') && !file.endsWith('.test.js'));
+  const moduleFiles = files.filter((file) => file.endsWith('.js'));
 
   const classes: InjectableClass<T>[] = [];
   for (const file of moduleFiles) {

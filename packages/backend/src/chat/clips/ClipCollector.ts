@@ -49,10 +49,6 @@ export class ClipCollector implements IService {
     await this.end();
   }
 
-  isCollecting(): boolean {
-    return this.collecting !== null;
-  }
-
   /** Start collecting. Resolves false if collection was already on. */
   begin(): boolean {
     if (this.collecting) return false;

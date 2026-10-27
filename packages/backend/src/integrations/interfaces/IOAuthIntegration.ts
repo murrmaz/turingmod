@@ -7,9 +7,6 @@ import type { IIntegration } from './IIntegration.js';
  * integration without knowing which provider it is.
  */
 export interface IOAuthIntegration extends IIntegration {
-  /** OAuth scopes this integration requires. Single source of truth per provider. */
-  getRequiredScopes(): string[];
-
   /**
    * Whether client credentials (id and secret) have been set up. They're
    * entered once in the console's setup dialog and stored with the rest of
@@ -22,7 +19,7 @@ export interface IOAuthIntegration extends IIntegration {
    * credentials, requesting the integration's required scopes. `state`
    * is an opaque, server-generated, single-use value that must be echoed
    * back unmodified by the provider on the callback — it's how the callback
-   * gets correlated back to the WebSocket client that started the flow.
+   * is matched to the authorization attempt that started it.
    */
   getAuthorizationUrl(state: string): string;
 

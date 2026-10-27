@@ -1,4 +1,4 @@
-import { IntegrationStatus, messageOf, type StreamingPlatform } from '@turingmod/shared';
+import { IntegrationStatus, type StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
@@ -135,7 +135,7 @@ export class GoLiveAnnouncer implements IService {
       return Promise.resolve();
     }
     const run = this.queue.then(task).catch((error: unknown) => {
-      this.logger.warn('Could not update the Discord go-live post', { error: messageOf(error) });
+      this.logger.warn('Could not update the Discord go-live post', { error });
     });
     this.queue = run;
     return run;
@@ -324,7 +324,7 @@ export class GoLiveAnnouncer implements IService {
     } catch (error) {
       this.logger.warn('Could not ask a platform whether it is live', {
         platform,
-        error: messageOf(error),
+        error,
       });
       return null;
     }
@@ -352,7 +352,7 @@ export class GoLiveAnnouncer implements IService {
     } catch (error) {
       if (!(error instanceof DiscordMessageDeletedError)) {
         this.logger.warn('Could not mark the Discord go-live post as ended', {
-          error: messageOf(error),
+          error,
         });
       }
     }
@@ -408,14 +408,14 @@ export class GoLiveAnnouncer implements IService {
     try {
       const page = await this.controls.getChannelPage(platform);
       const info = await this.controls.getStreamInfo(platform).catch((error: unknown) => {
-        this.logger.warn('Could not read the stream title', { platform, error: messageOf(error) });
+        this.logger.warn('Could not read the stream title', { platform, error });
         return null;
       });
       const details = { page, info };
       this.details.set(platform, details);
       return details;
     } catch (error) {
-      this.logger.warn('Could not look up a live platform', { platform, error: messageOf(error) });
+      this.logger.warn('Could not look up a live platform', { platform, error });
       return null;
     }
   }

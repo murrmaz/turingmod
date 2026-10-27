@@ -22,11 +22,10 @@ describe('importImplementations', () => {
   const write = (file: string, body: string) =>
     writeFile(join(root, 'implementations', file), body);
 
-  it("returns each module's default-exported class, skipping tests, maps and declarations", async () => {
+  it("returns each module's default-exported class, skipping maps and declarations", async () => {
     await write('Alpha.js', 'export default class Alpha {}\nexport const helper = 1;\n');
     await write('Alpha.js.map', '{}');
     await write('Alpha.d.ts', 'export default class Alpha {}\n');
-    await write('Alpha.test.js', 'throw new Error("a test suite must never be imported");\n');
 
     const classes = await importImplementations(dir, 'Thing');
 

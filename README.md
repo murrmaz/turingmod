@@ -119,11 +119,6 @@ TuringMod refuses to start without `MASTER_PASSWORD` and says what's missing: th
 password, since one written in the source would protect the stored credentials no better than plain
 text.
 
-If you used TuringMod before `MASTER_PASSWORD` was required and never set one, your stored
-credentials were encrypted with that old built-in default. Once you set a password, those
-integrations show an error saying their configuration can't be decrypted: set each one up again
-from the console.
-
 OAuth client credentials aren't environment variables: the console asks for them the first time
 an integration is connected.
 

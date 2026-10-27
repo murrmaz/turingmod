@@ -19,8 +19,4 @@ export const goLivePost: Migration = {
       )
     `);
   },
-
-  down(db: DatabaseManager): void {
-    db.exec('DROP TABLE IF EXISTS go_live_post');
-  },
 };

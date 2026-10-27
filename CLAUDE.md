@@ -28,7 +28,7 @@ npm test                   # Vitest in every workspace
 npm test -w @turingmod/backend   # one workspace (also @turingmod/frontend, @turingmod/shared)
 ```
 
-Vitest is configured in all three workspaces; tests live beside their subjects as `*.test.ts`. On a fresh checkout, run `npm run build:backend` (which builds shared too) before `type-check` or the frontend/backend tests: both import `@turingmod/shared` from its `dist/`, and the frontend type-checks its tRPC client against the backend's router type in `packages/backend/dist/` (`@turingmod/backend/trpc`), so a backend change to a procedure reaches the console's types only once the backend is rebuilt (if `dist/` was deleted but `tsconfig.tsbuildinfo` wasn't, `tsc --build` thinks it's up to date and does nothing: `npm run clean` first). There is no CI: run `check`, `type-check` and `test` before considering work done.
+Vitest is configured in all three workspaces; tests live beside their subjects as `*.test.ts`. On a fresh checkout, run `npm run build:backend` (which builds shared too) before `type-check` or the frontend/backend tests: both import `@turingmod/shared` from its `dist/`, and the frontend type-checks its tRPC client against the backend's router type in `packages/backend/dist/` (`@turingmod/backend/trpc`), so a backend change to a procedure reaches the console's types only once the backend is rebuilt (if `dist/` was deleted but `tsconfig.build.tsbuildinfo` wasn't, `tsc --build` thinks it's up to date and does nothing: `npm run clean` first). `build` and `dev` compile `tsconfig.build.json`, which leaves tests and their helpers (`testing.ts`, `testDatabase.ts`) out of `dist/`; `type-check` uses `tsconfig.json`, which includes them. There is no CI: run `check`, `type-check` and `test` before considering work done.
 
 ## Quick Reference: File Locations
 
@@ -188,7 +188,7 @@ having run first.
 It is typed against `EventMap` (`core/events.ts`), which declares every event name and its payload
 type once, so an emitter and its subscribers can't drift apart. A new event is a new `EventMap` entry;
 don't declare a payload type beside its emitter or consumer. Names are dot-separated camelCase
-segments, most general first (`twitch.channelPoint.redemption`, `integration.tokenRefreshed`).
+segments, most general first (`twitch.channelPoint.redemption`, `integration.status`).
 
 ### Integration System
 
@@ -485,7 +485,10 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 - **Errors**: throw only `Error`s, with a message (Biome's `useThrowOnlyError` and `useErrorMessage`
   enforce it). A caught value is still `unknown`, because dependencies can throw anything: narrow it
   where it's caught with `messageOf()` or `toError()` (`shared/src/utils/errors.ts`) rather than
-  repeating `instanceof Error` checks or passing `unknown` on.
+  repeating `instanceof Error` checks or passing `unknown` on. A log call takes the caught value
+  itself (`logger.error(message, error)`, or `logger.warn(message, { platform, error })`), never
+  `messageOf(error)`: `Logger` writes an Error with its stack and `cause`, which the message alone
+  loses. `messageOf()` is for text a person reads, such as a chat reply.
 
 ## TypeScript
 

@@ -47,41 +47,41 @@ describe('ActivityLogRepository', () => {
   });
 
   it('returns entries most-recent-first', () => {
-    add({ category: ActivityCategory.EVENT, event: 'a', data: {}, timestamp: 1 });
-    add({ category: ActivityCategory.EVENT, event: 'b', data: {}, timestamp: 3 });
-    add({ category: ActivityCategory.EVENT, event: 'c', data: {}, timestamp: 2 });
+    add({ category: ActivityCategory.EVENT, event: 'twitch.follow', data: {}, timestamp: 1 });
+    add({ category: ActivityCategory.EVENT, event: 'twitch.raid', data: {}, timestamp: 3 });
+    add({ category: ActivityCategory.EVENT, event: 'twitch.cheer', data: {}, timestamp: 2 });
 
     const results = repo.findRecent({});
-    expect(results.map((e) => e.event)).toEqual(['b', 'c', 'a']);
+    expect(results.map((e) => e.event)).toEqual(['twitch.raid', 'twitch.cheer', 'twitch.follow']);
   });
 
   it('filters by category', () => {
-    add({ category: ActivityCategory.ERROR, event: 'err', data: {}, timestamp: 1 });
+    add({ category: ActivityCategory.ERROR, event: 'integration.error', data: {}, timestamp: 1 });
     add({
       category: ActivityCategory.STATUS,
-      event: 'status',
+      event: 'integration.status',
       data: {},
       timestamp: 2,
     });
 
     const results = repo.findRecent({ category: ActivityCategory.ERROR });
-    expect(results.map((e) => e.event)).toEqual(['err']);
+    expect(results.map((e) => e.event)).toEqual(['integration.error']);
   });
 
   it('paginates with an exclusive `before` cursor', () => {
-    add({ category: ActivityCategory.EVENT, event: 'a', data: {}, timestamp: 10 });
-    add({ category: ActivityCategory.EVENT, event: 'b', data: {}, timestamp: 20 });
-    add({ category: ActivityCategory.EVENT, event: 'c', data: {}, timestamp: 30 });
+    add({ category: ActivityCategory.EVENT, event: 'twitch.follow', data: {}, timestamp: 10 });
+    add({ category: ActivityCategory.EVENT, event: 'twitch.raid', data: {}, timestamp: 20 });
+    add({ category: ActivityCategory.EVENT, event: 'twitch.cheer', data: {}, timestamp: 30 });
 
     const page = repo.findRecent({ before: 30 });
-    expect(page.map((e) => e.event)).toEqual(['b', 'a']);
+    expect(page.map((e) => e.event)).toEqual(['twitch.raid', 'twitch.follow']);
   });
 
   it('caps the limit at MAX_QUERY_LIMIT', () => {
     for (let i = 0; i < 5; i++) {
       add({
         category: ActivityCategory.EVENT,
-        event: `e${i}`,
+        event: 'twitch.follow',
         data: {},
         timestamp: i,
       });
@@ -97,7 +97,7 @@ describe('ActivityLogRepository', () => {
     for (let i = 0; i < 101; i++) {
       add({
         category: ActivityCategory.EVENT,
-        event: `e${i}`,
+        event: 'twitch.follow',
         data: {},
         timestamp: i,
       });
@@ -114,6 +114,15 @@ describe('ActivityLogRepository', () => {
     );
 
     expect(() => repo.findRecent({})).toThrow(/stale-row is invalid[\s\S]*category/);
+  });
+
+  it('fails the read on a stored event the log does not record', () => {
+    db.run(
+      'INSERT INTO activity_log (id, category, event, data, timestamp) VALUES (?, ?, ?, ?, ?)',
+      ['retired-row', ActivityCategory.EVENT, 'twitch.stream.online', '{}', 1]
+    );
+
+    expect(() => repo.findRecent({})).toThrow(/retired-row is invalid[\s\S]*event/);
   });
 
   it('fails the read on a stored row whose data is not JSON', () => {

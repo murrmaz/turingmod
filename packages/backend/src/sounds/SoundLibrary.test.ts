@@ -90,7 +90,8 @@ describe('SoundLibrary', () => {
   it('tryPlay logs instead of rejecting', async () => {
     await expect(library.tryPlay('jumpscare_1.mp3')).resolves.toBeUndefined();
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Could not play "jumpscare_1.mp3": Sound clip not found')
+      'Could not play "jumpscare_1.mp3"',
+      expect.objectContaining({ message: expect.stringContaining('Sound clip not found') })
     );
   });
 

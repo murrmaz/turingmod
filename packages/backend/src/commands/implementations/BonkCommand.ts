@@ -52,20 +52,6 @@ export class BonkCommand implements ICommand {
 
     return Promise.resolve(ok(message));
   }
-
-  /**
-   * Get bonk count for a user
-   */
-  getBonkCount(username: string): number {
-    return this.bonkCounts.get(username) || 0;
-  }
-
-  /**
-   * Reset bonk counts (for testing)
-   */
-  resetCounts(): void {
-    this.bonkCounts.clear();
-  }
 }
 
 export default BonkCommand;

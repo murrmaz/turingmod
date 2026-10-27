@@ -7,8 +7,8 @@ import { COUNTERS, CounterRepository } from '../../database/repositories/Counter
 import { SuggestionRepository } from '../../database/repositories/SuggestionRepository.js';
 import { createTestDatabase } from '../../database/repositories/testDatabase.js';
 import { InvalidStreamInfoError } from '../../platforms/errors.js';
-import { fakeRequire } from '../../platforms/fakeRequire.js';
 import type { StreamControlService } from '../../platforms/StreamControlService.js';
+import { fakeRequire } from '../../platforms/testing.js';
 import { raidShoutoutMessage } from '../../raids/RaidShoutout.js';
 import type { SoundLibrary } from '../../sounds/SoundLibrary.js';
 import { Logger } from '../../utils/Logger.js';

@@ -33,7 +33,7 @@ type TwitchTokenResponse = z.infer<typeof TwitchTokenResponseSchema>;
 
 /**
  * Required OAuth scopes for the Twitch integration.
- * Single source of truth — the frontend and OAuthHandler should not specify scopes.
+ * Single source of truth: nothing else names them, the authorization URL included.
  */
 export const TWITCH_REQUIRED_SCOPES = [
   // Chat over EventSub (channel.chat.message) and Helix Send Chat Message. The IRC-era

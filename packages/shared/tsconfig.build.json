@@ -1,0 +1,6 @@
+// What `build` emits to dist/: everything but tests. tsconfig.json covers those too, for
+// type-check and the editor.
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}

@@ -106,12 +106,19 @@ function makeStateRepo(enabled: string[] = []): FakeRepo {
   } as unknown as FakeRepo;
 }
 
-function makeManager(repo: IntegrationStateRepository): IntegrationManager {
-  return new IntegrationManager(
-    repo,
-    new EventBus(new Logger({ level: 'silent' })),
-    new Logger({ level: 'silent' })
-  );
+function makeManager(
+  repo: IntegrationStateRepository,
+  logger = new Logger({ level: 'silent' })
+): IntegrationManager {
+  return new IntegrationManager(repo, new EventBus(new Logger({ level: 'silent' })), logger);
+}
+
+/** A logger to hand the manager, and a spy on the info() of the child logger it makes. */
+function spiedLogger() {
+  const logger = new Logger({ level: 'silent' });
+  const child = new Logger({ level: 'silent' });
+  vi.spyOn(logger, 'child').mockReturnValue(child);
+  return { logger, info: vi.spyOn(child, 'info') };
 }
 
 /**
@@ -340,15 +347,11 @@ describe('IntegrationManager', () => {
     expect(api.stopped).toBe(true);
   });
 
-  it('forwards a token refresh without changing status or cascading', async () => {
-    const bus = new EventBus(new Logger({ level: 'silent' }));
-    const refreshed = vi.fn();
-    bus.on('integration.tokenRefreshed', refreshed);
-
-    const manager = new IntegrationManager(
+  it('logs a token refresh without changing status or cascading', async () => {
+    const { logger, info } = spiedLogger();
+    const manager = makeManager(
       makeStateRepo(['twitch-auth', 'twitch-api', 'twitch-eventsub']),
-      bus,
-      new Logger({ level: 'silent' })
+      logger
     );
     registerTwitchTrio(manager);
     await startAll();
@@ -357,7 +360,9 @@ describe('IntegrationManager', () => {
     auth.refreshToken(expiresAt);
     await settle();
 
-    expect(refreshed).toHaveBeenCalledWith({ name: 'twitch-auth', expiresAt });
+    expect(info).toHaveBeenCalledWith('OAuth token refreshed: twitch-auth', {
+      expiresAt: new Date(expiresAt).toISOString(),
+    });
 
     // A rotation is not a status change, so nothing downstream reacts: the
     // dependents stay up and carry on using the rotated credentials.
@@ -368,22 +373,15 @@ describe('IntegrationManager', () => {
     expect(eventsub.getStatus()).toBe(IntegrationStatus.CONNECTED);
   });
 
-  it('omits expiry from a refresh notification when it is unknown', async () => {
-    const bus = new EventBus(new Logger({ level: 'silent' }));
-    const refreshed = vi.fn();
-    bus.on('integration.tokenRefreshed', refreshed);
-
-    const manager = new IntegrationManager(
-      makeStateRepo(['twitch-auth']),
-      bus,
-      new Logger({ level: 'silent' })
-    );
+  it('logs a refresh without an expiry when it is unknown', async () => {
+    const { logger, info } = spiedLogger();
+    const manager = makeManager(makeStateRepo(['twitch-auth']), logger);
     manager.register(auth);
 
     auth.refreshToken();
     await settle();
 
-    expect(refreshed).toHaveBeenCalledWith({ name: 'twitch-auth' });
+    expect(info).toHaveBeenCalledWith('OAuth token refreshed: twitch-auth', {});
   });
 
   it('reports an unmet dependency as BLOCKED rather than ERROR', async () => {
@@ -407,10 +405,8 @@ describe('IntegrationManager', () => {
     const manager = makeManager(makeStateRepo());
     registerTwitchTrio(manager);
 
-    expect(manager.getStatus('twitch-eventsub')?.metadata?.dependencies).toEqual([
-      'twitch-auth',
-      'twitch-api',
-    ]);
+    const eventsubInfo = manager.getAllStatuses().find((info) => info.name === 'twitch-eventsub');
+    expect(eventsubInfo?.metadata?.dependencies).toEqual(['twitch-auth', 'twitch-api']);
   });
 });
 

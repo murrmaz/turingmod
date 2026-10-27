@@ -39,10 +39,4 @@ export const featureData: Migration = {
       )
     `);
   },
-
-  down(db: DatabaseManager): void {
-    db.exec('DROP TABLE IF EXISTS interval_messages');
-    db.exec('DROP TABLE IF EXISTS counters');
-    db.exec('DROP TABLE IF EXISTS banned_words');
-  },
 };

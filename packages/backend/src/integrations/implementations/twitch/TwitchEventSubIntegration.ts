@@ -6,8 +6,7 @@ import {
   PermissionLevel,
   StreamingPlatform,
 } from '@turingmod/shared';
-import type { ApiClient, HelixEventSubSubscriptionStatus } from '@twurple/api';
-import type { RefreshingAuthProvider } from '@twurple/auth';
+import type { HelixEventSubSubscriptionStatus } from '@twurple/api';
 import type { EventSubChannelChatMessageEvent } from '@twurple/eventsub-base';
 import { EventSubWsListener } from '@twurple/eventsub-ws';
 import { singleton } from 'tsyringe';
@@ -85,9 +84,6 @@ export class TwitchEventSubIntegration extends BaseIntegration {
 
   private eventSubListener: EventSubWsListener | null = null;
   private config: TwitchEventSubConfig = {};
-  private broadcasterId: string | null = null;
-  private authProvider: RefreshingAuthProvider | null = null;
-  private apiClient: ApiClient | null = null;
 
   constructor(
     private eventBus: EventBus,
@@ -120,13 +116,11 @@ export class TwitchEventSubIntegration extends BaseIntegration {
 
     try {
       // Get auth provider and API client from dependencies
-      this.authProvider = this.authIntegration.getAuthProvider();
-      this.apiClient = this.apiIntegration.getApiClient();
-
-      if (!this.authProvider) {
+      const apiClient = this.apiIntegration.getApiClient();
+      if (!this.authIntegration.getAuthProvider()) {
         throw new Error('TwitchAuthIntegration must be started first');
       }
-      if (!this.apiClient) {
+      if (!apiClient) {
         throw new Error('TwitchApiIntegration must be started first');
       }
 
@@ -141,12 +135,11 @@ export class TwitchEventSubIntegration extends BaseIntegration {
         throw new Error('Could not resolve authenticated user');
       }
 
-      this.broadcasterId = broadcaster.id;
       this.logger.info(`Found broadcaster: ${broadcaster.displayName} (${broadcaster.id})`);
 
       // Create EventSub WebSocket listener
       this.eventSubListener = new EventSubWsListener({
-        apiClient: this.apiClient,
+        apiClient,
       });
 
       // Fires when Twitch revokes an individual subscription. Most reasons
@@ -190,19 +183,9 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.eventSubListener = null;
     }
 
-    this.authProvider = null;
-    this.apiClient = null;
-    this.broadcasterId = null;
     this.setStatus(IntegrationStatus.DISCONNECTED);
 
     this.logger.debug('Twitch EventSub integration stopped');
-  }
-
-  /**
-   * Get the resolved broadcaster ID (available after start)
-   */
-  getBroadcasterId(): string | null {
-    return this.broadcasterId;
   }
 
   /**

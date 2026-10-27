@@ -1,4 +1,4 @@
-import { IntegrationStatus, messageOf } from '@turingmod/shared';
+import { IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { ObsIntegration } from '../integrations/implementations/obs/ObsIntegration.js';
 import {
@@ -85,7 +85,7 @@ export class ObsBreakOverlay {
           await this.obs.setInputMuted(inputName, true);
         }
       } catch (error) {
-        this.logger.warn(`Could not mute OBS input "${inputName}"`, { error: messageOf(error) });
+        this.logger.warn(`Could not mute OBS input "${inputName}"`, { error });
       }
     }
 
@@ -120,7 +120,7 @@ export class ObsBreakOverlay {
         this.logger.warn('Could not restore a scene item after the break', {
           sceneUuid,
           sceneItemId,
-          error: messageOf(error),
+          error,
         });
       }
     }
@@ -165,7 +165,7 @@ export class ObsBreakOverlay {
     try {
       placements = await listPlacements(this.obs, sceneUuid, warnSkipped(this.logger));
     } catch (error) {
-      this.logger.warn('Could not list scene items', { sceneUuid, error: messageOf(error) });
+      this.logger.warn('Could not list scene items', { sceneUuid, error });
       return;
     }
 
@@ -201,7 +201,7 @@ export class ObsBreakOverlay {
       } catch (error) {
         this.logger.warn(`Could not ${target ? 'show' : 'hide'} "${item.sourceName}"`, {
           sceneUuid: containerUuid,
-          error: messageOf(error),
+          error,
         });
       }
     }

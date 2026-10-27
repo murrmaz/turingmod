@@ -120,10 +120,6 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
     return Promise.resolve();
   }
 
-  getRequiredScopes(): string[] {
-    return [...this.requiredScopes];
-  }
-
   /** Whether client credentials have been saved: the schema doesn't admit a config without them. */
   isConfigured(): boolean {
     return this.config !== null;

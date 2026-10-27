@@ -10,7 +10,6 @@ import { OAuthFlowService } from './OAuthFlowService.js';
 function oauthIntegration(name: string, callbackPath: string): IOAuthIntegration {
   const integration = {
     name,
-    getRequiredScopes: () => ['scope'],
     isConfigured: () => true,
     getAuthorizationUrl: (state: string) => state,
     exchangeCode: vi.fn().mockResolvedValue(undefined),

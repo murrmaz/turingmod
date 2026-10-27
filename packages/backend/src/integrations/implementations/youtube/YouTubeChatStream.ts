@@ -129,8 +129,8 @@ export class YouTubeChatStream {
   /**
    * Open a server stream of live chat messages.
    *
-   * @param authClient The authorized OAuth2 client. Unlike the previous gRPC transport, no access
-   *   token is passed in: the client attaches one per request and refreshes it on demand.
+   * @param authClient The authorized OAuth2 client, which attaches an access token to each request
+   *   and refreshes it on demand.
    * @param pageToken Resume point from a previous response; omit to start from chat history.
    */
   stream(

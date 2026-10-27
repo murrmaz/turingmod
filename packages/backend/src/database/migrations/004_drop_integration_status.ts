@@ -15,12 +15,4 @@ export const dropIntegrationStatus: Migration = {
     db.exec('ALTER TABLE integration_state DROP COLUMN last_error');
     db.exec('ALTER TABLE integration_state DROP COLUMN last_connected_at');
   },
-
-  down(db: DatabaseManager): void {
-    db.exec(
-      "ALTER TABLE integration_state ADD COLUMN last_status TEXT NOT NULL DEFAULT 'disconnected'"
-    );
-    db.exec('ALTER TABLE integration_state ADD COLUMN last_error TEXT');
-    db.exec('ALTER TABLE integration_state ADD COLUMN last_connected_at INTEGER');
-  },
 };

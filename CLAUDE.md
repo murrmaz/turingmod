@@ -125,7 +125,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 
 ### Console ↔ Backend Protocol
 - **tRPC router**: `packages/backend/src/server/trpc/appRouter.ts` (`createAppRouter()`, `AppRouter` type) — one sub-router per area, e.g. `integrationsRouter.ts`; `trpc.ts` (instance and `TrpcContext`), `watch.ts` (`watchable()`: current value, then again on each change, read once per change for every console; `events()`: a stream of events, subscribed at once so a snapshot read beside it misses nothing)
-- **tRPC endpoint**: `packages/backend/src/server/trpc/TrpcServer.ts` (`TRPC_PATH`); `HttpServer.routeUpgrades()` hands a WebSocket path its endpoint; `server/consoleSockets.ts` (console-only origin check, upgrades, closing with a grace period)
+- **tRPC endpoint**: `packages/backend/src/server/trpc/TrpcServer.ts` (`TRPC_PATH`); `HttpServer.routeUpgrades()` hands it the upgrades on that path; `TrpcServer` lets only the console's origin connect and gives consoles a grace period to close at shutdown
 - **tRPC client**: `packages/frontend/src/context/TrpcContext.tsx` (`TrpcProvider`, `useTrpc()`, `useConnection()`; `RouterInputs`/`RouterOutputs` name a procedure's input and output types), `services/trpcLinks.ts` (fail requests while disconnected), `services/connection.ts` (connection state, retry schedule, `ConnectionError`)
 - **Reading from the backend**: `packages/frontend/src/hooks/useSubscription.ts` (state kept current by a `watch` subscription, or built from an event stream with `reduce`), `hooks/useServerQuery.ts` (a query, read on connect and on each new input)
 

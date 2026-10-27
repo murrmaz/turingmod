@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import type { AddressInfo } from 'node:net';
 import { type IntegrationInfo, IntegrationStatus, TRPC_PATH } from '@turingmod/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { WebSocket } from 'ws';
+import { WebSocket, type WebSocketServer } from 'ws';
 import { EventBus } from '../../core/EventBus.js';
 import type { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import type { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
@@ -10,7 +10,7 @@ import { Logger } from '../../utils/Logger.js';
 import { HttpServer } from '../HttpServer.js';
 import type { AppRouter } from './appRouter.js';
 import { createIntegrationsRouter } from './integrationsRouter.js';
-import { TrpcServer } from './TrpcServer.js';
+import { closeConsoleWss, TrpcServer } from './TrpcServer.js';
 import { procedure, router } from './trpc.js';
 
 const CONSOLE = 'http://localhost:3000';
@@ -143,5 +143,40 @@ describe('TrpcServer', () => {
     const { base } = await start();
 
     await expect(connect(`${base}/elsewhere`, CONSOLE)).rejects.toThrow('HTTP 404');
+  });
+});
+
+describe('closeConsoleWss', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('cuts off a console that never completes the closing handshake', async () => {
+    vi.useFakeTimers();
+    const clients = new Set<{ close: () => void; terminate: () => void }>();
+    let closed: (() => void) | undefined;
+    const unresponsive = {
+      close: vi.fn(),
+      terminate: vi.fn(() => {
+        clients.delete(unresponsive);
+        closed?.();
+      }),
+    };
+    clients.add(unresponsive);
+    // As ws does: the server's close completes once every client is gone.
+    const wss = {
+      clients,
+      close: (callback: () => void) => {
+        closed = callback;
+      },
+    } as unknown as WebSocketServer;
+
+    const stopping = closeConsoleWss(wss);
+    expect(unresponsive.close).toHaveBeenCalled();
+    expect(unresponsive.terminate).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await stopping;
+    expect(unresponsive.terminate).toHaveBeenCalled();
   });
 });

@@ -126,7 +126,20 @@ OAuth-capable integrations (`TwitchAuthIntegration`, `SpotifyAuthIntegration`, `
 `OAuthIntegration` owns what doesn't vary by provider. A subclass declares `requiredScopes`, `callbackPath`, `redirectHost` and `configSchema`, and implements `getAuthorizationUrl()`, `exchangeCode()`, `hasTokens()` and `connect()` (build its client); the base's `start()` runs the shared checks first — no token yet stays DISCONNECTED, and a stored `grantedScopes` missing a required scope is NEEDS_REAUTH rather than a failure on the first call that needs it. Refresh is deliberately left to each subclass, because each SDK does it differently (Twurple refreshes proactively, the googleapis client on demand). Spotify's SDK can't be trusted
 with it — its own refresh omits the client secret this grant needs — so `SpotifyAuthIntegration`
 refreshes before expiry in `getAccessToken()`, sharing one refresh between concurrent callers, and
-the SDK is never given the refresh token. A refresh listener that nothing awaits saves through `saveRefreshedTokens()`, which logs a failed write instead of leaving an unhandled rejection.
+the SDK is never given the refresh token.
+
+**A provider used through its OAuth 2.0 endpoints extends `StandardOAuthIntegration<TConfig,
+TTokenResponse>`** (`integrations/StandardOAuthIntegration.ts`) instead, as Twitch and Spotify do.
+It declares `authorizeUrl`, `tokenUrl`, `clientAuthentication` (credentials in the form `'body'`,
+Twitch, or as HTTP `'basic'` auth, Spotify: each provider documents one) and
+`tokenResponseSchema`, maps a token response to stored config in `toConfigPatch()`, and gets
+`getAuthorizationUrl()`, `exchangeCode()` and `hasTokens()` from the base, which requests exactly
+`requiredScopes` and sends the authorization's redirect URI with the exchange.
+`requestToken()` is for a subclass that refreshes itself (Spotify). Its stored config is
+`StandardOAuthConfigSchema`: the token fields as a token response gives them (`expiresIn` with
+`obtainmentTimestamp`). A provider whose SDK builds the URL and exchanges the code, like Google's
+for YouTube, extends `OAuthIntegration` directly; YouTube stores Google's absolute `expiryDate`
+instead. A new OAuth provider without an SDK of its own is a `StandardOAuthIntegration`. A refresh listener that nothing awaits saves through `saveRefreshedTokens()`, which logs a failed write instead of leaving an unhandled rejection.
 
 ## Integration events
 

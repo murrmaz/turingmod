@@ -12,28 +12,24 @@ import { EventBus } from '../../../core/EventBus.js';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
 import { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
-import { OAuthConfigBaseSchema, OAuthIntegration } from '../../OAuthIntegration.js';
+import {
+  type StandardOAuthConfig,
+  StandardOAuthConfigSchema,
+  StandardOAuthIntegration,
+} from '../../StandardOAuthIntegration.js';
 
 /**
- * Twitch Auth Configuration
+ * A response from Twitch's token endpoint for a code exchange. Unlike OAuth 2.0's space-separated
+ * string, Twitch sends `scope` as an array.
  */
-export const TwitchAuthConfigSchema = OAuthConfigBaseSchema.extend({
-  accessToken: z.string().exactOptional(),
-  refreshToken: z.string().exactOptional(),
-  /** Seconds the access token was issued for. */
-  expiresIn: z.number().exactOptional(),
-  obtainmentTimestamp: z.number().exactOptional(),
-});
-
-export type TwitchAuthConfig = z.infer<typeof TwitchAuthConfigSchema>;
-
-/** A response from Twitch's token endpoint for a code exchange. */
 const TwitchTokenResponseSchema = z.object({
   access_token: z.string().min(1),
   refresh_token: z.string().min(1).exactOptional(),
   expires_in: z.number().positive().exactOptional(),
   scope: z.array(z.string()),
 });
+
+type TwitchTokenResponse = z.infer<typeof TwitchTokenResponseSchema>;
 
 /**
  * Required OAuth scopes for the Twitch integration.
@@ -79,14 +75,21 @@ export const TWITCH_REQUIRED_SCOPES = [
  * - Providing valid tokens to other Twitch integrations
  */
 @singleton()
-export class TwitchAuthIntegration extends OAuthIntegration<TwitchAuthConfig> {
+export class TwitchAuthIntegration extends StandardOAuthIntegration<
+  StandardOAuthConfig,
+  TwitchTokenResponse
+> {
   readonly name = IntegrationName.TWITCH_AUTH;
 
   protected readonly requiredScopes = TWITCH_REQUIRED_SCOPES;
   protected readonly callbackPath = '/callback/twitch';
   /** Twitch accepts plain-HTTP redirects only to `localhost`, not `127.0.0.1`. */
   protected readonly redirectHost = 'localhost';
-  protected readonly configSchema = TwitchAuthConfigSchema;
+  protected readonly configSchema = StandardOAuthConfigSchema;
+  protected readonly authorizeUrl = 'https://id.twitch.tv/oauth2/authorize';
+  protected readonly tokenUrl = 'https://id.twitch.tv/oauth2/token';
+  protected readonly clientAuthentication = 'body';
+  protected readonly tokenResponseSchema = TwitchTokenResponseSchema;
 
   private authProvider: RefreshingAuthProvider | null = null;
   private userId: string | null = null;
@@ -101,11 +104,7 @@ export class TwitchAuthIntegration extends OAuthIntegration<TwitchAuthConfig> {
     super(logger, 'TwitchAuth', stateRepo, serverConfig);
   }
 
-  protected hasTokens(config: TwitchAuthConfig): boolean {
-    return Boolean(config.accessToken);
-  }
-
-  protected async connect(config: TwitchAuthConfig): Promise<void> {
+  protected async connect(config: StandardOAuthConfig): Promise<void> {
     // Other Twitch integrations (e.g. EventSub) can detect that Twitch
     // revoked our authorization independently of our own refresh cycle.
     // Listen rather than being told directly, so this integration decides
@@ -134,7 +133,7 @@ export class TwitchAuthIntegration extends OAuthIntegration<TwitchAuthConfig> {
     // memory and never persisted.
     this.authProvider.onRefresh((_userId, newToken) => {
       this.logger.info('Access token refreshed');
-      this.saveRefreshedTokens(toConfigPatch(newToken));
+      this.saveRefreshedTokens(accessTokenPatch(newToken));
       this.reportTokenRefreshed(
         newToken.expiresIn === null
           ? undefined
@@ -207,61 +206,21 @@ export class TwitchAuthIntegration extends OAuthIntegration<TwitchAuthConfig> {
     return this.userId;
   }
 
-  getAuthorizationUrl(state: string): string {
-    const params = new URLSearchParams({
-      client_id: this.requireConfig().clientId,
-      redirect_uri: this.getRedirectUri(),
-      response_type: 'code',
-      scope: TWITCH_REQUIRED_SCOPES.join(' '),
-      state,
+  /** Through Twurple's token shape, which its refreshes hand over too. */
+  protected toConfigPatch(data: TwitchTokenResponse): Partial<StandardOAuthConfig> {
+    return accessTokenPatch({
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token ?? null,
+      expiresIn: data.expires_in ?? null,
+      obtainmentTimestamp: Date.now(),
+      scope: data.scope,
     });
-
-    return `https://id.twitch.tv/oauth2/authorize?${params.toString()}`;
-  }
-
-  async exchangeCode(code: string): Promise<void> {
-    const config = this.requireConfig();
-
-    this.logger.info('Exchanging authorization code for tokens');
-
-    const response = await fetch('https://id.twitch.tv/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: config.clientId,
-        client_secret: config.clientSecret,
-        code,
-        grant_type: 'authorization_code',
-        redirect_uri: this.getRedirectUri(),
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Failed to exchange code: ${error}`);
-    }
-
-    const data = await this.parseTokenResponse(TwitchTokenResponseSchema, response);
-
-    this.saveTokens(
-      toConfigPatch({
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token || null,
-        expiresIn: data.expires_in || null,
-        obtainmentTimestamp: Date.now(),
-        scope: data.scope,
-      })
-    );
-
-    this.logger.info('Successfully exchanged code for tokens');
   }
 }
 
 /** The stored-config fields for a Twurple token (only those it has, under exactOptionalPropertyTypes). */
-function toConfigPatch(token: AccessToken): Partial<TwitchAuthConfig> {
-  const patch: Partial<TwitchAuthConfig> = {
+function accessTokenPatch(token: AccessToken): Partial<StandardOAuthConfig> {
+  const patch: Partial<StandardOAuthConfig> = {
     accessToken: token.accessToken,
     obtainmentTimestamp: token.obtainmentTimestamp,
   };

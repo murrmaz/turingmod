@@ -22,6 +22,8 @@ class FakeOBSWebSocket extends EventEmitter {
   outcomes: (FakeObsError | 'ok')[] = [];
   connects = 0;
   open = false;
+  /** Answers each request: what the test hands back from OBS. */
+  call = vi.fn<(request: string, data?: unknown) => Promise<unknown>>();
 
   constructor() {
     super();
@@ -185,5 +187,44 @@ describe('ObsIntegration', () => {
 
     expect(integration.getStatus()).toBe(IntegrationStatus.ERROR);
     expect(socket.connects).toBe(1);
+  });
+
+  describe('getSceneItemTransform', () => {
+    const transform = {
+      positionX: 10,
+      positionY: 20,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      width: 640,
+      height: 360,
+      sourceWidth: 1280,
+      sourceHeight: 720,
+      alignment: 5,
+      boundsType: 'OBS_BOUNDS_NONE',
+      boundsAlignment: 0,
+      boundsWidth: 0,
+      boundsHeight: 0,
+      cropBottom: 0,
+      cropLeft: 0,
+      cropRight: 0,
+      cropTop: 0,
+    };
+
+    it('returns the transform OBS reports, without fields it has added since', async () => {
+      await integration.start();
+      socket.call.mockResolvedValue({ sceneItemTransform: { ...transform, cropToBounds: false } });
+
+      expect(await integration.getSceneItemTransform('scene', 3)).toEqual(transform);
+    });
+
+    it('refuses a transform that is not the shape effects read', async () => {
+      await integration.start();
+      socket.call.mockResolvedValue({ sceneItemTransform: { ...transform, scaleX: null } });
+
+      await expect(integration.getSceneItemTransform('scene', 3)).rejects.toThrow(
+        /Unexpected scene item transform from OBS[\s\S]*scaleX/
+      );
+    });
   });
 });

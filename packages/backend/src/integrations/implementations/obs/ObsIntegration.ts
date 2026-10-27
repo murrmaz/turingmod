@@ -7,35 +7,40 @@ import {
 } from '@turingmod/shared';
 import OBSWebSocket, { type OBSResponseTypes } from 'obs-websocket-js';
 import { singleton } from 'tsyringe';
+import { z } from 'zod';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import { ReconnectBackoff } from '../../ReconnectBackoff.js';
 
 /**
- * Scene item transform properties as returned by OBS WebSocket v5.
- * obs-websocket-js types this as JsonObject; we provide the actual shape.
+ * A scene item's transform as obs-websocket v5 reports it, which obs-websocket-js types only as
+ * JSON, so it is parsed where it arrives. OBS's data, so not strict: OBS adds fields over time,
+ * and only these are read. Effects capture it as the facecam's original and restore it afterwards,
+ * so a transform that isn't this shape fails before an effect starts rather than animating NaN.
  */
-export interface SceneItemTransform {
-  positionX: number;
-  positionY: number;
-  rotation: number;
-  scaleX: number;
-  scaleY: number;
-  width: number;
-  height: number;
-  sourceWidth: number;
-  sourceHeight: number;
-  alignment: number;
-  boundsType: string;
-  boundsAlignment: number;
-  boundsWidth: number;
-  boundsHeight: number;
-  cropBottom: number;
-  cropLeft: number;
-  cropRight: number;
-  cropTop: number;
-}
+const SceneItemTransformSchema = z.object({
+  positionX: z.number(),
+  positionY: z.number(),
+  rotation: z.number(),
+  scaleX: z.number(),
+  scaleY: z.number(),
+  width: z.number(),
+  height: z.number(),
+  sourceWidth: z.number(),
+  sourceHeight: z.number(),
+  alignment: z.number(),
+  boundsType: z.string(),
+  boundsAlignment: z.number(),
+  boundsWidth: z.number(),
+  boundsHeight: z.number(),
+  cropBottom: z.number(),
+  cropLeft: z.number(),
+  cropRight: z.number(),
+  cropTop: z.number(),
+});
+
+export type SceneItemTransform = z.infer<typeof SceneItemTransformSchema>;
 
 /** A canvas (OBS 31+/obs-websocket 5.7+), e.g. the main canvas or an Aitum Vertical canvas. */
 export interface ObsCanvas {
@@ -286,7 +291,13 @@ export class ObsIntegration extends BaseIntegration {
       sceneUuid,
       sceneItemId,
     });
-    return sceneItemTransform as unknown as SceneItemTransform;
+    const parsed = SceneItemTransformSchema.safeParse(sceneItemTransform);
+    if (!parsed.success) {
+      throw new Error(
+        `Unexpected scene item transform from OBS:\n${z.prettifyError(parsed.error)}`
+      );
+    }
+    return parsed.data;
   }
 
   /** Set (merge) transform properties on a scene item. */

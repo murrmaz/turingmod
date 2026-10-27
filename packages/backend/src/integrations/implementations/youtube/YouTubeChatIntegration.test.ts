@@ -8,7 +8,7 @@ import { Logger } from '../../../utils/Logger.js';
 import type { ActiveBroadcast, YouTubeApiIntegration } from './YouTubeApiIntegration.js';
 import type { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
 import { YouTubeChatIntegration } from './YouTubeChatIntegration.js';
-import type { LiveChatMessageListResponse } from './YouTubeChatStream.js';
+import type { LiveChatFrame } from './YouTubeChatStream.js';
 
 /** ReconnectBackoff's first delay: how long a dropped stream waits before reopening. */
 const FIRST_RECONNECT_MS = 2_000;
@@ -46,7 +46,7 @@ class FakeCall extends EventEmitter {
     });
   }
 
-  emitData(response: LiveChatMessageListResponse): void {
+  emitData(response: LiveChatFrame): void {
     this.emit('data', response);
   }
 

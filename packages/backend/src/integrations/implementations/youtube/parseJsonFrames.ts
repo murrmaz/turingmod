@@ -2,7 +2,7 @@
  * Incremental splitter for a server-streamed JSON response body.
  *
  * `liveChat.messages.stream` is a server-streaming RPC exposed over HTTP transcoding, so its body
- * is a sequence of `LiveChatMessageListResponse` objects delivered over a long-lived connection
+ * is a sequence of `LiveChatFrame` objects delivered over a long-lived connection
  * rather than one document. Discovery declares the response as a single object — that is a
  * code-generator artifact (the generator emits `response.$ref` identically for unary and streaming
  * methods), so it tells us the shape of one frame but nothing about how frames are delimited.

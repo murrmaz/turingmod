@@ -1,15 +1,49 @@
 import { EventEmitter } from 'node:events';
 import type { Readable } from 'node:stream';
 import { google, type youtube_v3 } from 'googleapis';
+import { z } from 'zod';
 import { ClientCache } from '../../ClientCache.js';
 import { JsonFrameParser } from './parseJsonFrames.js';
 import type { YouTubeOAuth2Client } from './YouTubeAuthIntegration.js';
 
 /**
- * One response frame from the server stream — the client's own type, so the items are genuinely
- * `Schema$LiveChatMessage` rather than something that merely resembles it.
+ * One chat message, as far as YouTubeChatIntegration reads it. Google's data, so not strict and
+ * only the fields used; any of them may be absent or null, as googleapis' own types allow.
  */
-export type LiveChatMessageListResponse = youtube_v3.Schema$LiveChatMessageListResponse;
+const LiveChatMessageSchema = z.object({
+  id: z.string().nullish(),
+  snippet: z
+    .object({
+      displayMessage: z.string().nullish(),
+      textMessageDetails: z.object({ messageText: z.string().nullish() }).nullish(),
+    })
+    .nullish(),
+  authorDetails: z
+    .object({
+      channelId: z.string().nullish(),
+      displayName: z.string().nullish(),
+      isChatOwner: z.boolean().nullish(),
+      isChatModerator: z.boolean().nullish(),
+      isChatSponsor: z.boolean().nullish(),
+      isVerified: z.boolean().nullish(),
+    })
+    .nullish(),
+});
+
+/**
+ * One response frame from the server stream. googleapis types the method's response as a
+ * `LiveChatMessageListResponse`, but that's its code generator describing a single frame, not a
+ * checked shape, so each frame is parsed here, where it enters.
+ */
+const LiveChatFrameSchema = z.object({
+  items: z.array(LiveChatMessageSchema).nullish(),
+  nextPageToken: z.string().nullish(),
+  /** Set once the broadcast has gone offline. */
+  offlineAt: z.string().nullish(),
+});
+
+export type LiveChatMessage = z.infer<typeof LiveChatMessageSchema>;
+export type LiveChatFrame = z.infer<typeof LiveChatFrameSchema>;
 
 /**
  * The subset of the underlying stream the chat integration uses.
@@ -19,7 +53,7 @@ export type LiveChatMessageListResponse = youtube_v3.Schema$LiveChatMessageListR
  * call and ignore events from a call they no longer consider current.
  */
 export interface LiveChatStreamCall {
-  on(event: 'data', listener: (response: LiveChatMessageListResponse) => void): this;
+  on(event: 'data', listener: (frame: LiveChatFrame) => void): this;
   on(event: 'error', listener: (error: unknown) => void): this;
   on(event: 'end', listener: () => void): this;
   cancel(): void;
@@ -56,9 +90,9 @@ class StreamCall extends EventEmitter implements LiveChatStreamCall {
     this.body = null;
   }
 
-  emitData(response: LiveChatMessageListResponse): void {
+  emitData(frame: LiveChatFrame): void {
     if (!this.cancelled) {
-      this.emit('data', response);
+      this.emit('data', frame);
     }
   }
 
@@ -153,14 +187,23 @@ export class YouTubeChatStream {
         try {
           frames = parser.push(chunk);
         } catch (error) {
-          // Malformed or unbounded body: there is no resyncing mid-stream, so end the call and let
-          // the integration reconnect from its last page token.
+          // Malformed or unbounded body: there is no resyncing mid-stream, so end the call. The
+          // integration treats it as unexpected, logs it and goes idle.
           body.destroy();
           call.emitError(error);
           return;
         }
         for (const frame of frames) {
-          call.emitData(frame as LiveChatMessageListResponse);
+          const parsed = LiveChatFrameSchema.safeParse(frame);
+          if (!parsed.success) {
+            // Likewise for a frame that isn't the shape we read: chat shouldn't quietly go missing.
+            body.destroy();
+            call.emitError(
+              new Error(`Unexpected YouTube live chat frame:\n${z.prettifyError(parsed.error)}`)
+            );
+            return;
+          }
+          call.emitData(parsed.data);
         }
       });
       body.on('error', (error: unknown) => call.emitError(error));

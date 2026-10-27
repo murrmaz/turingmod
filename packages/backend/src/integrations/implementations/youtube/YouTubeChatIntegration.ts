@@ -6,7 +6,6 @@ import {
   PermissionLevel,
   StreamingPlatform,
 } from '@turingmod/shared';
-import type { youtube_v3 } from 'googleapis';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
@@ -16,7 +15,8 @@ import { ReconnectBackoff } from '../../ReconnectBackoff.js';
 import { type BroadcastIdentity, YouTubeApiIntegration } from './YouTubeApiIntegration.js';
 import { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
 import {
-  type LiveChatMessageListResponse,
+  type LiveChatFrame,
+  type LiveChatMessage,
   type LiveChatStreamCall,
   YouTubeChatStream,
 } from './YouTubeChatStream.js';
@@ -360,7 +360,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
     this.logger.info('YouTube live chat stream open');
   }
 
-  private handleResponse(response: LiveChatMessageListResponse): void {
+  private handleResponse(response: LiveChatFrame): void {
     // A working response clears both failure counters: later trouble starts from scratch.
     this.backoff.reset();
     this.authRetried = false;
@@ -545,7 +545,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
    * Normalize one live chat message into `chat.received`.
    * Payloads mirror TwitchEventSubIntegration.handleChatMessage() exactly.
    */
-  private handleMessage(item: youtube_v3.Schema$LiveChatMessage): void {
+  private handleMessage(item: LiveChatMessage): void {
     const author = item.authorDetails;
     const snippet = item.snippet;
     const messageText = snippet?.displayMessage ?? snippet?.textMessageDetails?.messageText ?? '';
@@ -581,7 +581,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
    * equivalent, and a channel "member" (sponsor) is treated as a subscriber.
    */
   private getPermissionFromAuthor(
-    author: youtube_v3.Schema$LiveChatMessageAuthorDetails
+    author: NonNullable<LiveChatMessage['authorDetails']>
   ): PermissionLevel {
     if (author.isChatOwner) return PermissionLevel.BROADCASTER;
     if (author.isChatModerator) return PermissionLevel.MODERATOR;
@@ -590,7 +590,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
   }
 
   /** Derive Twitch-badge-style role markers from YouTube author flags (parity only). */
-  private getBadgesFromAuthor(author: youtube_v3.Schema$LiveChatMessageAuthorDetails): string[] {
+  private getBadgesFromAuthor(author: NonNullable<LiveChatMessage['authorDetails']>): string[] {
     const badges: string[] = [];
     if (author.isChatOwner) badges.push('owner');
     if (author.isChatModerator) badges.push('moderator');

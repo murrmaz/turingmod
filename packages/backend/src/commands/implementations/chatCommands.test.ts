@@ -316,7 +316,7 @@ describe('!bonk', () => {
 
 describe('!time', () => {
   it("tells the time in the streamer's zone", () => {
-    expect(streamerTime(new Date('2026-01-15T18:05:00Z'))).toBe('12:05 PM CST');
-    expect(streamerTime(new Date('2026-07-15T18:05:00Z'))).toBe('1:05 PM CDT');
+    expect(streamerTime(new Date('2026-01-15T18:05:00Z'), 'America/Chicago')).toBe('12:05 PM CST');
+    expect(streamerTime(new Date('2026-07-15T18:05:00Z'), 'America/Chicago')).toBe('1:05 PM CDT');
   });
 });

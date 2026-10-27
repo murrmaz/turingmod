@@ -1,4 +1,12 @@
-import { Database, History, LayoutDashboard, type LucideIcon, Plug, Terminal } from 'lucide-react';
+import {
+  Database,
+  History,
+  LayoutDashboard,
+  Lightbulb,
+  type LucideIcon,
+  Plug,
+  Terminal,
+} from 'lucide-react';
 
 export interface Page {
   path: string;
@@ -14,6 +22,7 @@ export const PAGES: readonly Page[] = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/commands', label: 'Commands', icon: Terminal },
   { path: '/integrations', label: 'Integrations', icon: Plug },
+  { path: '/suggestions', label: 'Suggestions', icon: Lightbulb },
   { path: '/history', label: 'History', icon: History },
   { path: '/data', label: 'Data', icon: Database },
 ];

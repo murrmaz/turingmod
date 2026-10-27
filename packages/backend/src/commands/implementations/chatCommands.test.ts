@@ -11,6 +11,7 @@ import type { StreamControlService } from '../../platforms/StreamControlService.
 import { fakeRequire } from '../../platforms/testing.js';
 import { raidShoutoutMessage } from '../../raids/RaidShoutout.js';
 import type { SoundLibrary } from '../../sounds/SoundLibrary.js';
+import { SuggestionBox } from '../../suggestions/SuggestionBox.js';
 import { Logger } from '../../utils/Logger.js';
 import { commandContext } from '../testing.js';
 import { AdCommand } from './AdCommand.js';
@@ -67,7 +68,7 @@ describe('counter commands', () => {
   });
 
   it('!sg records a suggestion and !suggestionlist shows the latest first', async () => {
-    const suggestions = new SuggestionRepository(db);
+    const suggestions = new SuggestionBox(new SuggestionRepository(db));
     const sg = new SgCommand(suggestions);
 
     expect((await sg.execute(commandContext('!sg'))).success).toBe(false);

@@ -1,7 +1,7 @@
 import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
-import { SuggestionRepository } from '../../database/repositories/SuggestionRepository.js';
+import { SuggestionBox } from '../../suggestions/SuggestionBox.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { fail, ok } from '../utils/results.js';
 
@@ -21,7 +21,7 @@ export class SgCommand implements ICommand {
   readonly cooldown = 30;
   readonly requiredCapabilities: PlatformCapability[] = [];
 
-  constructor(private suggestions: SuggestionRepository) {}
+  constructor(private suggestions: SuggestionBox) {}
 
   execute(context: CommandContext): Promise<CommandResult> {
     const user = context.user.username;

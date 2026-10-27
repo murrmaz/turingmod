@@ -26,6 +26,9 @@ const IntegrationsPage = lazy(() =>
     default: m.IntegrationsPage,
   }))
 );
+const SuggestionsPage = lazy(() =>
+  import('@/features/suggestions/suggestions-page').then((m) => ({ default: m.SuggestionsPage }))
+);
 const HistoryPage = lazy(() =>
   import('@/features/history/history-page').then((m) => ({ default: m.HistoryPage }))
 );
@@ -83,6 +86,7 @@ export function App() {
                       <Route path="dashboard" element={<DashboardPage />} />
                       <Route path="commands" element={<CommandsPage />} />
                       <Route path="integrations" element={<IntegrationsPage />} />
+                      <Route path="suggestions" element={<SuggestionsPage />} />
                       <Route path="history" element={<HistoryPage />} />
                       <Route path="data" element={<DataPage />} />
                       <Route path="data/:table" element={<DataPage />} />

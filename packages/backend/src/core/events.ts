@@ -30,7 +30,6 @@ export interface EventMap {
 
   'integration.status': IntegrationStatusEvent;
   'integration.error': IntegrationErrorEvent;
-  'integration.tokenRefreshed': IntegrationTokenRefreshedEvent;
   /** An authorization finished, either way (see OAuthFlowService.handleCallback). */
   'oauth.completed': OAuthCompletedEvent;
 
@@ -98,12 +97,6 @@ export interface IntegrationStatusEvent {
 export interface IntegrationErrorEvent {
   name: string;
   error: Error;
-}
-
-/** A transparent token refresh. Carries no credentials by design. */
-export interface IntegrationTokenRefreshedEvent {
-  name: string;
-  expiresAt?: number;
 }
 
 /** An OAuth redirect reached the HTTP server; `clientId` is the console client that started it. */

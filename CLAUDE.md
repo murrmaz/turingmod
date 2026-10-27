@@ -188,7 +188,7 @@ having run first.
 It is typed against `EventMap` (`core/events.ts`), which declares every event name and its payload
 type once, so an emitter and its subscribers can't drift apart. A new event is a new `EventMap` entry;
 don't declare a payload type beside its emitter or consumer. Names are dot-separated camelCase
-segments, most general first (`twitch.channelPoint.redemption`, `integration.tokenRefreshed`).
+segments, most general first (`twitch.channelPoint.redemption`, `integration.status`).
 
 ### Integration System
 

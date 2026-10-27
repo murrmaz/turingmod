@@ -152,10 +152,10 @@ and publishing a live auth provider or API client on the bus reintroduces the st
 that resolving on access avoids.
 
 A token refresh is the one thing status *can't* express (the integration stays CONNECTED through
-it), so it has its own forward: `BaseIntegration.reportTokenRefreshed(expiresAt?)` →
-`'tokenRefreshed'` → logged and republished as `integration.tokenRefreshed` with
-`{ name, expiresAt? }`. It carries no credentials by design — anything needing the token asks the
-integration on access.
+it), so it has its own event: `BaseIntegration.reportTokenRefreshed(expiresAt?)` →
+`'tokenRefreshed'`, which `IntegrationManager` logs with the new expiry. Nothing reacts to a
+refresh, so it isn't published on the bus. It carries no credentials by design — anything needing
+the token asks the integration on access.
 
 An integration's own events (`status`, `tokenRefreshed`, `failure`) are typed by
 `IntegrationEvents` in `interfaces/IIntegration.ts`, the same way the bus is typed by `EventMap`;

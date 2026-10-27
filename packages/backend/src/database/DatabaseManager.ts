@@ -152,11 +152,4 @@ export class DatabaseManager {
 
     this.logger.info('Database closed');
   }
-
-  /**
-   * Check if database is initialized
-   */
-  isInitialized(): boolean {
-    return this.db !== null;
-  }
 }

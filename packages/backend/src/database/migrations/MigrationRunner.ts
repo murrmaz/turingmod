@@ -14,9 +14,6 @@ export interface Migration {
 
   /** Apply the migration */
   up(db: DatabaseManager): void;
-
-  /** Rollback the migration (optional) */
-  down?(db: DatabaseManager): void;
 }
 
 /**
@@ -112,45 +109,5 @@ export class MigrationRunner {
     }
 
     this.logger.info('All migrations completed');
-  }
-
-  /**
-   * Rollback last migration
-   */
-  rollbackLast(migrations: Migration[]): void {
-    const appliedVersions = this.getAppliedVersions();
-    if (appliedVersions.length === 0) {
-      this.logger.info('No migrations to rollback');
-      return;
-    }
-
-    const lastVersion = appliedVersions.at(-1) as number;
-    const migration = migrations.find((m) => m.version === lastVersion);
-
-    if (!migration) {
-      throw new Error(`Migration ${lastVersion} not found`);
-    }
-
-    if (!migration.down) {
-      throw new Error(`Migration ${lastVersion} (${migration.name}) does not support rollback`);
-    }
-
-    this.logger.info(`Rolling back migration ${lastVersion}`, {
-      name: migration.name,
-    });
-
-    try {
-      this.db.transaction(() => {
-        migration.down?.(this.db);
-        this.db.run('DELETE FROM migrations WHERE version = ?', [lastVersion]);
-      });
-
-      this.logger.info(`Migration ${lastVersion} rolled back successfully`, {
-        name: migration.name,
-      });
-    } catch (error) {
-      this.logger.error(`Rollback of migration ${lastVersion} failed`, error);
-      throw error;
-    }
   }
 }

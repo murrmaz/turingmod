@@ -16,8 +16,4 @@ export const suggestions: Migration = {
       )
     `);
   },
-
-  down(db: DatabaseManager): void {
-    db.exec('DROP TABLE IF EXISTS suggestions');
-  },
 };

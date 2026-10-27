@@ -45,24 +45,9 @@ export class CommandRegistry {
   }
 
   /**
-   * Check if a command is registered
-   */
-  has(name: string): boolean {
-    return this.commands.has(name);
-  }
-
-  /**
    * Get command count
    */
   count(): number {
     return this.commands.size;
-  }
-
-  /**
-   * Clear all commands
-   */
-  clear(): void {
-    this.commands.clear();
-    this.logger.info('Cleared all commands');
   }
 }

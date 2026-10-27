@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { PermissionLevel, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { OwnChatMessages } from '../../chat/OwnChatMessages.js';
+import { CommandAvailability } from '../../commands/CommandAvailability.js';
 import type { CommandExecutor } from '../../commands/CommandExecutor.js';
 import { CommandRegistry } from '../../commands/CommandRegistry.js';
 import type { ICommand } from '../../commands/interfaces/ICommand.js';
@@ -52,7 +53,12 @@ describe('commands.list', () => {
       )
     );
     const caller = createCallerFactory(
-      createCommandsRouter({} as CommandExecutor, commands, platforms, logger)
+      createCommandsRouter(
+        {} as CommandExecutor,
+        commands,
+        new CommandAvailability(commands, platforms),
+        logger
+      )
     )({ consoleOrigin: null });
 
     const available = Object.fromEntries(
@@ -73,7 +79,7 @@ describe('commands.simulate', () => {
       createCommandsRouter(
         { execute } as unknown as CommandExecutor,
         new CommandRegistry(logger),
-        new PlatformRegistry(),
+        {} as CommandAvailability,
         logger
       )
     )({ consoleOrigin: null });

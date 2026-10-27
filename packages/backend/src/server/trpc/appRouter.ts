@@ -1,5 +1,6 @@
 import type { DependencyContainer } from 'tsyringe';
 import { ActivityForwarder } from '../../activity/ActivityForwarder.js';
+import { CommandAvailability } from '../../commands/CommandAvailability.js';
 import { CommandExecutor } from '../../commands/CommandExecutor.js';
 import { CommandRegistry } from '../../commands/CommandRegistry.js';
 import { EventBus } from '../../core/EventBus.js';
@@ -9,7 +10,6 @@ import { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
 import { PlatformLiveStatus } from '../../live/PlatformLiveStatus.js';
-import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { Logger } from '../../utils/Logger.js';
 import { createActivityRouter } from './activityRouter.js';
 import { createCommandsRouter } from './commandsRouter.js';
@@ -38,7 +38,7 @@ export function createAppRouter(container: DependencyContainer) {
     commands: createCommandsRouter(
       container.resolve(CommandExecutor),
       container.resolve(CommandRegistry),
-      container.resolve(PlatformRegistry),
+      container.resolve(CommandAvailability),
       container.resolve(Logger)
     ),
     data: createDataRouter(container.resolve(DataInspector)),

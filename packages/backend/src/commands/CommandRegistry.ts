@@ -1,4 +1,3 @@
-import type { PlatformCapability } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
 import type { ICommand } from './interfaces/ICommand.js';
@@ -43,16 +42,6 @@ export class CommandRegistry {
    */
   getAll(): ICommand[] {
     return Array.from(this.commands.values());
-  }
-
-  /**
-   * Get all commands available on a platform with the given capability set — i.e. every command
-   * whose requiredCapabilities are all present in `caps`.
-   */
-  getAllForPlatform(caps: Set<PlatformCapability>): ICommand[] {
-    return this.getAll().filter((command) =>
-      command.requiredCapabilities.every((capability) => caps.has(capability))
-    );
   }
 
   /**

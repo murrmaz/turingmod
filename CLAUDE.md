@@ -59,6 +59,7 @@ Use this to quickly locate files without searching. Organized by system/feature.
 - **Implementations**: `packages/backend/src/commands/implementations/*.ts`
 - **Loader**: `packages/backend/src/commands/loadCommands.ts`
 - **Results**: `packages/backend/src/commands/utils/results.ts` — `ok()`, `fail()`, and `mirrorReply()` for title/game/tags writes
+- **Availability**: `packages/backend/src/commands/CommandAvailability.ts` — which commands each platform offers (`requiredCapabilities` ⊆ the platform's capabilities), for the executor and `commands.list`
 - **Parser**: `packages/backend/src/commands/parseCommand.ts` — the one place command text becomes a name and arguments, for chat and the simulator alike
 - **Console API**: `packages/backend/src/server/trpc/commandsRouter.ts` (tRPC: `commands.list`, `commands.simulate`)
 
@@ -253,9 +254,10 @@ Commands and features reach a platform only through `StreamControlService`: its 
 (`setTitle()`, `setGame()`, `setTags()`), `announce()`, and `require(platform, 'channelPoints')`,
 which returns that platform's capability object, typed, or throws. What only some platforms can do
 is an optional capability object on `IStreamPlatform` (all listed in `CapabilityApis`). A command
-lists the capabilities it uses in `requiredCapabilities` and is hidden on platforms without them
-(`CommandExecutor` treats hidden as `COMMAND_NOT_FOUND`); the console gets each command's
-`availableOn` from `commands.list`. Every endpoint and platform rule lives in the façade
+lists the capabilities it uses in `requiredCapabilities`, never platforms, and is offered wherever
+they are all present: `CommandAvailability` applies that rule for chat, the simulator and
+`commands.list` (each command's `availableOn`), and a command a platform doesn't offer is
+`COMMAND_NOT_FOUND` there, like an unknown one. Every endpoint and platform rule lives in the façade
 (`TwitchPlatform`, `YouTubePlatform`), never in a command or in an API integration. How the façades
 and their capability sets are built, and how to add a capability, is in
 [`packages/backend/src/platforms/CLAUDE.md`](packages/backend/src/platforms/CLAUDE.md).

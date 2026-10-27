@@ -3,10 +3,9 @@ import type { CommandResult, PlatformCapability } from '@turingmod/shared';
 import { PermissionLevel } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EventBus } from '../core/EventBus.js';
-import type { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import type { Logger } from '../utils/Logger.js';
+import type { CommandAvailability } from './CommandAvailability.js';
 import { CommandExecutor } from './CommandExecutor.js';
-import type { CommandRegistry } from './CommandRegistry.js';
 import type { CommandContext, ICommand } from './interfaces/ICommand.js';
 import { commandContext, errorCodeOf } from './testing.js';
 
@@ -50,15 +49,9 @@ describe('CommandExecutor cooldowns', () => {
 
   beforeEach(() => {
     command = dualModeCommand(30);
-    const registry = { get: () => command } as unknown as CommandRegistry;
-    const platforms = { capabilitiesFor: () => new Set() } as unknown as PlatformRegistry;
+    const availability = { find: () => command } as unknown as CommandAvailability;
     eventBus = { emit: vi.fn(() => Promise.resolve()) };
-    executor = new CommandExecutor(
-      registry,
-      platforms,
-      eventBus as unknown as EventBus,
-      makeLogger()
-    );
+    executor = new CommandExecutor(availability, eventBus as unknown as EventBus, makeLogger());
   });
 
   it('throttles a viewer on the second invocation', async () => {

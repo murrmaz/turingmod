@@ -121,16 +121,17 @@ export class IntegrationStateRepository {
   }
 
   /**
-   * Get decrypted configuration
+   * The decrypted configuration, or null if none is stored. Unchecked: the integration parses it
+   * against its schema in initialize().
    */
-  getDecryptedConfig(name: string): Record<string, unknown> | null {
+  getDecryptedConfig(name: string): unknown {
     const config = this.findByName(name);
     if (!config?.config) {
       return null;
     }
 
     try {
-      return this.encryption.decryptObject<Record<string, unknown>>(config.config);
+      return this.encryption.decryptObject(config.config);
     } catch (error) {
       // AES-GCM fails authentication rather than decrypting to garbage, so this is almost always
       // a different key from the one the config was saved with.

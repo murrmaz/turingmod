@@ -106,4 +106,22 @@ describe('ActivityLogRepository', () => {
     const all = repo.findRecent({ limit: 500 });
     expect(all).toHaveLength(101);
   });
+
+  it('fails the read on a stored row that does not fit the schema, naming it', () => {
+    db.run(
+      'INSERT INTO activity_log (id, category, event, data, timestamp) VALUES (?, ?, ?, ?, ?)',
+      ['stale-row', 'retired-category', 'command.executed', '{}', 1]
+    );
+
+    expect(() => repo.findRecent({})).toThrow(/stale-row is invalid[\s\S]*category/);
+  });
+
+  it('fails the read on a stored row whose data is not JSON', () => {
+    db.run(
+      'INSERT INTO activity_log (id, category, event, data, timestamp) VALUES (?, ?, ?, ?, ?)',
+      ['broken-row', ActivityCategory.EVENT, 'twitch.follow', '{not json', 1]
+    );
+
+    expect(() => repo.findRecent({})).toThrow(/broken-row has unreadable data/);
+  });
 });

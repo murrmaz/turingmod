@@ -1,5 +1,11 @@
-import type { ActivityCategory, ActivityLogEntry } from '@turingmod/shared';
+import {
+  type ActivityCategory,
+  type ActivityLogEntry,
+  ActivityLogEntrySchema,
+  messageOf,
+} from '@turingmod/shared';
 import { singleton } from 'tsyringe';
+import { z } from 'zod';
 import { DatabaseManager, type SqlValue } from '../DatabaseManager.js';
 
 const ACTIVITY_LOG_CAP = 5000;
@@ -29,16 +35,26 @@ export class ActivityLogRepository {
   constructor(private db: DatabaseManager) {}
 
   /**
-   * Convert database row to ActivityLogEntry entity
+   * A stored row as an entry, checked against the schema it was written with. One that doesn't
+   * fit fails the read, naming the row and the fields: stored data is held to the same schema as
+   * new data rather than skipped or patched up.
    */
   private rowToEntity(row: ActivityLogRow): ActivityLogEntry {
-    return {
-      id: row.id,
-      category: row.category as ActivityCategory,
-      event: row.event,
-      data: JSON.parse(row.data),
-      timestamp: row.timestamp,
-    };
+    let data: unknown;
+    try {
+      data = JSON.parse(row.data);
+    } catch (error) {
+      throw new Error(
+        `Stored activity log entry ${row.id} has unreadable data: ${messageOf(error)}`
+      );
+    }
+    const result = ActivityLogEntrySchema.safeParse({ ...row, data });
+    if (!result.success) {
+      throw new Error(
+        `Stored activity log entry ${row.id} is invalid:\n${z.prettifyError(result.error)}`
+      );
+    }
+    return result.data;
   }
 
   /**

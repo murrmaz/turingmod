@@ -104,10 +104,10 @@ export class Encryption {
   }
 
   /**
-   * Decrypt an object (parses JSON after decryption)
+   * Decrypt an object (parses JSON after decryption). Unknown until checked: whoever reads it
+   * parses it against its own schema (an integration config, in initialize()).
    */
-  decryptObject<T>(ciphertext: string): T {
-    const json = this.decrypt(ciphertext);
-    return JSON.parse(json) as T;
+  decryptObject(ciphertext: string): unknown {
+    return JSON.parse(this.decrypt(ciphertext));
   }
 }

@@ -1,6 +1,6 @@
 import type { YouTubeChatState } from '@turingmod/shared';
 import {
-  IntegrationGroup,
+  type IntegrationGroup,
   IntegrationName,
   IntegrationStatus,
   messageOf,
@@ -22,6 +22,7 @@ import {
   type LiveChatStreamCall,
   YouTubeChatStream,
 } from './YouTubeChatStream.js';
+import { YOUTUBE_GROUP } from './youtubeGroup.js';
 
 /** How often to re-check for an active broadcast after a request to connect. */
 const RESOLVE_RETRY_INTERVAL_MS = 5_000;
@@ -164,7 +165,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
   }
 
   override getGroup(): IntegrationGroup {
-    return IntegrationGroup.YOUTUBE;
+    return YOUTUBE_GROUP;
   }
 
   start(): Promise<void> {

@@ -1,5 +1,5 @@
 import {
-  IntegrationGroup,
+  type IntegrationGroup,
   IntegrationName,
   IntegrationStatus,
   messageOf,
@@ -17,6 +17,7 @@ import { BaseIntegration } from '../../BaseIntegration.js';
 import type { IIntegration } from '../../interfaces/IIntegration.js';
 import { TwitchApiIntegration } from './TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
+import { TWITCH_GROUP } from './twitchGroup.js';
 
 /** The EventSub topics TuringMod can subscribe to. */
 export const EventSubTopicSchema = z.enum([
@@ -102,7 +103,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   }
 
   override getGroup(): IntegrationGroup {
-    return IntegrationGroup.TWITCH;
+    return TWITCH_GROUP;
   }
 
   override initialize(stored: unknown): Promise<void> {

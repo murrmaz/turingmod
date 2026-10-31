@@ -74,9 +74,14 @@ export class IntegrationManager {
    * Register an integration
    */
   register(integration: IIntegration): void {
+    // An abstract base class has no name; `abstract` is erased, so tsyringe will construct one.
+    if (typeof integration.name !== 'string' || integration.name === '') {
+      throw new Error(`Integration has no name: ${integration.constructor.name}`);
+    }
     if (this.integrations.has(integration.name)) {
       throw new Error(`Integration already registered: ${integration.name}`);
     }
+    this.checkGroup(integration);
 
     this.integrations.set(integration.name, integration);
     this.logger.info(`Registered integration: ${integration.name}`);
@@ -106,6 +111,23 @@ export class IntegrationManager {
         error,
       });
     });
+  }
+
+  /**
+   * Refuse a group whose id another group already has. Members refer to their group's one
+   * declared object, so two objects with one id are two groups the console would merge.
+   */
+  private checkGroup(integration: IIntegration): void {
+    const group = integration.getGroup();
+    if (!group) return;
+    for (const other of this.integrations.values()) {
+      const otherGroup = other.getGroup();
+      if (otherGroup && otherGroup !== group && otherGroup.id === group.id) {
+        throw new Error(
+          `Integration group id '${group.id}' is declared twice: ${other.name} and ${integration.name} use different groups`
+        );
+      }
+    }
   }
 
   /**

@@ -1,4 +1,4 @@
-import { IntegrationGroup, IntegrationName, IntegrationStatus } from '@turingmod/shared';
+import { type IntegrationGroup, IntegrationName, IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
@@ -10,6 +10,7 @@ import {
   StandardOAuthConfigSchema,
   StandardOAuthIntegration,
 } from '../../StandardOAuthIntegration.js';
+import { SPOTIFY_GROUP } from './spotifyGroup.js';
 
 /**
  * Required OAuth scopes for the Spotify integration.
@@ -79,7 +80,7 @@ export class SpotifyAuthIntegration extends StandardOAuthIntegration<
   }
 
   override getGroup(): IntegrationGroup {
-    return IntegrationGroup.SPOTIFY;
+    return SPOTIFY_GROUP;
   }
 
   /**

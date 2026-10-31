@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { IntegrationStatus } from '@turingmod/shared';
+import { type IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { EventBus } from '../core/EventBus.js';
@@ -14,6 +14,7 @@ class FakeIntegration extends BaseIntegration {
   startCount = 0;
   failOnStart = false;
   policy = DependencyFailurePolicy.STOP;
+  group: IntegrationGroup | null = null;
 
   constructor(
     readonly name: string,
@@ -28,6 +29,10 @@ class FakeIntegration extends BaseIntegration {
 
   override getDependencies(): IIntegration[] {
     return this.dependencies;
+  }
+
+  override getGroup(): IntegrationGroup | null {
+    return this.group;
   }
 
   start(): Promise<void> {
@@ -392,6 +397,57 @@ describe('IntegrationManager', () => {
 
     expect(api.getStatus()).toBe(IntegrationStatus.BLOCKED);
     expect(api.getErrorMessage()).toContain('twitch-auth');
+  });
+
+  it('starts dependencies first whatever order they were registered in', async () => {
+    const manager = makeManager(makeStateRepo(['twitch-auth', 'twitch-api', 'twitch-eventsub']));
+    // Discovery registers in file order, which can put a dependent before its dependencies.
+    manager.register(eventsub);
+    manager.register(api);
+    manager.register(auth);
+
+    await manager.startEnabledIntegrations();
+
+    expect([auth, api, eventsub].map((i) => i.getStatus())).toEqual([
+      IntegrationStatus.CONNECTED,
+      IntegrationStatus.CONNECTED,
+      IntegrationStatus.CONNECTED,
+    ]);
+  });
+
+  it('refuses an integration without a name, such as an abstract base class', () => {
+    const manager = makeManager(makeStateRepo());
+
+    expect(() => manager.register(new FakeIntegration(''))).toThrow(
+      'Integration has no name: FakeIntegration'
+    );
+  });
+
+  it('sends each integration its group, and lets members share one', () => {
+    const manager = makeManager(makeStateRepo());
+    const twitch: IntegrationGroup = { id: 'twitch', label: 'Twitch' };
+    auth.group = twitch;
+    api.group = twitch;
+    registerTwitchTrio(manager);
+
+    const groups = Object.fromEntries(manager.getAllStatuses().map((i) => [i.name, i.group]));
+    expect(groups).toEqual({
+      'twitch-auth': twitch,
+      'twitch-api': twitch,
+      'twitch-eventsub': undefined,
+      discord: undefined,
+    });
+  });
+
+  it('refuses a second group declared with an id another group has', () => {
+    const manager = makeManager(makeStateRepo());
+    auth.group = { id: 'twitch', label: 'Twitch' };
+    unrelated.group = { id: 'twitch', label: 'Twitch, again' };
+    manager.register(auth);
+
+    expect(() => manager.register(unrelated)).toThrow(
+      "Integration group id 'twitch' is declared twice: twitch-auth and discord use different groups"
+    );
   });
 
   it('rejects an unregistered dependency when the graph is validated', () => {

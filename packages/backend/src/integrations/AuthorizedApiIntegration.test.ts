@@ -1,9 +1,11 @@
 import 'reflect-metadata';
-import { IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
+import { type IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { Logger } from '../utils/Logger.js';
 import { AuthorizedApiIntegration } from './AuthorizedApiIntegration.js';
 import { DependencyFailurePolicy, type IIntegration } from './interfaces/IIntegration.js';
+
+const GROUP: IntegrationGroup = { id: 'fake', label: 'Fake' };
 
 /** An auth integration whose status, and whether it has credentials, the test sets. */
 class FakeAuth {
@@ -11,7 +13,7 @@ class FakeAuth {
   status = IntegrationStatus.CONNECTED;
   credentials: object | null = {};
   getStatus = () => this.status;
-  getGroup = () => IntegrationGroup.TWITCH;
+  getGroup = () => GROUP;
 }
 
 interface FakeClient {
@@ -52,7 +54,7 @@ describe('AuthorizedApiIntegration', () => {
 
     expect(api.dependencyFailurePolicy).toBe(DependencyFailurePolicy.BLOCK);
     expect(api.getDependencies()).toEqual([auth]);
-    expect(api.getGroup()).toBe(IntegrationGroup.TWITCH);
+    expect(api.getGroup()).toBe(GROUP);
   });
 
   it('connects when auth is connected and has credentials', async () => {

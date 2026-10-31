@@ -21,19 +21,8 @@ import {
 } from './database/repositories/SettingsRepository.js';
 import { EFFECT_SETTINGS } from './effects/effectSettings.js';
 import { FacecamEffectRunner } from './effects/FacecamEffectRunner.js';
+import { discoverIntegrations } from './integrations/discoverIntegrations.js';
 import { IntegrationManager } from './integrations/IntegrationManager.js';
-import { ArduinoIntegration } from './integrations/implementations/arduino/ArduinoIntegration.js';
-import { DiscordIntegration } from './integrations/implementations/discord/DiscordIntegration.js';
-import { ObsIntegration } from './integrations/implementations/obs/ObsIntegration.js';
-import { SoundIntegration } from './integrations/implementations/sound/SoundIntegration.js';
-import { SpotifyApiIntegration } from './integrations/implementations/spotify/SpotifyApiIntegration.js';
-import { SpotifyAuthIntegration } from './integrations/implementations/spotify/SpotifyAuthIntegration.js';
-import { TwitchApiIntegration } from './integrations/implementations/twitch/TwitchApiIntegration.js';
-import { TwitchAuthIntegration } from './integrations/implementations/twitch/TwitchAuthIntegration.js';
-import { TwitchEventSubIntegration } from './integrations/implementations/twitch/TwitchEventSubIntegration.js';
-import { YouTubeApiIntegration } from './integrations/implementations/youtube/YouTubeApiIntegration.js';
-import { YouTubeAuthIntegration } from './integrations/implementations/youtube/YouTubeAuthIntegration.js';
-import { YouTubeChatIntegration } from './integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { OAuthFlowService } from './integrations/OAuthFlowService.js';
 import { GoLiveAnnouncer } from './live/GoLiveAnnouncer.js';
 import { ObsStreamState } from './live/ObsStreamState.js';
@@ -171,28 +160,10 @@ export async function initializeComponents(): Promise<void> {
   // Auto-discover and register channel point reward handlers
   await loadRewardHandlers(container.resolve(RewardRegistry), logger);
 
-  // Register integrations
+  // Auto-discover and register integrations. Their order doesn't matter: IntegrationManager
+  // orders startup and shutdown from the dependency graph.
   const integrationManager = container.resolve(IntegrationManager);
-
-  // Register Twitch integrations (order matters: Auth → API → EventSub)
-  integrationManager.register(container.resolve(TwitchAuthIntegration));
-  integrationManager.register(container.resolve(TwitchApiIntegration));
-  integrationManager.register(container.resolve(TwitchEventSubIntegration));
-
-  // Register Spotify integrations (order matters: Auth → API)
-  integrationManager.register(container.resolve(SpotifyAuthIntegration));
-  integrationManager.register(container.resolve(SpotifyApiIntegration));
-
-  // Register YouTube integrations (order matters: Auth → API → Chat)
-  integrationManager.register(container.resolve(YouTubeAuthIntegration));
-  integrationManager.register(container.resolve(YouTubeApiIntegration));
-  integrationManager.register(container.resolve(YouTubeChatIntegration));
-
-  // Register other integrations
-  integrationManager.register(container.resolve(DiscordIntegration));
-  integrationManager.register(container.resolve(ArduinoIntegration));
-  integrationManager.register(container.resolve(ObsIntegration));
-  integrationManager.register(container.resolve(SoundIntegration));
+  await discoverIntegrations(integrationManager, logger);
 
   // Everything is registered, so the whole dependency graph can be checked
   // now: a missing or circular dependency fails at boot rather than whenever

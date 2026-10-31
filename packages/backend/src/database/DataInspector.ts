@@ -1,6 +1,6 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import {
-  ActivityCategory,
+  ACTIVITY_EVENT_NAMES,
   type DataCell,
   type DataColumnInfo,
   type DataRowsPage,
@@ -35,7 +35,7 @@ const TABLES: Readonly<Record<string, TablePolicy>> = {
     defaultSort: 'timestamp',
     timestamps: ['timestamp'],
     json: ['data'],
-    enums: { category: Object.values(ActivityCategory) },
+    enums: { event: ACTIVITY_EVENT_NAMES },
   },
   integration_state: {
     defaultSort: 'name',

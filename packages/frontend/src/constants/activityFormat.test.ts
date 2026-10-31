@@ -1,5 +1,4 @@
 import {
-  ActivityCategory,
   type ActivityEventName,
   type ActivityLogEntry,
   StreamingPlatform,
@@ -14,18 +13,21 @@ import {
   toFeedRow,
 } from './activityFormat';
 
-const entry = (
-  event: ActivityEventName,
-  data: Record<string, unknown>,
-  category = ActivityCategory.EVENT
-): ActivityLogEntry => ({ id: '1', category, event, data, timestamp: 0 });
+const entry = (event: ActivityEventName, data: Record<string, unknown>): ActivityLogEntry => ({
+  id: '1',
+  event,
+  data,
+  timestamp: 0,
+});
 
 const command = (data: Record<string, unknown>) =>
-  entry(
-    'command.executed',
-    { command: 'so', args: ['CoolRaider'], username: 'mod_kat', platform: 'twitch', ...data },
-    ActivityCategory.COMMAND
-  );
+  entry('command.executed', {
+    command: 'so',
+    args: ['CoolRaider'],
+    username: 'mod_kat',
+    platform: 'twitch',
+    ...data,
+  });
 
 describe('toFeedRow', () => {
   it('shows a command with its arguments and reply', () => {
@@ -84,11 +86,7 @@ describe('toFeedRow', () => {
 
   it('files integration problems under system, in red', () => {
     const row = toFeedRow(
-      entry(
-        'integration.status',
-        { name: 'spotify-api', status: 'needs_reauth' },
-        ActivityCategory.STATUS
-      )
+      entry('integration.status', { name: 'spotify-api', status: 'needs_reauth' })
     );
 
     expect(row).toMatchObject({ category: 'system', tone: 'error', title: 'spotify-api' });
@@ -97,11 +95,7 @@ describe('toFeedRow', () => {
 
   it('keeps chat in its own category', () => {
     const row = toFeedRow(
-      entry(
-        'chat.message',
-        { username: 'viewer', message: 'hi', platform: 'youtube' },
-        ActivityCategory.CHAT
-      )
+      entry('chat.message', { username: 'viewer', message: 'hi', platform: 'youtube' })
     );
 
     expect(row).toMatchObject({

@@ -118,8 +118,8 @@ function system(label: string, title: string, detail = '', tone: FeedTone = 'sys
 }
 
 /**
- * How each recorded event reads. Every name in ACTIVITY_EVENTS needs a case, which the compiler
- * enforces (the switch must return on every path).
+ * How each recorded event reads. Every name in ACTIVITY_EVENT_CATEGORIES needs a case, which the
+ * compiler enforces (the switch must return on every path).
  */
 function describe(
   event: ActivityEventName,

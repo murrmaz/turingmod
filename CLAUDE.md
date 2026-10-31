@@ -124,7 +124,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Manual trigger**: `packages/backend/src/commands/implementations/BreakCommand.ts` (`!break`)
 
 ### Activity Log
-- **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — maps EventBus events to activity categories (`EVENT_CATEGORIES`), hands each to the console's live feed (`onEntry()`) and persists all but chat and `LIVE_ONLY_EVENTS` (device messages)
+- **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — subscribes to the EventBus events in `ACTIVITY_EVENT_CATEGORIES` (shared `types/activity.ts`: each recorded event and its category), hands each to the console's live feed (`onEntry()`) and persists all but chat and `LIVE_ONLY_EVENTS` (device messages)
 - **Storage**: `packages/backend/src/database/repositories/ActivityLogRepository.ts` (capped at 5000 rows)
 - **Live feed**: `packages/backend/src/server/trpc/activityRouter.ts` (`activity.feed`: the stored recent entries, then each entry as it's made); the History page reads the stored log through the data inspector
 - **Frontend**: `features/dashboard/dashboard-page.tsx` + `hooks/useLiveLog.ts` (live feed, newest first), `features/history/history-page.tsx`; how an entry reads (feed category, badge, title, detail) is `constants/activityFormat.ts` (`toFeedRow`)

@@ -11,9 +11,8 @@ import { useAppState } from '@/context/AppStateContext';
 import { useIntegrationActions } from '@/hooks/useIntegrationActions';
 import {
   describeIntegration,
-  INTEGRATION_CHAINS,
-  inDisplayOrder,
-  orderByDependencies,
+  integrationChains,
+  standaloneIntegrations,
 } from '@/lib/integrationStatus';
 import { copyToClipboard } from '@/lib/reportError';
 import { cn } from '@/lib/utils';
@@ -26,11 +25,8 @@ export function IntegrationsPage() {
   const selected = integrations.find((i) => i.name === selectedName) ?? null;
   const select = (name: string | null) => setParams(name ? { selected: name } : {});
 
-  const chains = INTEGRATION_CHAINS.map(({ group, label }) => ({
-    label,
-    items: orderByDependencies(integrations.filter((i) => i.group === group)),
-  })).filter((chain) => chain.items.length > 0);
-  const standalone = inDisplayOrder(integrations).filter((i) => !i.group);
+  const chains = integrationChains(integrations);
+  const standalone = standaloneIntegrations(integrations);
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -52,7 +48,7 @@ export function IntegrationsPage() {
         )}
 
         {chains.map((chain) => (
-          <Group key={chain.label} label={chain.label}>
+          <Group key={chain.group.id} label={chain.group.label}>
             <div className="flex items-center">
               {chain.items.map((integration, index) => (
                 <Fragment key={integration.name}>

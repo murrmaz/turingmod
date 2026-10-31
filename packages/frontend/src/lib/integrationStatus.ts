@@ -1,4 +1,5 @@
-import { IntegrationGroup, type IntegrationInfo, IntegrationStatus } from '@turingmod/shared';
+import type { IntegrationGroup, IntegrationInfo } from '@turingmod/shared';
+import { IntegrationStatus } from '@turingmod/shared';
 import type { Tone } from '@/components/status';
 
 /** How an integration's state reads in the console. */
@@ -30,21 +31,6 @@ export function describeIntegration(integration: IntegrationInfo): IntegrationDi
   }
 }
 
-const GROUP_LABELS: Record<IntegrationGroup, string> = {
-  [IntegrationGroup.TWITCH]: 'Twitch',
-  [IntegrationGroup.YOUTUBE]: 'YouTube',
-  [IntegrationGroup.SPOTIFY]: 'Spotify',
-};
-
-/**
- * The dependency chains on the Integrations page, one per group in the enum's order. Every group
- * gets one, so a new group's integrations can't go missing from the page.
- */
-export const INTEGRATION_CHAINS = Object.values(IntegrationGroup).map((group) => ({
-  group,
-  label: GROUP_LABELS[group],
-}));
-
 /**
  * The integrations of one group in dependency order (each after the ones it depends on), so a
  * chain reads auth → api → real-time.
@@ -70,14 +56,44 @@ export function orderByDependencies(integrations: IntegrationInfo[]): Integratio
   return [...integrations].sort((a, b) => depth(a) - depth(b) || a.name.localeCompare(b.name));
 }
 
+/** One group's integrations, a dependency chain on the Integrations page. */
+export interface IntegrationChain {
+  group: IntegrationGroup;
+  items: IntegrationInfo[];
+}
+
+/**
+ * Every group's chain, ordered by label. The groups are whatever the integrations say they belong
+ * to, so a new group appears without a change here.
+ */
+export function integrationChains(integrations: IntegrationInfo[]): IntegrationChain[] {
+  const groups = new Map<string, IntegrationGroup>();
+  for (const integration of integrations) {
+    if (integration.group) {
+      groups.set(integration.group.id, integration.group);
+    }
+  }
+  return [...groups.values()]
+    .sort((a, b) => a.label.localeCompare(b.label))
+    .map((group) => ({
+      group,
+      items: orderByDependencies(
+        integrations.filter((integration) => integration.group?.id === group.id)
+      ),
+    }));
+}
+
+/** The integrations in no group, by name. */
+export function standaloneIntegrations(integrations: IntegrationInfo[]): IntegrationInfo[] {
+  return integrations
+    .filter((integration) => !integration.group)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /** Every integration in display order: each chain in turn, then the standalone ones. */
 export function inDisplayOrder(integrations: IntegrationInfo[]): IntegrationInfo[] {
   return [
-    ...INTEGRATION_CHAINS.flatMap(({ group }) =>
-      orderByDependencies(integrations.filter((integration) => integration.group === group))
-    ),
-    ...integrations
-      .filter((integration) => !integration.group)
-      .sort((a, b) => a.name.localeCompare(b.name)),
+    ...integrationChains(integrations).flatMap((chain) => chain.items),
+    ...standaloneIntegrations(integrations),
   ];
 }

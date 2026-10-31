@@ -36,11 +36,15 @@ export enum IntegrationName {
   ARDUINO = 'arduino',
 }
 
-/** Logical grouping of related integrations for UI display (e.g. Twitch's auth/api/eventsub trio). */
-export enum IntegrationGroup {
-  TWITCH = 'twitch',
-  YOUTUBE = 'youtube',
-  SPOTIFY = 'spotify',
+/**
+ * Related integrations shown together in the console, such as Twitch's auth/api/eventsub chain.
+ * Each group is declared once, beside its integrations, and its members return that object.
+ */
+export interface IntegrationGroup {
+  /** Unique among groups; what the console groups by. */
+  readonly id: string;
+  /** The group's name as the console shows it. */
+  readonly label: string;
 }
 
 /**
@@ -93,7 +97,7 @@ export interface IntegrationInfo {
    */
   address?: string;
 
-  /** Logical group this integration belongs to, for grouping related integrations in the UI. Absent for standalone integrations (Discord, OBS, Arduino, Sound). */
+  /** The group this integration is shown in. Absent for standalone integrations (Discord, OBS, Arduino, Sound). */
   group?: IntegrationGroup;
 }
 

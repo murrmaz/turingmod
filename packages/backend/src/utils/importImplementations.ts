@@ -24,9 +24,60 @@ export async function importImplementations<T>(
   kind: string,
   { allowMissing = false }: { allowMissing?: boolean } = {}
 ): Promise<InjectableClass<T>[]> {
+  const classes: InjectableClass<T>[] = [];
+  for (const { file, exports } of await importModules(dir, { allowMissing })) {
+    if (typeof exports.default !== 'function') {
+      throw new Error(`${kind} file '${file}' has no default export`);
+    }
+    classes.push(exports.default as InjectableClass<T>);
+  }
+  return classes;
+}
+
+/**
+ * Import every module in a directory and its subdirectories, and return every class any of them
+ * exports that `isMatch` accepts, in module path order.
+ *
+ * Unlike importImplementations(), what a class is decides whether it is kept, not where it is
+ * exported or what its file is called, so helper modules can sit beside the classes. Each class is
+ * returned once, however many modules export it.
+ *
+ * @param dir - The directory as a file URL, with a trailing slash so files resolve inside it.
+ * @param isMatch - Whether an export is one of the classes wanted; called on every export.
+ */
+export async function importClasses<T>(
+  dir: URL,
+  isMatch: (value: unknown) => value is InjectableClass<T>
+): Promise<InjectableClass<T>[]> {
+  const classes = new Set<InjectableClass<T>>();
+  for (const { exports } of await importModules(dir, { recursive: true })) {
+    for (const value of Object.values(exports)) {
+      if (isMatch(value)) {
+        classes.add(value);
+      }
+    }
+  }
+  return [...classes];
+}
+
+/** One imported module: its path relative to the directory, and what it exports. */
+interface ImportedModule {
+  file: string;
+  exports: Record<string, unknown>;
+}
+
+/**
+ * Import every compiled module (`.js`) in a directory, and in its subdirectories with
+ * `recursive`, in path order. The order is only so the result is the same on every run
+ * (readdir's order isn't guaranteed); callers must not depend on it.
+ */
+async function importModules(
+  dir: URL,
+  { allowMissing = false, recursive = false }: { allowMissing?: boolean; recursive?: boolean }
+): Promise<ImportedModule[]> {
   let files: string[];
   try {
-    files = await readdir(dir);
+    files = await readdir(dir, { recursive });
   } catch (error) {
     if (allowMissing && (error as NodeJS.ErrnoException).code === 'ENOENT') {
       return [];
@@ -34,17 +85,9 @@ export async function importImplementations<T>(
     throw error;
   }
 
-  const moduleFiles = files.filter((file) => file.endsWith('.js'));
-
-  const classes: InjectableClass<T>[] = [];
-  for (const file of moduleFiles) {
-    const mod: { default?: InjectableClass<T> } = await import(new URL(file, dir).href);
-
-    if (typeof mod.default !== 'function') {
-      throw new Error(`${kind} file '${file}' has no default export`);
-    }
-
-    classes.push(mod.default);
+  const modules: ImportedModule[] = [];
+  for (const file of files.filter((name) => name.endsWith('.js')).sort()) {
+    modules.push({ file, exports: await import(new URL(file, dir).href) });
   }
-  return classes;
+  return modules;
 }

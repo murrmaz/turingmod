@@ -1,4 +1,4 @@
-import { IntegrationGroup, IntegrationName, IntegrationStatus } from '@turingmod/shared';
+import { type IntegrationGroup, IntegrationName, IntegrationStatus } from '@turingmod/shared';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import type { AccessToken, RefreshingAuthProvider } from '@twurple/auth';
 import {
@@ -17,6 +17,7 @@ import {
   StandardOAuthConfigSchema,
   StandardOAuthIntegration,
 } from '../../StandardOAuthIntegration.js';
+import { TWITCH_GROUP } from './twitchGroup.js';
 
 /**
  * A response from Twitch's token endpoint for a code exchange. Unlike OAuth 2.0's space-separated
@@ -184,7 +185,7 @@ export class TwitchAuthIntegration extends StandardOAuthIntegration<
   }
 
   override getGroup(): IntegrationGroup {
-    return IntegrationGroup.TWITCH;
+    return TWITCH_GROUP;
   }
 
   /**

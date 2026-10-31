@@ -1,4 +1,9 @@
-import { IntegrationGroup, IntegrationName, IntegrationStatus, messageOf } from '@turingmod/shared';
+import {
+  type IntegrationGroup,
+  IntegrationName,
+  IntegrationStatus,
+  messageOf,
+} from '@turingmod/shared';
 import { google } from 'googleapis';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
@@ -7,6 +12,7 @@ import { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
 import { OAuthConfigBaseSchema, OAuthIntegration, parseScopes } from '../../OAuthIntegration.js';
 import { httpStatusOf } from './googleErrors.js';
+import { YOUTUBE_GROUP } from './youtubeGroup.js';
 
 /**
  * YouTube Auth Configuration
@@ -95,7 +101,7 @@ export class YouTubeAuthIntegration extends OAuthIntegration<YouTubeAuthConfig> 
   }
 
   override getGroup(): IntegrationGroup {
-    return IntegrationGroup.YOUTUBE;
+    return YOUTUBE_GROUP;
   }
 
   /**

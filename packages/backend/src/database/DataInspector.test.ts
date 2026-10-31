@@ -28,10 +28,12 @@ describe('DataInspector', () => {
     ]);
     db.run('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)', ['breaks', '{}', 6]);
     for (let i = 0; i < 5; i++) {
-      db.run(
-        'INSERT INTO activity_log (id, category, event, data, timestamp) VALUES (?, ?, ?, ?, ?)',
-        [`a${i}`, i % 2 ? 'command' : 'event', `event_${i}`, `{"n":${i}}`, 1000 + i]
-      );
+      db.run('INSERT INTO activity_log (id, event, data, timestamp) VALUES (?, ?, ?, ?)', [
+        `a${i}`,
+        i % 2 ? 'command.executed' : `event_${i}`,
+        `{"n":${i}}`,
+        1000 + i,
+      ]);
     }
   });
 
@@ -48,8 +50,8 @@ describe('DataInspector', () => {
     expect(names).toContain('migrations');
     const activity = tables.find((table) => table.name === 'activity_log');
     expect(activity?.rowCount).toBe(5);
-    expect(activity?.columns.find((column) => column.name === 'category')?.enumValues).toContain(
-      'command'
+    expect(activity?.columns.find((column) => column.name === 'event')?.enumValues).toContain(
+      'command.executed'
     );
     expect(
       tables
@@ -129,13 +131,13 @@ describe('DataInspector', () => {
         table: 'activity_log',
         page: 0,
         pageSize: 10,
-        filters: { category: ['command'] },
+        filters: { event: ['command.executed'] },
       }).total
     ).toBe(2);
     expect(
-      inspector.queryRows({ table: 'activity_log', page: 0, pageSize: 10, search: 'event_3' })
+      inspector.queryRows({ table: 'activity_log', page: 0, pageSize: 10, search: 'event_2' })
         .rows[0]?.id
-    ).toBe('a3');
+    ).toBe('a2');
     expect(
       inspector.queryRows({ table: 'activity_log', page: 0, pageSize: 10, since: 1003 }).total
     ).toBe(2);

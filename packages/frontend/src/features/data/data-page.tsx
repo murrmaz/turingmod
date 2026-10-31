@@ -6,7 +6,12 @@ import {
   type VisibilityState,
 } from '@tanstack/react-table';
 import type { DataCell, DataColumnInfo, DataRowsQuery, DataTableInfo } from '@turingmod/shared';
-import { ActivityCategory, MAX_DATA_PAGE_SIZE, messageOf } from '@turingmod/shared';
+import {
+  ACTIVITY_EVENT_CATEGORIES,
+  ActivityCategory,
+  MAX_DATA_PAGE_SIZE,
+  messageOf,
+} from '@turingmod/shared';
 import { Copy, Download, Lock, Search, Shield, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
@@ -35,14 +40,24 @@ interface DataRow {
   cells: Record<string, DataCell>;
 }
 
-/** Badge tones for enum columns' values; the activity log's categories are the ones that have any. */
-const ENUM_TONES: Partial<Record<string, Tone>> = {
+const CATEGORY_TONES = {
   [ActivityCategory.COMMAND]: 'command',
   [ActivityCategory.EVENT]: 'viewer',
   [ActivityCategory.STATUS]: 'idle',
   [ActivityCategory.ERROR]: 'error',
   [ActivityCategory.CHAT]: 'chat',
 } satisfies Record<ActivityCategory, Tone>;
+
+/**
+ * Badge tones for enum columns' values; the activity log's events are the ones that have any,
+ * coloured by their category.
+ */
+const ENUM_TONES: Partial<Record<string, Tone>> = Object.fromEntries(
+  Object.entries(ACTIVITY_EVENT_CATEGORIES).map(([event, category]) => [
+    event,
+    CATEGORY_TONES[category],
+  ])
+);
 
 export function DataPage() {
   const { table: tableName } = useParams();

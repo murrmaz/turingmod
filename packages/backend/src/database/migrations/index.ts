@@ -4,6 +4,7 @@ import { suggestions } from './003_suggestions.js';
 import { dropIntegrationStatus } from './004_drop_integration_status.js';
 import { obsBreakRestore } from './005_obs_break_restore.js';
 import { goLivePost } from './006_go_live_post.js';
+import { dropActivityCategory } from './007_drop_activity_category.js';
 import type { Migration } from './MigrationRunner.js';
 
 /** Every migration, applied in version order on startup. */
@@ -14,4 +15,5 @@ export const ALL_MIGRATIONS: readonly Migration[] = [
   dropIntegrationStatus,
   obsBreakRestore,
   goLivePost,
+  dropActivityCategory,
 ];

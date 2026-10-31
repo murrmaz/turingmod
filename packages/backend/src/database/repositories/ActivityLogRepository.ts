@@ -1,9 +1,4 @@
-import {
-  type ActivityCategory,
-  type ActivityLogEntry,
-  ActivityLogEntrySchema,
-  messageOf,
-} from '@turingmod/shared';
+import { type ActivityLogEntry, ActivityLogEntrySchema, messageOf } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { DatabaseManager, type SqlValue } from '../DatabaseManager.js';
@@ -18,7 +13,6 @@ const MAX_QUERY_LIMIT = 500;
  */
 interface ActivityLogRow {
   id: string;
-  category: string;
   event: string;
   data: string; // JSON object
   timestamp: number;
@@ -62,10 +56,12 @@ export class ActivityLogRepository {
    * so a live entry and its stored copy can be matched.
    */
   create(entry: ActivityLogEntry): void {
-    this.db.run(
-      `INSERT INTO activity_log (id, category, event, data, timestamp) VALUES (?, ?, ?, ?, ?)`,
-      [entry.id, entry.category, entry.event, JSON.stringify(entry.data), entry.timestamp]
-    );
+    this.db.run(`INSERT INTO activity_log (id, event, data, timestamp) VALUES (?, ?, ?, ?)`, [
+      entry.id,
+      entry.event,
+      JSON.stringify(entry.data),
+      entry.timestamp,
+    ]);
 
     if (++this.insertsSincePrune >= PRUNE_EVERY) {
       this.prune();
@@ -77,19 +73,11 @@ export class ActivityLogRepository {
    * Find recent entries, most-recent-first. `before` is an exclusive timestamp cursor for
    * pagination.
    */
-  findRecent(opts: {
-    limit?: number;
-    category?: ActivityCategory;
-    before?: number;
-  }): ActivityLogEntry[] {
+  findRecent(opts: { limit?: number; before?: number }): ActivityLogEntry[] {
     const limit = Math.min(opts.limit ?? DEFAULT_QUERY_LIMIT, MAX_QUERY_LIMIT);
     const conditions: string[] = [];
     const params: SqlValue[] = [];
 
-    if (opts.category !== undefined) {
-      conditions.push('category = ?');
-      params.push(opts.category);
-    }
     if (opts.before !== undefined) {
       conditions.push('timestamp < ?');
       params.push(opts.before);

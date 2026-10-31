@@ -1,4 +1,4 @@
-import { ActivityCategory, type ActivityLogEntry } from '@turingmod/shared';
+import type { ActivityLogEntry } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
 import type { ActivityForwarder } from '../../activity/ActivityForwarder.js';
 import type { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
@@ -7,7 +7,6 @@ import { createCallerFactory } from './trpc.js';
 
 const entry = (id: string): ActivityLogEntry => ({
   id,
-  category: ActivityCategory.CHAT,
   event: 'chat.message',
   data: {},
   timestamp: 0,

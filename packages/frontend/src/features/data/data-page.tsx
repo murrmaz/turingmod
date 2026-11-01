@@ -17,6 +17,7 @@ import { DATA_PAGE_SIZES } from '@/constants/paging';
 import { useDataTables } from '@/hooks/useDataTables';
 import { useInspectedTable } from '@/hooks/useInspectedTable';
 import { useTableExport } from '@/hooks/useTableExport';
+import { plural } from '@/lib/plural';
 import { inspectorColumns } from './columns';
 import { RowPanel } from './row-panel';
 
@@ -79,7 +80,7 @@ function TableInspector({ info }: { info: DataTableInfo }) {
           Read-only
         </Badge>
         <span className="ml-auto text-sm text-muted-foreground">
-          {total.toLocaleString()} {total === 1 ? 'row' : 'rows'}
+          {plural(total, 'row')}
           {total !== info.rowCount && ` of ${info.rowCount.toLocaleString()}`}
         </span>
       </div>

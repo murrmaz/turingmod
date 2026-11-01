@@ -1,6 +1,7 @@
 import type { OnChangeFn, SortingState } from '@tanstack/react-table';
 import type { DataCell, DataRowsQuery, DataTableInfo } from '@turingmod/shared';
 import { useCallback, useMemo, useState } from 'react';
+import { DEFAULT_PAGE_SIZE } from '@/constants/paging';
 import { type DateRange, rangeStart } from '@/lib/dateRange';
 import { useDataRows } from './useDataRows';
 import { useDebounced } from './useDebounced';
@@ -26,7 +27,7 @@ export function useInspectedTable(info: DataTableInfo) {
   const [range, setRangeValue] = useState<DateRange>('all');
   const [sorting, setSortingState] = useState<SortingState>([]);
   const [page, setPageNumber] = useState(0);
-  const [pageSize, setPageSizeValue] = useState(50);
+  const [pageSize, setPageSizeValue] = useState(DEFAULT_PAGE_SIZE);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const settledSearch = useDebounced(search.trim());
 

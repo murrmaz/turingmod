@@ -31,6 +31,15 @@ function setup(answer: (query: ActivityHistoryQuery) => Promise<Page>, route = '
   return { user: userEvent.setup(), history, lastQuery };
 }
 
+/** The dropdown showing this value. */
+function selectShowing(value: string): HTMLElement {
+  const found = screen.getAllByRole('combobox').find((select) => select.textContent === value);
+  if (!found) {
+    throw new Error(`No dropdown showing ${value}`);
+  }
+  return found;
+}
+
 describe('History', () => {
   it('shows the stored entries the backend answers with, newest first', async () => {
     setup(async () => ({ entries: [command('bonk'), command('lurk')], total: 2 }));
@@ -98,6 +107,38 @@ describe('History', () => {
     await user.keyboard('{ArrowDown}');
 
     expect(screen.getByRole('dialog', { name: '!lurk' })).toBeInTheDocument();
+  });
+
+  it('goes back to the first page for a new page size, and for a new time range', async () => {
+    const { user, lastQuery } = setup(async () => ({ entries: [command('bonk')], total: 400 }));
+    await user.click(await screen.findByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ page: 1, pageSize: 50 }));
+
+    await user.click(selectShowing('50'));
+    await user.click(await screen.findByRole('option', { name: '25' }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ page: 0, pageSize: 25 }));
+
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ page: 1 }));
+
+    await user.click(selectShowing('All time'));
+    await user.click(await screen.findByRole('option', { name: 'Last 7 days' }));
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ page: 0 }));
+    expect(lastQuery()?.since).toEqual(expect.any(Number));
+  });
+
+  it("searches for an entry's viewer from its sheet, from the first page", async () => {
+    const { user, lastQuery } = setup(async () => ({ entries: [command('bonk')], total: 120 }));
+    await user.click(await screen.findByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ page: 1 }));
+
+    await user.click(screen.getByText('!bonk'));
+    await user.click(screen.getByRole('button', { name: 'View ana’s history' }));
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ page: 0, search: 'ana' }));
+    expect(screen.getByPlaceholderText('Search events, users…')).toHaveValue('ana');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('searches for whoever a link into it names, whatever their name holds', async () => {

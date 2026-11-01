@@ -1,6 +1,5 @@
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useMemo } from 'react';
 import { activityColumns } from '@/components/activity/activity-columns';
 import { EventSheet } from '@/components/activity/event-sheet';
 import { FeedCategoryTabs } from '@/components/activity/feed-category-tabs';
@@ -10,95 +9,33 @@ import { DateRangeSelect } from '@/components/date-range-select';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { SearchInput } from '@/components/search-input';
-import { URL_PARAMS } from '@/constants/pages';
 import { DATA_PAGE_SIZES } from '@/constants/paging';
-import { useActivityHistory } from '@/hooks/useActivityHistory';
-import { useDebounced } from '@/hooks/useDebounced';
-import { dayDivider, FEED_CATEGORY_EVENTS, type FeedRow, toFeedRow } from '@/lib/activityFormat';
-import { type DateRange, rangeStart } from '@/lib/dateRange';
+import { useHistoryView } from '@/hooks/useHistoryView';
+import { dayDivider, type FeedCategory, type FeedRow } from '@/lib/activityFormat';
+import { plural } from '@/lib/plural';
 
-/** A category the stored log has: every one but chat, which isn't stored. */
-type StoredCategory = keyof typeof FEED_CATEGORY_EVENTS;
-type HistoryCategory = StoredCategory | 'all';
-
-const CATEGORIES: readonly StoredCategory[] = ['command', 'reward', 'viewer', 'system'];
+const CATEGORIES = ['command', 'reward', 'viewer', 'system'] as const satisfies FeedCategory[];
 
 /**
  * The stored activity log, searchable and paged by the server. Chat isn't stored, so it's only on
  * the Dashboard's live feed.
  */
 export function HistoryPage() {
-  const [params, setParams] = useSearchParams();
-  const [category, setCategory] = useState<HistoryCategory>('all');
-  const [range, setRange] = useState<DateRange>('all');
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(50);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const query = params.get(URL_PARAMS.historySearch) ?? '';
+  const view = useHistoryView();
+  const { select, viewUser } = view;
 
-  const since = rangeStart(range);
-  const { entries, total, loading, error } = useActivityHistory({
-    page,
-    pageSize,
-    ...(category === 'all' ? {} : { events: FEED_CATEGORY_EVENTS[category] }),
-    ...(query.trim() ? { search: query.trim() } : {}),
-    ...(since === undefined ? {} : { since }),
-  });
-
-  const feedRows = useMemo(() => entries.map(toFeedRow), [entries]);
-
-  const viewUser = useCallback(
-    (user: string) => {
-      setSelectedId(null);
-      setPage(0);
-      setParams({ [URL_PARAMS.historySearch]: user });
-    },
-    [setParams]
-  );
   const columns = useMemo(
-    () =>
-      activityColumns<FeedRow>({
-        onInspect: (row) => setSelectedId(row.id),
-        onViewUser: viewUser,
-      }),
-    [viewUser]
+    () => activityColumns<FeedRow>({ onInspect: (row) => select(row.id), onViewUser: viewUser }),
+    [select, viewUser]
   );
-
   const table = useReactTable({
-    data: feedRows,
+    data: view.rows,
     columns,
     getRowId: (row) => row.id,
     getCoreRowModel: getCoreRowModel(),
     manualSorting: true,
     enableSorting: false,
   });
-
-  const reset = () => {
-    setPage(0);
-    setSelectedId(null);
-  };
-
-  // What's typed in the search box. The URL's `q`, which the query reads, follows it once typing
-  // pauses, replacing the browser history entry rather than adding one per keystroke. When the
-  // URL changes any other way (View someone's history, Back), the box is set from it.
-  const [search, setSearch] = useState(query);
-  const typed = useDebounced(search.trim());
-  const lastWritten = useRef(query);
-  const writeQuery = useEffectEvent((next: string) => {
-    if (next === query) {
-      return;
-    }
-    lastWritten.current = next;
-    setParams(next ? { [URL_PARAMS.historySearch]: next } : {}, { replace: true });
-    reset();
-  });
-  useEffect(() => writeQuery(typed), [typed]);
-  useEffect(() => {
-    if (query !== lastWritten.current) {
-      lastWritten.current = query;
-      setSearch(query);
-    }
-  }, [query]);
 
   return (
     <PageLayout>
@@ -109,55 +46,40 @@ export function HistoryPage() {
       <div className="flex flex-wrap items-center gap-2">
         <FeedCategoryTabs
           categories={CATEGORIES}
-          value={category}
-          onChange={(next) => {
-            setCategory(next);
-            reset();
-          }}
+          value={view.category}
+          onChange={view.setCategory}
         />
         <SearchInput
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          value={view.search}
+          onChange={(event) => view.setSearch(event.target.value)}
           placeholder="Search events, users…"
           className="ml-auto w-64"
         />
-        <DateRangeSelect
-          value={range}
-          onChange={(next) => {
-            setRange(next);
-            reset();
-          }}
-        />
+        <DateRangeSelect value={view.range} onChange={view.setRange} />
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
         <DataTable
           table={table}
           divider={dayDivider}
-          loading={loading}
-          onRowClick={(row) => setSelectedId(row.id)}
-          selectedRowId={selectedId}
-          empty={error ?? 'No activity recorded for this filter.'}
+          loading={view.loading}
+          onRowClick={(row) => select(row.id)}
+          selectedRowId={view.selectedId}
+          empty={view.error ?? 'No activity recorded for this filter.'}
         />
       </div>
       <DataTablePagination
-        page={page}
-        pageCount={Math.ceil(total / pageSize)}
-        onPageChange={(next) => {
-          setPage(next);
-          setSelectedId(null);
-        }}
-        pageSize={pageSize}
+        page={view.page}
+        pageCount={Math.ceil(view.total / view.pageSize)}
+        onPageChange={view.goTo}
+        pageSize={view.pageSize}
         pageSizes={DATA_PAGE_SIZES}
-        onPageSizeChange={(size) => {
-          setPageSize(size);
-          reset();
-        }}
-        summary={`${total.toLocaleString()} ${total === 1 ? 'event' : 'events'}`}
+        onPageSizeChange={view.setPageSize}
+        summary={plural(view.total, 'event')}
       />
       <EventSheet
-        rows={feedRows}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
+        rows={view.rows}
+        selectedId={view.selectedId}
+        onSelect={select}
         onViewUser={viewUser}
       />
     </PageLayout>

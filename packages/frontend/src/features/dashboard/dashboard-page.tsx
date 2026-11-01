@@ -20,6 +20,7 @@ import type { LiveFeedRow } from '@/hooks/useLiveLog';
 import { usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import { dayDivider, type FeedCategory } from '@/lib/activityFormat';
 import { countEvents, streamStartedAt } from '@/lib/liveFeed';
+import { plural } from '@/lib/plural';
 import { HealthRail } from './health-rail';
 
 /** The feed's tabs after All, in order. All leaves chat out: it would bury everything else mid-stream. */
@@ -27,9 +28,6 @@ const CATEGORIES: readonly FeedCategory[] = ['command', 'reward', 'viewer', 'sys
 
 /** How long a row that just arrived stays highlighted. */
 const HIGHLIGHT_MS = 2000;
-
-const plural = (count: number, one: string) =>
-  `${count.toLocaleString()} ${one}${count === 1 ? '' : 's'}`;
 
 export function DashboardPage() {
   return (

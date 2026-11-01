@@ -58,6 +58,18 @@ describe('Commands', () => {
     vi.clearAllMocks();
   });
 
+  it('goes back to the first page when a filter above the table narrows it', async () => {
+    const { user } = await setup(
+      Array.from({ length: 60 }, (_, index) => command(`cmd${index}`, { availableOn: [TWITCH] }))
+    );
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
+
+    await tick(user, 'Platform', 'Twitch');
+
+    await waitFor(() => expect(screen.getByText('Page 1 of 2')).toBeInTheDocument());
+  });
+
   it('says none have loaded until the backend answers', () => {
     renderConsole(<CommandsPage />);
 

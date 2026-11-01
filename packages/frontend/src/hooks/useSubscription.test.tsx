@@ -1,12 +1,14 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RouterOutputs } from '@/context/trpc-context';
 import { FakeSubscription } from '@/testing/fakeTrpc';
 import { switchableConnection } from '@/testing/render-console';
 import { useSubscription } from './useSubscription';
-import type { Suggestion } from './useSuggestions';
 
 const toast = vi.hoisted(() => Object.assign(vi.fn(), { error: vi.fn() }));
 vi.mock('sonner', () => ({ toast }));
+
+type Suggestion = RouterOutputs['suggestions']['delete'][number];
 
 const TITLE = "Couldn't read suggestions";
 const NONE: Suggestion[] = [];

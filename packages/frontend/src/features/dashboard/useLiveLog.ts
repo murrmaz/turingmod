@@ -1,7 +1,7 @@
 import type { ActivityLogEntry } from '@turingmod/shared';
 import type { RouterOutputs } from '@/context/trpc-context';
+import { useSubscription } from '@/hooks/useSubscription';
 import { type FeedRow, toFeedRow } from '@/lib/activityFormat';
-import { useSubscription } from './useSubscription';
 
 const MAX_ENTRIES = 1000;
 
@@ -33,17 +33,21 @@ function toLiveRow(entry: ActivityLogEntry, live: boolean): LiveFeedRow {
   return { ...toFeedRow(entry), seq: nextSeq, receivedAt: live ? Date.now() : null };
 }
 
-/** The stored log as the feed's rows, keeping rows that arrived live and aren't in it on top. */
+/**
+ * The stored log as the feed's rows, plus rows that arrived live and aren't in it, latest received
+ * first. A row this console already has keeps its number, so one a reconnect sends again isn't
+ * news to a feed that's holding still.
+ */
 function withSeed(previous: LiveFeedRow[], entries: ActivityLogEntry[]): LiveFeedRow[] {
-  // The server answers newest first, which is the feed's order; numbering goes oldest first so
-  // that a newer row always has the higher seq.
+  const had = new Map(previous.map((row) => [row.id, row]));
+  // The server answers newest first; numbering goes oldest first so that a newer row always has
+  // the higher seq.
   const seeded = [...entries]
     .reverse()
-    .map((entry) => toLiveRow(entry, false))
-    .reverse();
+    .map((entry) => had.get(entry.id) ?? toLiveRow(entry, false));
   const known = new Set(seeded.map((row) => row.id));
   const live = previous.filter((row) => row.receivedAt !== null && !known.has(row.id));
-  return [...live, ...seeded].slice(0, MAX_ENTRIES);
+  return [...live, ...seeded].sort((a, b) => b.seq - a.seq).slice(0, MAX_ENTRIES);
 }
 
 /** The feed after one event from `activity.feed`. */
@@ -58,7 +62,7 @@ function applyFeedEvent(current: LiveLog, event: FeedEvent): LiveLog {
 }
 
 /**
- * Live activity feed for the Dashboard, newest first. Seeded on every subscribe, so on mount and
+ * Live activity feed for the Dashboard, latest received first. Seeded on every subscribe, so on mount and
  * on every reconnect, from the stored activity log, then prepended to with each entry as it's made
  * (which, unlike the stored log, include chat).
  */

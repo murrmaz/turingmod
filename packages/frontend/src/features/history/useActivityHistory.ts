@@ -1,5 +1,5 @@
 import type { RouterInputs, RouterOutputs } from '@/context/trpc-context';
-import { useServerQuery } from './useServerQuery';
+import { useServerQuery } from '@/hooks/useServerQuery';
 
 /** Which page of the stored log to read: events, search, since, page and page size. */
 export type ActivityHistoryQuery = RouterInputs['activity']['history'];

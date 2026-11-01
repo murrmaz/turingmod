@@ -2,9 +2,9 @@ import type { DataCell, DataTableInfo } from '@turingmod/shared';
 import { Copy, Shield } from 'lucide-react';
 import { DetailPanel } from '@/components/detail-panel';
 import { Button } from '@/components/ui/button';
-import type { InspectedRow } from '@/hooks/useInspectedTable';
 import { copyToClipboard } from '@/lib/clipboard';
 import { formatDateTime } from '@/lib/time';
+import type { InspectedRow } from './useInspectedTable';
 
 function prettyJson(value: DataCell): string | null {
   if (typeof value !== 'string') {

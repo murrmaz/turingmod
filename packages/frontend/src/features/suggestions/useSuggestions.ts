@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { type RouterOutputs, useTrpc } from '@/context/trpc-context';
+import { useSubscription } from '@/hooks/useSubscription';
 import { PendingDeletes } from '@/lib/pendingDeletes';
 import { plural } from '@/lib/plural';
 import { reportActionError } from '@/lib/reportError';
-import { useSubscription } from './useSubscription';
 
 export type Suggestion = RouterOutputs['suggestions']['delete'][number];
 

@@ -5,9 +5,9 @@ import { MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
 import { Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { links, PAGES, routePattern } from '@/constants/pages';
-import { MAX_EXPORT_ROWS } from '@/hooks/useTableExport';
 import { renderConsole } from '@/testing/render-console';
 import { DataPage } from './data-page';
+import { MAX_EXPORT_ROWS } from './useTableExport';
 
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn() })
@@ -242,6 +242,26 @@ describe('Data page', () => {
 
     await user.type(screen.getByPlaceholderText('Search data…'), 'r');
 
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  it('leaves a closed row closed when the search goes back to what it was', async () => {
+    const { user } = setup(async (query) => pageOf(query, 3));
+    await user.click(await screen.findByText('row-2'));
+
+    await user.type(screen.getByPlaceholderText('Search data…'), 'r{Backspace}');
+
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  it('closes the open row on another page, and leaves it closed on coming back', async () => {
+    const { user } = setup(async (query) => pageOf(query, 120));
+    await user.click(await screen.findByText('row-2'));
+
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Previous page' }));
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
   });
 });

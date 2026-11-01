@@ -145,6 +145,29 @@ describe('Live activity', () => {
     expect(screen.getByText('hello')).toBeInTheDocument();
   });
 
+  it('stays held through a reconnect, counting only what the stored log adds', async () => {
+    const stored = command('stored');
+    const { user, feed } = setup([stored]);
+    await user.click(screen.getByRole('button', { name: 'Pause' }));
+
+    feed.emit({ type: 'seed', entries: [command('missed'), stored] });
+
+    expect(shownCommands()).toEqual(['!stored']);
+    expect(screen.getByRole('button', { name: '1 new event' })).toBeInTheDocument();
+  });
+
+  it('holds everything a reconnect brought when paused after it', async () => {
+    const stored = command('stored');
+    const { user, feed, arrive } = setup([stored]);
+    arrive(chat('hello'));
+    feed.emit({ type: 'seed', entries: [command('missed'), stored] });
+
+    await user.click(screen.getByRole('button', { name: 'Pause' }));
+
+    expect(shownCommands()).toEqual(['!missed', '!stored']);
+    expect(screen.queryByRole('button', { name: /new event/ })).not.toBeInTheDocument();
+  });
+
   it('filters by the text typed after pressing /', async () => {
     const { user } = setup([command('lurk'), command('bonk')]);
 

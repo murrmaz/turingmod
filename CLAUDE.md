@@ -106,7 +106,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 ### Suggestions
 - **Box**: `packages/backend/src/suggestions/SuggestionBox.ts` — add/list/delete with change listeners; everything that writes a suggestion (`!sg`, the console) goes through it so the console hears about it. Storage in `database/repositories/SuggestionRepository.ts`
 - **Console API**: `packages/backend/src/server/trpc/suggestionsRouter.ts` (`suggestions.watch`, `delete`)
-- **Frontend**: `features/suggestions/suggestions-page.tsx` + `hooks/useSuggestions.ts`; Undo is console-side: a delete is hidden at once and sent when its toast closes (or the page is left), bookkept by `lib/pendingDeletes.ts`
+- **Frontend**: `features/suggestions/suggestions-page.tsx` + `features/suggestions/useSuggestions.ts`; Undo is console-side: a delete is hidden at once and sent when its toast closes (or the page is left), bookkept by `lib/pendingDeletes.ts`
 
 ### Going Live
 - **OBS stream state**: `packages/backend/src/live/ObsStreamState.ts` — whether OBS is streaming; publishes `stream.output.changed`, platform-neutral
@@ -128,7 +128,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — subscribes to the EventBus events in `ACTIVITY_EVENT_CATEGORIES`, converts each `EventMap` payload to its entry's (`TO_ACTIVITY_DATA`), hands the entry to the console's live feed (`onEntry()`) and persists all but chat and `LIVE_ONLY_EVENTS` (device messages)
 - **Storage**: `packages/backend/src/database/repositories/ActivityLogRepository.ts` (capped at 5000 rows). The one exception to stored data failing the read: payloads ignore unknown keys, and a row that still doesn't fit is logged and left out, so a payload change needs no migration; the cap ages old rows out
 - **Live feed and History**: `packages/backend/src/server/trpc/activityRouter.ts` (`activity.feed`: the stored recent entries, then each entry as it's made; `activity.history`: one page of the stored log, by events, search and time, from `ActivityLogRepository.findPage()`)
-- **Frontend**: `features/dashboard/dashboard-page.tsx` + `hooks/useLiveLog.ts` (live feed, newest first) + `hooks/useLiveFeed.ts` (what the feed shows: tab, filter, and holding still while paused or scrolled away) + `lib/liveFeed.ts` (tabs, the stream's start, event counts), `features/history/history-page.tsx` + `hooks/useHistoryView.ts` (what's shown: category, time range, search in the URL, the page, the entry open) + `hooks/useActivityHistory.ts`; how an entry reads (feed category, badge, title, detail) is `lib/activityFormat.ts` (`toFeedRow`); the table columns and the entry sheet both pages use are in `components/activity/`
+- **Frontend**: `features/dashboard/dashboard-page.tsx` + `features/dashboard/useLiveLog.ts` (live feed, newest first) + `features/dashboard/useLiveFeed.ts` (what the feed shows: tab, filter, and holding still while paused or scrolled away) + `lib/liveFeed.ts` (tabs, the stream's start, event counts), `features/history/history-page.tsx` + `features/history/useHistoryView.ts` (what's shown: category, time range, search in the URL, the page, the entry open) + `features/history/useActivityHistory.ts`; how an entry reads (feed category, badge, title, detail) is `lib/activityFormat.ts` (`toFeedRow`); the table columns and the entry sheet both pages use are in `components/activity/`
 
 ### Console ↔ Backend Protocol
 - **tRPC router**: `packages/backend/src/server/trpc/appRouter.ts` (`createAppRouter()`, `AppRouter` type) — one sub-router per area, e.g. `integrationsRouter.ts`; `trpc.ts` (instance and `TrpcContext`), `watch.ts` (`watchable()`: current value, then again on each change, read once per change for every console; `events()`: a stream of events, subscribed at once so a snapshot read beside it misses nothing)
@@ -140,7 +140,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Manager**: `packages/backend/src/database/DatabaseManager.ts`
 - **Repositories**: `packages/backend/src/database/repositories/*.ts`
 - **Migrations**: `packages/backend/src/database/migrations/*.ts`, listed in `migrations/index.ts` (`ALL_MIGRATIONS`), run automatically on startup
-- **Read-only inspector**: `packages/backend/src/database/DataInspector.ts` (allow-listed tables, masked secrets) + `server/trpc/dataRouter.ts`; query shape and result types in `shared/src/types/data.ts`; console side `packages/frontend/src/features/data/` (the page, its columns and row panel), `hooks/useInspectedTable.ts` (what's read of a table, and the page of rows) and `hooks/useTableExport.ts` (CSV export, up to `MAX_EXPORT_ROWS`, through `lib/csv.ts`)
+- **Read-only inspector**: `packages/backend/src/database/DataInspector.ts` (allow-listed tables, masked secrets) + `server/trpc/dataRouter.ts`; query shape and result types in `shared/src/types/data.ts`; console side `packages/frontend/src/features/data/` (the page, its columns and row panel), `features/data/useInspectedTable.ts` (what's read of a table, and the page of rows) and `features/data/useTableExport.ts` (CSV export, up to `MAX_EXPORT_ROWS`, through `lib/csv.ts`)
 
 ### Core Infrastructure
 - **DI**: [tsyringe](https://github.com/microsoft/tsyringe) — `@singleton()` on app-lifetime classes, `@injectable()` on commands and reward handlers; `registerRootFactories()` in `setup.ts` for the handful of classes tsyringe can't auto-construct
@@ -443,7 +443,7 @@ there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 
-React Context for state management: `TrpcContext` (the tRPC client and its connection) and `AppStateProvider` (the integrations, read with `useIntegrationState()`, and the command table, with `useCommandList()`, as separate contexts so what reads one doesn't render for the other). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`); anything read with a tRPC query, with `useServerQuery()` (`hooks/useServerQuery.ts`): read whenever the connection comes up and whenever its input changes, a superseded read aborted. Don't hand-write either in a new hook. Never write a ref during render: a callback an effect or its subscription needs the latest of goes through `useEffectEvent`, and one something else calls later (a click, a toast) is a plain dependency or, failing that, a ref written in an effect. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useLiveFeed()`, `useActivityHistory()`, `useHistoryView()`, `useClientTable()`, `useInspectedTable()`, `useTableExport()`, `useFocusShortcut()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`, `useSuggestions()`. Pages (code under `src/features/<page>/`) are listed once, in `PAGES` (`constants/pages.ts`), from which the routes in `app.tsx`, the sidebar, the ⌘K palette and the header's title are all made; a new page is a `PAGES` entry plus its component in `app.tsx`'s `PAGE_COMPONENTS`, which the compiler asks for, and a sidebar count beside it is one entry in the sidebar's `badges`. No route is written out anywhere else: a link into a page's state is built with `links` (`links.historyOf(user)`, `links.integration(name)`, `links.dataTable(table)`), and the URL parameters a page keeps its state in are named in `URL_PARAMS`, which the page reads them by. The pages: Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens with `useSimulator()`, `components/simulator.tsx`), Integrations, Suggestions, History, Data.
+React Context for state management: `TrpcContext` (the tRPC client and its connection) and `AppStateProvider` (the integrations, read with `useIntegrationState()`, and the command table, with `useCommandList()`, as separate contexts so what reads one doesn't render for the other). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`); anything read with a tRPC query, with `useServerQuery()` (`hooks/useServerQuery.ts`): read whenever the connection comes up and whenever its input changes, a superseded read aborted. Don't hand-write either in a new hook. Never write a ref during render: a callback an effect or its subscription needs the latest of goes through `useEffectEvent`, and one something else calls later (a click, a toast) is a plain dependency or, failing that, a ref written in an effect. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useLiveFeed()`, `useActivityHistory()`, `useHistoryView()`, `useClientTable()`, `usePagedView()`, `useStateFor()`, `useInspectedTable()`, `useTableExport()`, `useFocusShortcut()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`, `useSuggestions()`. Pages (code under `src/features/<page>/`) are listed once, in `PAGES` (`constants/pages.ts`), from which the routes in `app.tsx`, the sidebar, the ⌘K palette and the header's title are all made; a new page is a `PAGES` entry plus its component in `app.tsx`'s `PAGE_COMPONENTS`, which the compiler asks for, and a sidebar count beside it is one entry in the sidebar's `badges`. No route is written out anywhere else: a link into a page's state is built with `links` (`links.historyOf(user)`, `links.integration(name)`, `links.dataTable(table)`), and the URL parameters a page keeps its state in are named in `URL_PARAMS`, which the page reads them by. The pages: Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens with `useSimulator()`, `components/simulator.tsx`), Integrations, Suggestions, History, Data.
 
 ### Console UI
 
@@ -460,7 +460,10 @@ over a TanStack table instance the page owns (sorting, filters and paging stay t
 same component serves client-side lists and server-paged queries), with optional row
 virtualization for the live feed. A list held entirely in the console (Commands, Suggestions) gets
 its table from `useClientTable()`. History (`activity.history`) and the Data page (the read-only
-data inspector, below) are paged and filtered on the server.
+data inspector, below) are paged and filtered on the server, and keep their page and selected row
+in `usePagedView()`. Either way a page and selection belong to what's being read, through
+`useStateFor()`: they reset because that changed, however it changed, not because a setter
+remembered to. New rows arriving don't reset a client table's page.
 
 **Console layout.** `src/` is layered, and Biome rejects an import from a higher layer
 (`noRestrictedImports` overrides in `biome.json`): `lib/`, `constants/` and `services/` hold logic
@@ -468,9 +471,11 @@ only; `context/` and `hooks/` hold state and draw nothing; `components/` is UI s
 `features/<page>/` is one page, which never imports another page. Something two pages share goes
 down a layer, never sideways. An app-wide flow that is both state and UI (the OAuth dialogs, the
 simulator) is split: its context and hook in `context/`, the provider that renders it in
-`components/`. Every hook is in `hooks/`. File names are enforced too: `.tsx` files (UI) are
+`components/`. A hook that belongs to one page sits in that page's folder; one that two places use,
+or that's generic (`useDebounced()`), goes in `hooks/`. File names are enforced too: `.tsx` files (UI) are
 kebab-case, like the shadcn components, and `.ts` files (logic, hooks) camelCase; a test is named
-after its subject. `testing/`, `app.tsx` and `index.tsx` sit above the layers.
+after its subject. `testing/`, `app.tsx` and `index.tsx` sit above the layers. Only tests and
+`testing/` itself may import `@/testing`, and lint applies no layer rules to them.
 
 **Shared console pieces.** A page sits in a `PageLayout` (its padding, and `panel` for a
 `DetailPanel`; the Dashboard's two-column grid is the exception), starts with `PageHeader` (title and what it's for), filters a

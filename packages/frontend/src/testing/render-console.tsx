@@ -61,6 +61,33 @@ export function consoleWrapper({
   );
 }
 
+/**
+ * Just the tRPC providers, for testing a hook against a connection that changes: a new client (as
+ * Retry makes) or a new state. Change one, then rerender for the hook to see it.
+ */
+export function switchableConnection(
+  procedures: Procedures,
+  connectionState: ConnectionState = 'connected'
+) {
+  const current = { client: fakeTrpc(procedures), connectionState };
+  return {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <TrpcClientProvider
+        client={current.client}
+        connection={{ connectionState: current.connectionState, retry: () => {} }}
+      >
+        {children}
+      </TrpcClientProvider>
+    ),
+    switchClient: (next: Procedures) => {
+      current.client = fakeTrpc(next);
+    },
+    setConnectionState: (next: ConnectionState) => {
+      current.connectionState = next;
+    },
+  };
+}
+
 /** Render part of the console inside its providers (see consoleWrapper). */
 export function renderConsole(ui: ReactElement, options?: ConsoleOptions) {
   return render(ui, { wrapper: consoleWrapper(options) });

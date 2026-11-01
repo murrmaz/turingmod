@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type Deferred, deferred, FakeSubscription } from '@/testing/fakeTrpc';
-import { consoleWrapper } from '@/testing/render-console';
+import { consoleWrapper, switchableConnection } from '@/testing/render-console';
 import { type Suggestion, useSuggestions } from './useSuggestions';
 
 const toast = vi.hoisted(() =>
@@ -170,6 +170,26 @@ describe('useSuggestions', () => {
     expect(mutate.mock.calls.map(([input]) => input)).toEqual([{ ids: [1] }, { ids: [2, 3] }]);
     expect(toast.dismiss).toHaveBeenCalledWith(first);
     expect(toast.dismiss).toHaveBeenCalledWith(second);
+  });
+
+  it('sends through the client it has by then, a new one not counting as leaving the page', () => {
+    const oldDelete = vi.fn(async (_input: { ids: number[] }) => ALL);
+    const newDelete = vi.fn(async (_input: { ids: number[] }) => ALL);
+    const { wrapper, switchClient } = switchableConnection({
+      suggestions: { watch: new FakeSubscription(), delete: { mutate: oldDelete } },
+    });
+    const { result, rerender } = renderHook(() => useSuggestions(), { wrapper });
+    act(() => result.current.remove([1]));
+
+    switchClient({ suggestions: { watch: new FakeSubscription(), delete: { mutate: newDelete } } });
+    rerender();
+    expect(oldDelete).not.toHaveBeenCalled();
+    expect(newDelete).not.toHaveBeenCalled();
+
+    act(() => lastToast().onAutoClose());
+
+    expect(oldDelete).not.toHaveBeenCalled();
+    expect(newDelete).toHaveBeenCalledWith({ ids: [1] });
   });
 
   it('does nothing for an empty selection', () => {

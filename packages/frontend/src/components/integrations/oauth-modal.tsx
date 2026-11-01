@@ -1,6 +1,6 @@
 import { messageOf } from '@turingmod/shared';
 import { CircleAlert, Info, Loader2, ShieldCheck } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -76,9 +76,8 @@ export function OAuthModal({
     }
   }, []);
 
-  // Kept current for the subscription below, which is made once per client.
-  const onResult = useRef({ onSuccess, fail, closePopup });
-  onResult.current = { onSuccess, fail, closePopup };
+  // The latest callback, for the subscription below, which is made once per client.
+  const succeed = useEffectEvent(() => onSuccess());
 
   // Declared before the effect that asks for the URL, so React subscribes first and the
   // subscription goes out on the socket ahead of the request.
@@ -88,17 +87,17 @@ export function OAuthModal({
         if (result.integrationName !== integrationName) {
           return;
         }
-        onResult.current.closePopup();
+        closePopup();
         if (result.success) {
-          onResult.current.onSuccess();
+          succeed();
         } else {
-          onResult.current.fail(result.errorMessage || 'Authorization failed');
+          fail(result.errorMessage || 'Authorization failed');
         }
       },
-      onError: (error) => onResult.current.fail(messageOf(error)),
+      onError: (error) => fail(messageOf(error)),
     });
     return () => subscription.unsubscribe();
-  }, [trpc, integrationName]);
+  }, [trpc, integrationName, fail, closePopup]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: attempt starts a new attempt on Try again
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useAppState } from '@/context/app-state-context';
+import { useIntegrationState } from '@/context/app-state-context';
 import { useTrpc } from '@/context/trpc-context';
 
 /**
@@ -8,7 +8,7 @@ import { useTrpc } from '@/context/trpc-context';
  */
 export function useIntegrations() {
   const trpc = useTrpc();
-  const { integrations, showIntegrations } = useAppState();
+  const { integrations, showIntegrations } = useIntegrationState();
 
   const startIntegration = useCallback(
     async (integrationName: string): Promise<void> => {

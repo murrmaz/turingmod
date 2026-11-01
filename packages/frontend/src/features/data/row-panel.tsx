@@ -53,11 +53,14 @@ export function RowPanel({
             <div key={column.name} className="flex gap-4 border-b py-2.5">
               <dt className="shrink-0 text-muted-foreground">{column.name}</dt>
               <dd className="ml-auto min-w-0 text-right font-mono text-data break-all">
-                {value === null
-                  ? 'null'
-                  : column.isTimestamp && typeof value === 'number'
-                    ? `${value} · ${formatDateTime(value)}`
-                    : String(value)}
+                {column.isTimestamp && typeof value === 'number' ? (
+                  <>
+                    <span className="block">{formatDateTime(value)}</span>
+                    <span className="block text-muted-foreground">{value}</span>
+                  </>
+                ) : (
+                  String(value)
+                )}
               </dd>
             </div>
           );

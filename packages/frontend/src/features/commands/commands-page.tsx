@@ -26,7 +26,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { PERMISSION_LABELS } from '@/constants/permissions';
 
-import { type CommandInfo, useAppState } from '@/context/app-state-context';
+import { type CommandInfo, useCommandList } from '@/context/app-state-context';
 import { useSimulator } from '@/context/simulatorContext';
 import { useClientTable } from '@/hooks/useClientTable';
 import { copyToClipboard } from '@/lib/clipboard';
@@ -50,7 +50,7 @@ function lowestPermission(command: CommandInfo): PermissionLevel {
 }
 
 export function CommandsPage() {
-  const { commands } = useAppState();
+  const commands = useCommandList();
   const simulator = useSimulator();
 
   const columns = useMemo<ColumnDef<CommandInfo>[]>(

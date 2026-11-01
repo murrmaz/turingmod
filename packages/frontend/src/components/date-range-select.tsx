@@ -25,7 +25,7 @@ export function DateRangeSelect({
         }
       }}
     >
-      <SelectTrigger className="w-36">
+      <SelectTrigger className="w-36" aria-label="Time range">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

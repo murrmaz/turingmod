@@ -40,7 +40,7 @@ export function DataTablePagination({
         <div className="flex items-center gap-2">
           <span>Rows per page</span>
           <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange(Number(v))}>
-            <SelectTrigger size="sm" className="w-20">
+            <SelectTrigger size="sm" className="w-20" aria-label="Rows per page">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

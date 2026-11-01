@@ -31,6 +31,33 @@ export function describeIntegration(integration: IntegrationInfo): IntegrationDi
   }
 }
 
+/** Whether an integration's message is a failure, rather than a note about how it's running. */
+export function hasProblem(integration: IntegrationInfo): boolean {
+  return (
+    Boolean(integration.errorMessage) &&
+    (integration.status === IntegrationStatus.ERROR ||
+      integration.status === IntegrationStatus.NEEDS_REAUTH)
+  );
+}
+
+/** The names of the integrations that depend on this one. */
+export function dependentsOf(integration: IntegrationInfo, all: IntegrationInfo[]): string[] {
+  return all
+    .filter((other) => other.metadata?.dependencies?.includes(integration.name))
+    .map((other) => other.name);
+}
+
+/** What an integration's being enabled means: when it runs, unprompted. */
+export function describeEnabled(integration: IntegrationInfo): string {
+  if (!integration.enabled) {
+    return 'no';
+  }
+  const dependencies = integration.metadata?.dependencies ?? [];
+  return dependencies.length > 0
+    ? `yes — comes back when ${dependencies.join(', ')} recovers`
+    : 'yes — starts with TuringMod';
+}
+
 /**
  * The integrations of one group in dependency order (each after the ones it depends on), so a
  * chain reads auth → api → real-time.

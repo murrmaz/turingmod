@@ -12,7 +12,7 @@ import {
   CommandSeparator,
 } from '@/components/ui/command';
 import { PAGES } from '@/constants/pages';
-import { useAppState } from '@/context/app-state-context';
+import { useCommandList } from '@/context/app-state-context';
 import { useSimulator } from '@/context/simulatorContext';
 
 /**
@@ -27,7 +27,7 @@ export function CommandPalette({
   onOpenChange: (open: boolean) => void;
 }) {
   const navigate = useNavigate();
-  const { commands } = useAppState();
+  const commands = useCommandList();
   const simulator = useSimulator();
 
   useEffect(() => {

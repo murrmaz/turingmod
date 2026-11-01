@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { URL_PARAMS } from '@/constants/pages';
-import { useAppState } from '@/context/app-state-context';
+import { useIntegrationState } from '@/context/app-state-context';
 import { useIntegrationActions } from '@/hooks/useIntegrationActions';
 import { copyToClipboard } from '@/lib/clipboard';
 import {
@@ -20,7 +20,10 @@ import {
   missingDependencies,
 } from '@/lib/integrationActions';
 import {
+  dependentsOf,
+  describeEnabled,
   describeIntegration,
+  hasProblem,
   integrationChains,
   standaloneIntegrations,
 } from '@/lib/integrationStatus';
@@ -33,7 +36,7 @@ const ACTION_ICONS: Record<IntegrationAction['kind'], LucideIcon> = {
 };
 
 export function IntegrationsPage() {
-  const { integrations } = useAppState();
+  const { integrations } = useIntegrationState();
   const actions = useIntegrationActions();
   const [params, setParams] = useSearchParams();
   const selectedName = params.get(URL_PARAMS.selectedIntegration);
@@ -166,13 +169,8 @@ function IntegrationDetail({
   const busy = actions.isBusy(integration);
   const waitingOn = missingDependencies(integration, all);
   const dependsOn = integration.metadata?.dependencies ?? [];
-  const usedBy = all
-    .filter((other) => other.metadata?.dependencies?.includes(integration.name))
-    .map((other) => other.name);
-  const problem =
-    integration.errorMessage &&
-    (integration.status === IntegrationStatus.ERROR ||
-      integration.status === IntegrationStatus.NEEDS_REAUTH);
+  const usedBy = dependentsOf(integration, all);
+  const problem = hasProblem(integration);
 
   const SetupModal = CONFIG_SETUP_REGISTRY[integration.name];
   const [setupOpen, setSetupOpen] = useState(false);
@@ -285,13 +283,7 @@ function IntegrationDetail({
             )}
           </Detail>
         )}
-        <Detail label="Enabled">
-          {integration.enabled
-            ? dependsOn.length > 0
-              ? `yes — comes back when ${dependsOn.join(', ')} recovers`
-              : 'yes — starts with TuringMod'
-            : 'no'}
-        </Detail>
+        <Detail label="Enabled">{describeEnabled(integration)}</Detail>
       </dl>
     </DetailPanel>
   );

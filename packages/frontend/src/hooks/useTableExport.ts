@@ -1,5 +1,5 @@
 import { type DataCell, type DataTableInfo, MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { useTrpc } from '@/context/trpc-context';
 import { toCsv } from '@/lib/csv';
@@ -18,7 +18,7 @@ export function useTableExport(info: DataTableInfo, query: InspectorQuery, total
   const trpc = useTrpc();
   const [exporting, setExporting] = useState(false);
 
-  const exportCsv = useCallback(async () => {
+  const exportCsv = async () => {
     setExporting(true);
     try {
       const rows: Record<string, DataCell>[] = [];
@@ -44,7 +44,7 @@ export function useTableExport(info: DataTableInfo, query: InspectorQuery, total
     } finally {
       setExporting(false);
     }
-  }, [trpc, query, total, info]);
+  };
 
   return { exporting, exportCsv };
 }

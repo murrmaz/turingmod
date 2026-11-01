@@ -14,4 +14,4 @@ export const CONFIG_SETUP_REGISTRY: Record<string, ComponentType<ConfigSetupModa
   [IntegrationName.ARDUINO]: ArduinoSetupModal,
   [IntegrationName.DISCORD]: DiscordSetupModal,
   [IntegrationName.OBS]: ObsSetupModal,
-};
+} satisfies Partial<Record<IntegrationName, ComponentType<ConfigSetupModalProps>>>;

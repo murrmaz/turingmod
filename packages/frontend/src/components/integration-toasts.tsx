@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { useAppState } from '@/context/app-state-context';
+import { useIntegrationState } from '@/context/app-state-context';
 import { describeIntegration } from '@/lib/integrationStatus';
 
 /** Toasts an integration going into error or needing reauthorization. Renders nothing. */
 export function IntegrationToasts() {
-  const { integrations } = useAppState();
+  const { integrations } = useIntegrationState();
   const broken = useRef<Set<string> | null>(null);
 
   useEffect(() => {

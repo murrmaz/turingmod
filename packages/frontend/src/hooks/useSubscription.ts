@@ -1,5 +1,5 @@
 import type { Unsubscribable } from '@trpc/server/observable';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 import { type TrpcClient, useTrpc } from '@/context/trpc-context';
 import { reportLoadError } from '@/lib/reportError';
 
@@ -44,19 +44,17 @@ export function useSubscription<T, S>(
   const trpc = useTrpc();
   const [state, setState] = useState(initial);
   // Callers pass these inline; the subscription is made once per client.
-  const subscribeRef = useRef(subscribe);
-  subscribeRef.current = subscribe;
-  const reduceRef = useRef(reduce);
-  reduceRef.current = reduce;
+  const subscribeWith = useEffectEvent((client: TrpcClient, handlers: SubscriptionHandlers<T>) =>
+    subscribe(client, handlers)
+  );
+  const receive = useEffectEvent((value: T) =>
+    // Without `reduce`, the overloads make S and T the same type.
+    setState((current) => (reduce ? reduce(current, value) : (value as unknown as S)))
+  );
 
   useEffect(() => {
-    const subscription = subscribeRef.current(trpc, {
-      onData: (value) =>
-        setState((current) => {
-          const apply = reduceRef.current;
-          // Without `reduce`, the overloads make S and T the same type.
-          return apply ? apply(current, value) : (value as unknown as S);
-        }),
+    const subscription = subscribeWith(trpc, {
+      onData: (value) => receive(value),
       onError: (error) => reportLoadError(errorTitle, error),
     });
     return () => subscription.unsubscribe();

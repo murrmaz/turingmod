@@ -32,9 +32,12 @@ export function useSuggestions() {
   const [hidden, setHidden] = useState(() => pending.hidden());
   const refresh = useCallback(() => setHidden(pending.hidden()), [pending]);
 
-  // Read when sending, so a new client (Retry) doesn't count as leaving the page below.
+  // Read when sending, so a new client (Retry) doesn't count as leaving the page below. A ref, not
+  // an Effect Event, since a toast's callbacks send too, and they aren't an effect.
   const trpcRef = useRef(trpc);
-  trpcRef.current = trpc;
+  useEffect(() => {
+    trpcRef.current = trpc;
+  }, [trpc]);
 
   const send = useCallback(
     (key: string, ids: readonly number[]) => {

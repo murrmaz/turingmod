@@ -1,5 +1,5 @@
 import { messageOf } from '@turingmod/shared';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { type TrpcClient, useConnection, useTrpc } from '@/context/trpc-context';
 import { reportLoadError } from '@/lib/reportError';
 
@@ -34,53 +34,47 @@ export function useServerQuery<I, T>(
   const [data, setData] = useState(options.initial);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Callers pass both inline; reads use the latest without reading again.
-  const queryRef = useRef(query);
-  queryRef.current = query;
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
   const latestRead = useRef<AbortController | null>(null);
   // Wrapped, so that a query without input (`undefined`) still has a key.
   const key = JSON.stringify([options.input]);
 
+  // Callers pass the query and options inline; a read uses the latest without causing one.
   /** Read now. Never rejects: a failure is reported and kept in `error`. */
-  const refresh = useCallback(async (): Promise<void> => {
+  const read = useEffectEvent(async (client: TrpcClient): Promise<void> => {
     latestRead.current?.abort();
-    const read = new AbortController();
-    latestRead.current = read;
+    const controller = new AbortController();
+    latestRead.current = controller;
     setLoading(true);
     try {
-      const reply = await queryRef.current(trpc, optionsRef.current.input, {
-        signal: read.signal,
-      });
-      if (!read.signal.aborted) {
+      const reply = await query(client, options.input, { signal: controller.signal });
+      if (!controller.signal.aborted) {
         // An updater, since the data may itself be a function.
         setData(() => reply);
         setError(null);
       }
     } catch (caught) {
-      if (!read.signal.aborted) {
+      if (!controller.signal.aborted) {
         setError(messageOf(caught));
-        const { errorTitle } = optionsRef.current;
+        const { errorTitle } = options;
         if (errorTitle !== undefined) {
           reportLoadError(errorTitle, caught);
         }
       }
     } finally {
-      if (!read.signal.aborted) {
+      if (!controller.signal.aborted) {
         setLoading(false);
       }
     }
-  }, [trpc]);
+  });
 
   // `key` is the input by value: a new one reads again.
   useEffect(() => {
     if (connected && key) {
-      void refresh();
+      void read(trpc);
     }
-  }, [connected, key, refresh]);
+  }, [connected, key, trpc]);
 
   useEffect(() => () => latestRead.current?.abort(), []);
 
-  return { data, loading, error, refresh };
+  return { data, loading, error };
 }

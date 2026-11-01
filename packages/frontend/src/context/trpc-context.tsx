@@ -53,8 +53,6 @@ export function TrpcProvider({ children }: { children: ReactNode }) {
   // Each "retry now" replaces the client, since tRPC's own can't be told to skip its wait.
   const [attempt, setAttempt] = useState(0);
   const everConnected = useRef(false);
-  const stateRef = useRef(connectionState);
-  stateRef.current = connectionState;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is what makes a new client.
   useEffect(() => {
@@ -83,10 +81,10 @@ export function TrpcProvider({ children }: { children: ReactNode }) {
   }, [attempt]);
 
   const retry = useCallback(() => {
-    if (stateRef.current !== 'connected') {
+    if (connectionState !== 'connected') {
       setAttempt((current) => current + 1);
     }
-  }, []);
+  }, [connectionState]);
   const connection = useMemo(() => ({ connectionState, retry }), [connectionState, retry]);
 
   // Created in the effect so that unmounting closes it; that's only ever the first render.

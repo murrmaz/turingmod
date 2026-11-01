@@ -85,6 +85,26 @@ describe('OAuthModal', () => {
     expect(onSuccess).toHaveBeenCalledTimes(1);
   });
 
+  it('reports success through the callback of the latest render, without starting over', async () => {
+    const { results, subscribe, authorizationUrl, onDismiss, onChangeCredentials, rerender } =
+      await waiting();
+    const onSuccess = vi.fn();
+
+    rerender(
+      <OAuthModal
+        provider={TWITCH_OAUTH_PROVIDER}
+        onDismiss={onDismiss}
+        onSuccess={onSuccess}
+        onChangeCredentials={onChangeCredentials}
+      />
+    );
+    results.emit({ integrationName: twitch, success: true });
+
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(authorizationUrl).toHaveBeenCalledTimes(1);
+  });
+
   it("ignores another integration's result, which every console hears", async () => {
     const { results, popup, onSuccess } = await waiting();
 

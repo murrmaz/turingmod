@@ -5,9 +5,9 @@ import { MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
 import { Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { links, PAGES, routePattern } from '@/constants/pages';
-import { MAX_EXPORT_ROWS } from '@/hooks/useTableExport';
 import { renderConsole } from '@/testing/render-console';
 import { DataPage } from './data-page';
+import { MAX_EXPORT_ROWS } from './useTableExport';
 
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn() })

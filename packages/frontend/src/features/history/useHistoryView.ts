@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { URL_PARAMS } from '@/constants/pages';
+import { useDebounced } from '@/hooks/useDebounced';
+import { usePagedView } from '@/hooks/usePagedView';
 import { FEED_CATEGORY_EVENTS, toFeedRow } from '@/lib/activityFormat';
 import { type DateRange, rangeStart } from '@/lib/dateRange';
 import { useActivityHistory } from './useActivityHistory';
-import { useDebounced } from './useDebounced';
-import { usePagedView } from './usePagedView';
 
 /** A category the stored log has (every one but chat, which isn't stored), or all of them. */
 export type HistoryCategory = keyof typeof FEED_CATEGORY_EVENTS | 'all';

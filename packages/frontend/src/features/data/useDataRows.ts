@@ -1,5 +1,5 @@
 import type { DataRowsPage, DataRowsQuery } from '@turingmod/shared';
-import { useServerQuery } from './useServerQuery';
+import { useServerQuery } from '@/hooks/useServerQuery';
 
 const NO_ROWS: DataRowsPage = { rows: [], total: 0 };
 

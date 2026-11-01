@@ -106,7 +106,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 ### Suggestions
 - **Box**: `packages/backend/src/suggestions/SuggestionBox.ts` — add/list/delete with change listeners; everything that writes a suggestion (`!sg`, the console) goes through it so the console hears about it. Storage in `database/repositories/SuggestionRepository.ts`
 - **Console API**: `packages/backend/src/server/trpc/suggestionsRouter.ts` (`suggestions.watch`, `delete`)
-- **Frontend**: `features/suggestions/suggestions-page.tsx` + `hooks/useSuggestions.ts`; Undo is console-side: a delete is hidden at once and sent when its toast closes (or the page is left), bookkept by `lib/pendingDeletes.ts`
+- **Frontend**: `features/suggestions/suggestions-page.tsx` + `features/suggestions/useSuggestions.ts`; Undo is console-side: a delete is hidden at once and sent when its toast closes (or the page is left), bookkept by `lib/pendingDeletes.ts`
 
 ### Going Live
 - **OBS stream state**: `packages/backend/src/live/ObsStreamState.ts` — whether OBS is streaming; publishes `stream.output.changed`, platform-neutral
@@ -128,7 +128,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — subscribes to the EventBus events in `ACTIVITY_EVENT_CATEGORIES`, converts each `EventMap` payload to its entry's (`TO_ACTIVITY_DATA`), hands the entry to the console's live feed (`onEntry()`) and persists all but chat and `LIVE_ONLY_EVENTS` (device messages)
 - **Storage**: `packages/backend/src/database/repositories/ActivityLogRepository.ts` (capped at 5000 rows). The one exception to stored data failing the read: payloads ignore unknown keys, and a row that still doesn't fit is logged and left out, so a payload change needs no migration; the cap ages old rows out
 - **Live feed and History**: `packages/backend/src/server/trpc/activityRouter.ts` (`activity.feed`: the stored recent entries, then each entry as it's made; `activity.history`: one page of the stored log, by events, search and time, from `ActivityLogRepository.findPage()`)
-- **Frontend**: `features/dashboard/dashboard-page.tsx` + `hooks/useLiveLog.ts` (live feed, newest first) + `hooks/useLiveFeed.ts` (what the feed shows: tab, filter, and holding still while paused or scrolled away) + `lib/liveFeed.ts` (tabs, the stream's start, event counts), `features/history/history-page.tsx` + `hooks/useHistoryView.ts` (what's shown: category, time range, search in the URL, the page, the entry open) + `hooks/useActivityHistory.ts`; how an entry reads (feed category, badge, title, detail) is `lib/activityFormat.ts` (`toFeedRow`); the table columns and the entry sheet both pages use are in `components/activity/`
+- **Frontend**: `features/dashboard/dashboard-page.tsx` + `features/dashboard/useLiveLog.ts` (live feed, newest first) + `features/dashboard/useLiveFeed.ts` (what the feed shows: tab, filter, and holding still while paused or scrolled away) + `lib/liveFeed.ts` (tabs, the stream's start, event counts), `features/history/history-page.tsx` + `features/history/useHistoryView.ts` (what's shown: category, time range, search in the URL, the page, the entry open) + `features/history/useActivityHistory.ts`; how an entry reads (feed category, badge, title, detail) is `lib/activityFormat.ts` (`toFeedRow`); the table columns and the entry sheet both pages use are in `components/activity/`
 
 ### Console ↔ Backend Protocol
 - **tRPC router**: `packages/backend/src/server/trpc/appRouter.ts` (`createAppRouter()`, `AppRouter` type) — one sub-router per area, e.g. `integrationsRouter.ts`; `trpc.ts` (instance and `TrpcContext`), `watch.ts` (`watchable()`: current value, then again on each change, read once per change for every console; `events()`: a stream of events, subscribed at once so a snapshot read beside it misses nothing)
@@ -140,7 +140,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Manager**: `packages/backend/src/database/DatabaseManager.ts`
 - **Repositories**: `packages/backend/src/database/repositories/*.ts`
 - **Migrations**: `packages/backend/src/database/migrations/*.ts`, listed in `migrations/index.ts` (`ALL_MIGRATIONS`), run automatically on startup
-- **Read-only inspector**: `packages/backend/src/database/DataInspector.ts` (allow-listed tables, masked secrets) + `server/trpc/dataRouter.ts`; query shape and result types in `shared/src/types/data.ts`; console side `packages/frontend/src/features/data/` (the page, its columns and row panel), `hooks/useInspectedTable.ts` (what's read of a table, and the page of rows) and `hooks/useTableExport.ts` (CSV export, up to `MAX_EXPORT_ROWS`, through `lib/csv.ts`)
+- **Read-only inspector**: `packages/backend/src/database/DataInspector.ts` (allow-listed tables, masked secrets) + `server/trpc/dataRouter.ts`; query shape and result types in `shared/src/types/data.ts`; console side `packages/frontend/src/features/data/` (the page, its columns and row panel), `features/data/useInspectedTable.ts` (what's read of a table, and the page of rows) and `features/data/useTableExport.ts` (CSV export, up to `MAX_EXPORT_ROWS`, through `lib/csv.ts`)
 
 ### Core Infrastructure
 - **DI**: [tsyringe](https://github.com/microsoft/tsyringe) — `@singleton()` on app-lifetime classes, `@injectable()` on commands and reward handlers; `registerRootFactories()` in `setup.ts` for the handful of classes tsyringe can't auto-construct
@@ -471,7 +471,8 @@ only; `context/` and `hooks/` hold state and draw nothing; `components/` is UI s
 `features/<page>/` is one page, which never imports another page. Something two pages share goes
 down a layer, never sideways. An app-wide flow that is both state and UI (the OAuth dialogs, the
 simulator) is split: its context and hook in `context/`, the provider that renders it in
-`components/`. Every hook is in `hooks/`. File names are enforced too: `.tsx` files (UI) are
+`components/`. A hook that belongs to one page sits in that page's folder; one that two places use,
+or that's generic (`useDebounced()`), goes in `hooks/`. File names are enforced too: `.tsx` files (UI) are
 kebab-case, like the shadcn components, and `.ts` files (logic, hooks) camelCase; a test is named
 after its subject. `testing/`, `app.tsx` and `index.tsx` sit above the layers. Only tests and
 `testing/` itself may import `@/testing`, and lint applies no layer rules to them.

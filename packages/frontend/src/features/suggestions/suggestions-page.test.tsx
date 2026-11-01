@@ -1,10 +1,10 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Suggestion } from '@/hooks/useSuggestions';
 import { FakeSubscription } from '@/testing/fakeTrpc';
 import { renderConsole } from '@/testing/render-console';
 import { SuggestionsPage } from './suggestions-page';
+import type { Suggestion } from './useSuggestions';
 
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() })

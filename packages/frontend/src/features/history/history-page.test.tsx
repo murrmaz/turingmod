@@ -4,10 +4,10 @@ import type { ActivityLogEntry } from '@turingmod/shared';
 import { useNavigate } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { links } from '@/constants/pages';
-import type { ActivityHistoryQuery } from '@/hooks/useActivityHistory';
 import { activityEntry } from '@/testing/activity';
 import { renderConsole } from '@/testing/render-console';
 import { HistoryPage } from './history-page';
+import type { ActivityHistoryQuery } from './useActivityHistory';
 
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 

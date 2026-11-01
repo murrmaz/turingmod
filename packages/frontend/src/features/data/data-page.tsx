@@ -14,11 +14,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { links, URL_PARAMS } from '@/constants/pages';
 import { useDataTables } from '@/hooks/useDataTables';
-import { useInspectedTable } from '@/hooks/useInspectedTable';
-import { useTableExport } from '@/hooks/useTableExport';
 import { plural } from '@/lib/plural';
 import { inspectorColumns } from './columns';
 import { RowPanel } from './row-panel';
+import { useInspectedTable } from './useInspectedTable';
+import { useTableExport } from './useTableExport';
 
 export function DataPage() {
   const tableName = useParams()[URL_PARAMS.dataTable];

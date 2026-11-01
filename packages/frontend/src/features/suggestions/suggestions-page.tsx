@@ -10,9 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { useClientTable } from '@/hooks/useClientTable';
-import { type Suggestion, useSuggestions } from '@/hooks/useSuggestions';
 import { plural } from '@/lib/plural';
 import { formatDateTime } from '@/lib/time';
+import { type Suggestion, useSuggestions } from './useSuggestions';
 
 export function SuggestionsPage() {
   const { suggestions, remove } = useSuggestions();

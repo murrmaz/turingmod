@@ -9,9 +9,9 @@ import { DateRangeSelect } from '@/components/date-range-select';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { SearchInput } from '@/components/search-input';
-import { useHistoryView } from '@/hooks/useHistoryView';
 import { dayDivider, type FeedCategory, type FeedRow } from '@/lib/activityFormat';
 import { plural } from '@/lib/plural';
+import { useHistoryView } from './useHistoryView';
 
 const CATEGORIES = ['command', 'reward', 'viewer', 'system'] as const satisfies FeedCategory[];
 

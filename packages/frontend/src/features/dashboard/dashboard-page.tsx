@@ -15,13 +15,13 @@ import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
 import { links } from '@/constants/pages';
 import { useFocusShortcut } from '@/hooks/useFocusShortcut';
-import { useLiveFeed } from '@/hooks/useLiveFeed';
-import type { LiveFeedRow } from '@/hooks/useLiveLog';
 import { usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import { dayDivider, type FeedCategory } from '@/lib/activityFormat';
 import { countEvents, streamStartedAt } from '@/lib/liveFeed';
 import { plural } from '@/lib/plural';
 import { HealthRail } from './health-rail';
+import { useLiveFeed } from './useLiveFeed';
+import type { LiveFeedRow } from './useLiveLog';
 
 /** The feed's tabs after All, in order. All leaves chat out: it would bury everything else mid-stream. */
 const CATEGORIES: readonly FeedCategory[] = ['command', 'reward', 'viewer', 'system', 'chat'];

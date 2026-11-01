@@ -14,17 +14,17 @@ import { useIntegrations } from './useIntegrations';
 export function useIntegrationActions() {
   const { startIntegration, stopIntegration } = useIntegrations();
   const { authorize, changeCredentials } = useOAuthFlow();
-  const [busyName, setBusyName] = useState<string | null>(null);
+  const [busyNames, setBusyNames] = useState<ReadonlySet<string>>(new Set());
 
   const send = useCallback(
     async (name: string, verb: string, request: (name: string) => Promise<void>) => {
-      setBusyName(name);
+      setBusyNames((names) => new Set(names).add(name));
       try {
         await request(name);
       } catch (error) {
         reportActionError(`Couldn't ${verb} ${name}`, error);
       } finally {
-        setBusyName(null);
+        setBusyNames((names) => new Set([...names].filter((other) => other !== name)));
       }
     },
     []
@@ -54,8 +54,8 @@ export function useIntegrationActions() {
 
   /** Whether a start or stop of this integration is still waiting for its answer. */
   const isBusy = useCallback(
-    (integration: IntegrationInfo) => busyName === integration.name,
-    [busyName]
+    (integration: IntegrationInfo) => busyNames.has(integration.name),
+    [busyNames]
   );
 
   return { run, start, isBusy, changeCredentials };

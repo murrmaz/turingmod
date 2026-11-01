@@ -1,8 +1,8 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { type IntegrationInfo, IntegrationName, IntegrationStatus } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
-import { FakeSubscription } from '@/testing/fakeTrpc';
+import { deferred, FakeSubscription } from '@/testing/fakeTrpc';
 import { apiIntegration, integration, oauthIntegration } from '@/testing/integrations';
 import { CurrentLocation, renderConsole } from '@/testing/render-console';
 import { HealthRail } from './health-rail';
@@ -65,6 +65,35 @@ describe('HealthRail', () => {
     await user.click(screen.getByRole('button', { name: 'Reconnect' }));
 
     expect(authorizationUrl).toHaveBeenCalledWith({ integrationName: TWITCH_AUTH });
+  });
+
+  it('holds each retry until its own answer, when two are running at once', async () => {
+    const broken = [
+      integration(OBS, { status: ERROR, enabled: true }),
+      integration(SOUND, { status: ERROR, enabled: true }),
+    ];
+    const { user, start } = setup(broken);
+    const obsAnswer = deferred<IntegrationInfo[]>();
+    const soundAnswer = deferred<IntegrationInfo[]>();
+    start.mockImplementation(({ integrationName }) =>
+      integrationName === OBS ? obsAnswer.promise : soundAnswer.promise
+    );
+    const [obs, sound] = screen.getAllByRole('button', { name: 'Retry' });
+
+    await user.click(obs as HTMLElement);
+    await user.click(sound as HTMLElement);
+
+    expect(obs).toBeDisabled();
+    expect(sound).toBeDisabled();
+
+    obsAnswer.resolve(broken);
+
+    await waitFor(() => expect(obs).toBeEnabled());
+    expect(sound).toBeDisabled();
+
+    soundAnswer.resolve(broken);
+
+    await waitFor(() => expect(sound).toBeEnabled());
   });
 
   it('retries a failed integration without OAuth by starting it', async () => {

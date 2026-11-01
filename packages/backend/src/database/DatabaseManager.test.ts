@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Logger } from '../utils/Logger.js';
 import { DatabaseManager } from './DatabaseManager.js';
 
@@ -21,6 +21,36 @@ describe('DatabaseManager', () => {
   function makeManager(): DatabaseManager {
     return new DatabaseManager(dbPath, new Logger({ level: 'silent' }));
   }
+
+  /** A manager whose log calls can be read, since its own logger is a child of this one. */
+  function makeWatchedManager() {
+    const log = { info: vi.fn(), warn: vi.fn() };
+    const logger = { child: () => log } as unknown as Logger;
+    return { db: new DatabaseManager(dbPath, logger), log };
+  }
+
+  it('warns, naming the path, when it creates a new database', async () => {
+    const { db, log } = makeWatchedManager();
+
+    await db.initialize();
+
+    expect(log.warn).toHaveBeenCalledTimes(1);
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining(dbPath));
+    await db.close();
+  });
+
+  it('names the path, without a warning, when it opens an existing database', async () => {
+    const first = makeManager();
+    await first.initialize();
+    await first.close();
+    const { db, log } = makeWatchedManager();
+
+    await db.initialize();
+
+    expect(log.warn).not.toHaveBeenCalled();
+    expect(log.info).toHaveBeenCalledWith(expect.stringContaining(dbPath));
+    await db.close();
+  });
 
   it('creates a new database file and allows writes/reads', async () => {
     const db = makeManager();

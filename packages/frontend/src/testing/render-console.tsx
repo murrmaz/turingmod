@@ -12,6 +12,8 @@ export interface ConsoleOptions {
   /** The backend, as fakes (see fakeTrpc). AppStateProvider's are filled in when not given. */
   procedures?: Procedures;
   connectionState?: ConnectionState;
+  /** What Retry now does. */
+  retry?: () => void;
   /** The URL the console opens on, e.g. `/integrations?selected=obs`. */
   route?: string;
 }
@@ -45,6 +47,7 @@ function ConsoleProviders({ client, connection, route, children }: ConsoleProvid
 export function consoleWrapper({
   procedures = {},
   connectionState = 'connected',
+  retry = () => {},
   route = '/',
 }: ConsoleOptions = {}): (props: { children: ReactNode }) => ReactElement {
   const client = fakeTrpc({
@@ -53,7 +56,7 @@ export function consoleWrapper({
     // Never answers, so no state update lands outside the test's act().
     commands: { list: { query: () => new Promise(() => {}) }, ...procedures.commands },
   });
-  const connection: Connection = { connectionState, retry: () => {} };
+  const connection: Connection = { connectionState, retry };
   return ({ children }) => (
     <ConsoleProviders client={client} connection={connection} route={route}>
       {children}

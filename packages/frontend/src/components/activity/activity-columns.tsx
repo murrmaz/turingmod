@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { type FeedRow, formatClock, formatDateTime } from '@/constants/activityFormat';
+import { type FeedRow, formatClock, formatDateTime } from '@/lib/activityFormat';
 import { copyToClipboard } from '@/lib/reportError';
 
 export interface ActivityRowActions {

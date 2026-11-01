@@ -1,22 +1,9 @@
-import {
-  DiscordConfigSchema,
-  DiscordSnowflakeSchema,
-  type IntegrationInfo,
-  IntegrationName,
-} from '@turingmod/shared';
+import { DiscordConfigSchema, DiscordSnowflakeSchema, IntegrationName } from '@turingmod/shared';
 import { ExternalLink, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { IntegrationConfigDialog } from './IntegrationConfigDialog';
-
-export interface ConfigSetupModalProps {
-  /** The integration being set up, as the backend last reported it. */
-  integration: IntegrationInfo;
-  onDismiss: () => void;
-  /** The config was saved (and, if the integration was running, it restarted on it). */
-  onSaved: () => void;
-}
+import { type ConfigSetupModalProps, IntegrationConfigDialog } from './integration-config-dialog';
 
 /**
  * Discord setup: the bot's token and the channel go-live notifications are posted in. Saving

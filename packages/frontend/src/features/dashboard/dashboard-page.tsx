@@ -7,21 +7,21 @@ import {
 import { ArrowUp, Pause, Play, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { activityColumns } from '@/components/activity/activity-columns';
+import { EventSheet } from '@/components/activity/event-sheet';
 import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { type LiveFeedRow, useLiveLog } from '@/hooks/useLiveLog';
+import { usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import {
   dayDivider,
   FEED_CATEGORY_LABELS,
   type FeedCategory,
   type FeedRow,
   matchesFeedQuery,
-} from '@/constants/activityFormat';
-import { type LiveFeedRow, useLiveLog } from '@/hooks/useLiveLog';
-import { usePlatformLiveState } from '@/hooks/usePlatformLiveState';
-import { activityColumns } from './activity-columns';
-import { EventSheet } from './event-sheet';
+} from '@/lib/activityFormat';
 import { HealthRail } from './health-rail';
 
 /** Tabs in display order. "all" leaves chat out: it would bury everything else mid-stream. */

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import type { ActivityLogEntry } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { ActivityHistoryQuery } from '@/hooks/useActivityHistory';
-import { renderConsole } from '@/testing/renderConsole';
+import { renderConsole } from '@/testing/render-console';
 import { HistoryPage } from './history-page';
 
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));

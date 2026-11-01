@@ -1,5 +1,5 @@
 import { act } from '@testing-library/react';
-import type { TrpcClient } from '@/context/TrpcContext';
+import type { TrpcClient } from '@/context/trpc-context';
 
 interface SubscriptionHandlers<T> {
   onData: (value: T) => void;

@@ -1,6 +1,6 @@
 import type { SimulatedUser, StreamingPlatform } from '@turingmod/shared';
 import { useCallback } from 'react';
-import { type RouterOutputs, useTrpc } from '@/context/TrpcContext';
+import { type RouterOutputs, useTrpc } from '@/context/trpc-context';
 
 /** Running a command through the simulator, as if `simulatedUser` had typed it on `platform`. */
 export function useCommands() {

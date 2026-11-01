@@ -2,23 +2,23 @@ import { getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { Search } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { activityColumns } from '@/components/activity/activity-columns';
+import { EventSheet } from '@/components/activity/event-sheet';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { type DateRange, DateRangeSelect, rangeStart } from '@/components/date-range-select';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useActivityHistory } from '@/hooks/useActivityHistory';
+import { DATA_PAGE_SIZES } from '@/hooks/useDataRows';
+import { useDebounced } from '@/hooks/useDebounced';
 import {
   dayDivider,
   FEED_CATEGORY_EVENTS,
   FEED_CATEGORY_LABELS,
   type FeedRow,
   toFeedRow,
-} from '@/constants/activityFormat';
-import { activityColumns } from '@/features/dashboard/activity-columns';
-import { EventSheet } from '@/features/dashboard/event-sheet';
-import { useActivityHistory } from '@/hooks/useActivityHistory';
-import { DATA_PAGE_SIZES } from '@/hooks/useDataRows';
-import { useDebounced } from '@/hooks/useDebounced';
+} from '@/lib/activityFormat';
 
 type HistoryCategory = keyof typeof FEED_CATEGORY_EVENTS | 'all';
 

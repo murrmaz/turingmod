@@ -16,8 +16,8 @@ import { DataTablePagination } from '@/components/data-table/pagination';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { formatDateTime } from '@/constants/activityFormat';
 import { type Suggestion, useSuggestions } from '@/hooks/useSuggestions';
+import { formatDateTime } from '@/lib/activityFormat';
 
 const PAGE_SIZE = 50;
 

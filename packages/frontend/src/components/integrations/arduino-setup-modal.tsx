@@ -2,8 +2,7 @@ import { ARDUINO_DEFAULT_URL, ArduinoConfigSchema, IntegrationName } from '@turi
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { ConfigSetupModalProps } from './DiscordSetupModal';
-import { IntegrationConfigDialog } from './IntegrationConfigDialog';
+import { type ConfigSetupModalProps, IntegrationConfigDialog } from './integration-config-dialog';
 
 /**
  * Arduino setup: the address of the board's WebSocket server. It opens on the address in use, and

@@ -5,14 +5,14 @@ import { CommandPalette } from '@/components/command-palette';
 import { ConnectionBanner } from '@/components/connection-banner';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { IntegrationToasts } from '@/components/integration-toasts';
-import { OAuthFlowProvider } from '@/components/integrations/OAuthFlow';
+import { OAuthFlowProvider } from '@/components/integrations/oauth-flow';
+import { SimulatorProvider } from '@/components/simulator';
 import { SiteHeader } from '@/components/site-header';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { AppStateProvider } from '@/context/AppStateContext';
-import { TrpcProvider, useConnection } from '@/context/TrpcContext';
-import { SimulatorProvider } from '@/features/commands/simulator';
+import { AppStateProvider } from '@/context/app-state-context';
+import { TrpcProvider, useConnection } from '@/context/trpc-context';
 import { cn } from '@/lib/utils';
 
 const DashboardPage = lazy(() =>

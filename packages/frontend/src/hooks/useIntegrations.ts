@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { useAppState } from '@/context/AppStateContext';
-import { useTrpc } from '@/context/TrpcContext';
+import { useAppState } from '@/context/app-state-context';
+import { useTrpc } from '@/context/trpc-context';
 
 /**
  * The integrations, and starting, stopping and configuring them.

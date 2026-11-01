@@ -4,7 +4,7 @@ import { type IntegrationInfo, IntegrationName, IntegrationStatus } from '@turin
 import { describe, expect, it, vi } from 'vitest';
 import { FakeSubscription } from '@/testing/fakeTrpc';
 import { apiIntegration, integration, oauthIntegration } from '@/testing/integrations';
-import { renderConsole } from '@/testing/renderConsole';
+import { renderConsole } from '@/testing/render-console';
 import { HealthRail } from './health-rail';
 
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));

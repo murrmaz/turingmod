@@ -171,6 +171,144 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "**/packages/frontend/src/lib/**",
+        "**/packages/frontend/src/constants/**",
+        "**/packages/frontend/src/services/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**"],
+                    "message": "Import from outside this folder with the @/ alias (src/), not ../"
+                  },
+                  {
+                    "group": [
+                      "@/hooks",
+                      "@/hooks/**",
+                      "@/context",
+                      "@/context/**",
+                      "@/components",
+                      "@/components/**",
+                      "@/features",
+                      "@/features/**"
+                    ],
+                    "message": "lib, constants and services are logic only: move what this needs here, or this code up a layer"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/packages/frontend/src/context/**", "**/packages/frontend/src/hooks/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**"],
+                    "message": "Import from outside this folder with the @/ alias (src/), not ../"
+                  },
+                  {
+                    "group": ["@/components", "@/components/**", "@/features", "@/features/**"],
+                    "message": "context and hooks draw nothing: a provider that renders UI goes in components/, its context in context/"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "**/packages/frontend/src/components/**",
+        "!**/packages/frontend/src/components/ui/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**"],
+                    "message": "Import from outside this folder with the @/ alias (src/), not ../"
+                  },
+                  {
+                    "group": ["@/features", "@/features/**"],
+                    "message": "components are shared by pages and can't depend on one: move what both need into components/, hooks/ or lib/"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/packages/frontend/src/features/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**"],
+                    "message": "Import from outside this folder with the @/ alias (src/), not ../"
+                  },
+                  {
+                    "group": ["@/features", "@/features/**"],
+                    "message": "a page can't import another page: move what both need into components/, hooks/ or lib/"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/packages/frontend/src/**/*.tsx", "!**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useFilenamingConvention": {
+              "level": "error",
+              "options": { "filenameCases": ["kebab-case"] }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/packages/frontend/src/**/*.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useFilenamingConvention": {
+              "level": "error",
+              "options": { "filenameCases": ["camelCase"] }
+            }
+          }
+        }
+      }
     }
   ]
 }

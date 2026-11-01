@@ -1,7 +1,7 @@
 import type { IntegrationInfo } from '@turingmod/shared';
 import type { ReactNode } from 'react';
 import { createContext, useContext } from 'react';
-import type { RouterOutputs } from '@/context/TrpcContext';
+import type { RouterOutputs } from '@/context/trpc-context';
 import { useServerQuery } from '@/hooks/useServerQuery';
 import { useSubscription } from '@/hooks/useSubscription';
 

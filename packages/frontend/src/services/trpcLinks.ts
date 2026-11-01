@@ -1,7 +1,7 @@
 import { TRPCClientError, type TRPCLink, type TRPCWebSocketClient } from '@trpc/client';
 import type { AnyRouter } from '@trpc/server';
 import { observable } from '@trpc/server/observable';
-import { ConnectionError, NOT_CONNECTED_MESSAGE } from '@/services/connection';
+import { ConnectionError, NOT_CONNECTED_MESSAGE } from './connection';
 
 /**
  * Fail a query or mutation at once while disconnected, rather than let tRPC queue it: an action the streamer clicked during an outage must not run later, after

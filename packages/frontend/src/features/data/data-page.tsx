@@ -22,17 +22,18 @@ import { DataTableFacetedFilter } from '@/components/data-table/faceted-filter';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { DataTableViewOptions } from '@/components/data-table/view-options';
 import { type DateRange, DateRangeSelect, rangeStart } from '@/components/date-range-select';
-import { DotBadge, type Tone } from '@/components/status';
+import { DotBadge } from '@/components/status';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { formatDateTime } from '@/constants/activityFormat';
-import { useTrpc } from '@/context/TrpcContext';
+import { useTrpc } from '@/context/trpc-context';
 import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
+import { useDataTables } from '@/hooks/useDataTables';
 import { useDebounced } from '@/hooks/useDebounced';
+import { formatDateTime } from '@/lib/activityFormat';
 import { copyToClipboard } from '@/lib/reportError';
+import type { Tone } from '@/lib/tone';
 import { toCsv } from './csv';
-import { useDataTables } from './useDataTables';
 
 /** A row of the current page, keyed by its position since tables need not have one id column. */
 interface DataRow {

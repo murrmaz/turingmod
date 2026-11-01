@@ -3,8 +3,7 @@ import { ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { ConfigSetupModalProps } from './DiscordSetupModal';
-import { IntegrationConfigDialog } from './IntegrationConfigDialog';
+import { type ConfigSetupModalProps, IntegrationConfigDialog } from './integration-config-dialog';
 
 /**
  * OBS setup: obs-websocket's address and password. It opens on the address in use; the password

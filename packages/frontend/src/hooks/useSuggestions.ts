@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { type RouterOutputs, useTrpc } from '@/context/TrpcContext';
+import { type RouterOutputs, useTrpc } from '@/context/trpc-context';
 import { PendingDeletes } from '@/lib/pendingDeletes';
 import { reportActionError } from '@/lib/reportError';
 import { useSubscription } from './useSubscription';

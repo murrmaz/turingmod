@@ -4,7 +4,7 @@ import { CircleAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { StatusDot } from '@/components/status';
 import { Button } from '@/components/ui/button';
-import { useAppState } from '@/context/AppStateContext';
+import { useAppState } from '@/context/app-state-context';
 import { useIntegrationActions } from '@/hooks/useIntegrationActions';
 import { type IntegrationAction, repairAction } from '@/lib/integrationActions';
 import { describeIntegration, inDisplayOrder } from '@/lib/integrationStatus';

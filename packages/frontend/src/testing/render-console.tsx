@@ -1,9 +1,9 @@
 import { render } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { OAuthFlowProvider } from '@/components/integrations/OAuthFlow';
-import { AppStateProvider } from '@/context/AppStateContext';
-import { type Connection, type TrpcClient, TrpcClientProvider } from '@/context/TrpcContext';
+import { OAuthFlowProvider } from '@/components/integrations/oauth-flow';
+import { AppStateProvider } from '@/context/app-state-context';
+import { type Connection, type TrpcClient, TrpcClientProvider } from '@/context/trpc-context';
 import type { ConnectionState } from '@/services/connection';
 import { FakeSubscription, fakeTrpc, type Procedures } from './fakeTrpc';
 

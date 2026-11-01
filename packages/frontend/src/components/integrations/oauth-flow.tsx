@@ -1,10 +1,11 @@
 import type { IntegrationInfo } from '@turingmod/shared';
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useMemo, useState } from 'react';
+import { OAuthFlowContext } from '@/context/oauthFlowContext';
 import { reportActionError } from '@/lib/reportError';
-import { OAuthModal } from './OAuthModal';
-import { OAUTH_INTEGRATION_REGISTRY } from './oauthIntegrationRegistry';
-import type { OAuthProviderConfig } from './oauthProviders';
-import { SetupModal } from './SetupModal';
+import { OAUTH_INTEGRATION_REGISTRY } from './oauth-integration-registry';
+import { OAuthModal } from './oauth-modal';
+import type { OAuthProviderConfig } from './oauth-providers';
+import { SetupModal } from './setup-modal';
 
 /** Where an authorization stands: entering the app's credentials first, or signing in. */
 interface Flow {
@@ -12,30 +13,7 @@ interface Flow {
   provider: OAuthProviderConfig;
 }
 
-interface OAuthFlowContextValue {
-  /**
-   * Authorize an OAuth integration. Without client credentials there's nothing to sign in with
-   * yet, so it starts at setup, which hands off to signing in once they're saved.
-   */
-  authorize: (integration: IntegrationInfo) => void;
-  /**
-   * Replace an OAuth integration's saved client credentials, e.g. ones the provider rejects, then
-   * authorize with the new ones.
-   */
-  changeCredentials: (integration: IntegrationInfo) => void;
-}
-
-const OAuthFlowContext = createContext<OAuthFlowContextValue | null>(null);
-
-export function useOAuthFlow(): OAuthFlowContextValue {
-  const context = useContext(OAuthFlowContext);
-  if (!context) {
-    throw new Error('useOAuthFlow must be used within OAuthFlowProvider');
-  }
-  return context;
-}
-
-/** The OAuth setup and sign-in dialogs, which any page can start through useOAuthFlow(). */
+/** The OAuth setup and sign-in dialogs, which anything can start through useOAuthFlow(). */
 export function OAuthFlowProvider({ children }: { children: ReactNode }) {
   const [flow, setFlow] = useState<Flow | null>(null);
 

@@ -1,5 +1,5 @@
 import type { DataTableInfo } from '@turingmod/shared';
-import { useServerQuery } from '@/hooks/useServerQuery';
+import { useServerQuery } from './useServerQuery';
 
 const NO_TABLES: DataTableInfo[] = [];
 

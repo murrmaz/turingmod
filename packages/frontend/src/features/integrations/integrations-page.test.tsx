@@ -9,7 +9,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { deferred, FakeSubscription } from '@/testing/fakeTrpc';
 import { apiIntegration, integration, oauthIntegration } from '@/testing/integrations';
-import { renderConsole } from '@/testing/renderConsole';
+import { renderConsole } from '@/testing/render-console';
 import { IntegrationsPage } from './integrations-page';
 
 const toast = vi.hoisted(() => Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }));

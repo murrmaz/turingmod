@@ -1,4 +1,4 @@
-import { messageOf } from '@turingmod/shared';
+import { type IntegrationInfo, messageOf } from '@turingmod/shared';
 import { CircleAlert } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -13,6 +13,15 @@ import {
 } from '@/components/ui/dialog';
 import { useIntegrations } from '@/hooks/useIntegrations';
 import { cn } from '@/lib/utils';
+
+/** What every non-OAuth setup dialog takes (see CONFIG_SETUP_REGISTRY). */
+export interface ConfigSetupModalProps {
+  /** The integration being set up, as the backend last reported it. */
+  integration: IntegrationInfo;
+  onDismiss: () => void;
+  /** The config was saved (and, if the integration was running, it restarted on it). */
+  onSaved: () => void;
+}
 
 export interface IntegrationConfigDialogProps {
   integrationName: string;

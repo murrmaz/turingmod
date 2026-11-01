@@ -1,8 +1,9 @@
 import { IntegrationName } from '@turingmod/shared';
 import type { ComponentType } from 'react';
-import { ArduinoSetupModal } from './ArduinoSetupModal';
-import { type ConfigSetupModalProps, DiscordSetupModal } from './DiscordSetupModal';
-import { ObsSetupModal } from './ObsSetupModal';
+import { ArduinoSetupModal } from './arduino-setup-modal';
+import { DiscordSetupModal } from './discord-setup-modal';
+import type { ConfigSetupModalProps } from './integration-config-dialog';
+import { ObsSetupModal } from './obs-setup-modal';
 
 /**
  * Maps a non-OAuth integration whose config the console can enter to its setup dialog, so the

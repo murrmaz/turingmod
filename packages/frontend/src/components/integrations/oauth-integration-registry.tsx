@@ -4,7 +4,7 @@ import {
   SPOTIFY_OAUTH_PROVIDER,
   TWITCH_OAUTH_PROVIDER,
   YOUTUBE_OAUTH_PROVIDER,
-} from './oauthProviders';
+} from './oauth-providers';
 
 /**
  * Maps an OAuth-capable integration's name to the provider config its SetupModal/OAuthModal

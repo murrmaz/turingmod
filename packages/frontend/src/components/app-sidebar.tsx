@@ -17,9 +17,9 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { PAGES, pageAt } from '@/constants/pages';
-import { useAppState } from '@/context/AppStateContext';
-import { useConnection } from '@/context/TrpcContext';
-import { useDataTables } from '@/features/data/useDataTables';
+import { useAppState } from '@/context/app-state-context';
+import { useConnection } from '@/context/trpc-context';
+import { useDataTables } from '@/hooks/useDataTables';
 import { describeIntegration } from '@/lib/integrationStatus';
 
 export function AppSidebar() {

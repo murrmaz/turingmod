@@ -12,8 +12,8 @@ import {
   CommandSeparator,
 } from '@/components/ui/command';
 import { PAGES } from '@/constants/pages';
-import { useAppState } from '@/context/AppStateContext';
-import { useSimulator } from '@/features/commands/simulator';
+import { useAppState } from '@/context/app-state-context';
+import { useSimulator } from '@/context/simulatorContext';
 
 /**
  * ⌘K: jump to a page, or open a command in the simulator. Running goes through the simulator

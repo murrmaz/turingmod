@@ -11,12 +11,12 @@ import {
 } from 'lucide-react';
 import { Fragment, type ReactNode, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CONFIG_SETUP_REGISTRY } from '@/components/integrations/configIntegrationRegistry';
+import { CONFIG_SETUP_REGISTRY } from '@/components/integrations/config-integration-registry';
 import { StatusDot, TONE_TEXT } from '@/components/status';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAppState } from '@/context/AppStateContext';
+import { useAppState } from '@/context/app-state-context';
 import { useIntegrationActions } from '@/hooks/useIntegrationActions';
 import {
   type IntegrationAction,

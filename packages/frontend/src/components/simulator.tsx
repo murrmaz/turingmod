@@ -8,7 +8,7 @@ import {
   StreamingPlatform,
 } from '@turingmod/shared';
 import { CircleCheck, CircleX, Play } from 'lucide-react';
-import { createContext, type ReactNode, useCallback, useContext, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -28,16 +28,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-
+import { PERMISSION_LABELS } from '@/constants/permissions';
+import { SimulatorContext, type SimulatorRequest } from '@/context/simulatorContext';
 import { useCommands } from '@/hooks/useCommands';
-
-export const PERMISSION_LABELS: Record<PermissionLevel, string> = {
-  [PermissionLevel.VIEWER]: 'Viewer',
-  [PermissionLevel.SUBSCRIBER]: 'Subscriber',
-  [PermissionLevel.VIP]: 'VIP',
-  [PermissionLevel.MODERATOR]: 'Moderator',
-  [PermissionLevel.BROADCASTER]: 'Broadcaster',
-};
 
 /** What a simulation came back with, as the sheet and its toast show it. */
 interface Outcome {
@@ -74,26 +67,6 @@ function toOutcome(result: ExecutionResult): Outcome {
     };
   }
   return { success: false, title: 'Command failed', message: result.message, reason };
-}
-
-interface SimulatorRequest {
-  command?: string;
-  permissionLevel?: PermissionLevel;
-}
-
-interface SimulatorContextValue {
-  /** Open the simulator, optionally on a command (name without `!`). */
-  open: (request?: SimulatorRequest) => void;
-}
-
-const SimulatorContext = createContext<SimulatorContextValue | null>(null);
-
-export function useSimulator(): SimulatorContextValue {
-  const context = useContext(SimulatorContext);
-  if (!context) {
-    throw new Error('useSimulator must be used within SimulatorProvider');
-  }
-  return context;
 }
 
 /**

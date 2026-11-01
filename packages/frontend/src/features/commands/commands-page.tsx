@@ -22,7 +22,7 @@ import { DataTable } from '@/components/data-table/data-table';
 import { DataTableFacetedFilter } from '@/components/data-table/faceted-filter';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { DataTableViewOptions } from '@/components/data-table/view-options';
-import { DotBadge, type Tone } from '@/components/status';
+import { DotBadge } from '@/components/status';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -31,10 +31,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { PERMISSION_LABELS } from '@/constants/permissions';
 
-import { type CommandInfo, useAppState } from '@/context/AppStateContext';
+import { type CommandInfo, useAppState } from '@/context/app-state-context';
+import { useSimulator } from '@/context/simulatorContext';
 import { copyToClipboard } from '@/lib/reportError';
-import { PERMISSION_LABELS, useSimulator } from './simulator';
+import type { Tone } from '@/lib/tone';
 
 const PERMISSION_TONES: Record<PermissionLevel, Tone> = {
   [PermissionLevel.VIEWER]: 'idle',

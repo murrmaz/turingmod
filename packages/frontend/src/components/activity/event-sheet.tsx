@@ -11,7 +11,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { type FeedRow, formatDateTime } from '@/constants/activityFormat';
+import { type FeedRow, formatDateTime } from '@/lib/activityFormat';
 import { copyToClipboard } from '@/lib/reportError';
 
 function formatValue(value: unknown): string {

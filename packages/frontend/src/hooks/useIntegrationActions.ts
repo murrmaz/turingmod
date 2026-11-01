@@ -1,6 +1,6 @@
 import type { IntegrationInfo } from '@turingmod/shared';
 import { useCallback, useState } from 'react';
-import { useOAuthFlow } from '@/components/integrations/OAuthFlow';
+import { useOAuthFlow } from '@/context/oauthFlowContext';
 import type { IntegrationAction } from '@/lib/integrationActions';
 import { reportActionError } from '@/lib/reportError';
 import { useIntegrations } from './useIntegrations';

@@ -2,9 +2,9 @@ import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ActivityLogEntry, PlatformLiveState } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
-import type { RouterOutputs } from '@/context/TrpcContext';
+import type { RouterOutputs } from '@/context/trpc-context';
 import { FakeSubscription } from '@/testing/fakeTrpc';
-import { renderConsole } from '@/testing/renderConsole';
+import { renderConsole } from '@/testing/render-console';
 import { DashboardPage } from './dashboard-page';
 
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));

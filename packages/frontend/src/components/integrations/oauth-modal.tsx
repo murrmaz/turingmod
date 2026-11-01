@@ -11,8 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useTrpc } from '@/context/TrpcContext';
-import type { OAuthProviderConfig } from './oauthProviders';
+import { useTrpc } from '@/context/trpc-context';
+import type { OAuthProviderConfig } from './oauth-providers';
 
 export interface OAuthModalProps {
   /** The integration this modal is authorizing */

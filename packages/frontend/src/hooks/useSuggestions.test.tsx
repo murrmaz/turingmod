@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type Deferred, deferred, FakeSubscription } from '@/testing/fakeTrpc';
-import { consoleWrapper } from '@/testing/renderConsole';
+import { consoleWrapper } from '@/testing/render-console';
 import { type Suggestion, useSuggestions } from './useSuggestions';
 
 const toast = vi.hoisted(() =>

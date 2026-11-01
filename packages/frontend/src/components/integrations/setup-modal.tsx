@@ -3,9 +3,9 @@ import { ExternalLink, Info, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAppState } from '@/context/AppStateContext';
-import { IntegrationConfigDialog } from './IntegrationConfigDialog';
-import type { OAuthProviderConfig } from './oauthProviders';
+import { useAppState } from '@/context/app-state-context';
+import { IntegrationConfigDialog } from './integration-config-dialog';
+import type { OAuthProviderConfig } from './oauth-providers';
 
 export interface SetupModalProps {
   /** The integration this modal configures */

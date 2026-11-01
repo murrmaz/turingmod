@@ -94,6 +94,26 @@ export function TrpcProvider({ children }: { children: ReactNode }) {
     return null;
   }
   return (
+    <TrpcClientProvider client={client} connection={connection}>
+      {children}
+    </TrpcClientProvider>
+  );
+}
+
+/**
+ * Gives everything below it this client and connection: TrpcProvider's real ones, or a test's
+ * fake client (`testing/fakeTrpc.ts`), which needs no WebSocket.
+ */
+export function TrpcClientProvider({
+  client,
+  connection,
+  children,
+}: {
+  client: TrpcClient;
+  connection: Connection;
+  children: ReactNode;
+}) {
+  return (
     <ConnectionContext.Provider value={connection}>
       <TrpcContext.Provider value={client}>{children}</TrpcContext.Provider>
     </ConnectionContext.Provider>

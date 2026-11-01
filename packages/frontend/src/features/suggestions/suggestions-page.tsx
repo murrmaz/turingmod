@@ -6,9 +6,9 @@ import { DataTable } from '@/components/data-table/data-table';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
+import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
 import { useClientTable } from '@/hooks/useClientTable';
 import { plural } from '@/lib/plural';
 import { formatDateTime } from '@/lib/time';
@@ -123,7 +123,7 @@ export function SuggestionsPage() {
         description="Suggestions viewers have made in chat with !sg."
       />
       <div className="flex flex-wrap items-center gap-2">
-        <Input
+        <SearchInput
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
           placeholder="Filter by text or viewer…"

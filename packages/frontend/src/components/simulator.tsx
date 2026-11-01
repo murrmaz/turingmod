@@ -8,7 +8,7 @@ import {
   StreamingPlatform,
 } from '@turingmod/shared';
 import { CircleCheck, CircleX, Play } from 'lucide-react';
-import { type ReactNode, useCallback, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { FormField } from '@/components/form-field';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -127,9 +127,12 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
   };
 
   const commandName = commandText.trim().split(/\s+/)[0] ?? '';
+  // Memoized: the form's state lives here, so each keystroke renders this, and a new value would
+  // render everything that can open the simulator.
+  const simulator = useMemo(() => ({ open }), [open]);
 
   return (
-    <SimulatorContext.Provider value={{ open }}>
+    <SimulatorContext.Provider value={simulator}>
       {children}
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetContent className="w-sheet gap-0 sm:max-w-sheet">

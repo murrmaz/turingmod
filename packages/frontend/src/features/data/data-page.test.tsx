@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DataCell, DataRowsPage, DataRowsQuery, DataTableInfo } from '@turingmod/shared';
 import { MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
-import { Route, Routes } from 'react-router-dom';
+import { Link, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { links, PAGES, routePattern } from '@/constants/pages';
 import { renderConsole } from '@/testing/render-console';
@@ -243,6 +243,34 @@ describe('Data page', () => {
     await user.type(screen.getByPlaceholderText('Search data…'), 'r');
 
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  it('recovers from a table that crashes when another table is opened', async () => {
+    const broken = { ...LOG, name: 'broken', columns: null } as unknown as DataTableInfo;
+    const data = PAGES.find((page) => page.id === 'data');
+    renderConsole(
+      <>
+        <Link to={links.dataTable(LOG.name)}>Open the log</Link>
+        <Routes>
+          <Route path={data ? routePattern(data) : ''} element={<DataPage />} />
+        </Routes>
+      </>,
+      {
+        route: links.dataTable(broken.name),
+        procedures: {
+          data: {
+            listTables: { query: async () => [broken, LOG] },
+            queryRows: { query: async (query) => pageOf(query, 3) },
+          },
+        },
+      }
+    );
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole('link', { name: 'Open the log' }));
+
+    expect(await screen.findByText('row-1')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('leaves a closed row closed when the search goes back to what it was', async () => {

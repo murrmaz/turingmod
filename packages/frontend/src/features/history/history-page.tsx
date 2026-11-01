@@ -1,5 +1,4 @@
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { type ActivityLogEntry, ActivityLogEntrySchema, type DataCell } from '@turingmod/shared';
 import { Search } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -17,7 +16,8 @@ import {
 } from '@/constants/activityFormat';
 import { activityColumns } from '@/features/dashboard/activity-columns';
 import { EventSheet } from '@/features/dashboard/event-sheet';
-import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
+import { useActivityHistory } from '@/hooks/useActivityHistory';
+import { DATA_PAGE_SIZES } from '@/hooks/useDataRows';
 import { useDebounced } from '@/hooks/useDebounced';
 
 type HistoryCategory = keyof typeof FEED_CATEGORY_EVENTS | 'all';
@@ -29,23 +29,6 @@ const TABS: { value: HistoryCategory; label: string }[] = [
   { value: 'viewer', label: FEED_CATEGORY_LABELS.viewer },
   { value: 'system', label: FEED_CATEGORY_LABELS.system },
 ];
-
-/** Back from a stored row to the entry it was saved from; null for a row that isn't one. */
-function toEntry(row: Record<string, DataCell>): ActivityLogEntry | null {
-  const parsed = ActivityLogEntrySchema.safeParse({ ...row, data: readData(row.data) });
-  return parsed.success ? parsed.data : null;
-}
-
-/** A stored payload, or an empty one when it can't be read, so the row still shows as its event. */
-function readData(data: DataCell | undefined): ActivityLogEntry['data'] {
-  try {
-    return ActivityLogEntrySchema.shape.data.parse(
-      JSON.parse(typeof data === 'string' ? data : '')
-    );
-  } catch {
-    return {};
-  }
-}
 
 /**
  * The stored activity log, searchable and paged by the server. Chat isn't stored, so it's only on
@@ -61,17 +44,15 @@ export function HistoryPage() {
   const query = params.get('q') ?? '';
 
   const since = rangeStart(range);
-  const { rows, total, loading, error } = useDataRows({
-    table: 'activity_log',
+  const { entries, total, loading, error } = useActivityHistory({
     page,
     pageSize,
-    sort: { column: 'timestamp', direction: 'desc' },
-    ...(category === 'all' ? {} : { filters: { event: FEED_CATEGORY_EVENTS[category] } }),
+    ...(category === 'all' ? {} : { events: FEED_CATEGORY_EVENTS[category] }),
     ...(query.trim() ? { search: query.trim() } : {}),
     ...(since === undefined ? {} : { since }),
   });
 
-  const feedRows = useMemo(() => rows.flatMap((row) => toEntry(row) ?? []).map(toFeedRow), [rows]);
+  const feedRows = useMemo(() => entries.map(toFeedRow), [entries]);
 
   const viewUser = useCallback(
     (user: string) => {

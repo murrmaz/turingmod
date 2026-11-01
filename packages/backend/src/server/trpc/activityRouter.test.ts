@@ -1,7 +1,10 @@
-import type { ActivityLogEntry } from '@turingmod/shared';
-import { describe, expect, it } from 'vitest';
+import { type ActivityLogEntry, MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
+import { describe, expect, it, vi } from 'vitest';
 import type { ActivityForwarder } from '../../activity/ActivityForwarder.js';
-import type { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
+import type {
+  ActivityLogQuery,
+  ActivityLogRepository,
+} from '../../database/repositories/ActivityLogRepository.js';
 import { createActivityRouter } from './activityRouter.js';
 import { createCallerFactory } from './trpc.js';
 
@@ -71,5 +74,48 @@ describe('activity.feed', () => {
 
     expect((await waiting).done).toBe(true);
     expect(listenerCount()).toBe(0);
+  });
+});
+
+describe('activity.history', () => {
+  function historyCaller() {
+    const findPage = vi.fn((_query: ActivityLogQuery) => ({
+      entries: [entry('stored')],
+      total: 1,
+    }));
+    const caller = createCallerFactory(
+      createActivityRouter(
+        {} as ActivityForwarder,
+        { findPage } as unknown as ActivityLogRepository
+      )
+    )({ consoleOrigin: null });
+    return { caller, findPage };
+  }
+
+  it('answers with the page the log reads for the query', async () => {
+    const { caller, findPage } = historyCaller();
+    const query = {
+      events: ['twitch.follow' as const],
+      search: 'ana',
+      since: 10,
+      page: 2,
+      pageSize: 25,
+    };
+
+    await expect(caller.history(query)).resolves.toEqual({ entries: [entry('stored')], total: 1 });
+    expect(findPage).toHaveBeenCalledWith(query);
+  });
+
+  it.each([
+    ['an event the log does not record', { events: ['twitch.stream.online'] }],
+    ['an empty list of events', { events: [] }],
+    ['a negative page', { page: -1 }],
+    ['a page larger than the data inspector allows', { pageSize: MAX_DATA_PAGE_SIZE + 1 }],
+    ['an unknown field', { table: 'settings' }],
+  ])('refuses %s', async (_name, change) => {
+    const { caller, findPage } = historyCaller();
+
+    await expect(caller.history({ page: 0, pageSize: 50, ...change } as never)).rejects.toThrow();
+    expect(findPage).not.toHaveBeenCalled();
   });
 });

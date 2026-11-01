@@ -1,12 +1,37 @@
-import { type ActivityLogEntry, ActivityLogEntrySchema, messageOf } from '@turingmod/shared';
+import {
+  type ActivityEventName,
+  type ActivityLogEntry,
+  ActivityLogEntrySchema,
+  messageOf,
+} from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { DatabaseManager, type SqlValue } from '../DatabaseManager.js';
+import { containsPattern, LIKE_ESCAPE } from '../likePattern.js';
 
 const ACTIVITY_LOG_CAP = 5000;
 const PRUNE_EVERY = 100; // run the cap-enforcing delete once per N inserts (avoids per-insert scan)
 const DEFAULT_QUERY_LIMIT = 100;
 const MAX_QUERY_LIMIT = 500;
+
+/** Which stored entries to read, newest first, one page at a time; every condition given applies. */
+export interface ActivityLogQuery {
+  /** Only entries of these events. */
+  events?: readonly ActivityEventName[];
+  /** Only entries whose event name or payload contains this text (ASCII case ignored). */
+  search?: string;
+  /** Only entries made at or after this time, in epoch milliseconds. */
+  since?: number;
+  /** Zero-based. */
+  page: number;
+  pageSize: number;
+}
+
+/** One page of stored entries, and how many match across all pages. */
+export interface ActivityLogPage {
+  entries: ActivityLogEntry[];
+  total: number;
+}
 
 /**
  * Database row structure for activity_log table
@@ -92,6 +117,39 @@ export class ActivityLogRepository {
 
     const rows = this.db.query<ActivityLogRow>(sql, params);
     return rows.map((row) => this.rowToEntity(row));
+  }
+
+  /** A page of the entries matching `query`, newest first (see ActivityLogQuery). */
+  findPage(query: ActivityLogQuery): ActivityLogPage {
+    const conditions: string[] = [];
+    const params: SqlValue[] = [];
+    if (query.events !== undefined) {
+      // `IN ()` isn't SQL; no events means nothing matches.
+      conditions.push(
+        query.events.length === 0 ? '0' : `event IN (${query.events.map(() => '?').join(', ')})`
+      );
+      params.push(...query.events);
+    }
+    const search = query.search?.trim();
+    if (search) {
+      conditions.push(`(event LIKE ? ${LIKE_ESCAPE} OR data LIKE ? ${LIKE_ESCAPE})`);
+      params.push(containsPattern(search), containsPattern(search));
+    }
+    if (query.since !== undefined) {
+      conditions.push('timestamp >= ?');
+      params.push(query.since);
+    }
+    const where = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
+
+    const [counted] = this.db.query<{ total: number }>(
+      `SELECT COUNT(*) AS total FROM activity_log${where}`,
+      params
+    );
+    const rows = this.db.query<ActivityLogRow>(
+      `SELECT * FROM activity_log${where} ORDER BY timestamp DESC, rowid DESC LIMIT ? OFFSET ?`,
+      [...params, query.pageSize, query.page * query.pageSize]
+    );
+    return { entries: rows.map((row) => this.rowToEntity(row)), total: counted?.total ?? 0 };
   }
 
   /**

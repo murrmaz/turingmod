@@ -11,6 +11,7 @@ import { singleton } from 'tsyringe';
 import type { IService } from '../core/ServiceLifecycle.js';
 import { TuringModConfig } from '../utils/Config.js';
 import { ENCRYPTION_SALT_SETTINGS_KEY } from '../utils/Encryption.js';
+import { containsPattern, LIKE_ESCAPE } from './likePattern.js';
 
 /** What the inspector may show of one table, beyond the columns SQLite reports. */
 interface TablePolicy {
@@ -112,9 +113,9 @@ export class DataInspector implements IService {
       );
       if (searchable.length > 0) {
         conditions.push(
-          `(${searchable.map((column) => `${quote(column.name)} LIKE ? ESCAPE '\\'`).join(' OR ')})`
+          `(${searchable.map((column) => `${quote(column.name)} LIKE ? ${LIKE_ESCAPE}`).join(' OR ')})`
         );
-        const pattern = `%${search.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+        const pattern = containsPattern(search);
         params.push(...searchable.map(() => pattern));
       }
     }

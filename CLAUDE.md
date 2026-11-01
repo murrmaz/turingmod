@@ -126,8 +126,8 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 ### Activity Log
 - **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — subscribes to the EventBus events in `ACTIVITY_EVENT_CATEGORIES` (shared `types/activity.ts`: each recorded event and its category), hands each to the console's live feed (`onEntry()`) and persists all but chat and `LIVE_ONLY_EVENTS` (device messages)
 - **Storage**: `packages/backend/src/database/repositories/ActivityLogRepository.ts` (capped at 5000 rows)
-- **Live feed**: `packages/backend/src/server/trpc/activityRouter.ts` (`activity.feed`: the stored recent entries, then each entry as it's made); the History page reads the stored log through the data inspector
-- **Frontend**: `features/dashboard/dashboard-page.tsx` + `hooks/useLiveLog.ts` (live feed, newest first), `features/history/history-page.tsx`; how an entry reads (feed category, badge, title, detail) is `constants/activityFormat.ts` (`toFeedRow`)
+- **Live feed and History**: `packages/backend/src/server/trpc/activityRouter.ts` (`activity.feed`: the stored recent entries, then each entry as it's made; `activity.history`: one page of the stored log, by events, search and time, from `ActivityLogRepository.findPage()`)
+- **Frontend**: `features/dashboard/dashboard-page.tsx` + `hooks/useLiveLog.ts` (live feed, newest first), `features/history/history-page.tsx` + `hooks/useActivityHistory.ts`; how an entry reads (feed category, badge, title, detail) is `constants/activityFormat.ts` (`toFeedRow`)
 
 ### Console ↔ Backend Protocol
 - **tRPC router**: `packages/backend/src/server/trpc/appRouter.ts` (`createAppRouter()`, `AppRouter` type) — one sub-router per area, e.g. `integrationsRouter.ts`; `trpc.ts` (instance and `TrpcContext`), `watch.ts` (`watchable()`: current value, then again on each change, read once per change for every console; `events()`: a stream of events, subscribed at once so a snapshot read beside it misses nothing)
@@ -231,7 +231,7 @@ definition.
 - **Mutations** answer with the state they left, which the console that asked shows at once
   (`useSubscription()`'s setter), so a spinner never stops on stale state; other consoles get it
   through the subscription.
-- **Queries** (the command table, the data inspector) are read with `useServerQuery()`: on every
+- **Queries** (the command table, History, the data inspector) are read with `useServerQuery()`: on every
   connect and whenever the input changes, a superseded read aborted.
 - **Streams of events** rather than state (the activity feed, OAuth results) are built with
   `events()`. The activity feed sends a snapshot to start from, read in the same synchronous step
@@ -442,7 +442,7 @@ there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 
-React Context for state management: `TrpcContext` (the tRPC client and its connection) and `AppStateContext` (commands, integrations). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`); anything read with a tRPC query, with `useServerQuery()` (`hooks/useServerQuery.ts`): read whenever the connection comes up and whenever its input changes, a superseded read aborted. Don't hand-write either in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`, `useSuggestions()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, Suggestions, History, Data.
+React Context for state management: `TrpcContext` (the tRPC client and its connection) and `AppStateContext` (commands, integrations). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`); anything read with a tRPC query, with `useServerQuery()` (`hooks/useServerQuery.ts`): read whenever the connection comes up and whenever its input changes, a superseded read aborted. Don't hand-write either in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useActivityHistory()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`, `useSuggestions()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, Suggestions, History, Data.
 
 ### Console UI
 
@@ -454,8 +454,8 @@ tokens, including the category/status accents (`--cat-*`), are CSS variables in 
 use the tokens, not hex values or Tailwind's fixed palette (`red-900`). `@/` is `src/`, and imports from outside a file's own folder use it: lint rejects `../`. Every table is `components/data-table/data-table.tsx`
 over a TanStack table instance the page owns (sorting, filters and paging stay the page's, so the
 same component serves client-side lists and server-paged queries), with optional row
-virtualization for the live feed. History and the Data page read through the backend's read-only
-data inspector (below), paged and filtered on the server.
+virtualization for the live feed. History (`activity.history`) and the Data page (the read-only
+data inspector, below) are paged and filtered on the server.
 
 ### Data Inspector
 

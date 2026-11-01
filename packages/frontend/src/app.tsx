@@ -41,7 +41,7 @@ const PAGE_COMPONENTS: Record<PageId, LazyExoticComponent<ComponentType>> = {
   data: lazy(() => import('@/features/data/data-page').then((m) => ({ default: m.DataPage }))),
 };
 
-function Shell() {
+export function Shell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const { pathname } = useLocation();
   const { connectionState } = useConnection();

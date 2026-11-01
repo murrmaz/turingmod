@@ -1,17 +1,10 @@
 import { type IntegrationInfo, IntegrationStatus } from '@turingmod/shared';
-import {
-  CircleAlert,
-  Copy,
-  KeyRound,
-  type LucideIcon,
-  Play,
-  Settings,
-  Square,
-  X,
-} from 'lucide-react';
+import { CircleAlert, Copy, KeyRound, type LucideIcon, Play, Settings, Square } from 'lucide-react';
 import { Fragment, type ReactNode, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { DetailPanel } from '@/components/detail-panel';
 import { CONFIG_SETUP_REGISTRY } from '@/components/integrations/config-integration-registry';
+import { PageHeader } from '@/components/page-header';
 import { StatusDot, TONE_TEXT } from '@/components/status';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -51,12 +44,10 @@ export function IntegrationsPage() {
   return (
     <div className="flex min-h-0 flex-1">
       <div className="flex min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-8 py-6">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Integrations</h2>
-          <p className="text-sm text-muted-foreground">
-            Each chain starts in order: a link only connects once the one before it has.
-          </p>
-        </div>
+        <PageHeader
+          title="Integrations"
+          description="Each chain starts in order: a link only connects once the one before it has."
+        />
 
         {integrations.length === 0 && (
           <div className="grid max-w-3xl grid-cols-3 gap-9">
@@ -183,20 +174,16 @@ function IntegrationDetail({
   const [setupOpen, setSetupOpen] = useState(false);
 
   return (
-    <aside className="flex w-[380px] shrink-0 flex-col gap-5 overflow-y-auto border-l p-6">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h3 className="truncate font-mono text-base font-semibold">{integration.name}</h3>
-          <span className={cn('flex items-center gap-2 text-[13px]', TONE_TEXT[display.tone])}>
-            <StatusDot tone={display.tone} />
-            {display.label}
-          </span>
-        </div>
-        <Button variant="ghost" size="icon" className="size-7" onClick={onClose} aria-label="Close">
-          <X />
-        </Button>
-      </div>
-
+    <DetailPanel
+      title={integration.name}
+      subtitle={
+        <span className={cn('flex items-center gap-2 text-[13px]', TONE_TEXT[display.tone])}>
+          <StatusDot tone={display.tone} />
+          {display.label}
+        </span>
+      }
+      onClose={onClose}
+    >
       {problem && (
         <Alert variant="destructive">
           <CircleAlert />
@@ -302,7 +289,7 @@ function IntegrationDetail({
             : 'no'}
         </Detail>
       </dl>
-    </aside>
+    </DetailPanel>
   );
 }
 

@@ -89,4 +89,13 @@ describe('History', () => {
 
     expect(await screen.findByText('Stored activity log entry x is invalid')).toBeInTheDocument();
   });
+
+  it('steps through the page with ↑ and ↓ while an entry is open', async () => {
+    const { user } = setup(async () => ({ entries: [command('bonk'), command('lurk')], total: 2 }));
+
+    await user.click(await screen.findByText('!bonk'));
+    await user.keyboard('{ArrowDown}');
+
+    expect(screen.getByRole('dialog', { name: '!lurk' })).toBeInTheDocument();
+  });
 });

@@ -1,8 +1,8 @@
 import { OAuthClientCredentialsSchema } from '@turingmod/shared';
 import { ExternalLink, Info, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
+import { FormField } from '@/components/form-field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useAppState } from '@/context/app-state-context';
 import { IntegrationConfigDialog } from './integration-config-dialog';
 import type { OAuthProviderConfig } from './oauth-providers';
@@ -104,29 +104,29 @@ export function SetupModal({ provider, onDismiss, onSaved }: SetupModalProps) {
 
       <section className="flex flex-col gap-3">
         <h3 className="font-medium">2. Enter its credentials</h3>
-        <div className="grid gap-2">
-          <Label htmlFor="setup-client-id">Client ID</Label>
-          <Input
-            id="setup-client-id"
-            className="font-mono"
-            value={clientId}
-            onChange={(event) => setClientId(event.target.value)}
-            autoComplete="off"
-          />
-          <p className="text-xs text-muted-foreground">{provider.clientIdHint}</p>
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="setup-client-secret">Client Secret</Label>
-          <Input
-            id="setup-client-secret"
-            className="font-mono"
-            type="password"
-            value={clientSecret}
-            onChange={(event) => setClientSecret(event.target.value)}
-            autoComplete="off"
-          />
-          <p className="text-xs text-muted-foreground">{provider.clientSecretHint}</p>
-        </div>
+        <FormField label="Client ID" hint={provider.clientIdHint}>
+          {(field) => (
+            <Input
+              {...field}
+              className="font-mono"
+              value={clientId}
+              onChange={(event) => setClientId(event.target.value)}
+              autoComplete="off"
+            />
+          )}
+        </FormField>
+        <FormField label="Client Secret" hint={provider.clientSecretHint}>
+          {(field) => (
+            <Input
+              {...field}
+              className="font-mono"
+              type="password"
+              value={clientSecret}
+              onChange={(event) => setClientSecret(event.target.value)}
+              autoComplete="off"
+            />
+          )}
+        </FormField>
       </section>
     </IntegrationConfigDialog>
   );

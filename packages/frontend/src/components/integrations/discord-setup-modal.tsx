@@ -1,8 +1,8 @@
 import { DiscordConfigSchema, DiscordSnowflakeSchema, IntegrationName } from '@turingmod/shared';
 import { ExternalLink, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
+import { FormField } from '@/components/form-field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { type ConfigSetupModalProps, IntegrationConfigDialog } from './integration-config-dialog';
 
 /**
@@ -80,33 +80,39 @@ export function DiscordSetupModal({ onDismiss, onSaved }: ConfigSetupModalProps)
 
       <section className="flex flex-col gap-3">
         <h3 className="font-medium">3. Enter them</h3>
-        <div className="grid gap-2">
-          <Label htmlFor="discord-bot-token">Bot token</Label>
-          <Input
-            id="discord-bot-token"
-            className="font-mono"
-            type="password"
-            value={botToken}
-            onChange={(event) => setBotToken(event.target.value)}
-            autoComplete="off"
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="discord-channel-id">Channel ID</Label>
-          <Input
-            id="discord-channel-id"
-            className="font-mono"
-            inputMode="numeric"
-            value={channelId}
-            onChange={(event) => setChannelId(event.target.value)}
-            aria-invalid={channelId.trim() !== '' && !channelIdValid}
-            autoComplete="off"
-          />
-          <p className="text-xs text-muted-foreground">
-            A long number, such as 123456789012345678. Every go-live post pings @everyone in this
-            channel.
-          </p>
-        </div>
+        <FormField label="Bot token">
+          {(field) => (
+            <Input
+              {...field}
+              className="font-mono"
+              type="password"
+              value={botToken}
+              onChange={(event) => setBotToken(event.target.value)}
+              autoComplete="off"
+            />
+          )}
+        </FormField>
+        <FormField
+          label="Channel ID"
+          hint={
+            <>
+              A long number, such as 123456789012345678. Every go-live post pings @everyone in this
+              channel.
+            </>
+          }
+        >
+          {(field) => (
+            <Input
+              {...field}
+              className="font-mono"
+              inputMode="numeric"
+              value={channelId}
+              onChange={(event) => setChannelId(event.target.value)}
+              aria-invalid={channelId.trim() !== '' && !channelIdValid}
+              autoComplete="off"
+            />
+          )}
+        </FormField>
       </section>
     </IntegrationConfigDialog>
   );

@@ -1,7 +1,7 @@
 import { ARDUINO_DEFAULT_URL, ArduinoConfigSchema, IntegrationName } from '@turingmod/shared';
 import { useState } from 'react';
+import { FormField } from '@/components/form-field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { type ConfigSetupModalProps, IntegrationConfigDialog } from './integration-config-dialog';
 
 /**
@@ -23,22 +23,27 @@ export function ArduinoSetupModal({ integration, onDismiss, onSaved }: ConfigSet
       onSaved={onSaved}
       className="sm:max-w-lg"
     >
-      <div className="grid gap-2">
-        <Label htmlFor="arduino-url">Board address</Label>
-        <Input
-          id="arduino-url"
-          className="font-mono"
-          value={url}
-          onChange={(event) => setUrl(event.target.value)}
-          aria-invalid={url.trim() !== '' && !parsed.success}
-          autoComplete="off"
-        />
-        <p className="text-xs text-muted-foreground">
-          The reference firmware announces itself as {ARDUINO_DEFAULT_URL}. If your network doesn't
-          resolve <span className="font-mono">.local</span> names, use the board's IP address and
-          reserve it in your router so it doesn't change.
-        </p>
-      </div>
+      <FormField
+        label="Board address"
+        hint={
+          <>
+            The reference firmware announces itself as {ARDUINO_DEFAULT_URL}. If your network
+            doesn't resolve <span className="font-mono">.local</span> names, use the board's IP
+            address and reserve it in your router so it doesn't change.
+          </>
+        }
+      >
+        {(field) => (
+          <Input
+            {...field}
+            className="font-mono"
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            aria-invalid={url.trim() !== '' && !parsed.success}
+            autoComplete="off"
+          />
+        )}
+      </FormField>
     </IntegrationConfigDialog>
   );
 }

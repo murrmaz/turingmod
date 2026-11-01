@@ -1,8 +1,8 @@
 import { IntegrationName, OBS_DEFAULT_URL, ObsConfigSchema } from '@turingmod/shared';
 import { ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
+import { FormField } from '@/components/form-field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { type ConfigSetupModalProps, IntegrationConfigDialog } from './integration-config-dialog';
 
 /**
@@ -35,35 +35,41 @@ export function ObsSetupModal({ integration, onDismiss, onSaved }: ConfigSetupMo
       onSaved={onSaved}
       className="sm:max-w-lg"
     >
-      <div className="grid gap-2">
-        <Label htmlFor="obs-url">Server address</Label>
-        <Input
-          id="obs-url"
-          className="font-mono"
-          value={url}
-          onChange={(event) => setUrl(event.target.value)}
-          aria-invalid={url.trim() !== '' && !parsed.success}
-          autoComplete="off"
-        />
-        <p className="text-xs text-muted-foreground">
-          {OBS_DEFAULT_URL} when OBS runs on this computer with its default port.
-        </p>
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="obs-password">Server password</Label>
-        <Input
-          id="obs-password"
-          className="font-mono"
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          autoComplete="off"
-        />
-        <p className="text-xs text-muted-foreground">
-          Leave empty only if authentication is off in OBS. Saving replaces the stored password, so
-          enter it again whenever you save.
-        </p>
-      </div>
+      <FormField
+        label="Server address"
+        hint={<>{OBS_DEFAULT_URL} when OBS runs on this computer with its default port.</>}
+      >
+        {(field) => (
+          <Input
+            {...field}
+            className="font-mono"
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            aria-invalid={url.trim() !== '' && !parsed.success}
+            autoComplete="off"
+          />
+        )}
+      </FormField>
+      <FormField
+        label="Server password"
+        hint={
+          <>
+            Leave empty only if authentication is off in OBS. Saving replaces the stored password,
+            so enter it again whenever you save.
+          </>
+        }
+      >
+        {(field) => (
+          <Input
+            {...field}
+            className="font-mono"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="off"
+          />
+        )}
+      </FormField>
     </IntegrationConfigDialog>
   );
 }

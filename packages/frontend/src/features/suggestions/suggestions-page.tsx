@@ -13,6 +13,7 @@ import { useMemo, useState } from 'react';
 import { DataTableColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTablePagination } from '@/components/data-table/pagination';
+import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -143,12 +144,10 @@ export function SuggestionsPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 px-8 py-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Suggestions</h2>
-        <p className="text-sm text-muted-foreground">
-          Suggestions viewers have made in chat with !sg.
-        </p>
-      </div>
+      <PageHeader
+        title="Suggestions"
+        description="Suggestions viewers have made in chat with !sg."
+      />
       <div className="flex flex-wrap items-center gap-2">
         <Input
           value={globalFilter}

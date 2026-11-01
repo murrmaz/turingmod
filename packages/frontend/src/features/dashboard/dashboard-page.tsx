@@ -4,35 +4,27 @@ import {
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table';
-import { ArrowUp, Pause, Play, Search } from 'lucide-react';
+import { ArrowUp, Pause, Play } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { activityColumns } from '@/components/activity/activity-columns';
 import { EventSheet } from '@/components/activity/event-sheet';
+import { FeedCategoryTabs } from '@/components/activity/feed-category-tabs';
 import { DataTable } from '@/components/data-table/data-table';
+import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { type LiveFeedRow, useLiveLog } from '@/hooks/useLiveLog';
 import { usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import {
   dayDivider,
-  FEED_CATEGORY_LABELS,
   type FeedCategory,
   type FeedRow,
   matchesFeedQuery,
 } from '@/lib/activityFormat';
 import { HealthRail } from './health-rail';
 
-/** Tabs in display order. "all" leaves chat out: it would bury everything else mid-stream. */
-const TABS: { value: FeedCategory | 'all'; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'command', label: FEED_CATEGORY_LABELS.command },
-  { value: 'reward', label: FEED_CATEGORY_LABELS.reward },
-  { value: 'viewer', label: FEED_CATEGORY_LABELS.viewer },
-  { value: 'system', label: FEED_CATEGORY_LABELS.system },
-  { value: 'chat', label: FEED_CATEGORY_LABELS.chat },
-];
+/** The feed's tabs after All, in order. All leaves chat out: it would bury everything else mid-stream. */
+const CATEGORIES: readonly FeedCategory[] = ['command', 'reward', 'viewer', 'system', 'chat'];
 
 const HIGHLIGHT_MS = 2000;
 
@@ -127,16 +119,6 @@ function LiveActivity() {
   });
 
   const ordered = table.getRowModel().rows.map((row) => row.original);
-  const selected = ordered.find((row) => row.id === selectedId) ?? null;
-  const step = useCallback(
-    (direction: -1 | 1) => {
-      setSelectedId((current) => {
-        const index = ordered.findIndex((row) => row.id === current);
-        return ordered[index + direction]?.id ?? current;
-      });
-    },
-    [ordered]
-  );
 
   // Counted from when the earliest live platform went live; everything loaded, when offline.
   const streamStart = platforms
@@ -165,25 +147,14 @@ function LiveActivity() {
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Tabs value={category} onValueChange={(value) => setCategory(value as typeof category)}>
-            <TabsList>
-              {TABS.map((tab) => (
-                <TabsTrigger key={tab.value} value={tab.value} className="px-3 text-[13px]">
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          <div className="relative ml-auto w-56">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              ref={searchRef}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Filter events…"
-              className="pl-8"
-            />
-          </div>
+          <FeedCategoryTabs categories={CATEGORIES} value={category} onChange={setCategory} />
+          <SearchInput
+            ref={searchRef}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter events…"
+            className="ml-auto w-56"
+          />
           <Button variant="outline" onClick={() => setPaused((value) => !value)}>
             {paused ? <Play /> : <Pause />}
             {paused ? 'Resume' : 'Pause'}
@@ -225,9 +196,9 @@ function LiveActivity() {
       </div>
 
       <EventSheet
-        row={selected}
-        onClose={() => setSelectedId(null)}
-        onStep={step}
+        rows={ordered}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
         onViewUser={viewUser}
       />
     </section>

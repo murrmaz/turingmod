@@ -144,4 +144,21 @@ describe('Live activity', () => {
 
     expect(shownCommands()).toEqual(['!bonk']);
   });
+
+  it('steps through the rows it shows with ↑ and ↓ while an entry is open', async () => {
+    const { user } = setup([command('first'), command('second'), command('third')]);
+
+    await user.click(screen.getByText('!second'));
+    expect(screen.getByRole('dialog', { name: '!second' })).toBeInTheDocument();
+
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('dialog', { name: '!first' })).toBeInTheDocument();
+
+    // The last row stays selected rather than wrapping around.
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('dialog', { name: '!first' })).toBeInTheDocument();
+
+    await user.keyboard('{ArrowUp}{ArrowUp}');
+    expect(screen.getByRole('dialog', { name: '!third' })).toBeInTheDocument();
+  });
 });

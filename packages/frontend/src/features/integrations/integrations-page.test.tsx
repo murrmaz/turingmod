@@ -235,4 +235,25 @@ describe('Integrations page actions', () => {
     expect(configure).toHaveBeenCalled();
     expect(start).not.toHaveBeenCalled();
   });
+
+  it('closes the detail panel', async () => {
+    const { user } = setup([integration(SOUND)], SOUND);
+
+    await user.click(
+      within(screen.getByRole('complementary')).getByRole('button', { name: 'Close' })
+    );
+
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  it("labels the setup dialog's fields", async () => {
+    const { user } = setup([integration(OBS)], OBS);
+
+    await user.click(action('Set up'));
+
+    expect(screen.getByLabelText('Server address')).toHaveValue(OBS_DEFAULT_URL);
+    expect(screen.getByLabelText('Server password')).toHaveAccessibleDescription(
+      /Leave empty only if authentication is off/
+    );
+  });
 });

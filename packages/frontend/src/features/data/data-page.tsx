@@ -12,7 +12,7 @@ import {
   MAX_DATA_PAGE_SIZE,
   messageOf,
 } from '@turingmod/shared';
-import { Copy, Download, Lock, Search, Shield, X } from 'lucide-react';
+import { Copy, Download, Lock, Shield } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -22,10 +22,11 @@ import { DataTableFacetedFilter } from '@/components/data-table/faceted-filter';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { DataTableViewOptions } from '@/components/data-table/view-options';
 import { type DateRange, DateRangeSelect, rangeStart } from '@/components/date-range-select';
+import { DetailPanel } from '@/components/detail-panel';
+import { SearchInput } from '@/components/search-input';
 import { DotBadge } from '@/components/status';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useTrpc } from '@/context/trpc-context';
 import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
 import { useDataTables } from '@/hooks/useDataTables';
@@ -197,18 +198,15 @@ function TableInspector({ info }: { info: DataTableInfo }) {
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-64">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(0);
-              }}
-              placeholder="Search data…"
-              className="pl-8"
-            />
-          </div>
+          <SearchInput
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(0);
+            }}
+            placeholder="Search data…"
+            className="w-64"
+          />
           {enumColumns.map((column) => (
             <DataTableFacetedFilter
               key={column.name}
@@ -331,21 +329,18 @@ function RowPanel({
   const title = cells.event ?? cells.name ?? cells.key ?? (first ? cells[first.name] : null);
 
   return (
-    <aside className="flex w-[380px] shrink-0 flex-col gap-5 overflow-y-auto border-l p-6">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="truncate font-mono text-base font-semibold">{String(title ?? 'Row')}</h3>
-          {first && title !== cells[first.name] && (
-            <p className="truncate font-mono text-xs text-muted-foreground">
-              {String(cells[first.name])}
-            </p>
-          )}
-        </div>
-        <Button variant="ghost" size="icon" className="size-7" onClick={onClose} aria-label="Close">
-          <X />
-        </Button>
-      </div>
-
+    <DetailPanel
+      title={String(title ?? 'Row')}
+      subtitle={
+        first &&
+        title !== cells[first.name] && (
+          <p className="truncate font-mono text-xs text-muted-foreground">
+            {String(cells[first.name])}
+          </p>
+        )
+      }
+      onClose={onClose}
+    >
       <dl className="flex flex-col text-[13px]">
         {plainColumns.map((column) => {
           const value = cells[column.name] ?? null;
@@ -396,7 +391,7 @@ function RowPanel({
           decrypted for display.
         </span>
       </p>
-    </aside>
+    </DetailPanel>
   );
 }
 

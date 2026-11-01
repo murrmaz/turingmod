@@ -25,38 +25,47 @@ function formatValue(value: unknown): string {
 }
 
 /**
- * Everything about one activity entry. ↑/↓ step through the rows the table is showing while it's
- * open.
+ * Everything about the selected activity entry, open while one is selected. ↑/↓ select the row
+ * above or below it among `rows`, the rows the table is showing in the order it shows them.
  */
 export function EventSheet({
-  row,
-  onClose,
-  onStep,
+  rows,
+  selectedId,
+  onSelect,
   onViewUser,
 }: {
-  row: FeedRow | null;
-  onClose: () => void;
-  onStep: (direction: -1 | 1) => void;
+  rows: readonly FeedRow[];
+  selectedId: string | null;
+  /** Select another row, or none (closing the sheet). */
+  onSelect: (id: string | null) => void;
   onViewUser: (user: string) => void;
 }) {
+  const index = rows.findIndex((candidate) => candidate.id === selectedId);
+  const row = rows[index] ?? null;
+  const above = rows[index - 1]?.id;
+  const below = rows[index + 1]?.id;
+
   useEffect(() => {
-    if (!row) {
+    if (selectedId === null) {
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
-        onStep(event.key === 'ArrowDown' ? 1 : -1);
+        const next = event.key === 'ArrowDown' ? below : above;
+        if (next !== undefined) {
+          onSelect(next);
+        }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [row, onStep]);
+  }, [selectedId, above, below, onSelect]);
 
   const fields = row ? Object.entries(row.entry.data) : [];
 
   return (
-    <Sheet open={row !== null} onOpenChange={(open) => !open && onClose()}>
+    <Sheet open={row !== null} onOpenChange={(open) => !open && onSelect(null)}>
       <SheetContent className="w-[420px] gap-5 p-6 sm:max-w-[420px]">
         {row && (
           <>

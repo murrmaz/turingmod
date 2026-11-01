@@ -467,6 +467,13 @@ simulator) is split: its context and hook in `context/`, the provider that rende
 kebab-case, like the shadcn components, and `.ts` files (logic, hooks) camelCase; a test is named
 after its subject. `testing/`, `app.tsx` and `index.tsx` sit above the layers.
 
+**Shared console pieces.** A page starts with `PageHeader` (title and what it's for), filters a
+table with `SearchInput`, shows what's selected in a `DetailPanel` at its right edge, and builds a
+form from `FormField`s, which tie each label and hint to the control they're for (all in
+`components/`). The activity tables share `components/activity/`: their columns, the category
+tabs (`FeedCategoryTabs`) and the entry sheet (`EventSheet`), which takes the rows the table
+shows and steps the selection through them with ↑/↓ itself.
+
 ### Data Inspector
 
 The Data page reads the database through `DataInspector` (`database/DataInspector.ts`) over

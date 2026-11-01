@@ -10,10 +10,10 @@ import {
 import { CircleCheck, CircleX, Play } from 'lucide-react';
 import { type ReactNode, useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { FormField } from '@/components/form-field';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -151,63 +151,67 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
               void run();
             }}
           >
-            <div className="grid gap-2">
-              <Label htmlFor="sim-command">Command</Label>
-              <Input
-                id="sim-command"
-                className="font-mono"
-                value={commandText}
-                onChange={(event) => setCommandText(event.target.value)}
-                placeholder="!bonk @user"
-                autoFocus
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="sim-user">Username</Label>
+            <FormField label="Command">
+              {(field) => (
                 <Input
-                  id="sim-user"
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
+                  {...field}
+                  className="font-mono"
+                  value={commandText}
+                  onChange={(event) => setCommandText(event.target.value)}
+                  placeholder="!bonk @user"
+                  autoFocus
                 />
-              </div>
-              <div className="grid gap-2">
-                <Label>Platform</Label>
+              )}
+            </FormField>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Username">
+                {(field) => (
+                  <Input
+                    {...field}
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                  />
+                )}
+              </FormField>
+              <FormField label="Platform">
+                {(field) => (
+                  <Select
+                    value={platform}
+                    onValueChange={(value) => setPlatform(value as StreamingPlatform)}
+                  >
+                    <SelectTrigger {...field} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.values(StreamingPlatform).map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {platformDisplayName(value)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </FormField>
+            </div>
+            <FormField label="Permission level">
+              {(field) => (
                 <Select
-                  value={platform}
-                  onValueChange={(value) => setPlatform(value as StreamingPlatform)}
+                  value={permissionLevel}
+                  onValueChange={(value) => setPermissionLevel(value as PermissionLevel)}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger {...field} className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.values(StreamingPlatform).map((value) => (
+                    {Object.values(PermissionLevel).map((value) => (
                       <SelectItem key={value} value={value}>
-                        {platformDisplayName(value)}
+                        {PERMISSION_LABELS[value]}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>Permission level</Label>
-              <Select
-                value={permissionLevel}
-                onValueChange={(value) => setPermissionLevel(value as PermissionLevel)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.values(PermissionLevel).map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {PERMISSION_LABELS[value]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              )}
+            </FormField>
             <Button type="submit" disabled={running || !commandText.trim()} className="w-full">
               <Play />
               {running ? 'Running…' : 'Run simulation'}

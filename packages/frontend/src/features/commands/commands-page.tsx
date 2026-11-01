@@ -22,6 +22,7 @@ import { DataTable } from '@/components/data-table/data-table';
 import { DataTableFacetedFilter } from '@/components/data-table/faceted-filter';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { DataTableViewOptions } from '@/components/data-table/view-options';
+import { PageHeader } from '@/components/page-header';
 import { DotBadge } from '@/components/status';
 import { Button } from '@/components/ui/button';
 import {
@@ -191,12 +192,10 @@ export function CommandsPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 px-8 py-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Commands</h2>
-        <p className="text-sm text-muted-foreground">
-          Every chat command, its permission level and where it works.
-        </p>
-      </div>
+      <PageHeader
+        title="Commands"
+        description="Every chat command, its permission level and where it works."
+      />
       <div className="flex flex-wrap items-center gap-2">
         <Input
           value={globalFilter}

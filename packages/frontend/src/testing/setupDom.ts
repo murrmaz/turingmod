@@ -28,6 +28,17 @@ window.matchMedia = (query: string): MediaQueryList => ({
   dispatchEvent: () => false,
 });
 
+// Nor ResizeObserver or pointer capture, which Radix's popovers and selects use to size and
+// track themselves. Nothing resizes here, and no pointer is ever captured.
+window.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+Element.prototype.hasPointerCapture = () => false;
+Element.prototype.setPointerCapture = () => {};
+Element.prototype.releasePointerCapture = () => {};
+
 // Testing Library only unmounts by itself when Vitest's globals are on, which they aren't here.
 afterEach(() => {
   cleanup();

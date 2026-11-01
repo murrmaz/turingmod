@@ -1,6 +1,10 @@
 import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ActivityLogEntry, PlatformLiveState } from '@turingmod/shared';
+import {
+  type ActivityLogEntry,
+  type PlatformLiveState,
+  StreamingPlatform,
+} from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { RouterOutputs } from '@/context/trpc-context';
 import { FakeSubscription } from '@/testing/fakeTrpc';
@@ -36,6 +40,7 @@ function chat(message: string): ActivityLogEntry {
 
 function setup(stored: ActivityLogEntry[] = []) {
   const feed = new FakeSubscription<FeedEvent>();
+  const liveState = new FakeSubscription<PlatformLiveState[]>();
   const user = userEvent.setup();
   renderConsole(
     <>
@@ -45,13 +50,13 @@ function setup(stored: ActivityLogEntry[] = []) {
     {
       procedures: {
         activity: { feed },
-        liveState: { watch: new FakeSubscription<PlatformLiveState[]>() },
+        liveState: { watch: liveState },
       },
     }
   );
   feed.emit({ type: 'seed', entries: [...stored].reverse() });
   const arrive = (entry: ActivityLogEntry) => feed.emit({ type: 'entry', entry });
-  return { feed, user, arrive };
+  return { feed, liveState, user, arrive };
 }
 
 /** The commands the feed is showing, top to bottom. */
@@ -178,5 +183,21 @@ describe('Live activity', () => {
     expect(
       screen.getByRole('status', { name: 'Current location', hidden: true })
     ).toHaveTextContent('/history?q=viewer');
+  });
+
+  it("counts every event but chat while offline, and only this stream's once live", () => {
+    const before = command('before');
+    const { liveState, arrive } = setup([before]);
+    arrive(chat('hello'));
+    arrive(command('during'));
+    expect(screen.getByText(/Newest first · 2 events$/)).toBeInTheDocument();
+
+    // Two platforms live: the stream started when the earlier of them went live.
+    liveState.emit([
+      { platform: StreamingPlatform.TWITCH, live: true, startedAt: before.timestamp + 1 },
+      { platform: StreamingPlatform.YOUTUBE, live: true, startedAt: before.timestamp + 500 },
+    ]);
+
+    expect(screen.getByText(/Newest first · 1 events this stream$/)).toBeInTheDocument();
   });
 });

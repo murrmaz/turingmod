@@ -3,8 +3,8 @@ import { Copy, Shield } from 'lucide-react';
 import { DetailPanel } from '@/components/detail-panel';
 import { Button } from '@/components/ui/button';
 import type { InspectedRow } from '@/hooks/useInspectedTable';
-import { formatDateTime } from '@/lib/activityFormat';
-import { copyToClipboard } from '@/lib/reportError';
+import { copyToClipboard } from '@/lib/clipboard';
+import { formatDateTime } from '@/lib/time';
 
 function prettyJson(value: DataCell): string | null {
   if (typeof value !== 'string') {

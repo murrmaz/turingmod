@@ -1,8 +1,5 @@
-import { type DataRowsPage, type DataRowsQuery, MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
+import type { DataRowsPage, DataRowsQuery } from '@turingmod/shared';
 import { useServerQuery } from './useServerQuery';
-
-/** The page sizes a paged data view offers, up to the most the backend returns in one page. */
-export const DATA_PAGE_SIZES = [25, 50, 100, MAX_DATA_PAGE_SIZE];
 
 const NO_ROWS: DataRowsPage = { rows: [], total: 0 };
 

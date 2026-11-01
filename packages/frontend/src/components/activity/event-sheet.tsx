@@ -11,8 +11,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { type FeedRow, formatDateTime } from '@/lib/activityFormat';
-import { copyToClipboard } from '@/lib/reportError';
+import type { FeedRow } from '@/lib/activityFormat';
+import { copyToClipboard } from '@/lib/clipboard';
+import { formatDateTime } from '@/lib/time';
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined || value === '') {

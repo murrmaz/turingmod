@@ -1,11 +1,6 @@
 import type { ActivityEventName, ActivityLogEntry } from '@turingmod/shared';
-import {
-  ACTIVITY_EVENT_CATEGORIES,
-  ActivityCategory,
-  IntegrationStatus,
-  StreamingPlatform,
-} from '@turingmod/shared';
-import type { Tone } from './tone';
+import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
+import { dayOf, formatDateTime, formatDay } from './time';
 
 /**
  * The feed's own categories, which the console filters by. Finer than the backend's
@@ -297,48 +292,6 @@ export function matchesFeedQuery(row: FeedRow, query: string): boolean {
   );
 }
 
-/** `HH:MM:SS` in local time. */
-export function formatClock(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
-}
-
-/** `YYYY-MM-DD HH:MM:SS` in local time. */
-export function formatDateTime(timestamp: number): string {
-  const date = new Date(timestamp);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${formatClock(timestamp)}`;
-}
-
-/** The day a timestamp falls on, in local time, as `YYYY-MM-DD`: equal for any two on one day. */
-function dayOf(timestamp: number): string {
-  return formatDateTime(timestamp).slice(0, 10);
-}
-
-/** The day a timestamp falls on, as the activity tables' dividers name it. */
-export function formatDay(timestamp: number, now = Date.now()): string {
-  const date = new Date(timestamp);
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const named = date.toLocaleDateString([], {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    ...(date.getFullYear() === new Date(now).getFullYear() ? {} : { year: 'numeric' }),
-  });
-  if (dayOf(timestamp) === dayOf(now)) {
-    return `Today · ${named}`;
-  }
-  if (dayOf(timestamp) === dayOf(yesterday.getTime())) {
-    return `Yesterday · ${named}`;
-  }
-  return named;
-}
-
 /**
  * The divider above an activity row: its day, where that differs from the row before it (and
  * above the first row). Rows show only the time, so this is what says which day they're on.
@@ -347,32 +300,4 @@ export function dayDivider(row: FeedRow, previous: FeedRow | undefined): string 
   return previous && dayOf(previous.timestamp) === dayOf(row.timestamp)
     ? null
     : formatDay(row.timestamp);
-}
-
-/** `H:MM:SS` for a duration in milliseconds. */
-export function formatUptime(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-const CATEGORY_TONES = {
-  [ActivityCategory.COMMAND]: 'command',
-  [ActivityCategory.EVENT]: 'viewer',
-  [ActivityCategory.STATUS]: 'idle',
-  [ActivityCategory.ERROR]: 'error',
-  [ActivityCategory.CHAT]: 'chat',
-} satisfies Record<ActivityCategory, Tone>;
-
-/**
- * The colour of an activity event's name where the stored log shows it raw (the Data page),
- * by the event's category; undefined for a value that's no recorded event.
- */
-export function activityEventTone(value: string): Tone | undefined {
-  const category = Object.entries(ACTIVITY_EVENT_CATEGORIES).find(
-    ([event]) => event === value
-  )?.[1];
-  return category === undefined ? undefined : CATEGORY_TONES[category];
 }

@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { URL_PARAMS } from '@/constants/pages';
 import { useAppState } from '@/context/app-state-context';
 import { useIntegrationActions } from '@/hooks/useIntegrationActions';
+import { copyToClipboard } from '@/lib/clipboard';
 import {
   type IntegrationAction,
   integrationActions,
@@ -22,7 +23,6 @@ import {
   integrationChains,
   standaloneIntegrations,
 } from '@/lib/integrationStatus';
-import { copyToClipboard } from '@/lib/reportError';
 import { cn } from '@/lib/utils';
 
 const ACTION_ICONS: Record<IntegrationAction['kind'], LucideIcon> = {

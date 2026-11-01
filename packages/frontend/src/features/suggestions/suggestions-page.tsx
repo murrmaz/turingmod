@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { type Suggestion, useSuggestions } from '@/hooks/useSuggestions';
-import { formatDateTime } from '@/lib/activityFormat';
+import { formatDateTime } from '@/lib/time';
 
 const PAGE_SIZE = 50;
 

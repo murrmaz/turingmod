@@ -1,15 +1,7 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
 import { activityEntry as entry } from '@/testing/activity';
-import {
-  activityEventTone,
-  dayDivider,
-  FEED_CATEGORY_EVENTS,
-  formatDay,
-  formatUptime,
-  matchesFeedQuery,
-  toFeedRow,
-} from './activityFormat';
+import { dayDivider, FEED_CATEGORY_EVENTS, matchesFeedQuery, toFeedRow } from './activityFormat';
 
 const command = (data: Record<string, unknown>) =>
   entry('command.executed', {
@@ -121,12 +113,6 @@ describe('matchesFeedQuery', () => {
   });
 });
 
-describe('formatUptime', () => {
-  it('formats hours, minutes and seconds', () => {
-    expect(formatUptime(((2 * 60 + 14) * 60 + 37) * 1000)).toBe('2:14:37');
-  });
-});
-
 describe('toFeedRow for a device message', () => {
   it("shows a message's text", () => {
     expect(
@@ -175,16 +161,8 @@ describe('stream entries', () => {
 });
 
 describe('day dividers', () => {
-  const now = new Date(2026, 9, 24, 15, 0).getTime();
   const at = (day: number, hour: number) => new Date(2026, 9, day, hour).getTime();
   const row = (timestamp: number) => toFeedRow(entry('twitch.follow', {}, { timestamp }));
-
-  it('names today and yesterday, and dates the rest', () => {
-    expect(formatDay(at(24, 9), now)).toMatch(/^Today · /);
-    expect(formatDay(at(23, 23), now)).toMatch(/^Yesterday · /);
-    expect(formatDay(at(22, 9), now)).not.toMatch(/Today|Yesterday/);
-    expect(formatDay(new Date(2025, 2, 3).getTime(), now)).toContain('2025');
-  });
 
   it('goes above the first row and wherever the day changes', () => {
     expect(dayDivider(row(at(24, 9)), undefined)).not.toBeNull();
@@ -200,14 +178,5 @@ describe('FEED_CATEGORY_EVENTS', () => {
         expect(toFeedRow(entry(event)).category).toBe(category);
       }
     }
-  });
-});
-
-describe('activityEventTone', () => {
-  it("colours a recorded event's name by its category, and nothing else", () => {
-    expect(activityEventTone('command.executed')).toBe('command');
-    expect(activityEventTone('integration.error')).toBe('error');
-    expect(activityEventTone('twitch.follow')).toBe('viewer');
-    expect(activityEventTone('not.an.event')).toBeUndefined();
   });
 });

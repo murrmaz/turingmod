@@ -12,7 +12,7 @@ import { SearchInput } from '@/components/search-input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { links, URL_PARAMS } from '@/constants/pages';
-import { DATA_PAGE_SIZES } from '@/hooks/useDataRows';
+import { DATA_PAGE_SIZES } from '@/constants/paging';
 import { useDataTables } from '@/hooks/useDataTables';
 import { useInspectedTable } from '@/hooks/useInspectedTable';
 import { useTableExport } from '@/hooks/useTableExport';

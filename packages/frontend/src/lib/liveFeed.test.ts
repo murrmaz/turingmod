@@ -1,10 +1,11 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
+import { activityEntry } from '@/testing/activity';
 import { type FeedRow, toFeedRow } from './activityFormat';
 import { countEvents, showsUnder, streamStartedAt } from './liveFeed';
 
 function row(event: 'chat.message' | 'twitch.follow', timestamp: number): FeedRow {
-  return toFeedRow({ id: `${event}-${timestamp}`, event, data: {}, timestamp });
+  return toFeedRow(activityEntry(event, {}, { id: `${event}-${timestamp}`, timestamp }));
 }
 
 describe('showsUnder', () => {

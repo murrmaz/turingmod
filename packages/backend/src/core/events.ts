@@ -73,19 +73,23 @@ export interface EventMap {
 export type EventName = keyof EventMap;
 
 /** A command run, successful or not (see CommandExecutor). */
-export interface CommandExecutedEvent {
+export type CommandExecutedEvent = {
   command: string;
   username: string;
   userId: string;
   platform: StreamingPlatform;
   args: string[];
-  success: boolean;
   message: string;
-  errorCode: CommandErrorCode | ExecutorErrorCode | undefined;
-  /** Why it failed, when it did: for the activity log, never shown in chat. */
-  reason: string | undefined;
   isSimulation: boolean;
-}
+} & (
+  | { success: true }
+  | {
+      success: false;
+      errorCode: CommandErrorCode | ExecutorErrorCode;
+      /** Why it failed: for the activity log, never shown in chat. */
+      reason: string;
+    }
+);
 
 /** Published for every integration status change (see IntegrationManager.register). */
 export interface IntegrationStatusEvent {

@@ -1,9 +1,6 @@
-import {
-  type ActivityEventName,
-  type ActivityLogEntry,
-  StreamingPlatform,
-} from '@turingmod/shared';
+import { StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
+import { activityEntry as entry } from '@/testing/activity';
 import {
   activityEventTone,
   dayDivider,
@@ -13,13 +10,6 @@ import {
   matchesFeedQuery,
   toFeedRow,
 } from './activityFormat';
-
-const entry = (event: ActivityEventName, data: Record<string, unknown>): ActivityLogEntry => ({
-  id: '1',
-  event,
-  data,
-  timestamp: 0,
-});
 
 const command = (data: Record<string, unknown>) =>
   entry('command.executed', {
@@ -46,7 +36,12 @@ describe('toFeedRow', () => {
 
   it('marks a failed command red and gives the reason', () => {
     const row = toFeedRow(
-      command({ success: false, message: 'Nope', reason: 'Helix rejected the update' })
+      command({
+        success: false,
+        message: 'Nope',
+        errorCode: 'API_ERROR',
+        reason: 'Helix rejected the update',
+      })
     );
 
     expect(row.tone).toBe('error');
@@ -80,7 +75,7 @@ describe('toFeedRow', () => {
       'twitch.raid',
       'twitch.cheer',
     ] as const) {
-      expect(toFeedRow(entry(event, {})).category).toBe('viewer');
+      expect(toFeedRow(entry(event)).category).toBe('viewer');
     }
     expect(toFeedRow(entry('twitch.subscribe', { tier: '2000' })).detail).toBe('Tier 2');
   });
@@ -92,6 +87,14 @@ describe('toFeedRow', () => {
 
     expect(row).toMatchObject({ category: 'system', tone: 'error', title: 'spotify-api' });
     expect(row.detail).toBe('needs reauth');
+  });
+
+  it('names nobody for an anonymous cheer', () => {
+    const row = toFeedRow(
+      entry('twitch.cheer', { userId: null, userName: null, userDisplayName: null })
+    );
+
+    expect(row.user).toBe('Anonymous');
   });
 
   it('keeps chat in its own category', () => {
@@ -146,10 +149,8 @@ describe('toFeedRow for a device message', () => {
 });
 
 describe('stream entries', () => {
-  const live = (data: Record<string, unknown>, timestamp: number) => ({
-    ...entry('platform.liveState', { platform: 'youtube', ...data }),
-    timestamp,
-  });
+  const live = (data: Record<string, unknown>, timestamp: number) =>
+    entry('platform.liveState', { platform: 'youtube', ...data }, { timestamp });
 
   it('says a stream started when it began about when it was seen', () => {
     const row = toFeedRow(live({ live: true, startedAt: 1_000_000 }, 1_060_000));
@@ -176,7 +177,7 @@ describe('stream entries', () => {
 describe('day dividers', () => {
   const now = new Date(2026, 9, 24, 15, 0).getTime();
   const at = (day: number, hour: number) => new Date(2026, 9, day, hour).getTime();
-  const row = (timestamp: number) => ({ ...toFeedRow(entry('twitch.follow', {})), timestamp });
+  const row = (timestamp: number) => toFeedRow(entry('twitch.follow', {}, { timestamp }));
 
   it('names today and yesterday, and dates the rest', () => {
     expect(formatDay(at(24, 9), now)).toMatch(/^Today · /);
@@ -196,7 +197,7 @@ describe('FEED_CATEGORY_EVENTS', () => {
   it('lists each event under the category toFeedRow gives it', () => {
     for (const [category, events] of Object.entries(FEED_CATEGORY_EVENTS)) {
       for (const event of events) {
-        expect(toFeedRow(entry(event, {})).category).toBe(category);
+        expect(toFeedRow(entry(event)).category).toBe(category);
       }
     }
   });

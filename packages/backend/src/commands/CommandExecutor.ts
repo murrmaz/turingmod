@@ -134,18 +134,21 @@ export class CommandExecutor {
     result: ExecutionResult
   ): Promise<void> {
     try {
-      await this.eventBus.emit('command.executed', {
+      const run = {
         command: commandName,
         username: context.user.username,
         userId: context.user.id,
         platform: context.platform,
         args: context.args,
-        success: result.success,
         message: result.message,
-        errorCode: result.success ? undefined : result.error.code,
-        reason: result.success ? undefined : result.error.reason,
         isSimulation: context.isSimulation,
-      });
+      };
+      await this.eventBus.emit(
+        'command.executed',
+        result.success
+          ? { ...run, success: true }
+          : { ...run, success: false, errorCode: result.error.code, reason: result.error.reason }
+      );
     } catch (error) {
       this.logger.error('Failed to log command execution', error);
     }

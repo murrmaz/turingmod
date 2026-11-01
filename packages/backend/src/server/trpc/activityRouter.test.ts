@@ -5,13 +5,14 @@ import type {
   ActivityLogQuery,
   ActivityLogRepository,
 } from '../../database/repositories/ActivityLogRepository.js';
+import { chatMessage } from '../../platforms/testing.js';
 import { createActivityRouter } from './activityRouter.js';
 import { createCallerFactory } from './trpc.js';
 
 const entry = (id: string): ActivityLogEntry => ({
   id,
   event: 'chat.message',
-  data: {},
+  data: chatMessage('hello'),
   timestamp: 0,
 });
 

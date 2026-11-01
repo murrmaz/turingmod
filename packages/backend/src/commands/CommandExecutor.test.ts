@@ -113,7 +113,11 @@ describe('CommandExecutor cooldowns', () => {
 
     expect(eventBus.emit).toHaveBeenLastCalledWith(
       'command.executed',
-      expect.objectContaining({ success: true, errorCode: undefined, reason: undefined })
+      expect.objectContaining({ success: true })
+    );
+    expect(eventBus.emit).toHaveBeenLastCalledWith(
+      'command.executed',
+      expect.not.objectContaining({ reason: expect.anything() })
     );
   });
 

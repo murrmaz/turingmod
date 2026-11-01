@@ -7,6 +7,7 @@ import {
 } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { RouterOutputs } from '@/context/trpc-context';
+import { activityEntry } from '@/testing/activity';
 import { FakeSubscription } from '@/testing/fakeTrpc';
 import { CurrentLocation, renderConsole } from '@/testing/render-console';
 import { DashboardPage } from './dashboard-page';
@@ -20,22 +21,20 @@ let clock = Date.now() - 60_000;
 /** A command run, which the feed titles `!name`. */
 function command(name: string): ActivityLogEntry {
   clock += 1000;
-  return {
-    id: `command-${name}`,
-    event: 'command.executed',
-    timestamp: clock,
-    data: { command: name, args: [], success: true, message: '', username: 'viewer' },
-  };
+  return activityEntry(
+    'command.executed',
+    { command: name, username: 'viewer' },
+    { id: `command-${name}`, timestamp: clock }
+  );
 }
 
 function chat(message: string): ActivityLogEntry {
   clock += 1000;
-  return {
-    id: `chat-${message}`,
-    event: 'chat.message',
-    timestamp: clock,
-    data: { message, username: 'viewer', platform: 'twitch' },
-  };
+  return activityEntry(
+    'chat.message',
+    { message, username: 'viewer' },
+    { id: `chat-${message}`, timestamp: clock }
+  );
 }
 
 function setup(stored: ActivityLogEntry[] = []) {

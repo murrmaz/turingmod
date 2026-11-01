@@ -73,30 +73,17 @@ export const FEED_CATEGORY_EVENTS: Record<Exclude<FeedCategory, 'chat'>, Activit
   ],
 };
 
-function text(data: Record<string, unknown>, key: string): string {
-  const value = data[key];
-  return typeof value === 'string' ? value : '';
-}
-
-function count(data: Record<string, unknown>, key: string): number | null {
-  const value = data[key];
-  return typeof value === 'number' ? value : null;
-}
-
-function platformOf(data: Record<string, unknown>): StreamingPlatform | null {
-  const value = data.platform;
-  return Object.values(StreamingPlatform).find((platform) => platform === value) ?? null;
-}
-
 function join(...parts: (string | null | false)[]): string {
   return parts.filter((part): part is string => Boolean(part)).join(' · ');
 }
 
-function seconds(value: number | null): string | null {
-  if (value === null) {
-    return null;
-  }
+function seconds(value: number): string {
   return value >= 60 && value % 60 === 0 ? `${value / 60} min` : `${value}s`;
+}
+
+/** An OBS output's state as a word, e.g. `OBS_WEBSOCKET_OUTPUT_STARTED` as `started`. */
+function outputState(state: string): string {
+  return state.replace('OBS_WEBSOCKET_OUTPUT_', '').toLowerCase();
 }
 
 /**
@@ -125,13 +112,10 @@ function system(label: string, title: string, detail = '', tone: FeedTone = 'sys
 
 /**
  * How each recorded event reads. Every name in ACTIVITY_EVENT_CATEGORIES needs a case, which the
- * compiler enforces (the switch must return on every path).
+ * compiler enforces (the switch must return on every path), and checking `event` gives `data` the
+ * fields of that event's payload.
  */
-function describe(
-  event: ActivityEventName,
-  data: Record<string, unknown>,
-  timestamp: number
-): Described {
+function describe({ event, data, timestamp }: ActivityLogEntry): Described {
   const twitch = StreamingPlatform.TWITCH;
 
   switch (event) {
@@ -140,44 +124,36 @@ function describe(
         category: 'chat',
         tone: 'chat',
         label: 'Chat',
-        title: text(data, 'message'),
+        title: data.message,
         detail: '',
-        user: text(data, 'username'),
-        platform: platformOf(data),
+        user: data.username,
+        platform: data.platform,
       };
 
-    case 'command.executed': {
-      const args = Array.isArray(data.args) ? data.args.filter((a) => typeof a === 'string') : [];
-      const succeeded = data.success === true;
-      const outcome = succeeded
-        ? text(data, 'message')
-        : `Failed: ${text(data, 'reason') || text(data, 'message') || text(data, 'errorCode')}`;
+    case 'command.executed':
       return {
         category: 'command',
-        tone: succeeded ? 'command' : 'error',
+        tone: data.success ? 'command' : 'error',
         label: 'Command',
-        title: [`!${text(data, 'command')}`, ...args].join(' '),
-        detail: join(outcome, data.isSimulation === true && 'simulated'),
-        user: text(data, 'username'),
-        platform: platformOf(data),
+        title: [`!${data.command}`, ...data.args].join(' '),
+        detail: join(
+          data.success ? data.message : `Failed: ${data.reason}`,
+          data.isSimulation && 'simulated'
+        ),
+        user: data.username,
+        platform: data.platform,
       };
-    }
 
-    case 'twitch.channelPoint.redemption': {
-      const cost = count(data, 'rewardCost');
+    case 'twitch.channelPoint.redemption':
       return {
         category: 'reward',
         tone: 'reward',
         label: 'Reward',
-        title: text(data, 'rewardTitle'),
-        detail: join(
-          text(data, 'input') && `“${text(data, 'input')}”`,
-          cost !== null && `${cost.toLocaleString()} pts`
-        ),
-        user: text(data, 'userDisplayName'),
+        title: data.rewardTitle,
+        detail: join(data.input && `“${data.input}”`, `${data.rewardCost.toLocaleString()} pts`),
+        user: data.userDisplayName,
         platform: twitch,
       };
-    }
 
     case 'twitch.follow':
       return {
@@ -186,58 +162,51 @@ function describe(
         label: 'Follow',
         title: 'Follow',
         detail: '',
-        user: text(data, 'userDisplayName'),
+        user: data.userDisplayName,
         platform: twitch,
       };
 
     case 'twitch.subscribe': {
-      const tier = Number(text(data, 'tier'));
+      const tier = Number(data.tier);
       return {
         category: 'viewer',
         tone: 'viewer',
         label: 'Sub',
-        title: data.isGift === true ? 'Gifted sub' : 'Subscription',
+        title: data.isGift ? 'Gifted sub' : 'Subscription',
         detail: Number.isFinite(tier) && tier > 0 ? `Tier ${tier / 1000}` : '',
-        user: text(data, 'userDisplayName'),
+        user: data.userDisplayName,
         platform: twitch,
       };
     }
 
-    case 'twitch.raid': {
-      const viewers = count(data, 'viewers');
+    case 'twitch.raid':
       return {
         category: 'viewer',
         tone: 'viewer',
         label: 'Raid',
         title: 'Raid',
-        detail: viewers === null ? '' : `${viewers.toLocaleString()} viewers`,
-        user: text(data, 'fromBroadcasterDisplayName'),
+        detail: `${data.viewers.toLocaleString()} viewers`,
+        user: data.fromBroadcasterDisplayName,
         platform: twitch,
       };
-    }
 
-    case 'twitch.cheer': {
-      const bits = count(data, 'bits');
+    case 'twitch.cheer':
       return {
         category: 'viewer',
         tone: 'viewer',
         label: 'Cheer',
-        title: bits === null ? 'Cheer' : `${bits.toLocaleString()} bits`,
-        detail: text(data, 'message'),
-        user: text(data, 'userDisplayName') || 'Anonymous',
+        title: `${data.bits.toLocaleString()} bits`,
+        detail: data.message,
+        user: data.userDisplayName ?? 'Anonymous',
         platform: twitch,
       };
-    }
 
     case 'twitch.ad.break':
       return {
         ...system(
           'Ad',
           'Ad break',
-          join(
-            seconds(count(data, 'durationSeconds')),
-            data.isAutomatic === true ? 'automatic' : 'started by hand'
-          )
+          join(seconds(data.durationSeconds), data.isAutomatic ? 'automatic' : 'started by hand')
         ),
         platform: twitch,
       };
@@ -247,68 +216,52 @@ function describe(
       return system(
         'Break',
         event === 'stream.break.started' ? 'Break started' : 'Break ended',
-        join(
-          text(data, 'reason') === 'ad' ? 'ad break' : 'manual',
-          seconds(count(data, 'durationSeconds'))
-        )
+        join(data.reason === 'ad' ? 'ad break' : 'manual', seconds(data.durationSeconds))
       );
 
     case 'obs.scene.changed':
-      return system('OBS', 'Scene changed', text(data, 'sceneName'));
+      return system('OBS', 'Scene changed', data.sceneName);
     case 'obs.stream.stateChanged':
-      return system(
-        'OBS',
-        'Stream output',
-        text(data, 'outputState').replace('OBS_WEBSOCKET_OUTPUT_', '').toLowerCase()
-      );
+      return system('OBS', 'Stream output', outputState(data.outputState));
     case 'obs.record.stateChanged':
-      return system(
-        'OBS',
-        'Recording',
-        text(data, 'outputState').replace('OBS_WEBSOCKET_OUTPUT_', '').toLowerCase()
-      );
+      return system('OBS', 'Recording', outputState(data.outputState));
     case 'obs.sceneItem.stateChanged':
       return system(
         'OBS',
-        data.sceneItemEnabled === true ? 'Source shown' : 'Source hidden',
-        text(data, 'sceneName')
+        data.sceneItemEnabled ? 'Source shown' : 'Source hidden',
+        data.sceneName
       );
 
     case 'arduino.message':
-      return system('Arduino', text(data, 'type'), deviceFields(data));
+      return system('Arduino', data.type, deviceFields(data));
 
     case 'integration.status': {
-      const status = text(data, 'status');
       const failed =
-        status === IntegrationStatus.ERROR || status === IntegrationStatus.NEEDS_REAUTH;
+        data.status === IntegrationStatus.ERROR || data.status === IntegrationStatus.NEEDS_REAUTH;
       return system(
         'Status',
-        text(data, 'name'),
-        status.replace('_', ' '),
+        data.name,
+        data.status.replace('_', ' '),
         failed ? 'error' : 'system'
       );
     }
 
-    case 'platform.availability': {
-      const platform = platformOf(data);
-      const available = data.available === true;
+    case 'platform.availability':
       return {
         ...system(
           'Platform',
-          available ? 'Platform available' : 'Platform unavailable',
-          text(data, 'reason'),
-          available ? 'system' : 'error'
+          data.available ? 'Platform available' : 'Platform unavailable',
+          data.reason ?? '',
+          data.available ? 'system' : 'error'
         ),
-        platform,
+        platform: data.platform,
       };
-    }
 
     case 'platform.liveState': {
-      const platform = platformOf(data);
-      if (data.live !== true) {
+      const { platform, live, startedAt } = data;
+      if (!live) {
         return { ...system('Stream', 'Stream ended'), platform };
       }
-      const startedAt = count(data, 'startedAt');
       if (startedAt === null || timestamp - startedAt < STARTED_JUST_NOW_MS) {
         return { ...system('Stream', 'Stream started'), platform };
       }
@@ -319,7 +272,7 @@ function describe(
     }
 
     case 'integration.error':
-      return system('Error', text(data, 'name'), text(data, 'message'), 'error');
+      return system('Error', data.name, data.message, 'error');
   }
 }
 
@@ -329,7 +282,7 @@ export function toFeedRow(entry: ActivityLogEntry): FeedRow {
     id: entry.id,
     timestamp: entry.timestamp,
     entry,
-    ...describe(entry.event, entry.data, entry.timestamp),
+    ...describe(entry),
   };
 }
 

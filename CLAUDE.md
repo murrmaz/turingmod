@@ -124,8 +124,9 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Manual trigger**: `packages/backend/src/commands/implementations/BreakCommand.ts` (`!break`)
 
 ### Activity Log
-- **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — subscribes to the EventBus events in `ACTIVITY_EVENT_CATEGORIES` (shared `types/activity.ts`: each recorded event and its category), hands each to the console's live feed (`onEntry()`) and persists all but chat and `LIVE_ONLY_EVENTS` (device messages)
-- **Storage**: `packages/backend/src/database/repositories/ActivityLogRepository.ts` (capped at 5000 rows)
+- **Payloads**: `ActivityLogEntrySchema` in shared `types/activity.ts` — one schema per recorded event, as the console receives it (no `Date`s or `Error`s); `ACTIVITY_EVENT_CATEGORIES` beside it gives each event's category, and the compiler holds the two together
+- **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — subscribes to the EventBus events in `ACTIVITY_EVENT_CATEGORIES`, converts each `EventMap` payload to its entry's (`TO_ACTIVITY_DATA`), hands the entry to the console's live feed (`onEntry()`) and persists all but chat and `LIVE_ONLY_EVENTS` (device messages)
+- **Storage**: `packages/backend/src/database/repositories/ActivityLogRepository.ts` (capped at 5000 rows). The one exception to stored data failing the read: payloads ignore unknown keys, and a row that still doesn't fit is logged and left out, so a payload change needs no migration; the cap ages old rows out
 - **Live feed and History**: `packages/backend/src/server/trpc/activityRouter.ts` (`activity.feed`: the stored recent entries, then each entry as it's made; `activity.history`: one page of the stored log, by events, search and time, from `ActivityLogRepository.findPage()`)
 - **Frontend**: `features/dashboard/dashboard-page.tsx` + `hooks/useLiveLog.ts` (live feed, newest first) + `hooks/useLiveFeed.ts` (what the feed shows: tab, filter, and holding still while paused or scrolled away) + `lib/liveFeed.ts` (tabs, the stream's start, event counts), `features/history/history-page.tsx` + `hooks/useActivityHistory.ts`; how an entry reads (feed category, badge, title, detail) is `lib/activityFormat.ts` (`toFeedRow`); the table columns and the entry sheet both pages use are in `components/activity/`
 
@@ -502,7 +503,8 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
   its TypeScript type is `z.infer` of that schema, so the type and the check can't drift apart.
   Don't hand-write type guards or cast parsed JSON. Schemas for data TuringMod owns are strict
   (`z.strictObject`: an unknown key is an error) and fail rather than fall back; a field may be
-  optional or have a default, but a value that is present must be valid. Schemas for a third
+  optional or have a default, but a value that is present must be valid. (Activity log payloads
+  are the one exception, since the capped log ages old rows out: see Activity Log.) Schemas for a third
   party's responses use `z.object`, requiring only the fields we use. Use `.exactOptional()` for
   optional fields, to match `exactOptionalPropertyTypes`.
 - **Errors**: throw only `Error`s, with a message (Biome's `useThrowOnlyError` and `useErrorMessage`

@@ -1,6 +1,6 @@
 import type { YouTubeChatState } from '@turingmod/shared';
 import { useCallback, useState } from 'react';
-import { useTrpc } from '@/context/TrpcContext';
+import { useTrpc } from '@/context/trpc-context';
 import { useSubscription } from './useSubscription';
 
 const NOT_CONNECTED: YouTubeChatState = 'idle';

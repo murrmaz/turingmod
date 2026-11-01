@@ -22,7 +22,8 @@ import { DataTable } from '@/components/data-table/data-table';
 import { DataTableFacetedFilter } from '@/components/data-table/faceted-filter';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { DataTableViewOptions } from '@/components/data-table/view-options';
-import { DotBadge, type Tone } from '@/components/status';
+import { PageHeader } from '@/components/page-header';
+import { DotBadge } from '@/components/status';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -31,10 +32,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { PERMISSION_LABELS } from '@/constants/permissions';
 
-import { type CommandInfo, useAppState } from '@/context/AppStateContext';
+import { type CommandInfo, useAppState } from '@/context/app-state-context';
+import { useSimulator } from '@/context/simulatorContext';
 import { copyToClipboard } from '@/lib/reportError';
-import { PERMISSION_LABELS, useSimulator } from './simulator';
+import type { Tone } from '@/lib/tone';
 
 const PERMISSION_TONES: Record<PermissionLevel, Tone> = {
   [PermissionLevel.VIEWER]: 'idle',
@@ -189,12 +192,10 @@ export function CommandsPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 px-8 py-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Commands</h2>
-        <p className="text-sm text-muted-foreground">
-          Every chat command, its permission level and where it works.
-        </p>
-      </div>
+      <PageHeader
+        title="Commands"
+        description="Every chat command, its permission level and where it works."
+      />
       <div className="flex flex-wrap items-center gap-2">
         <Input
           value={globalFilter}

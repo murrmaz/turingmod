@@ -28,7 +28,7 @@ npm test                   # Vitest in every workspace
 npm test -w @turingmod/backend   # one workspace (also @turingmod/frontend, @turingmod/shared)
 ```
 
-Vitest is configured in all three workspaces; tests live beside their subjects as `*.test.ts`. On a fresh checkout, run `npm run build:backend` (which builds shared too) before `type-check` or the frontend/backend tests: both import `@turingmod/shared` from its `dist/`, and the frontend type-checks its tRPC client against the backend's router type in `packages/backend/dist/` (`@turingmod/backend/trpc`), so a backend change to a procedure reaches the console's types only once the backend is rebuilt (if `dist/` was deleted but `tsconfig.build.tsbuildinfo` wasn't, `tsc --build` thinks it's up to date and does nothing: `npm run clean` first). `tsc --build` also never deletes the output of a renamed or deleted source, and commands, reward handlers and integrations are discovered by loading every module in their `dist/` folders, so after renaming or deleting one of those files, `npm run clean` and rebuild (restarting `npm run dev` if it was running). `build` and `dev` compile `tsconfig.build.json`, which leaves tests and their helpers (`testing.ts`, `testDatabase.ts`) out of `dist/`; `type-check` uses `tsconfig.json`, which includes them. There is no CI: run `check`, `type-check` and `test` before considering work done.
+Vitest is configured in all three workspaces; tests live beside their subjects as `*.test.ts`. In the frontend, a test that renders (a component or a hook) is `*.test.tsx` and runs in jsdom with Testing Library; it renders inside `renderConsole()`/`consoleWrapper()` (`src/testing/render-console.tsx`, the app's providers over a fake backend) and gives the procedures it uses as fakes (`src/testing/fakeTrpc.ts`: `FakeSubscription` for a `watch` or a feed, plain functions for `mutate`/`query`), so no test needs a backend or mocks a hook; `CurrentLocation` beside the component shows where a link or navigation led. On a fresh checkout, run `npm run build:backend` (which builds shared too) before `type-check` or the frontend/backend tests: both import `@turingmod/shared` from its `dist/`, and the frontend type-checks its tRPC client against the backend's router type in `packages/backend/dist/` (`@turingmod/backend/trpc`), so a backend change to a procedure reaches the console's types only once the backend is rebuilt (if `dist/` was deleted but `tsconfig.build.tsbuildinfo` wasn't, `tsc --build` thinks it's up to date and does nothing: `npm run clean` first). `tsc --build` also never deletes the output of a renamed or deleted source, and commands, reward handlers and integrations are discovered by loading every module in their `dist/` folders, so after renaming or deleting one of those files, `npm run clean` and rebuild (restarting `npm run dev` if it was running). `build` and `dev` compile `tsconfig.build.json`, which leaves tests and their helpers (`testing.ts`, `testDatabase.ts`) out of `dist/`; `type-check` uses `tsconfig.json`, which includes them. There is no CI: run `check`, `type-check` and `test` before considering work done.
 
 ## Quick Reference: File Locations
 
@@ -36,11 +36,11 @@ Use this to quickly locate files without searching. Organized by system/feature.
 
 ### Integration System
 - **UI**: `packages/frontend/src/features/integrations/integrations-page.tsx` (dependency chains + detail panel with Start/Stop/Authorize) + `features/dashboard/health-rail.tsx` (the dashboard's Needs attention cards and status list); status wording in `src/lib/integrationStatus.ts`
-- **OAuth flow**: `packages/frontend/src/components/integrations/OAuthFlow.tsx` — `OAuthFlowProvider` renders the setup → authorize dialogs once for the whole console; pages start it with `useOAuthFlow().authorize(integration)`. Provider configs are looked up from the registry below
-- **Setup Modal**: `packages/frontend/src/components/integrations/SetupModal.tsx` — generic, parameterized by `OAuthProviderConfig`
-- **OAuth Modal**: `packages/frontend/src/components/integrations/OAuthModal.tsx` — generic, parameterized by `OAuthProviderConfig`
-- **OAuth Provider Configs**: `packages/frontend/src/components/integrations/oauthProviders.tsx` (per-provider content) + `oauthIntegrationRegistry.tsx` (name → provider config lookup)
-- **Non-OAuth setup dialogs**: `packages/frontend/src/components/integrations/configIntegrationRegistry.tsx` (name → dialog, shown as Set up on the Integrations page), e.g. `DiscordSetupModal.tsx`; every setup dialog, OAuth credentials included, is built on `IntegrationConfigDialog.tsx` (form, save, error, Cancel/Save)
+- **OAuth flow**: `packages/frontend/src/components/integrations/oauth-flow.tsx` — `OAuthFlowProvider` renders the setup → authorize dialogs once for the whole console; anything starts it with `useOAuthFlow().authorize(integration)` (`context/oauthFlowContext.ts`). Provider configs are looked up from the registry below
+- **Setup Modal**: `packages/frontend/src/components/integrations/setup-modal.tsx` — generic, parameterized by `OAuthProviderConfig`
+- **OAuth Modal**: `packages/frontend/src/components/integrations/oauth-modal.tsx` — generic, parameterized by `OAuthProviderConfig`
+- **OAuth Provider Configs**: `packages/frontend/src/components/integrations/oauth-providers.tsx` (per-provider content) + `oauth-integration-registry.tsx` (name → provider config lookup)
+- **Non-OAuth setup dialogs**: `packages/frontend/src/components/integrations/config-integration-registry.tsx` (name → dialog, shown as Set up on the Integrations page), e.g. `discord-setup-modal.tsx`; every setup dialog, OAuth credentials included, is built on `integration-config-dialog.tsx` (form, save, error, Cancel/Save, and the `ConfigSetupModalProps` every dialog takes)
 - **Backend Manager**: `packages/backend/src/integrations/IntegrationManager.ts`
 - **OAuth flow**: `packages/backend/src/integrations/OAuthFlowService.ts` — authorization URL, single-use `state`, callback routes, and `handleCallback()`, which exchanges the code on the backend when the provider redirects (no console needs to be open) and announces the result to every console (`oauth.results`, tRPC); the callback page then closes itself (popup) or returns to the console that asked. Client credentials come only from the console's setup dialog (stored encrypted), never from `.env`; `IntegrationInfo.oauth.configured` tells the console whether to open setup or authorization
 - **Discovery**: `packages/backend/src/integrations/discoverIntegrations.ts` — registers every class under `implementations/` that extends `BaseIntegration`
@@ -126,20 +126,20 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 ### Activity Log
 - **Forwarder**: `packages/backend/src/activity/ActivityForwarder.ts` — subscribes to the EventBus events in `ACTIVITY_EVENT_CATEGORIES` (shared `types/activity.ts`: each recorded event and its category), hands each to the console's live feed (`onEntry()`) and persists all but chat and `LIVE_ONLY_EVENTS` (device messages)
 - **Storage**: `packages/backend/src/database/repositories/ActivityLogRepository.ts` (capped at 5000 rows)
-- **Live feed**: `packages/backend/src/server/trpc/activityRouter.ts` (`activity.feed`: the stored recent entries, then each entry as it's made); the History page reads the stored log through the data inspector
-- **Frontend**: `features/dashboard/dashboard-page.tsx` + `hooks/useLiveLog.ts` (live feed, newest first), `features/history/history-page.tsx`; how an entry reads (feed category, badge, title, detail) is `constants/activityFormat.ts` (`toFeedRow`)
+- **Live feed and History**: `packages/backend/src/server/trpc/activityRouter.ts` (`activity.feed`: the stored recent entries, then each entry as it's made; `activity.history`: one page of the stored log, by events, search and time, from `ActivityLogRepository.findPage()`)
+- **Frontend**: `features/dashboard/dashboard-page.tsx` + `hooks/useLiveLog.ts` (live feed, newest first) + `hooks/useLiveFeed.ts` (what the feed shows: tab, filter, and holding still while paused or scrolled away) + `lib/liveFeed.ts` (tabs, the stream's start, event counts), `features/history/history-page.tsx` + `hooks/useActivityHistory.ts`; how an entry reads (feed category, badge, title, detail) is `lib/activityFormat.ts` (`toFeedRow`); the table columns and the entry sheet both pages use are in `components/activity/`
 
 ### Console ↔ Backend Protocol
 - **tRPC router**: `packages/backend/src/server/trpc/appRouter.ts` (`createAppRouter()`, `AppRouter` type) — one sub-router per area, e.g. `integrationsRouter.ts`; `trpc.ts` (instance and `TrpcContext`), `watch.ts` (`watchable()`: current value, then again on each change, read once per change for every console; `events()`: a stream of events, subscribed at once so a snapshot read beside it misses nothing)
 - **tRPC endpoint**: `packages/backend/src/server/trpc/TrpcServer.ts` (`TRPC_PATH`); `HttpServer.routeUpgrades()` hands it the upgrades on that path; `TrpcServer` lets only the console's origin connect and gives consoles a grace period to close at shutdown
-- **tRPC client**: `packages/frontend/src/context/TrpcContext.tsx` (`TrpcProvider`, `useTrpc()`, `useConnection()`; `RouterInputs`/`RouterOutputs` name a procedure's input and output types), `services/trpcLinks.ts` (fail requests while disconnected), `services/connection.ts` (connection state, retry schedule, `ConnectionError`)
+- **tRPC client**: `packages/frontend/src/context/trpc-context.tsx` (`TrpcProvider`, `useTrpc()`, `useConnection()`; `RouterInputs`/`RouterOutputs` name a procedure's input and output types), `services/trpcLinks.ts` (fail requests while disconnected), `services/connection.ts` (connection state, retry schedule, `ConnectionError`)
 - **Reading from the backend**: `packages/frontend/src/hooks/useSubscription.ts` (state kept current by a `watch` subscription, or built from an event stream with `reduce`), `hooks/useServerQuery.ts` (a query, read on connect and on each new input)
 
 ### Database
 - **Manager**: `packages/backend/src/database/DatabaseManager.ts`
 - **Repositories**: `packages/backend/src/database/repositories/*.ts`
 - **Migrations**: `packages/backend/src/database/migrations/*.ts`, listed in `migrations/index.ts` (`ALL_MIGRATIONS`), run automatically on startup
-- **Read-only inspector**: `packages/backend/src/database/DataInspector.ts` (allow-listed tables, masked secrets) + `server/trpc/dataRouter.ts`; query shape and result types in `shared/src/types/data.ts`; console side `packages/frontend/src/features/data/`
+- **Read-only inspector**: `packages/backend/src/database/DataInspector.ts` (allow-listed tables, masked secrets) + `server/trpc/dataRouter.ts`; query shape and result types in `shared/src/types/data.ts`; console side `packages/frontend/src/features/data/` (the page, its columns and row panel), `hooks/useInspectedTable.ts` (what's read of a table, and the page of rows) and `hooks/useTableExport.ts` (CSV export, up to `MAX_EXPORT_ROWS`, through `lib/csv.ts`)
 
 ### Core Infrastructure
 - **DI**: [tsyringe](https://github.com/microsoft/tsyringe) — `@singleton()` on app-lifetime classes, `@injectable()` on commands and reward handlers; `registerRootFactories()` in `setup.ts` for the handful of classes tsyringe can't auto-construct
@@ -151,9 +151,9 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 - **Environment**: `packages/backend/src/utils/loadEnv.ts` loads the repository-root `.env` (template: `.env.example`); it's the first import of the entry point (`index.ts`). Shell variables win over the file. `TuringModConfig` (`utils/Config.ts`) is what reads them, through one Zod schema (`parseEnvironment()`): a blank variable gets its default, an invalid one stops startup with a `ConfigurationError` naming it, and only `MASTER_PASSWORD` is required. The file's location is `ENV_FILE` (`utils/paths.ts`).
 
 ### Frontend State
-- **App State Context**: `packages/frontend/src/context/AppStateContext.tsx`
+- **App State Context**: `packages/frontend/src/context/app-state-context.tsx`
 - **Integration Hooks**: `packages/frontend/src/hooks/useIntegrations.ts`
-- **Integration actions**: `packages/frontend/src/hooks/useIntegrationActions.ts` (Start/Stop/OAuth/Reconnect decisions, shared by the Integrations page and the dashboard)
+- **Integration actions**: `packages/frontend/src/lib/integrationActions.ts` decides what the console offers for each integration (Authorize/Reconnect, Start/Retry, Stop: kind, label and what it acts on) as pure functions, `integrationActions()` for the Integrations page and `repairAction()` for the dashboard's Needs attention cards, so both always agree; `hooks/useIntegrationActions.ts` only carries an action out (`run()`)
 - **Command Hooks**: `packages/frontend/src/hooks/useCommands.ts`
 - **YouTube chat control**: `packages/frontend/src/hooks/useYouTubeChat.ts`, in the YouTube badge's menu in `components/site-header.tsx`
 - **Platform live badges**: `packages/frontend/src/hooks/usePlatformLiveState.ts`; backend `live/PlatformLiveStatus.ts` + `server/trpc/liveStateRouter.ts`
@@ -231,7 +231,7 @@ definition.
 - **Mutations** answer with the state they left, which the console that asked shows at once
   (`useSubscription()`'s setter), so a spinner never stops on stale state; other consoles get it
   through the subscription.
-- **Queries** (the command table, the data inspector) are read with `useServerQuery()`: on every
+- **Queries** (the command table, History, the data inspector) are read with `useServerQuery()`: on every
   connect and whenever the input changes, a superseded read aborted.
 - **Streams of events** rather than state (the activity feed, OAuth results) are built with
   `events()`. The activity feed sends a snapshot to start from, read in the same synchronous step
@@ -442,7 +442,7 @@ there is no message for running a command as an arbitrary user.
 
 ### Frontend State
 
-React Context for state management: `TrpcContext` (the tRPC client and its connection) and `AppStateContext` (commands, integrations). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`); anything read with a tRPC query, with `useServerQuery()` (`hooks/useServerQuery.ts`): read whenever the connection comes up and whenever its input changes, a superseded read aborted. Don't hand-write either in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`, `useSuggestions()`. Pages (routes in `App.tsx`, code under `src/features/<page>/`, and listed once for the sidebar, ⌘K palette and header in `constants/pages.ts`): Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens, `features/commands/simulator.tsx`), Integrations, Suggestions, History, Data.
+React Context for state management: `TrpcContext` (the tRPC client and its connection) and `AppStateContext` (commands, integrations). State the backend keeps current through a tRPC `watch` subscription is read with `useSubscription()` (`hooks/useSubscription.ts`); anything read with a tRPC query, with `useServerQuery()` (`hooks/useServerQuery.ts`): read whenever the connection comes up and whenever its input changes, a superseded read aborted. Don't hand-write either in a new hook. Dialogs are rendered only while open, so each opening starts fresh rather than resetting its fields. Custom hooks: `useCommands()`, `useIntegrations()`, `useIntegrationActions()`, `useLiveLog()`, `useLiveFeed()`, `useActivityHistory()`, `useInspectedTable()`, `useTableExport()`, `useFocusShortcut()`, `useYouTubeChat()`, `usePlatformLiveState()`, `useDataRows()`, `useSuggestions()`. Pages (code under `src/features/<page>/`) are listed once, in `PAGES` (`constants/pages.ts`), from which the routes in `app.tsx`, the sidebar, the ⌘K palette and the header's title are all made; a new page is a `PAGES` entry plus its component in `app.tsx`'s `PAGE_COMPONENTS`, which the compiler asks for, and a sidebar count beside it is one entry in the sidebar's `badges`. No route is written out anywhere else: a link into a page's state is built with `links` (`links.historyOf(user)`, `links.integration(name)`, `links.dataTable(table)`), and the URL parameters a page keeps its state in are named in `URL_PARAMS`, which the page reads them by. The pages: Dashboard, Commands (command table; the simulator is a sheet any page or the ⌘K palette opens with `useSimulator()`, `components/simulator.tsx`), Integrations, Suggestions, History, Data.
 
 ### Console UI
 
@@ -454,8 +454,25 @@ tokens, including the category/status accents (`--cat-*`), are CSS variables in 
 use the tokens, not hex values or Tailwind's fixed palette (`red-900`). `@/` is `src/`, and imports from outside a file's own folder use it: lint rejects `../`. Every table is `components/data-table/data-table.tsx`
 over a TanStack table instance the page owns (sorting, filters and paging stay the page's, so the
 same component serves client-side lists and server-paged queries), with optional row
-virtualization for the live feed. History and the Data page read through the backend's read-only
-data inspector (below), paged and filtered on the server.
+virtualization for the live feed. History (`activity.history`) and the Data page (the read-only
+data inspector, below) are paged and filtered on the server.
+
+**Console layout.** `src/` is layered, and Biome rejects an import from a higher layer
+(`noRestrictedImports` overrides in `biome.json`): `lib/`, `constants/` and `services/` hold logic
+only; `context/` and `hooks/` hold state and draw nothing; `components/` is UI shared by pages;
+`features/<page>/` is one page, which never imports another page. Something two pages share goes
+down a layer, never sideways. An app-wide flow that is both state and UI (the OAuth dialogs, the
+simulator) is split: its context and hook in `context/`, the provider that renders it in
+`components/`. Every hook is in `hooks/`. File names are enforced too: `.tsx` files (UI) are
+kebab-case, like the shadcn components, and `.ts` files (logic, hooks) camelCase; a test is named
+after its subject. `testing/`, `app.tsx` and `index.tsx` sit above the layers.
+
+**Shared console pieces.** A page starts with `PageHeader` (title and what it's for), filters a
+table with `SearchInput`, shows what's selected in a `DetailPanel` at its right edge, and builds a
+form from `FormField`s, which tie each label and hint to the control they're for (all in
+`components/`). The activity tables share `components/activity/`: their columns, the category
+tabs (`FeedCategoryTabs`) and the entry sheet (`EventSheet`), which takes the rows the table
+shows and steps the selection through them with ↑/↓ itself.
 
 ### Data Inspector
 
@@ -531,4 +548,4 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 - **A new platform capability** is a `PlatformCapability` value, an object type in `CapabilityApis`, its `CAPABILITY_OF_API` entry, and the façades' implementations; the compiler holds those together. Don't add a pass-through to `StreamControlService` — callers use `require()`.
 - **Every outgoing chat message goes through `toSafeChatText()` and `OwnChatMessages.record()`** inside the platform façade — a new `IStreamPlatform` (or a new send method) must apply both, so the bot can never post a command or act on what it posted (see Chat Pipeline).
 - **API-backed read commands need a cooldown.** `ICommand.cooldown` is per-viewer seconds; `CommandExecutor` exempts moderators and above, so a shared read/write command (`!game`, `!tags`, `!cw`) can be throttled for viewers without blocking a moderator's write.
-- **New integrations** extend `BaseIntegration`, get decorated `@singleton()`, go in a folder under `integrations/implementations/` (auto-discovered by `discoverIntegrations()`: no registration line; abstract base classes stay in `integrations/`, since `abstract` is erased and one found there stops startup), return their group's object from `getGroup()` if they belong to one (see `integrations/CLAUDE.md`), and need a procedure in the tRPC router (`server/trpc/`) if the console controls them. An API that calls on behalf of a separate auth integration extends `AuthorizedApiIntegration` instead (a public API, or one with its token in its own config, stays on `BaseIntegration`). OAuth-capable integrations extend `OAuthIntegration` instead, and need an entry in the frontend's `oauthIntegrationRegistry.tsx` + a config in `oauthProviders.tsx`.
+- **New integrations** extend `BaseIntegration`, get decorated `@singleton()`, go in a folder under `integrations/implementations/` (auto-discovered by `discoverIntegrations()`: no registration line; abstract base classes stay in `integrations/`, since `abstract` is erased and one found there stops startup), return their group's object from `getGroup()` if they belong to one (see `integrations/CLAUDE.md`), and need a procedure in the tRPC router (`server/trpc/`) if the console controls them. An API that calls on behalf of a separate auth integration extends `AuthorizedApiIntegration` instead (a public API, or one with its token in its own config, stays on `BaseIntegration`). OAuth-capable integrations extend `OAuthIntegration` instead, and need an entry in the frontend's `oauth-integration-registry.tsx` + a config in `oauth-providers.tsx`.

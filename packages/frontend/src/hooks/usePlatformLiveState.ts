@@ -1,5 +1,4 @@
 import type { PlatformLiveState } from '@turingmod/shared';
-import { useEffect, useState } from 'react';
 import { useSubscription } from './useSubscription';
 
 const NO_PLATFORMS: PlatformLiveState[] = [];
@@ -12,14 +11,4 @@ export function usePlatformLiveState(): PlatformLiveState[] {
     "Couldn't read whether you're live"
   );
   return platforms;
-}
-
-/** The current time, updated every second, for uptimes that tick. */
-export function useNow(intervalMs = 1000): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), intervalMs);
-    return () => window.clearInterval(timer);
-  }, [intervalMs]);
-  return now;
 }

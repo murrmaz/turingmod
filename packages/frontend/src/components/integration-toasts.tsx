@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { useAppState } from '@/context/AppStateContext';
+import { useAppState } from '@/context/app-state-context';
 import { describeIntegration } from '@/lib/integrationStatus';
 
 /** Toasts an integration going into error or needing reauthorization. Renders nothing. */

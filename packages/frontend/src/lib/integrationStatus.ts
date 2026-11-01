@@ -1,6 +1,6 @@
 import type { IntegrationGroup, IntegrationInfo } from '@turingmod/shared';
 import { IntegrationStatus } from '@turingmod/shared';
-import type { Tone } from '@/components/status';
+import type { Tone } from './tone';
 
 /** How an integration's state reads in the console. */
 export interface IntegrationDisplay {

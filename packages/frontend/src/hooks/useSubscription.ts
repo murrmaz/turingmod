@@ -1,6 +1,6 @@
 import type { Unsubscribable } from '@trpc/server/observable';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type TrpcClient, useTrpc } from '@/context/TrpcContext';
+import { type TrpcClient, useTrpc } from '@/context/trpc-context';
 import { reportLoadError } from '@/lib/reportError';
 
 interface SubscriptionHandlers<T> {

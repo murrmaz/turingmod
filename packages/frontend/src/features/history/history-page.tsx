@@ -1,51 +1,26 @@
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { type ActivityLogEntry, ActivityLogEntrySchema, type DataCell } from '@turingmod/shared';
-import { Search } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { activityColumns } from '@/components/activity/activity-columns';
+import { EventSheet } from '@/components/activity/event-sheet';
+import { FeedCategoryTabs } from '@/components/activity/feed-category-tabs';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTablePagination } from '@/components/data-table/pagination';
-import { type DateRange, DateRangeSelect, rangeStart } from '@/components/date-range-select';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  dayDivider,
-  FEED_CATEGORY_EVENTS,
-  FEED_CATEGORY_LABELS,
-  type FeedRow,
-  toFeedRow,
-} from '@/constants/activityFormat';
-import { activityColumns } from '@/features/dashboard/activity-columns';
-import { EventSheet } from '@/features/dashboard/event-sheet';
-import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
+import { DateRangeSelect } from '@/components/date-range-select';
+import { PageHeader } from '@/components/page-header';
+import { SearchInput } from '@/components/search-input';
+import { URL_PARAMS } from '@/constants/pages';
+import { useActivityHistory } from '@/hooks/useActivityHistory';
+import { DATA_PAGE_SIZES } from '@/hooks/useDataRows';
 import { useDebounced } from '@/hooks/useDebounced';
+import { dayDivider, FEED_CATEGORY_EVENTS, type FeedRow, toFeedRow } from '@/lib/activityFormat';
+import { type DateRange, rangeStart } from '@/lib/dateRange';
 
-type HistoryCategory = keyof typeof FEED_CATEGORY_EVENTS | 'all';
+/** A category the stored log has: every one but chat, which isn't stored. */
+type StoredCategory = keyof typeof FEED_CATEGORY_EVENTS;
+type HistoryCategory = StoredCategory | 'all';
 
-const TABS: { value: HistoryCategory; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'command', label: FEED_CATEGORY_LABELS.command },
-  { value: 'reward', label: FEED_CATEGORY_LABELS.reward },
-  { value: 'viewer', label: FEED_CATEGORY_LABELS.viewer },
-  { value: 'system', label: FEED_CATEGORY_LABELS.system },
-];
-
-/** Back from a stored row to the entry it was saved from; null for a row that isn't one. */
-function toEntry(row: Record<string, DataCell>): ActivityLogEntry | null {
-  const parsed = ActivityLogEntrySchema.safeParse({ ...row, data: readData(row.data) });
-  return parsed.success ? parsed.data : null;
-}
-
-/** A stored payload, or an empty one when it can't be read, so the row still shows as its event. */
-function readData(data: DataCell | undefined): ActivityLogEntry['data'] {
-  try {
-    return ActivityLogEntrySchema.shape.data.parse(
-      JSON.parse(typeof data === 'string' ? data : '')
-    );
-  } catch {
-    return {};
-  }
-}
+const CATEGORIES: readonly StoredCategory[] = ['command', 'reward', 'viewer', 'system'];
 
 /**
  * The stored activity log, searchable and paged by the server. Chat isn't stored, so it's only on
@@ -58,26 +33,24 @@ export function HistoryPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const query = params.get('q') ?? '';
+  const query = params.get(URL_PARAMS.historySearch) ?? '';
 
   const since = rangeStart(range);
-  const { rows, total, loading, error } = useDataRows({
-    table: 'activity_log',
+  const { entries, total, loading, error } = useActivityHistory({
     page,
     pageSize,
-    sort: { column: 'timestamp', direction: 'desc' },
-    ...(category === 'all' ? {} : { filters: { event: FEED_CATEGORY_EVENTS[category] } }),
+    ...(category === 'all' ? {} : { events: FEED_CATEGORY_EVENTS[category] }),
     ...(query.trim() ? { search: query.trim() } : {}),
     ...(since === undefined ? {} : { since }),
   });
 
-  const feedRows = useMemo(() => rows.flatMap((row) => toEntry(row) ?? []).map(toFeedRow), [rows]);
+  const feedRows = useMemo(() => entries.map(toFeedRow), [entries]);
 
   const viewUser = useCallback(
     (user: string) => {
       setSelectedId(null);
       setPage(0);
-      setParams({ q: user });
+      setParams({ [URL_PARAMS.historySearch]: user });
     },
     [setParams]
   );
@@ -99,16 +72,6 @@ export function HistoryPage() {
     enableSorting: false,
   });
 
-  const selected = feedRows.find((row) => row.id === selectedId) ?? null;
-  const step = useCallback(
-    (direction: -1 | 1) =>
-      setSelectedId((current) => {
-        const index = feedRows.findIndex((row) => row.id === current);
-        return feedRows[index + direction]?.id ?? current;
-      }),
-    [feedRows]
-  );
-
   const reset = () => {
     setPage(0);
     setSelectedId(null);
@@ -125,7 +88,7 @@ export function HistoryPage() {
       return;
     }
     lastWritten.current = next;
-    setParams(next ? { q: next } : {}, { replace: true });
+    setParams(next ? { [URL_PARAMS.historySearch]: next } : {}, { replace: true });
     reset();
   });
   useEffect(() => writeQuery(typed), [typed]);
@@ -138,38 +101,25 @@ export function HistoryPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 px-8 py-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">History</h2>
-        <p className="text-sm text-muted-foreground">
-          Everything TuringMod recorded: commands, rewards, viewers and status changes. Chat is live
-          only.
-        </p>
-      </div>
+      <PageHeader
+        title="History"
+        description="Everything TuringMod recorded: commands, rewards, viewers and status changes. Chat is live only."
+      />
       <div className="flex flex-wrap items-center gap-2">
-        <Tabs
+        <FeedCategoryTabs
+          categories={CATEGORIES}
           value={category}
-          onValueChange={(value) => {
-            setCategory(value as HistoryCategory);
+          onChange={(next) => {
+            setCategory(next);
             reset();
           }}
-        >
-          <TabsList>
-            {TABS.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className="px-3 text-[13px]">
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <div className="relative ml-auto w-64">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search events, users…"
-            className="pl-8"
-          />
-        </div>
+        />
+        <SearchInput
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search events, users…"
+          className="ml-auto w-64"
+        />
         <DateRangeSelect
           value={range}
           onChange={(next) => {
@@ -204,9 +154,9 @@ export function HistoryPage() {
         summary={`${total.toLocaleString()} ${total === 1 ? 'event' : 'events'}`}
       />
       <EventSheet
-        row={selected}
-        onClose={() => setSelectedId(null)}
-        onStep={step}
+        rows={feedRows}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
         onViewUser={viewUser}
       />
     </div>

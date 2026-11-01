@@ -1,6 +1,6 @@
 import { CircleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useConnection } from '@/context/TrpcContext';
+import { useConnection } from '@/context/trpc-context';
 
 /**
  * Across the top of every page while the console has lost the backend: it retries by itself, but

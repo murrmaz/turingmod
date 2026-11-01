@@ -6,13 +6,25 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   test: {
-    environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
-    // Component tests will need `jsdom` + `@testing-library/react` added
-    // when the first one is written.
-    passWithNoTests: true,
     // Suppress console output from passing tests; still shown for failures,
     // so a broken test's logs remain visible for debugging.
     silent: 'passed-only',
+    projects: [
+      {
+        // Pure functions and classes, with no DOM.
+        extends: true,
+        test: { name: 'unit', environment: 'node', include: ['src/**/*.test.ts'] },
+      },
+      {
+        // Components and hooks, rendered with Testing Library (helpers in src/testing/).
+        extends: true,
+        test: {
+          name: 'dom',
+          environment: 'jsdom',
+          include: ['src/**/*.test.tsx'],
+          setupFiles: ['./src/testing/setupDom.ts'],
+        },
+      },
+    ],
   },
 });

@@ -4,10 +4,11 @@ import { CircleAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { StatusDot } from '@/components/status';
 import { Button } from '@/components/ui/button';
-import { useAppState } from '@/context/AppStateContext';
+import { links } from '@/constants/pages';
+import { useAppState } from '@/context/app-state-context';
 import { useIntegrationActions } from '@/hooks/useIntegrationActions';
+import { type IntegrationAction, repairAction } from '@/lib/integrationActions';
 import { describeIntegration, inDisplayOrder } from '@/lib/integrationStatus';
-import { reconnectTarget } from '@/lib/reconnect';
 
 /**
  * The dashboard's right-hand column: quiet while everything is healthy, a red card per broken
@@ -26,9 +27,9 @@ export function HealthRail() {
         <NeedsAttention
           key={integration.name}
           integration={integration}
-          all={integrations}
-          busy={actions.getActionState(integration).isLoading}
-          onReconnect={() => actions.handleReconnect(integration)}
+          repair={repairAction(integration, integrations)}
+          busy={actions.isBusy(integration)}
+          onRun={actions.run}
         />
       ))}
 
@@ -44,7 +45,7 @@ export function HealthRail() {
               <li key={integration.name}>
                 <button
                   type="button"
-                  onClick={() => navigate(`/integrations?selected=${integration.name}`)}
+                  onClick={() => navigate(links.integration(integration.name))}
                   className="flex w-full items-center gap-2.5 px-4 py-1.5 text-left hover:bg-accent/50"
                 >
                   <StatusDot tone={display.tone} />
@@ -62,16 +63,16 @@ export function HealthRail() {
 
 function NeedsAttention({
   integration,
-  all,
+  repair,
   busy,
-  onReconnect,
+  onRun,
 }: {
   integration: IntegrationInfo;
-  all: IntegrationInfo[];
+  /** The one way to fix it; see repairAction. */
+  repair: IntegrationAction | null;
   busy: boolean;
-  onReconnect: () => void;
+  onRun: (action: IntegrationAction) => void;
 }) {
-  const target = reconnectTarget(integration, all);
   return (
     <section className="flex flex-col gap-2.5 rounded-xl border border-cat-error/40 bg-cat-error/6 p-4">
       <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -83,13 +84,13 @@ function NeedsAttention({
         {describeIntegration(integration).label}
         {integration.errorMessage && <>: {integration.errorMessage}</>}
       </p>
-      <div>
-        <Button size="sm" onClick={onReconnect} disabled={busy}>
-          {target.oauth
-            ? `Reconnect ${target.name === integration.name ? '' : target.name}`.trim()
-            : 'Retry'}
-        </Button>
-      </div>
+      {repair && (
+        <div>
+          <Button size="sm" onClick={() => onRun(repair)} disabled={busy}>
+            {repair.label}
+          </Button>
+        </div>
+      )}
     </section>
   );
 }

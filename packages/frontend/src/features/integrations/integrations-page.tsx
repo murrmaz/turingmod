@@ -1,14 +1,22 @@
 import { type IntegrationInfo, IntegrationStatus } from '@turingmod/shared';
-import { CircleAlert, Copy, KeyRound, Play, Settings, Square, X } from 'lucide-react';
+import { CircleAlert, Copy, KeyRound, type LucideIcon, Play, Settings, Square } from 'lucide-react';
 import { Fragment, type ReactNode, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CONFIG_SETUP_REGISTRY } from '@/components/integrations/configIntegrationRegistry';
+import { DetailPanel } from '@/components/detail-panel';
+import { CONFIG_SETUP_REGISTRY } from '@/components/integrations/config-integration-registry';
+import { PageHeader } from '@/components/page-header';
 import { StatusDot, TONE_TEXT } from '@/components/status';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAppState } from '@/context/AppStateContext';
+import { URL_PARAMS } from '@/constants/pages';
+import { useAppState } from '@/context/app-state-context';
 import { useIntegrationActions } from '@/hooks/useIntegrationActions';
+import {
+  type IntegrationAction,
+  integrationActions,
+  missingDependencies,
+} from '@/lib/integrationActions';
 import {
   describeIntegration,
   integrationChains,
@@ -17,13 +25,20 @@ import {
 import { copyToClipboard } from '@/lib/reportError';
 import { cn } from '@/lib/utils';
 
+const ACTION_ICONS: Record<IntegrationAction['kind'], LucideIcon> = {
+  authorize: KeyRound,
+  start: Play,
+  stop: Square,
+};
+
 export function IntegrationsPage() {
   const { integrations } = useAppState();
   const actions = useIntegrationActions();
   const [params, setParams] = useSearchParams();
-  const selectedName = params.get('selected');
+  const selectedName = params.get(URL_PARAMS.selectedIntegration);
   const selected = integrations.find((i) => i.name === selectedName) ?? null;
-  const select = (name: string | null) => setParams(name ? { selected: name } : {});
+  const select = (name: string | null) =>
+    setParams(name ? { [URL_PARAMS.selectedIntegration]: name } : {});
 
   const chains = integrationChains(integrations);
   const standalone = standaloneIntegrations(integrations);
@@ -31,12 +46,10 @@ export function IntegrationsPage() {
   return (
     <div className="flex min-h-0 flex-1">
       <div className="flex min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-8 py-6">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Integrations</h2>
-          <p className="text-sm text-muted-foreground">
-            Each chain starts in order: a link only connects once the one before it has.
-          </p>
-        </div>
+        <PageHeader
+          title="Integrations"
+          description="Each chain starts in order: a link only connects once the one before it has."
+        />
 
         {integrations.length === 0 && (
           <div className="grid max-w-3xl grid-cols-3 gap-9">
@@ -147,7 +160,9 @@ function IntegrationDetail({
   onClose: () => void;
 }) {
   const display = describeIntegration(integration);
-  const state = actions.getActionState(integration);
+  const offered = integrationActions(integration, all);
+  const busy = actions.isBusy(integration);
+  const waitingOn = missingDependencies(integration, all);
   const dependsOn = integration.metadata?.dependencies ?? [];
   const usedBy = all
     .filter((other) => other.metadata?.dependencies?.includes(integration.name))
@@ -157,26 +172,20 @@ function IntegrationDetail({
     (integration.status === IntegrationStatus.ERROR ||
       integration.status === IntegrationStatus.NEEDS_REAUTH);
 
-  // Stop applies to anything running or waiting to run; OAuth integrations start by authorizing.
-  const canStop = state.isConnected || state.isEnabled;
   const SetupModal = CONFIG_SETUP_REGISTRY[integration.name];
   const [setupOpen, setSetupOpen] = useState(false);
 
   return (
-    <aside className="flex w-[380px] shrink-0 flex-col gap-5 overflow-y-auto border-l p-6">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h3 className="truncate font-mono text-base font-semibold">{integration.name}</h3>
-          <span className={cn('flex items-center gap-2 text-[13px]', TONE_TEXT[display.tone])}>
-            <StatusDot tone={display.tone} />
-            {display.label}
-          </span>
-        </div>
-        <Button variant="ghost" size="icon" className="size-7" onClick={onClose} aria-label="Close">
-          <X />
-        </Button>
-      </div>
-
+    <DetailPanel
+      title={integration.name}
+      subtitle={
+        <span className={cn('flex items-center gap-2 text-[13px]', TONE_TEXT[display.tone])}>
+          <StatusDot tone={display.tone} />
+          {display.label}
+        </span>
+      }
+      onClose={onClose}
+    >
       {problem && (
         <Alert variant="destructive">
           <CircleAlert />
@@ -190,44 +199,22 @@ function IntegrationDetail({
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        {state.isOAuthIntegration && (!state.isConnected || state.needsReauth) && (
-          <Button
-            onClick={() => actions.handleAuthorize(integration)}
-            disabled={state.isLoading}
-            className="col-span-1"
-          >
-            <KeyRound />
-            {state.needsReauth ? 'Reconnect' : 'Authorize'}
-          </Button>
-        )}
-        {!(state.isOAuthIntegration || canStop) && (
-          <Button
-            onClick={() => void actions.handleStart(integration.name)}
-            disabled={state.isLoading}
-          >
-            <Play />
-            Start
-          </Button>
-        )}
-        {!state.isOAuthIntegration && integration.status === IntegrationStatus.ERROR && canStop && (
-          <Button
-            onClick={() => void actions.handleStart(integration.name)}
-            disabled={state.isLoading}
-          >
-            <Play />
-            Retry
-          </Button>
-        )}
-        {canStop && (
-          <Button
-            variant="outline"
-            onClick={() => void actions.handleStop(integration.name)}
-            disabled={state.isLoading}
-          >
-            <Square />
-            Stop
-          </Button>
-        )}
+        {offered.map((action) => {
+          const Icon = ACTION_ICONS[action.kind];
+          return (
+            <Button
+              key={action.kind}
+              variant={action.kind === 'stop' ? 'outline' : 'default'}
+              onClick={() => actions.run(action)}
+              disabled={busy}
+              // "Reconnect youtube-auth" doesn't fit in half the panel.
+              className={cn(action.target !== integration && 'col-span-2')}
+            >
+              <Icon />
+              {action.label}
+            </Button>
+          );
+        })}
         {SetupModal && (
           <Button variant="outline" onClick={() => setSetupOpen(true)}>
             <Settings />
@@ -244,16 +231,15 @@ function IntegrationDetail({
           onSaved={() => {
             setSetupOpen(false);
             if (!integration.enabled) {
-              void actions.handleStart(integration.name);
+              actions.start(integration);
             }
           }}
         />
       )}
 
-      {state.hasUnmetDependencies && (
+      {waitingOn.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Runs once {state.missingDependencies.join(', ')}{' '}
-          {state.missingDependencies.length === 1 ? 'connects' : 'connect'}.
+          Runs once {waitingOn.join(', ')} {waitingOn.length === 1 ? 'connects' : 'connect'}.
         </p>
       )}
 
@@ -287,7 +273,7 @@ function IntegrationDetail({
                   variant="ghost"
                   size="sm"
                   className="h-6 px-2 font-sans text-xs"
-                  onClick={() => actions.handleChangeCredentials(integration)}
+                  onClick={() => actions.changeCredentials(integration)}
                 >
                   Change
                 </Button>
@@ -305,7 +291,7 @@ function IntegrationDetail({
             : 'no'}
         </Detail>
       </dl>
-    </aside>
+    </DetailPanel>
   );
 }
 

@@ -1,10 +1,9 @@
-import { IntegrationStatus } from '@turingmod/shared';
 import { useCallback } from 'react';
-import { useAppState } from '@/context/AppStateContext';
-import { useTrpc } from '@/context/TrpcContext';
+import { useAppState } from '@/context/app-state-context';
+import { useTrpc } from '@/context/trpc-context';
 
 /**
- * The integrations, starting, stopping and configuring them, and what each is still waiting on.
+ * The integrations, and starting, stopping and configuring them.
  * Each action resolves once the state it left is showing, so a view can stop its spinner then.
  */
 export function useIntegrations() {
@@ -32,23 +31,10 @@ export function useIntegrations() {
     [trpc, showIntegrations]
   );
 
-  /** The dependencies of an integration that aren't connected yet. */
-  const getMissingDependencies = useCallback(
-    (integrationName: string): string[] => {
-      const dependencies =
-        integrations.find((i) => i.name === integrationName)?.metadata?.dependencies ?? [];
-      return dependencies.filter(
-        (name) => integrations.find((i) => i.name === name)?.status !== IntegrationStatus.CONNECTED
-      );
-    },
-    [integrations]
-  );
-
   return {
     integrations,
     startIntegration,
     stopIntegration,
     configureIntegration,
-    getMissingDependencies,
   };
 }

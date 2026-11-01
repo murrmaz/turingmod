@@ -1,6 +1,6 @@
 import { messageOf } from '@turingmod/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type TrpcClient, useConnection, useTrpc } from '@/context/TrpcContext';
+import { type TrpcClient, useConnection, useTrpc } from '@/context/trpc-context';
 import { reportLoadError } from '@/lib/reportError';
 
 export interface ServerQueryOptions<I, T> {

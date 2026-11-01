@@ -16,18 +16,31 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { PAGES, pageAt } from '@/constants/pages';
-import { useAppState } from '@/context/AppStateContext';
-import { useConnection } from '@/context/TrpcContext';
-import { useDataTables } from '@/features/data/useDataTables';
+import {
+  HOME_PAGE,
+  links,
+  PAGES,
+  type Page,
+  type PageId,
+  pageAt,
+  pagePath,
+  routePattern,
+  URL_PARAMS,
+} from '@/constants/pages';
+import { useAppState } from '@/context/app-state-context';
+import { useConnection } from '@/context/trpc-context';
+import { useDataTables } from '@/hooks/useDataTables';
 import { describeIntegration } from '@/lib/integrationStatus';
 
 export function AppSidebar() {
   const { pathname } = useLocation();
   const { integrations } = useAppState();
   const { state } = useSidebar();
-  const broken = integrations.filter((i) => describeIntegration(i).needsAttention).length;
   const current = pageAt(pathname);
+  // A count beside a page's name, when it has something that needs looking at.
+  const badges: Partial<Record<PageId, number>> = {
+    integrations: integrations.filter((i) => describeIntegration(i).needsAttention).length,
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -35,7 +48,7 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild className="hover:bg-transparent">
-              <NavLink to="/dashboard">
+              <NavLink to={pagePath(HOME_PAGE)}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-[15px] font-bold text-primary-foreground">
                   T
                 </div>
@@ -53,33 +66,36 @@ export function AppSidebar() {
           <SidebarGroupLabel>Console</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {PAGES.map((page) => (
-                <SidebarMenuItem key={page.path}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={page === current}
-                    tooltip={page.label}
-                    className="data-[active=true]:font-medium"
-                  >
-                    <NavLink to={page.path} className="relative">
-                      <page.icon />
-                      <span>{page.label}</span>
-                      {page.path === '/integrations' && broken > 0 && state === 'collapsed' && (
-                        <StatusDot tone="error" className="absolute top-1 right-1" />
-                      )}
-                    </NavLink>
-                  </SidebarMenuButton>
-                  {page.path === '/integrations' && broken > 0 && (
-                    <SidebarMenuBadge className="rounded-md bg-cat-error/25 text-[11px] font-semibold text-foreground peer-hover/menu-button:text-foreground peer-data-[active=true]/menu-button:text-foreground">
-                      {broken}
-                    </SidebarMenuBadge>
-                  )}
-                </SidebarMenuItem>
-              ))}
+              {PAGES.map((page) => {
+                const badge = badges[page.id] ?? 0;
+                return (
+                  <SidebarMenuItem key={page.id}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={page === current}
+                      tooltip={page.label}
+                      className="data-[active=true]:font-medium"
+                    >
+                      <NavLink to={page.path} className="relative">
+                        <page.icon />
+                        <span>{page.label}</span>
+                        {badge > 0 && state === 'collapsed' && (
+                          <StatusDot tone="error" className="absolute top-1 right-1" />
+                        )}
+                      </NavLink>
+                    </SidebarMenuButton>
+                    {badge > 0 && (
+                      <SidebarMenuBadge className="rounded-md bg-cat-error/25 text-[11px] font-semibold text-foreground peer-hover/menu-button:text-foreground peer-data-[active=true]/menu-button:text-foreground">
+                        {badge}
+                      </SidebarMenuBadge>
+                    )}
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        {current?.path === '/data' && <DataTablesGroup />}
+        {current?.id === 'data' && <DataTablesGroup page={current} />}
       </SidebarContent>
       <SidebarFooter>
         <ConnectionStatus />
@@ -89,10 +105,11 @@ export function AppSidebar() {
   );
 }
 
-function DataTablesGroup() {
+/** The Data page's tables, under it in the sidebar while it's open. */
+function DataTablesGroup({ page }: { page: Page }) {
   const { tables } = useDataTables();
-  const match = useMatch('/data/:table');
-  const active = match?.params.table ?? tables[0]?.name;
+  const match = useMatch(routePattern(page));
+  const active = match?.params[URL_PARAMS.dataTable] ?? tables[0]?.name;
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
@@ -102,7 +119,7 @@ function DataTablesGroup() {
           {tables.map((table) => (
             <SidebarMenuItem key={table.name}>
               <SidebarMenuButton asChild size="sm" isActive={table.name === active}>
-                <NavLink to={`/data/${table.name}`} className="pl-8">
+                <NavLink to={links.dataTable(table.name)} className="pl-8">
                   <span className="truncate font-mono text-[12.5px]">{table.name}</span>
                   <span className="ml-auto font-mono text-[11.5px] text-subtle-foreground">
                     {table.rowCount.toLocaleString()}

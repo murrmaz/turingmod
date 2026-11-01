@@ -1,9 +1,7 @@
 import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
+import type { Tone } from '@/lib/tone';
 import { cn } from '@/lib/utils';
-
-/** The accent colours: a feed category's, or a status's (viewer is also "ok", system "warn"). */
-export type Tone = 'command' | 'reward' | 'viewer' | 'chat' | 'system' | 'error' | 'idle';
 
 const DOT: Record<Tone, string> = {
   command: 'bg-cat-command',

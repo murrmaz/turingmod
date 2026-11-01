@@ -13,11 +13,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { formatUptime } from '@/constants/activityFormat';
 import { pageAt } from '@/constants/pages';
-import { useConnection } from '@/context/TrpcContext';
-import { useNow, usePlatformLiveState } from '@/hooks/usePlatformLiveState';
+import { useConnection } from '@/context/trpc-context';
+import { useNow } from '@/hooks/useNow';
+import { usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import { useYouTubeChat } from '@/hooks/useYouTubeChat';
+import { formatUptime } from '@/lib/activityFormat';
 import { reportActionError } from '@/lib/reportError';
 import { cn } from '@/lib/utils';
 

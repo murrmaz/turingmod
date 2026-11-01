@@ -1,4 +1,5 @@
-import type { ActivityLogEntry } from '@turingmod/shared';
+import { ACTIVITY_EVENT_NAMES, type ActivityLogEntry, MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
+import { z } from 'zod';
 import type { ActivityForwarder } from '../../activity/ActivityForwarder.js';
 import type { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
 import { procedure, router } from './trpc.js';
@@ -12,7 +13,16 @@ export type ActivityFeedEvent =
   | { type: 'seed'; entries: ActivityLogEntry[] }
   | { type: 'entry'; entry: ActivityLogEntry };
 
-/** The Dashboard's live activity feed. */
+/** A page of the stored log for History; see ActivityLogQuery. */
+const HistoryQuerySchema = z.strictObject({
+  events: z.array(z.enum(ACTIVITY_EVENT_NAMES)).min(1).exactOptional(),
+  search: z.string().exactOptional(),
+  since: z.number().exactOptional(),
+  page: z.int().nonnegative(),
+  pageSize: z.int().positive().max(MAX_DATA_PAGE_SIZE),
+});
+
+/** The Dashboard's live activity feed, and History's pages of the stored log. */
 export function createActivityRouter(forwarder: ActivityForwarder, repo: ActivityLogRepository) {
   return router({
     /**
@@ -34,5 +44,11 @@ export function createActivityRouter(forwarder: ActivityForwarder, repo: Activit
         await live.return?.();
       }
     }),
+
+    /**
+     * One page of the stored log, newest first, as entries (chat isn't stored). A stored entry
+     * that no longer fits the entry schema fails the read, naming it, rather than going missing.
+     */
+    history: procedure.input(HistoryQuerySchema).query(({ input }) => repo.findPage(input)),
   });
 }

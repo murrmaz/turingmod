@@ -1,6 +1,6 @@
 import type { ActivityLogEntry } from '@turingmod/shared';
-import { type FeedRow, toFeedRow } from '@/constants/activityFormat';
-import type { RouterOutputs } from '@/context/TrpcContext';
+import type { RouterOutputs } from '@/context/trpc-context';
+import { type FeedRow, toFeedRow } from '@/lib/activityFormat';
 import { useSubscription } from './useSubscription';
 
 const MAX_ENTRIES = 1000;

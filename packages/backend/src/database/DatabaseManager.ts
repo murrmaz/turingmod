@@ -27,18 +27,20 @@ export class DatabaseManager {
    * Opens the file if it exists, creates a new one if not
    */
   async initialize(): Promise<void> {
-    this.logger.info('Initializing database', { path: this.dbPath });
-
     const isNew = !existsSync(this.dbPath);
     if (isNew) {
-      this.logger.info('Creating new database');
+      // A warning, since the default path follows the working directory: started from the wrong
+      // folder, TuringMod otherwise looks like it has lost every integration's setup.
+      this.logger.warn(
+        `Creating a new, empty database at ${this.dbPath}. If you expected an existing one, check the folder TuringMod was started from, or DB_PATH`
+      );
 
       const dir = dirname(this.dbPath);
       if (!existsSync(dir)) {
         await mkdir(dir, { recursive: true });
       }
     } else {
-      this.logger.info('Loading existing database');
+      this.logger.info(`Opening database at ${this.dbPath}`);
     }
 
     this.db = new DatabaseSync(this.dbPath);

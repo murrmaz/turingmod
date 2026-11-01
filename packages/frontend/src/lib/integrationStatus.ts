@@ -10,34 +10,37 @@ export interface IntegrationDisplay {
   needsAttention: boolean;
 }
 
+/** Whether a status means something is broken that the streamer has to fix. */
+export function isBroken(status: IntegrationStatus): boolean {
+  return status === IntegrationStatus.ERROR || status === IntegrationStatus.NEEDS_REAUTH;
+}
+
+/** How a status reads. A new status is a compile error here until it has a case. */
 export function describeIntegration(integration: IntegrationInfo): IntegrationDisplay {
+  const needsAttention = isBroken(integration.status);
   switch (integration.status) {
     case IntegrationStatus.CONNECTED:
-      return { label: 'connected', tone: 'viewer', needsAttention: false };
+      return { label: 'connected', tone: 'ok', needsAttention };
     case IntegrationStatus.CONNECTING:
-      return { label: 'connecting', tone: 'system', needsAttention: false };
+      return { label: 'connecting', tone: 'pending', needsAttention };
     case IntegrationStatus.ERROR:
-      return { label: 'error', tone: 'error', needsAttention: true };
+      return { label: 'error', tone: 'error', needsAttention };
     case IntegrationStatus.NEEDS_REAUTH:
-      return { label: 'needs reauth', tone: 'error', needsAttention: true };
+      return { label: 'needs reauth', tone: 'error', needsAttention };
     case IntegrationStatus.BLOCKED:
-      return { label: 'blocked', tone: 'idle', needsAttention: false };
-    default:
+      return { label: 'blocked', tone: 'idle', needsAttention };
+    case IntegrationStatus.DISCONNECTED:
       return {
         label: integration.enabled ? 'disconnected' : 'disabled',
         tone: 'idle',
-        needsAttention: false,
+        needsAttention,
       };
   }
 }
 
 /** Whether an integration's message is a failure, rather than a note about how it's running. */
 export function hasProblem(integration: IntegrationInfo): boolean {
-  return (
-    Boolean(integration.errorMessage) &&
-    (integration.status === IntegrationStatus.ERROR ||
-      integration.status === IntegrationStatus.NEEDS_REAUTH)
-  );
+  return Boolean(integration.errorMessage) && isBroken(integration.status);
 }
 
 /** The names of the integrations that depend on this one. */

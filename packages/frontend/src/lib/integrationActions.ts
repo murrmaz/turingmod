@@ -1,6 +1,7 @@
 import { type IntegrationInfo, IntegrationStatus } from '@turingmod/shared';
+import { isBroken } from './integrationStatus';
 
-const { CONNECTED, ERROR, NEEDS_REAUTH } = IntegrationStatus;
+const { CONNECTED, NEEDS_REAUTH } = IntegrationStatus;
 
 /**
  * Something the console can do with an integration: sign in through the OAuth flow, start it, or
@@ -61,7 +62,7 @@ export function repairAction(
   if (!integration.enabled && status !== CONNECTED) {
     return { kind: 'start', label: 'Start', target: integration };
   }
-  if (status === ERROR || status === NEEDS_REAUTH) {
+  if (isBroken(status)) {
     return { kind: 'start', label: 'Retry', target: integration };
   }
   return null;

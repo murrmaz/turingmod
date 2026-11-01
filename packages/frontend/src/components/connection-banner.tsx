@@ -14,9 +14,9 @@ export function ConnectionBanner() {
   return (
     <div
       role="alert"
-      className="flex shrink-0 items-center gap-3 border-b border-cat-error/40 bg-cat-error/10 px-4 py-2 text-sm"
+      className="flex shrink-0 items-center gap-3 border-b border-status-error/40 bg-status-error/10 px-4 py-2 text-sm"
     >
-      <CircleAlert className="size-4 shrink-0 text-cat-error" />
+      <CircleAlert className="size-4 shrink-0 text-status-error" />
       <p className="min-w-0 flex-1">
         <span className="font-medium">Lost connection to TuringMod.</span>{' '}
         <span className="text-soft-foreground">

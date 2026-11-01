@@ -85,7 +85,7 @@ export function AppSidebar() {
                       </NavLink>
                     </SidebarMenuButton>
                     {badge > 0 && (
-                      <SidebarMenuBadge className="rounded-md bg-cat-error/25 text-caption font-semibold text-foreground peer-hover/menu-button:text-foreground peer-data-[active=true]/menu-button:text-foreground">
+                      <SidebarMenuBadge className="rounded-md bg-status-error/25 text-caption font-semibold text-foreground peer-hover/menu-button:text-foreground peer-data-[active=true]/menu-button:text-foreground">
                         {badge}
                       </SidebarMenuBadge>
                     )}
@@ -145,7 +145,7 @@ function ConnectionStatus() {
     const connected = connectionState === 'connected';
     return (
       <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-        <StatusDot tone={connected ? 'viewer' : 'system'} pulse={!connected} className="size-2" />
+        <StatusDot tone={connected ? 'ok' : 'pending'} pulse={!connected} className="size-2" />
         <span className="truncate group-data-[collapsible=icon]:hidden">
           {connected ? `Connected · ${window.location.host}` : 'Connecting…'}
         </span>
@@ -154,7 +154,7 @@ function ConnectionStatus() {
   }
   return (
     <div className="flex flex-col gap-2 px-2 py-1 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
-      <div className="flex items-center gap-2 text-xs text-cat-error">
+      <div className="flex items-center gap-2 text-xs text-status-error">
         <StatusDot tone="error" pulse className="size-2" />
         <span className="group-data-[collapsible=icon]:hidden">Reconnecting…</span>
       </div>

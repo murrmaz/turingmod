@@ -48,8 +48,11 @@
   --cat-viewer: oklch(0.75 0.14 150);
   --cat-chat: oklch(0.74 0.11 200);
   --cat-system: oklch(0.8 0.13 80);
-  --cat-error: oklch(0.7 0.16 25);
-  --cat-idle: oklch(0.552 0.016 285.938);
+  --status-error: oklch(0.7 0.16 25);
+  --status-idle: oklch(0.552 0.016 285.938);
+  --status-ok: var(--cat-viewer);
+  --status-pending: var(--cat-system);
+  --status-live: var(--status-error);
 }
 
 @theme inline {
@@ -100,8 +103,11 @@
   --color-cat-viewer: var(--cat-viewer);
   --color-cat-chat: var(--cat-chat);
   --color-cat-system: var(--cat-system);
-  --color-cat-error: var(--cat-error);
-  --color-cat-idle: var(--cat-idle);
+  --color-status-error: var(--status-error);
+  --color-status-idle: var(--status-idle);
+  --color-status-ok: var(--status-ok);
+  --color-status-pending: var(--status-pending);
+  --color-status-live: var(--status-live);
 }
 
 @layer base {

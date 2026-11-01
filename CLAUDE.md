@@ -451,8 +451,9 @@ The console is dark-only and runs on the streamer's second monitor, so the live 
 prominent thing on the Dashboard and integration health stays quiet until something breaks.
 Components are [shadcn/ui](https://ui.shadcn.com) (new-york, zinc), vendored in
 `src/components/ui/` from the shadcn repository; edit them there like any other source. Theme
-tokens, including the category/status accents (`--cat-*`), are CSS variables in `src/index.css`;
-use the tokens, not hex values or Tailwind's fixed palette (`red-900`). Text sizes are Tailwind's
+tokens, including the accents for activity categories (`--cat-*`) and states (`--status-*`), are
+CSS variables in `src/index.css`; a `Tone` (`lib/tone.ts`) names one for logic to pick, by what it
+means: `ok` for something working, not `viewer`, though they're the same green. Use the tokens, not hex values or Tailwind's fixed palette (`red-900`). Text sizes are Tailwind's
 plus the console's dense ones in `index.css` (`text-caption`, `text-data`, `text-body`), not pixel
 values (`text-[13px]`); a size added there also goes in `lib/utils.ts`, or `cn()` mistakes it for a
 colour and drops a class. `@/` is `src/`, and imports from outside a file's own folder use it: lint rejects `../`. Every table is `components/data-table/data-table.tsx`

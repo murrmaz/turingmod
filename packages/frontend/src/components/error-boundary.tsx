@@ -49,7 +49,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       >
         <div className="flex max-w-md flex-col gap-3">
           <h2 className="flex items-center gap-2 text-base font-semibold">
-            <CircleAlert className="size-5 text-cat-error" />
+            <CircleAlert className="size-5 text-status-error" />
             {stale ? 'TuringMod has been updated' : 'Something went wrong on this page'}
           </h2>
           <p className="text-sm text-soft-foreground">

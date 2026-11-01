@@ -74,9 +74,9 @@ function NeedsAttention({
   onRun: (action: IntegrationAction) => void;
 }) {
   return (
-    <section className="flex flex-col gap-2.5 rounded-xl border border-cat-error/40 bg-cat-error/6 p-4">
+    <section className="flex flex-col gap-2.5 rounded-xl border border-status-error/40 bg-status-error/6 p-4">
       <h2 className="flex items-center gap-2 text-sm font-semibold">
-        <CircleAlert className="size-4 text-cat-error" />
+        <CircleAlert className="size-4 text-status-error" />
         Needs attention
       </h2>
       <p className="text-body leading-relaxed text-soft-foreground">

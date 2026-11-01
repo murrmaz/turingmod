@@ -218,7 +218,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
             </Button>
             {outcome && (
               <Alert variant={outcome.success ? 'default' : 'destructive'}>
-                {outcome.success ? <CircleCheck className="text-cat-viewer!" /> : <CircleX />}
+                {outcome.success ? <CircleCheck className="text-status-ok!" /> : <CircleX />}
                 <AlertTitle>{outcome.title}</AlertTitle>
                 <AlertDescription>
                   <p>{outcome.message}</p>

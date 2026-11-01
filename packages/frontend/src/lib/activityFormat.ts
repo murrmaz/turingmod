@@ -1,5 +1,6 @@
 import type { ActivityEventName, ActivityLogEntry } from '@turingmod/shared';
-import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
+import { StreamingPlatform } from '@turingmod/shared';
+import { isBroken } from './integrationStatus';
 import { dayOf, formatDateTime, formatDay } from './time';
 
 /**
@@ -231,13 +232,11 @@ function describe({ event, data, timestamp }: ActivityLogEntry): Described {
       return system('Arduino', data.type, deviceFields(data));
 
     case 'integration.status': {
-      const failed =
-        data.status === IntegrationStatus.ERROR || data.status === IntegrationStatus.NEEDS_REAUTH;
       return system(
         'Status',
         data.name,
         data.status.replace('_', ' '),
-        failed ? 'error' : 'system'
+        isBroken(data.status) ? 'error' : 'system'
       );
     }
 

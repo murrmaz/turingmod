@@ -15,7 +15,9 @@ const { CONNECTED, ERROR, NEEDS_REAUTH } = IntegrationStatus;
 function setup(integrations: IntegrationInfo[]) {
   const watch = new FakeSubscription<IntegrationInfo[]>();
   const start = vi.fn((_input: { integrationName: string }) => Promise.resolve(integrations));
-  const authorizationUrl = vi.fn((_input: { integrationName: string }) => new Promise(() => {}));
+  const authorizationUrl = vi.fn(
+    (_input: { integrationName: string }) => new Promise<string>(() => {})
+  );
   renderConsole(
     <>
       <HealthRail />

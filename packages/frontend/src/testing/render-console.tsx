@@ -2,6 +2,7 @@ import { render } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { OAuthFlowProvider } from '@/components/integrations/oauth-flow';
+import { SimulatorProvider } from '@/components/simulator';
 import { AppStateProvider } from '@/context/app-state-context';
 import { type Connection, type TrpcClient, TrpcClientProvider } from '@/context/trpc-context';
 import type { ConnectionState } from '@/services/connection';
@@ -27,7 +28,9 @@ function ConsoleProviders({ client, connection, route, children }: ConsoleProvid
     <TrpcClientProvider client={client} connection={connection}>
       <MemoryRouter initialEntries={[route]}>
         <AppStateProvider>
-          <OAuthFlowProvider>{children}</OAuthFlowProvider>
+          <SimulatorProvider>
+            <OAuthFlowProvider>{children}</OAuthFlowProvider>
+          </SimulatorProvider>
         </AppStateProvider>
       </MemoryRouter>
     </TrpcClientProvider>

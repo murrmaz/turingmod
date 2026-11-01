@@ -1,6 +1,10 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterEach } from 'vitest';
+
+// Rendering a whole page is slow on a busy machine, more so when it's the first in its file. How
+// long `findBy` and `waitFor` wait only matters to a test that's going to fail, so be generous.
+configure({ asyncUtilTimeout: 5000 });
 
 // jsdom lays nothing out, so every element is 0×0, and a virtualized table (the live feed) works
 // out that no rows fit in its viewport. A screen-sized box lets it render its rows.

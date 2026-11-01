@@ -30,7 +30,9 @@ function setup(integrations: IntegrationInfo[], selected: IntegrationName) {
     (_input: { integrationName: string; config: unknown }): Answer => Promise.resolve(integrations)
   );
   // Never answers, so the sign-in dialog stays open waiting for its URL, opening no popup.
-  const authorizationUrl = vi.fn((_input: { integrationName: string }) => new Promise(() => {}));
+  const authorizationUrl = vi.fn(
+    (_input: { integrationName: string }) => new Promise<string>(() => {})
+  );
   renderConsole(<IntegrationsPage />, {
     route: links.integration(selected),
     procedures: {

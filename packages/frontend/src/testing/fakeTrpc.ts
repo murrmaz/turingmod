@@ -30,6 +30,15 @@ export class FakeSubscription<T> {
       }
     });
   }
+
+  /** Fail the subscription, as a backend error or a lost stream does. */
+  fail(error: unknown): void {
+    act(() => {
+      for (const subscriber of this.subscribers) {
+        subscriber.onError(error);
+      }
+    });
+  }
 }
 
 /** A promise the test settles when it chooses, e.g. a mutation's answer. */
@@ -49,11 +58,29 @@ export function deferred<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
+/** What a subscription procedure sends to its subscribers. */
+type Sent<Procedure> = Procedure extends {
+  subscribe: (input: never, observer: { onData?: (value: infer T) => void }) => unknown;
+}
+  ? T
+  : never;
+
+/** A procedure's fake: a FakeSubscription for a subscription, else `query` or `mutate` as typed. */
+type FakeProcedure<Procedure> = Procedure extends { subscribe: unknown }
+  ? FakeSubscription<Sent<Procedure>>
+  : Procedure;
+
 /**
  * The fakes a test gives the client, by sub-router and procedure, e.g.
- * `{ suggestions: { watch: new FakeSubscription(), delete: { mutate: vi.fn() } } }`.
+ * `{ suggestions: { watch: new FakeSubscription(), delete: { mutate: vi.fn() } } }`. Typed from the
+ * router, so a fake that no longer matches its procedure's input or output doesn't compile. Any of
+ * them can be left out, and calling one that was throws (see fakeTrpc).
  */
-export type Procedures = Record<string, Record<string, unknown>>;
+export type Procedures = {
+  [Router in keyof TrpcClient & string]?: {
+    [Name in keyof TrpcClient[Router]]?: FakeProcedure<TrpcClient[Router][Name]>;
+  };
+};
 
 /**
  * A tRPC client over these fakes instead of a WebSocket, for TrpcClientProvider. Calling a

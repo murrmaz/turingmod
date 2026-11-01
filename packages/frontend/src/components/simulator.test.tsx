@@ -3,7 +3,6 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { useSimulator } from '@/context/simulatorContext';
 import { renderConsole } from '@/testing/render-console';
-import { SimulatorProvider } from './simulator';
 
 function OpenButton() {
   const simulator = useSimulator();
@@ -17,11 +16,7 @@ function OpenButton() {
 describe('SimulatorProvider', () => {
   it('opens on the command asked for, with every field labelled', async () => {
     const user = userEvent.setup();
-    renderConsole(
-      <SimulatorProvider>
-        <OpenButton />
-      </SimulatorProvider>
-    );
+    renderConsole(<OpenButton />);
 
     await user.click(screen.getByRole('button', { name: 'Open' }));
 

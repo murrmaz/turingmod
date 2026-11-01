@@ -21,6 +21,8 @@ export default defineConfig({
         test: {
           name: 'dom',
           environment: 'jsdom',
+          // More than `asyncUtilTimeout` (setupDom.ts), so a failed wait reports what it wanted.
+          testTimeout: 20_000,
           include: ['src/**/*.test.tsx'],
           setupFiles: ['./src/testing/setupDom.ts'],
         },

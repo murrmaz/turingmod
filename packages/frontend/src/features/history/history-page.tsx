@@ -6,7 +6,7 @@ import { EventSheet } from '@/components/activity/event-sheet';
 import { FeedCategoryTabs } from '@/components/activity/feed-category-tabs';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTablePagination } from '@/components/data-table/pagination';
-import { type DateRange, DateRangeSelect, rangeStart } from '@/components/date-range-select';
+import { DateRangeSelect } from '@/components/date-range-select';
 import { PageHeader } from '@/components/page-header';
 import { SearchInput } from '@/components/search-input';
 import { URL_PARAMS } from '@/constants/pages';
@@ -14,6 +14,7 @@ import { useActivityHistory } from '@/hooks/useActivityHistory';
 import { DATA_PAGE_SIZES } from '@/hooks/useDataRows';
 import { useDebounced } from '@/hooks/useDebounced';
 import { dayDivider, FEED_CATEGORY_EVENTS, type FeedRow, toFeedRow } from '@/lib/activityFormat';
+import { type DateRange, rangeStart } from '@/lib/dateRange';
 
 /** A category the stored log has: every one but chat, which isn't stored. */
 type StoredCategory = keyof typeof FEED_CATEGORY_EVENTS;

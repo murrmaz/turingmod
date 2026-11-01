@@ -5,6 +5,7 @@ import {
 } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
 import {
+  activityEventTone,
   dayDivider,
   FEED_CATEGORY_EVENTS,
   formatDay,
@@ -198,5 +199,14 @@ describe('FEED_CATEGORY_EVENTS', () => {
         expect(toFeedRow(entry(event, {})).category).toBe(category);
       }
     }
+  });
+});
+
+describe('activityEventTone', () => {
+  it("colours a recorded event's name by its category, and nothing else", () => {
+    expect(activityEventTone('command.executed')).toBe('command');
+    expect(activityEventTone('integration.error')).toBe('error');
+    expect(activityEventTone('twitch.follow')).toBe('viewer');
+    expect(activityEventTone('not.an.event')).toBeUndefined();
   });
 });

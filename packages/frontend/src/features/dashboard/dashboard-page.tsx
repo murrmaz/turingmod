@@ -5,7 +5,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { ArrowUp, Pause, Play } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { activityColumns } from '@/components/activity/activity-columns';
 import { EventSheet } from '@/components/activity/event-sheet';
@@ -14,20 +14,22 @@ import { DataTable } from '@/components/data-table/data-table';
 import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
 import { links } from '@/constants/pages';
-import { type LiveFeedRow, useLiveLog } from '@/hooks/useLiveLog';
+import { useFocusShortcut } from '@/hooks/useFocusShortcut';
+import { useLiveFeed } from '@/hooks/useLiveFeed';
+import type { LiveFeedRow } from '@/hooks/useLiveLog';
 import { usePlatformLiveState } from '@/hooks/usePlatformLiveState';
-import {
-  dayDivider,
-  type FeedCategory,
-  type FeedRow,
-  matchesFeedQuery,
-} from '@/lib/activityFormat';
+import { dayDivider, type FeedCategory } from '@/lib/activityFormat';
+import { countEvents, streamStartedAt } from '@/lib/liveFeed';
 import { HealthRail } from './health-rail';
 
 /** The feed's tabs after All, in order. All leaves chat out: it would bury everything else mid-stream. */
 const CATEGORIES: readonly FeedCategory[] = ['command', 'reward', 'viewer', 'system', 'chat'];
 
+/** How long a row that just arrived stays highlighted. */
 const HIGHLIGHT_MS = 2000;
+
+const plural = (count: number, one: string) =>
+  `${count.toLocaleString()} ${one}${count === 1 ? '' : 's'}`;
 
 export function DashboardPage() {
   return (
@@ -38,76 +40,27 @@ export function DashboardPage() {
   );
 }
 
+/** The live feed (useLiveFeed), its table, and the sheet that opens on one of its rows. */
 function LiveActivity() {
   const navigate = useNavigate();
-  const { rows, loading } = useLiveLog();
-  const platforms = usePlatformLiveState();
-  const [category, setCategory] = useState<FeedCategory | 'all'>('all');
-  const [query, setQuery] = useState('');
-  const [paused, setPaused] = useState(false);
-  const [scrolledAway, setScrolledAway] = useState(false);
-  /** While frozen, the newest seq on screen; rows after it wait behind the "new events" pill. */
-  const [frozenAt, setFrozenAt] = useState<number | null>(null);
+  const feed = useLiveFeed();
+  const streamStart = streamStartedAt(usePlatformLiveState());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'time', desc: true }]);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
-
-  const matching = useMemo(
-    () =>
-      rows.filter(
-        (row) =>
-          (category === 'all' ? row.category !== 'chat' : row.category === category) &&
-          matchesFeedQuery(row, query)
-      ),
-    [rows, category, query]
-  );
-
-  const frozen = paused || scrolledAway;
-  useEffect(() => {
-    setFrozenAt((current) => (frozen ? (current ?? rows[0]?.seq ?? 0) : null));
-  }, [frozen, rows]);
-
-  // Memoized: a new array per render is new table data, and TanStack Table answers new data by
-  // resetting its page index, a state change that renders again, endlessly.
-  const visible = useMemo(
-    () => (frozenAt === null ? matching : matching.filter((row) => row.seq <= frozenAt)),
-    [matching, frozenAt]
-  );
-  const pending = matching.length - visible.length;
-
-  const jumpToLatest = () => {
-    scrollRef.current?.scrollTo({ top: 0 });
-    setScrolledAway(false);
-    setPaused(false);
-  };
-
-  // "/" focuses the filter, as long as nothing else is being typed into.
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const typing = target?.closest('input, textarea, select, [contenteditable="true"]');
-      if (event.key === '/' && !typing) {
-        event.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  useFocusShortcut(searchRef);
 
   const viewUser = useCallback((user: string) => navigate(links.historyOf(user)), [navigate]);
   const columns = useMemo(
     () =>
       activityColumns<LiveFeedRow>({
-        onInspect: (row: FeedRow) => setSelectedId(row.id),
+        onInspect: (row) => setSelectedId(row.id),
         onViewUser: viewUser,
       }),
     [viewUser]
   );
-
   const table = useReactTable({
-    data: visible,
+    data: feed.visible,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
@@ -115,23 +68,7 @@ function LiveActivity() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
-
-  const ordered = table.getRowModel().rows.map((row) => row.original);
-
-  // Counted from when the earliest live platform went live; everything loaded, when offline.
-  const streamStart = platforms
-    .filter((platform) => platform.live && platform.startedAt !== null)
-    .reduce<number | null>(
-      (earliest, platform) =>
-        earliest === null || (platform.startedAt ?? earliest) < earliest
-          ? platform.startedAt
-          : earliest,
-      null
-    );
-  const eventCount =
-    streamStart === null
-      ? rows.filter((row) => row.category !== 'chat').length
-      : rows.filter((row) => row.category !== 'chat' && row.timestamp >= streamStart).length;
+  const shown = table.getRowModel().rows.map((row) => row.original);
   const now = Date.now();
 
   return (
@@ -140,44 +77,44 @@ function LiveActivity() {
         <div className="flex items-baseline gap-3 whitespace-nowrap">
           <h2 className="text-base font-semibold">Live activity</h2>
           <span className="truncate text-[13px] text-muted-foreground">
-            Newest first · {eventCount.toLocaleString()} events
+            Newest first · {plural(countEvents(feed.all, streamStart), 'event')}
             {streamStart === null ? '' : ' this stream'}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <FeedCategoryTabs categories={CATEGORIES} value={category} onChange={setCategory} />
+          <FeedCategoryTabs categories={CATEGORIES} value={feed.tab} onChange={feed.setTab} />
           <SearchInput
             ref={searchRef}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            value={feed.query}
+            onChange={(event) => feed.setQuery(event.target.value)}
             placeholder="Filter events…"
             className="ml-auto w-56"
           />
-          <Button variant="outline" onClick={() => setPaused((value) => !value)}>
-            {paused ? <Play /> : <Pause />}
-            {paused ? 'Resume' : 'Pause'}
+          <Button variant="outline" onClick={feed.togglePaused}>
+            {feed.paused ? <Play /> : <Pause />}
+            {feed.paused ? 'Resume' : 'Pause'}
           </Button>
         </div>
       </header>
 
       <div className="relative flex min-h-0 flex-1 flex-col border-t">
-        {pending > 0 && (
+        {feed.pending > 0 && (
           <Button
             size="sm"
-            onClick={jumpToLatest}
+            onClick={feed.jumpToLatest}
             className="absolute top-12 left-1/2 z-20 -translate-x-1/2 rounded-full shadow-lg"
           >
             <ArrowUp />
-            {pending} new {pending === 1 ? 'event' : 'events'}
+            {plural(feed.pending, 'new event')}
           </Button>
         )}
         <DataTable
           table={table}
           divider={dayDivider}
           virtualize
-          loading={loading}
-          scrollRef={scrollRef}
-          onScroll={(element) => setScrolledAway(element.scrollTop > 8)}
+          loading={feed.loading}
+          scrollRef={feed.scrollRef}
+          onScroll={feed.onScroll}
           onRowClick={(row) => setSelectedId(row.id)}
           selectedRowId={selectedId}
           rowClassName={(row) =>
@@ -186,7 +123,7 @@ function LiveActivity() {
               : undefined
           }
           empty={
-            query || category !== 'all'
+            feed.filtered
               ? 'Nothing matches this filter.'
               : 'No activity yet — events appear here as they happen.'
           }
@@ -194,7 +131,7 @@ function LiveActivity() {
       </div>
 
       <EventSheet
-        rows={ordered}
+        rows={shown}
         selectedId={selectedId}
         onSelect={setSelectedId}
         onViewUser={viewUser}

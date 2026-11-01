@@ -1,5 +1,11 @@
 import type { ActivityEventName, ActivityLogEntry } from '@turingmod/shared';
-import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
+import {
+  ACTIVITY_EVENT_CATEGORIES,
+  ActivityCategory,
+  IntegrationStatus,
+  StreamingPlatform,
+} from '@turingmod/shared';
+import type { Tone } from './tone';
 
 /**
  * The feed's own categories, which the console filters by. Finer than the backend's
@@ -397,4 +403,23 @@ export function formatUptime(ms: number): string {
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
   return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+const CATEGORY_TONES = {
+  [ActivityCategory.COMMAND]: 'command',
+  [ActivityCategory.EVENT]: 'viewer',
+  [ActivityCategory.STATUS]: 'idle',
+  [ActivityCategory.ERROR]: 'error',
+  [ActivityCategory.CHAT]: 'chat',
+} satisfies Record<ActivityCategory, Tone>;
+
+/**
+ * The colour of an activity event's name where the stored log shows it raw (the Data page),
+ * by the event's category; undefined for a value that's no recorded event.
+ */
+export function activityEventTone(value: string): Tone | undefined {
+  const category = Object.entries(ACTIVITY_EVENT_CATEGORIES).find(
+    ([event]) => event === value
+  )?.[1];
+  return category === undefined ? undefined : CATEGORY_TONES[category];
 }

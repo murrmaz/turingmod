@@ -198,6 +198,6 @@ describe('Live activity', () => {
       { platform: StreamingPlatform.YOUTUBE, live: true, startedAt: before.timestamp + 500 },
     ]);
 
-    expect(screen.getByText(/Newest first · 1 events this stream$/)).toBeInTheDocument();
+    expect(screen.getByText(/Newest first · 1 event this stream$/)).toBeInTheDocument();
   });
 });

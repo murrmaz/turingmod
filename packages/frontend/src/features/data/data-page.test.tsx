@@ -5,10 +5,13 @@ import { MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
 import { Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { links, PAGES, routePattern } from '@/constants/pages';
+import { MAX_EXPORT_ROWS } from '@/hooks/useTableExport';
 import { renderConsole } from '@/testing/render-console';
 import { DataPage } from './data-page';
 
-const toast = vi.hoisted(() => Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }));
+const toast = vi.hoisted(() =>
+  Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn() })
+);
 vi.mock('sonner', () => ({ toast }));
 
 const LOG: DataTableInfo = {
@@ -214,5 +217,31 @@ describe('Data page', () => {
       })
     );
     expect(downloads.size).toBe(0);
+  });
+
+  it('exports as many rows as it may, and says so when more match', async () => {
+    const total = MAX_EXPORT_ROWS + 5;
+    const { user } = setup(async (query) => pageOf(query, total));
+
+    await user.click(await screen.findByRole('button', { name: 'Export' }));
+
+    await waitFor(() => expect(downloads.has('activity_log.csv')).toBe(true));
+    expect((await downloads.get('activity_log.csv'))?.split('\r\n')).toHaveLength(
+      MAX_EXPORT_ROWS + 1
+    );
+    expect(toast.warning).toHaveBeenCalledWith(
+      `Exported the first ${MAX_EXPORT_ROWS.toLocaleString()} rows`,
+      expect.anything()
+    );
+  });
+
+  it('closes the open row when the search changes, since its place now holds another row', async () => {
+    const { user } = setup(async (query) => pageOf(query, 3));
+    await user.click(await screen.findByText('row-2'));
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText('Search data…'), 'r');
+
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
   });
 });

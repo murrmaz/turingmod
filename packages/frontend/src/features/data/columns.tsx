@@ -3,7 +3,8 @@ import type { DataCell, DataColumnInfo, DataTableInfo } from '@turingmod/shared'
 import { DataTableColumnHeader } from '@/components/data-table/column-header';
 import { DotBadge } from '@/components/status';
 import type { InspectedRow } from '@/hooks/useInspectedTable';
-import { activityEventTone, formatDateTime } from '@/lib/activityFormat';
+import { formatDateTime } from '@/lib/time';
+import { activityEventTone } from '@/lib/tone';
 
 /**
  * One column per table column, sized by kind: a JSON column takes the width left over. A masked

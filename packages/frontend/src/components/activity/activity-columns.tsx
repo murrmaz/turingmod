@@ -10,8 +10,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { type FeedRow, formatClock, formatDateTime } from '@/lib/activityFormat';
-import { copyToClipboard } from '@/lib/reportError';
+import type { FeedRow } from '@/lib/activityFormat';
+import { copyToClipboard } from '@/lib/clipboard';
+import { formatClock, formatDateTime } from '@/lib/time';
 
 export interface ActivityRowActions {
   onInspect: (row: FeedRow) => void;

@@ -36,7 +36,7 @@ import { PERMISSION_LABELS } from '@/constants/permissions';
 
 import { type CommandInfo, useAppState } from '@/context/app-state-context';
 import { useSimulator } from '@/context/simulatorContext';
-import { copyToClipboard } from '@/lib/reportError';
+import { copyToClipboard } from '@/lib/clipboard';
 import type { Tone } from '@/lib/tone';
 
 const PERMISSION_TONES: Record<PermissionLevel, Tone> = {

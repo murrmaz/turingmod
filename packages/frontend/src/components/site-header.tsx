@@ -18,8 +18,8 @@ import { useConnection } from '@/context/trpc-context';
 import { useNow } from '@/hooks/useNow';
 import { usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import { useYouTubeChat } from '@/hooks/useYouTubeChat';
-import { formatUptime } from '@/lib/activityFormat';
 import { reportActionError } from '@/lib/reportError';
+import { formatUptime } from '@/lib/time';
 import { cn } from '@/lib/utils';
 
 export function SiteHeader({ onOpenPalette }: { onOpenPalette: () => void }) {

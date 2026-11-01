@@ -479,7 +479,7 @@ after its subject. `testing/`, `app.tsx` and `index.tsx` sit above the layers. O
 `testing/` itself may import `@/testing`, and lint applies no layer rules to them.
 
 **Shared console pieces.** A page sits in a `PageLayout` (its padding, and `panel` for a
-`DetailPanel`; the Dashboard's two-column grid is the exception), starts with `PageHeader` (title and what it's for), filters a
+`DetailPanel`; the Dashboard's two-column grid is the exception), starts with `PageHeader` (title and what it's for; the Data page heads itself with its table's name instead), filters a
 table with `SearchInput`, shows what's selected in a `DetailPanel` at its right edge, and builds a
 form from `FormField`s, which tie each label and hint to the control they're for (all in
 `components/`). The activity tables share `components/activity/`: their columns, the category

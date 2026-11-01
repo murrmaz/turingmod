@@ -8,6 +8,7 @@ import { DataTableFacetedFilter } from '@/components/data-table/faceted-filter';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { DataTableViewOptions } from '@/components/data-table/view-options';
 import { DateRangeSelect } from '@/components/date-range-select';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { PageLayout } from '@/components/page-layout';
 import { SearchInput } from '@/components/search-input';
 import { Badge } from '@/components/ui/badge';
@@ -40,8 +41,12 @@ export function DataPage() {
       </p>
     );
   }
-  // Keyed, so switching tables starts from a clean set of filters.
-  return <TableInspector key={info.name} info={info} />;
+  // Keyed, so switching tables starts from a clean set of filters, and away from one that crashed.
+  return (
+    <ErrorBoundary key={info.name}>
+      <TableInspector info={info} />
+    </ErrorBoundary>
+  );
 }
 
 /** One table: what's read of it (useInspectedTable), its rows, and the row selected. */

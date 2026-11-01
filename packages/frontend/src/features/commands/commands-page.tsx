@@ -15,6 +15,7 @@ import { DataTablePagination } from '@/components/data-table/pagination';
 import { DataTableViewOptions } from '@/components/data-table/view-options';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
+import { SearchInput } from '@/components/search-input';
 import { DotBadge } from '@/components/status';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,7 +24,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 import { PERMISSION_LABELS } from '@/constants/permissions';
 
 import { type CommandInfo, useCommandList } from '@/context/app-state-context';
@@ -173,7 +173,7 @@ export function CommandsPage() {
         description="Every chat command, its permission level and where it works."
       />
       <div className="flex flex-wrap items-center gap-2">
-        <Input
+        <SearchInput
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
           placeholder="Filter commands…"

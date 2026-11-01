@@ -11,7 +11,7 @@ import { SiteHeader } from '@/components/site-header';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { HOME_PAGE, PAGES, type PageId, pagePath, routePattern } from '@/constants/pages';
+import { HOME_PAGE, PAGES, type PageId, pageAt, pagePath, routePattern } from '@/constants/pages';
 import { AppStateProvider } from '@/context/app-state-context';
 import { TrpcProvider, useConnection } from '@/context/trpc-context';
 import { cn } from '@/lib/utils';
@@ -58,8 +58,9 @@ function Shell() {
             connectionState === 'reconnecting' && 'opacity-50'
           )}
         >
-          {/* Keyed by page, so a page that crashed is tried afresh once you navigate away. */}
-          <ErrorBoundary key={pathname}>
+          {/* Keyed by page, so a page that crashed is tried afresh once you navigate away, and
+              moving within a page (the Data page's tables) doesn't build it again. */}
+          <ErrorBoundary key={pageAt(pathname)?.id}>
             <Suspense fallback={null}>
               <Outlet />
             </Suspense>

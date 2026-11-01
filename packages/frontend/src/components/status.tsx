@@ -9,8 +9,11 @@ const DOT: Record<Tone, string> = {
   viewer: 'bg-cat-viewer',
   chat: 'bg-cat-chat',
   system: 'bg-cat-system',
-  error: 'bg-cat-error',
-  idle: 'bg-cat-idle',
+  ok: 'bg-status-ok',
+  pending: 'bg-status-pending',
+  error: 'bg-status-error',
+  live: 'bg-status-live',
+  idle: 'bg-status-idle',
 };
 
 export const TONE_TEXT: Record<Tone, string> = {
@@ -19,7 +22,10 @@ export const TONE_TEXT: Record<Tone, string> = {
   viewer: 'text-cat-viewer',
   chat: 'text-cat-chat',
   system: 'text-cat-system',
-  error: 'text-cat-error',
+  ok: 'text-status-ok',
+  pending: 'text-status-pending',
+  error: 'text-status-error',
+  live: 'text-status-live',
   idle: 'text-subtle-foreground',
 };
 

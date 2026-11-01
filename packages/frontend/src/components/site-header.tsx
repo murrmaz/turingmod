@@ -74,7 +74,7 @@ function BadgeBody({ state, now }: { state: PlatformLiveState; now: number }) {
   }
   return (
     <>
-      <StatusDot tone={state.live ? 'error' : 'idle'} />
+      <StatusDot tone={state.live ? 'live' : 'idle'} />
       <span className="font-semibold text-foreground">{platformDisplayName(state.platform)}</span>
       <span className="text-muted-foreground">{state.live ? 'Live' : 'Offline'}</span>
       {state.live && state.startedAt !== null && (
@@ -103,6 +103,12 @@ const CHAT_STATE_TEXT = {
   streaming: 'Chat connected',
 } as const;
 
+const CHAT_STATE_TONE = {
+  idle: 'idle',
+  resolving: 'pending',
+  streaming: 'ok',
+} as const;
+
 /**
  * YouTube's badge also holds the manual chat control: OBS connects chat on its own when it starts
  * streaming, and this is for when it isn't in the picture.
@@ -119,15 +125,7 @@ function YouTubeBadge({ state, now }: { state: PlatformLiveState; now: number })
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel className="flex items-center gap-2 font-normal text-muted-foreground">
           <StatusDot
-            tone={
-              isConnected
-                ? chat.state === 'streaming'
-                  ? 'viewer'
-                  : chat.state === 'resolving'
-                    ? 'system'
-                    : 'idle'
-                : 'idle'
-            }
+            tone={isConnected ? CHAT_STATE_TONE[chat.state] : 'idle'}
             pulse={isConnected && chat.state === 'resolving'}
           />
           {isConnected ? CHAT_STATE_TEXT[chat.state] : 'Not connected to TuringMod'}

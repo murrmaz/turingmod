@@ -33,12 +33,13 @@ import { copyToClipboard } from '@/lib/clipboard';
 import { plural } from '@/lib/plural';
 import type { Tone } from '@/lib/tone';
 
+/** Colours that tell the levels apart, the broadcaster's being the red of going live. */
 const PERMISSION_TONES: Record<PermissionLevel, Tone> = {
   [PermissionLevel.VIEWER]: 'idle',
   [PermissionLevel.SUBSCRIBER]: 'viewer',
   [PermissionLevel.VIP]: 'viewer',
   [PermissionLevel.MODERATOR]: 'command',
-  [PermissionLevel.BROADCASTER]: 'error',
+  [PermissionLevel.BROADCASTER]: 'live',
 };
 
 /** The least privileged level that may run a command: what "who can use this" means. */

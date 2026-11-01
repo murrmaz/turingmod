@@ -4,6 +4,7 @@ import { CircleAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { StatusDot } from '@/components/status';
 import { Button } from '@/components/ui/button';
+import { links } from '@/constants/pages';
 import { useAppState } from '@/context/app-state-context';
 import { useIntegrationActions } from '@/hooks/useIntegrationActions';
 import { type IntegrationAction, repairAction } from '@/lib/integrationActions';
@@ -44,7 +45,7 @@ export function HealthRail() {
               <li key={integration.name}>
                 <button
                   type="button"
-                  onClick={() => navigate(`/integrations?selected=${integration.name}`)}
+                  onClick={() => navigate(links.integration(integration.name))}
                   className="flex w-full items-center gap-2.5 px-4 py-1.5 text-left hover:bg-accent/50"
                 >
                   <StatusDot tone={display.tone} />

@@ -16,6 +16,18 @@ for (const [property, size] of [
 Element.prototype.scrollTo = () => {};
 Element.prototype.scrollIntoView = () => {};
 
+// Nor media queries, which the sidebar asks whether the screen is narrow: it's a desktop one.
+window.matchMedia = (query: string): MediaQueryList => ({
+  matches: false,
+  media: query,
+  onchange: null,
+  addListener: () => {},
+  removeListener: () => {},
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  dispatchEvent: () => false,
+});
+
 // Testing Library only unmounts by itself when Vitest's globals are on, which they aren't here.
 afterEach(() => {
   cleanup();

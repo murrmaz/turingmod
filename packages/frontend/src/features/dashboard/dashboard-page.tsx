@@ -13,6 +13,7 @@ import { FeedCategoryTabs } from '@/components/activity/feed-category-tabs';
 import { DataTable } from '@/components/data-table/data-table';
 import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
+import { links } from '@/constants/pages';
 import { type LiveFeedRow, useLiveLog } from '@/hooks/useLiveLog';
 import { usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import {
@@ -95,10 +96,7 @@ function LiveActivity() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const viewUser = useCallback(
-    (user: string) => navigate(`/history?q=${encodeURIComponent(user)}`),
-    [navigate]
-  );
+  const viewUser = useCallback((user: string) => navigate(links.historyOf(user)), [navigate]);
   const columns = useMemo(
     () =>
       activityColumns<LiveFeedRow>({

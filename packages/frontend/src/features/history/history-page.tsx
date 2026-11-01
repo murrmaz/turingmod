@@ -9,6 +9,7 @@ import { DataTablePagination } from '@/components/data-table/pagination';
 import { type DateRange, DateRangeSelect, rangeStart } from '@/components/date-range-select';
 import { PageHeader } from '@/components/page-header';
 import { SearchInput } from '@/components/search-input';
+import { URL_PARAMS } from '@/constants/pages';
 import { useActivityHistory } from '@/hooks/useActivityHistory';
 import { DATA_PAGE_SIZES } from '@/hooks/useDataRows';
 import { useDebounced } from '@/hooks/useDebounced';
@@ -31,7 +32,7 @@ export function HistoryPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const query = params.get('q') ?? '';
+  const query = params.get(URL_PARAMS.historySearch) ?? '';
 
   const since = rangeStart(range);
   const { entries, total, loading, error } = useActivityHistory({
@@ -48,7 +49,7 @@ export function HistoryPage() {
     (user: string) => {
       setSelectedId(null);
       setPage(0);
-      setParams({ q: user });
+      setParams({ [URL_PARAMS.historySearch]: user });
     },
     [setParams]
   );
@@ -86,7 +87,7 @@ export function HistoryPage() {
       return;
     }
     lastWritten.current = next;
-    setParams(next ? { q: next } : {}, { replace: true });
+    setParams(next ? { [URL_PARAMS.historySearch]: next } : {}, { replace: true });
     reset();
   });
   useEffect(() => writeQuery(typed), [typed]);

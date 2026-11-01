@@ -52,8 +52,8 @@ export function CommandPalette({
       <CommandList>
         <CommandEmpty>No results.</CommandEmpty>
         <CommandGroup heading="Go to">
-          {PAGES.map(({ path, label, icon: Icon }) => (
-            <CommandItem key={path} onSelect={() => run(() => navigate(path))}>
+          {PAGES.map(({ id, path, label, icon: Icon }) => (
+            <CommandItem key={id} onSelect={() => run(() => navigate(path))}>
               <Icon />
               {label}
             </CommandItem>

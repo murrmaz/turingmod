@@ -27,6 +27,7 @@ import { SearchInput } from '@/components/search-input';
 import { DotBadge } from '@/components/status';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { links, URL_PARAMS } from '@/constants/pages';
 import { useTrpc } from '@/context/trpc-context';
 import { DATA_PAGE_SIZES, useDataRows } from '@/hooks/useDataRows';
 import { useDataTables } from '@/hooks/useDataTables';
@@ -62,13 +63,13 @@ const ENUM_TONES: Partial<Record<string, Tone>> = Object.fromEntries(
 );
 
 export function DataPage() {
-  const { table: tableName } = useParams();
+  const tableName = useParams()[URL_PARAMS.dataTable];
   const { tables, error } = useDataTables();
 
   if (!tableName) {
     const first = tables[0];
     return first ? (
-      <Navigate to={`/data/${first.name}`} replace />
+      <Navigate to={links.dataTable(first.name)} replace />
     ) : (
       <p className="p-8 text-sm text-muted-foreground">{error ?? 'Loading tables…'}</p>
     );

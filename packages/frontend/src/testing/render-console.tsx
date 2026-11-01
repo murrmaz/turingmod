@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { OAuthFlowProvider } from '@/components/integrations/oauth-flow';
 import { AppStateProvider } from '@/context/app-state-context';
 import { type Connection, type TrpcClient, TrpcClientProvider } from '@/context/trpc-context';
@@ -61,4 +61,10 @@ export function consoleWrapper({
 /** Render part of the console inside its providers (see consoleWrapper). */
 export function renderConsole(ui: ReactElement, options?: ConsoleOptions) {
   return render(ui, { wrapper: consoleWrapper(options) });
+}
+
+/** The address the console is at, for a test to check where a link or a navigation led. */
+export function CurrentLocation() {
+  const { pathname, search } = useLocation();
+  return <output aria-label="Current location">{pathname + search}</output>;
 }

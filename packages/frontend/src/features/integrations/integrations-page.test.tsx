@@ -7,6 +7,7 @@ import {
   OBS_DEFAULT_URL,
 } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { links } from '@/constants/pages';
 import { deferred, FakeSubscription } from '@/testing/fakeTrpc';
 import { apiIntegration, integration, oauthIntegration } from '@/testing/integrations';
 import { renderConsole } from '@/testing/render-console';
@@ -31,7 +32,7 @@ function setup(integrations: IntegrationInfo[], selected: IntegrationName) {
   // Never answers, so the sign-in dialog stays open waiting for its URL, opening no popup.
   const authorizationUrl = vi.fn((_input: { integrationName: string }) => new Promise(() => {}));
   renderConsole(<IntegrationsPage />, {
-    route: `/integrations?selected=${selected}`,
+    route: links.integration(selected),
     procedures: {
       integrations: {
         watch,

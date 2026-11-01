@@ -4,7 +4,7 @@ import type { ActivityLogEntry, PlatformLiveState } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { RouterOutputs } from '@/context/trpc-context';
 import { FakeSubscription } from '@/testing/fakeTrpc';
-import { renderConsole } from '@/testing/render-console';
+import { CurrentLocation, renderConsole } from '@/testing/render-console';
 import { DashboardPage } from './dashboard-page';
 
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
@@ -37,12 +37,18 @@ function chat(message: string): ActivityLogEntry {
 function setup(stored: ActivityLogEntry[] = []) {
   const feed = new FakeSubscription<FeedEvent>();
   const user = userEvent.setup();
-  renderConsole(<DashboardPage />, {
-    procedures: {
-      activity: { feed },
-      liveState: { watch: new FakeSubscription<PlatformLiveState[]>() },
-    },
-  });
+  renderConsole(
+    <>
+      <DashboardPage />
+      <CurrentLocation />
+    </>,
+    {
+      procedures: {
+        activity: { feed },
+        liveState: { watch: new FakeSubscription<PlatformLiveState[]>() },
+      },
+    }
+  );
   feed.emit({ type: 'seed', entries: [...stored].reverse() });
   const arrive = (entry: ActivityLogEntry) => feed.emit({ type: 'entry', entry });
   return { feed, user, arrive };
@@ -160,5 +166,17 @@ describe('Live activity', () => {
 
     await user.keyboard('{ArrowUp}{ArrowUp}');
     expect(screen.getByRole('dialog', { name: '!third' })).toBeInTheDocument();
+  });
+
+  it("opens History on an entry's viewer", async () => {
+    const { user } = setup([command('lurk')]);
+
+    await user.click(screen.getByText('!lurk'));
+    await user.click(screen.getByRole('button', { name: 'View viewer’s history' }));
+
+    // The sheet is modal, so it hides the rest from assistive technology until the page changes.
+    expect(
+      screen.getByRole('status', { name: 'Current location', hidden: true })
+    ).toHaveTextContent('/history?q=viewer');
   });
 });

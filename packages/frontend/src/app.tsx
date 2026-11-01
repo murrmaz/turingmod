@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { type ComponentType, type LazyExoticComponent, lazy, Suspense, useState } from 'react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { AppSidebar } from '@/components/app-sidebar';
 import { CommandPalette } from '@/components/command-palette';
@@ -11,30 +11,35 @@ import { SiteHeader } from '@/components/site-header';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { HOME_PAGE, PAGES, type PageId, pagePath, routePattern } from '@/constants/pages';
 import { AppStateProvider } from '@/context/app-state-context';
 import { TrpcProvider, useConnection } from '@/context/trpc-context';
 import { cn } from '@/lib/utils';
 
-const DashboardPage = lazy(() =>
-  import('@/features/dashboard/dashboard-page').then((m) => ({ default: m.DashboardPage }))
-);
-const CommandsPage = lazy(() =>
-  import('@/features/commands/commands-page').then((m) => ({ default: m.CommandsPage }))
-);
-const IntegrationsPage = lazy(() =>
-  import('@/features/integrations/integrations-page').then((m) => ({
-    default: m.IntegrationsPage,
-  }))
-);
-const SuggestionsPage = lazy(() =>
-  import('@/features/suggestions/suggestions-page').then((m) => ({ default: m.SuggestionsPage }))
-);
-const HistoryPage = lazy(() =>
-  import('@/features/history/history-page').then((m) => ({ default: m.HistoryPage }))
-);
-const DataPage = lazy(() =>
-  import('@/features/data/data-page').then((m) => ({ default: m.DataPage }))
-);
+/**
+ * Each page's component, loaded when first opened. Keyed by page, so a page in PAGES without a
+ * component here is a compile error.
+ */
+const PAGE_COMPONENTS: Record<PageId, LazyExoticComponent<ComponentType>> = {
+  dashboard: lazy(() =>
+    import('@/features/dashboard/dashboard-page').then((m) => ({ default: m.DashboardPage }))
+  ),
+  commands: lazy(() =>
+    import('@/features/commands/commands-page').then((m) => ({ default: m.CommandsPage }))
+  ),
+  integrations: lazy(() =>
+    import('@/features/integrations/integrations-page').then((m) => ({
+      default: m.IntegrationsPage,
+    }))
+  ),
+  suggestions: lazy(() =>
+    import('@/features/suggestions/suggestions-page').then((m) => ({ default: m.SuggestionsPage }))
+  ),
+  history: lazy(() =>
+    import('@/features/history/history-page').then((m) => ({ default: m.HistoryPage }))
+  ),
+  data: lazy(() => import('@/features/data/data-page').then((m) => ({ default: m.DataPage }))),
+};
 
 function Shell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -82,15 +87,12 @@ export function App() {
                 <OAuthFlowProvider>
                   <Routes>
                     <Route path="/" element={<Shell />}>
-                      <Route index element={<Navigate to="/dashboard" replace />} />
-                      <Route path="dashboard" element={<DashboardPage />} />
-                      <Route path="commands" element={<CommandsPage />} />
-                      <Route path="integrations" element={<IntegrationsPage />} />
-                      <Route path="suggestions" element={<SuggestionsPage />} />
-                      <Route path="history" element={<HistoryPage />} />
-                      <Route path="data" element={<DataPage />} />
-                      <Route path="data/:table" element={<DataPage />} />
-                      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                      <Route index element={<Navigate to={pagePath(HOME_PAGE)} replace />} />
+                      {PAGES.map((page) => {
+                        const Page = PAGE_COMPONENTS[page.id];
+                        return <Route key={page.id} path={routePattern(page)} element={<Page />} />;
+                      })}
+                      <Route path="*" element={<Navigate to={pagePath(HOME_PAGE)} replace />} />
                     </Route>
                   </Routes>
                   <Toaster position="bottom-right" />

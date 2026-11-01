@@ -4,7 +4,7 @@ import { type IntegrationInfo, IntegrationName, IntegrationStatus } from '@turin
 import { describe, expect, it, vi } from 'vitest';
 import { FakeSubscription } from '@/testing/fakeTrpc';
 import { apiIntegration, integration, oauthIntegration } from '@/testing/integrations';
-import { renderConsole } from '@/testing/render-console';
+import { CurrentLocation, renderConsole } from '@/testing/render-console';
 import { HealthRail } from './health-rail';
 
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
@@ -16,12 +16,18 @@ function setup(integrations: IntegrationInfo[]) {
   const watch = new FakeSubscription<IntegrationInfo[]>();
   const start = vi.fn((_input: { integrationName: string }) => Promise.resolve(integrations));
   const authorizationUrl = vi.fn((_input: { integrationName: string }) => new Promise(() => {}));
-  renderConsole(<HealthRail />, {
-    procedures: {
-      integrations: { watch, start: { mutate: start } },
-      oauth: { authorizationUrl: { mutate: authorizationUrl }, results: new FakeSubscription() },
-    },
-  });
+  renderConsole(
+    <>
+      <HealthRail />
+      <CurrentLocation />
+    </>,
+    {
+      procedures: {
+        integrations: { watch, start: { mutate: start } },
+        oauth: { authorizationUrl: { mutate: authorizationUrl }, results: new FakeSubscription() },
+      },
+    }
+  );
   watch.emit(integrations);
   return { user: userEvent.setup(), start, authorizationUrl };
 }
@@ -69,5 +75,15 @@ describe('HealthRail', () => {
 
     expect(start).toHaveBeenCalledWith({ integrationName: OBS });
     expect(authorizationUrl).not.toHaveBeenCalled();
+  });
+
+  it('opens an integration on the Integrations page from its status list', async () => {
+    const { user } = setup([integration(OBS, { status: CONNECTED, enabled: true })]);
+
+    await user.click(screen.getByRole('button', { name: /^obs/ }));
+
+    expect(screen.getByRole('status', { name: 'Current location' })).toHaveTextContent(
+      '/integrations?selected=obs'
+    );
   });
 });

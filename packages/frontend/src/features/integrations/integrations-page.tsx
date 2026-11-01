@@ -9,6 +9,7 @@ import { StatusDot, TONE_TEXT } from '@/components/status';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { URL_PARAMS } from '@/constants/pages';
 import { useAppState } from '@/context/app-state-context';
 import { useIntegrationActions } from '@/hooks/useIntegrationActions';
 import {
@@ -34,9 +35,10 @@ export function IntegrationsPage() {
   const { integrations } = useAppState();
   const actions = useIntegrationActions();
   const [params, setParams] = useSearchParams();
-  const selectedName = params.get('selected');
+  const selectedName = params.get(URL_PARAMS.selectedIntegration);
   const selected = integrations.find((i) => i.name === selectedName) ?? null;
-  const select = (name: string | null) => setParams(name ? { selected: name } : {});
+  const select = (name: string | null) =>
+    setParams(name ? { [URL_PARAMS.selectedIntegration]: name } : {});
 
   const chains = integrationChains(integrations);
   const standalone = standaloneIntegrations(integrations);

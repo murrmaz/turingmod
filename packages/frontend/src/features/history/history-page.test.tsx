@@ -2,6 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ActivityLogEntry } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
+import { links } from '@/constants/pages';
 import type { ActivityHistoryQuery } from '@/hooks/useActivityHistory';
 import { renderConsole } from '@/testing/render-console';
 import { HistoryPage } from './history-page';
@@ -97,5 +98,15 @@ describe('History', () => {
     await user.keyboard('{ArrowDown}');
 
     expect(screen.getByRole('dialog', { name: '!lurk' })).toBeInTheDocument();
+  });
+
+  it('searches for whoever a link into it names, whatever their name holds', async () => {
+    const { lastQuery } = setup(
+      async () => ({ entries: [], total: 0 }),
+      links.historyOf('Ana & Bo')
+    );
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ search: 'Ana & Bo' }));
+    expect(screen.getByPlaceholderText('Search events, users…')).toHaveValue('Ana & Bo');
   });
 });

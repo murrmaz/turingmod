@@ -58,7 +58,7 @@ export function DotBadge({
   return (
     <Badge
       variant="outline"
-      className={cn('gap-1.5 rounded-md px-2 text-[11.5px] font-semibold', className)}
+      className={cn('gap-1.5 rounded-md px-2 text-caption font-semibold', className)}
     >
       <StatusDot tone={tone} className="size-1.5" />
       {children}

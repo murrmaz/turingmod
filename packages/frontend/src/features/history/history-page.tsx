@@ -8,6 +8,7 @@ import { DataTable } from '@/components/data-table/data-table';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { DateRangeSelect } from '@/components/date-range-select';
 import { PageHeader } from '@/components/page-header';
+import { PageLayout } from '@/components/page-layout';
 import { SearchInput } from '@/components/search-input';
 import { URL_PARAMS } from '@/constants/pages';
 import { DATA_PAGE_SIZES } from '@/constants/paging';
@@ -100,7 +101,7 @@ export function HistoryPage() {
   }, [query]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 px-8 py-6">
+    <PageLayout>
       <PageHeader
         title="History"
         description="Everything TuringMod recorded: commands, rewards, viewers and status changes. Chat is live only."
@@ -159,6 +160,6 @@ export function HistoryPage() {
         onSelect={setSelectedId}
         onViewUser={viewUser}
       />
-    </div>
+    </PageLayout>
   );
 }

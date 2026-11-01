@@ -8,6 +8,7 @@ import { DataTableFacetedFilter } from '@/components/data-table/faceted-filter';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { DataTableViewOptions } from '@/components/data-table/view-options';
 import { DateRangeSelect } from '@/components/date-range-select';
+import { PageLayout } from '@/components/page-layout';
 import { SearchInput } from '@/components/search-input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -64,74 +65,75 @@ function TableInspector({ info }: { info: DataTableInfo }) {
   });
 
   return (
-    <div className="flex min-h-0 flex-1">
-      <div className="flex min-w-0 flex-1 flex-col gap-4 px-8 py-6">
-        <div className="flex items-center gap-3">
-          <h2 className="font-mono text-[22px] font-semibold">{info.name}</h2>
-          <Badge variant="secondary" className="gap-1">
-            <Lock className="size-3" />
-            Read-only
-          </Badge>
-          <span className="ml-auto text-sm text-muted-foreground">
-            {total.toLocaleString()} {total === 1 ? 'row' : 'rows'}
-            {total !== info.rowCount && ` of ${info.rowCount.toLocaleString()}`}
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <SearchInput
-            value={inspected.search}
-            onChange={(event) => inspected.setSearch(event.target.value)}
-            placeholder="Search data…"
-            className="w-64"
-          />
-          {info.columns.map(
-            (column) =>
-              column.enumValues && (
-                <DataTableFacetedFilter
-                  key={column.name}
-                  title={column.name}
-                  options={column.enumValues.map((value) => ({ value, label: value }))}
-                  selected={inspected.facets[column.name] ?? new Set()}
-                  onChange={(next) => inspected.setFacet(column.name, next)}
-                />
-              )
-          )}
-          {info.columns.some((column) => column.isTimestamp) && (
-            <DateRangeSelect value={inspected.range} onChange={inspected.setRange} />
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="ml-auto h-9"
-            onClick={() => void exportCsv()}
-            disabled={exporting || total === 0}
-          >
-            <Download />
-            {exporting ? 'Exporting…' : 'Export'}
-          </Button>
-          <DataTableViewOptions table={table} label="Columns" />
-        </div>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
-          <DataTable
-            table={table}
-            loading={inspected.loading}
-            onRowClick={(row) => inspected.select(row.rowKey)}
-            selectedRowId={inspected.selectedKey}
-            empty={inspected.error ?? 'No rows.'}
-          />
-        </div>
-        <DataTablePagination
-          page={inspected.page}
-          pageCount={Math.ceil(total / inspected.pageSize)}
-          onPageChange={inspected.goTo}
-          pageSize={inspected.pageSize}
-          pageSizes={DATA_PAGE_SIZES}
-          onPageSizeChange={inspected.setPageSize}
+    <PageLayout
+      panel={
+        inspected.selected && (
+          <RowPanel info={info} row={inspected.selected} onClose={() => inspected.select(null)} />
+        )
+      }
+    >
+      <div className="flex items-center gap-3">
+        <h2 className="font-mono text-2xl font-semibold">{info.name}</h2>
+        <Badge variant="secondary" className="gap-1">
+          <Lock className="size-3" />
+          Read-only
+        </Badge>
+        <span className="ml-auto text-sm text-muted-foreground">
+          {total.toLocaleString()} {total === 1 ? 'row' : 'rows'}
+          {total !== info.rowCount && ` of ${info.rowCount.toLocaleString()}`}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchInput
+          value={inspected.search}
+          onChange={(event) => inspected.setSearch(event.target.value)}
+          placeholder="Search data…"
+          className="w-64"
+        />
+        {info.columns.map(
+          (column) =>
+            column.enumValues && (
+              <DataTableFacetedFilter
+                key={column.name}
+                title={column.name}
+                options={column.enumValues.map((value) => ({ value, label: value }))}
+                selected={inspected.facets[column.name] ?? new Set()}
+                onChange={(next) => inspected.setFacet(column.name, next)}
+              />
+            )
+        )}
+        {info.columns.some((column) => column.isTimestamp) && (
+          <DateRangeSelect value={inspected.range} onChange={inspected.setRange} />
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto h-9"
+          onClick={() => void exportCsv()}
+          disabled={exporting || total === 0}
+        >
+          <Download />
+          {exporting ? 'Exporting…' : 'Export'}
+        </Button>
+        <DataTableViewOptions table={table} label="Columns" />
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
+        <DataTable
+          table={table}
+          loading={inspected.loading}
+          onRowClick={(row) => inspected.select(row.rowKey)}
+          selectedRowId={inspected.selectedKey}
+          empty={inspected.error ?? 'No rows.'}
         />
       </div>
-      {inspected.selected && (
-        <RowPanel info={info} row={inspected.selected} onClose={() => inspected.select(null)} />
-      )}
-    </div>
+      <DataTablePagination
+        page={inspected.page}
+        pageCount={Math.ceil(total / inspected.pageSize)}
+        onPageChange={inspected.goTo}
+        pageSize={inspected.pageSize}
+        pageSizes={DATA_PAGE_SIZES}
+        onPageSizeChange={inspected.setPageSize}
+      />
+    </PageLayout>
   );
 }

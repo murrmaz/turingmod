@@ -46,13 +46,13 @@ export function RowPanel({
       }
       onClose={onClose}
     >
-      <dl className="flex flex-col text-[13px]">
+      <dl className="flex flex-col text-body">
         {plainColumns.map((column) => {
           const value = cells[column.name] ?? null;
           return (
             <div key={column.name} className="flex gap-4 border-b py-2.5">
               <dt className="shrink-0 text-muted-foreground">{column.name}</dt>
-              <dd className="ml-auto min-w-0 text-right font-mono text-[12.5px] break-all">
+              <dd className="ml-auto min-w-0 text-right font-mono text-data break-all">
                 {value === null
                   ? 'null'
                   : column.isTimestamp && typeof value === 'number'
@@ -81,7 +81,7 @@ export function RowPanel({
                 Copy JSON
               </Button>
             </div>
-            <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-4 font-mono text-[12.5px] leading-[1.65]">
+            <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-4 font-mono text-data leading-relaxed">
               {pretty ?? String(value)}
             </pre>
           </div>

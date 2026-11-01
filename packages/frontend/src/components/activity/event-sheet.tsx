@@ -67,7 +67,7 @@ export function EventSheet({
 
   return (
     <Sheet open={row !== null} onOpenChange={(open) => !open && onSelect(null)}>
-      <SheetContent className="w-[420px] gap-5 p-6 sm:max-w-[420px]">
+      <SheetContent className="w-sheet gap-5 p-6 sm:max-w-sheet">
         {row && (
           <>
             <SheetHeader className="gap-2 p-0 pr-6">
@@ -89,11 +89,11 @@ export function EventSheet({
 
             {row.detail && <p className="text-sm text-soft-foreground">{row.detail}</p>}
 
-            <dl className="flex min-h-0 flex-col overflow-y-auto text-[13.5px]">
+            <dl className="flex min-h-0 flex-col overflow-y-auto text-body">
               {fields.map(([key, value]) => (
                 <div key={key} className="flex gap-4 border-b py-2.5 last:border-b-0">
                   <dt className="shrink-0 text-muted-foreground">{key}</dt>
-                  <dd className="ml-auto min-w-0 text-right font-mono text-[12.5px] break-all">
+                  <dd className="ml-auto min-w-0 text-right font-mono text-data break-all">
                     {formatValue(value)}
                   </dd>
                 </div>

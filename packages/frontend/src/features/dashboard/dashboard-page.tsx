@@ -76,7 +76,7 @@ function LiveActivity() {
       <header className="flex flex-col gap-3 px-4 pt-4 pb-3">
         <div className="flex items-baseline gap-3 whitespace-nowrap">
           <h2 className="text-base font-semibold">Live activity</h2>
-          <span className="truncate text-[13px] text-muted-foreground">
+          <span className="truncate text-body text-muted-foreground">
             Newest first · {plural(countEvents(feed.all, streamStart), 'event')}
             {streamStart === null ? '' : ' this stream'}
           </span>

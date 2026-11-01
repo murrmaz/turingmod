@@ -48,7 +48,7 @@ export function SiteHeader({ onOpenPalette }: { onOpenPalette: () => void }) {
         >
           <Search />
           <span className="flex-1 text-left font-normal">Search or run a command…</span>
-          <kbd className="rounded border bg-muted px-1.5 font-mono text-[10px]">⌘K</kbd>
+          <kbd className="rounded border bg-muted px-1.5 font-mono text-caption">⌘K</kbd>
         </Button>
         <PlatformBadge state={stateOf(StreamingPlatform.TWITCH)} now={now} />
         <YouTubeBadge state={stateOf(StreamingPlatform.YOUTUBE)} now={now} />

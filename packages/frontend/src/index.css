@@ -55,6 +55,14 @@
 @theme inline {
   --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /*
+   * The console's dense text, below Tailwind's text-sm. New names here also go in lib/utils.ts.
+   * caption: badges, counts, small labels. data: values, usually mono. body: what a row or panel says.
+   */
+  --text-caption: 11.5px;
+  --text-data: 12.5px;
+  --text-body: 13px;
+  --container-sheet: 420px;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

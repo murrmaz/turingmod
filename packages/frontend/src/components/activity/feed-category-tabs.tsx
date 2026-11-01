@@ -25,11 +25,11 @@ export function FeedCategoryTabs<C extends FeedCategory>({
       }}
     >
       <TabsList>
-        <TabsTrigger value="all" className="px-3 text-[13px]">
+        <TabsTrigger value="all" className="px-3 text-body">
           All
         </TabsTrigger>
         {categories.map((category) => (
-          <TabsTrigger key={category} value={category} className="px-3 text-[13px]">
+          <TabsTrigger key={category} value={category} className="px-3 text-body">
             {FEED_CATEGORY_LABELS[category]}
           </TabsTrigger>
         ))}

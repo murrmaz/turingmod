@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { DetailPanel } from '@/components/detail-panel';
 import { CONFIG_SETUP_REGISTRY } from '@/components/integrations/config-integration-registry';
 import { PageHeader } from '@/components/page-header';
+import { PageLayout } from '@/components/page-layout';
 import { StatusDot, TONE_TEXT } from '@/components/status';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -44,71 +45,72 @@ export function IntegrationsPage() {
   const standalone = standaloneIntegrations(integrations);
 
   return (
-    <div className="flex min-h-0 flex-1">
-      <div className="flex min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-8 py-6">
-        <PageHeader
-          title="Integrations"
-          description="Each chain starts in order: a link only connects once the one before it has."
-        />
+    <PageLayout
+      className="gap-6 overflow-y-auto"
+      panel={
+        selected && (
+          <IntegrationDetail
+            integration={selected}
+            all={integrations}
+            actions={actions}
+            onClose={() => select(null)}
+          />
+        )
+      }
+    >
+      <PageHeader
+        title="Integrations"
+        description="Each chain starts in order: a link only connects once the one before it has."
+      />
 
-        {integrations.length === 0 && (
-          <div className="grid max-w-3xl grid-cols-3 gap-9">
-            {Array.from({ length: 6 }, (_, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: placeholders have no identity
-              <Skeleton key={index} className="h-[68px] rounded-[10px]" />
-            ))}
-          </div>
-        )}
+      {integrations.length === 0 && (
+        <div className="grid max-w-3xl grid-cols-3 gap-9">
+          {Array.from({ length: 6 }, (_, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: placeholders have no identity
+            <Skeleton key={index} className="h-[68px] rounded-xl" />
+          ))}
+        </div>
+      )}
 
-        {chains.map((chain) => (
-          <Group key={chain.group.id} label={chain.group.label}>
-            <div className="flex items-center">
-              {chain.items.map((integration, index) => (
-                <Fragment key={integration.name}>
-                  {index > 0 && <div aria-hidden className="h-px w-9 shrink-0 bg-border" />}
-                  <IntegrationNode
-                    integration={integration}
-                    selected={integration.name === selectedName}
-                    onSelect={() => select(integration.name)}
-                  />
-                </Fragment>
-              ))}
-            </div>
-          </Group>
-        ))}
-
-        {standalone.length > 0 && (
-          <Group label="Standalone">
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
-              {standalone.map((integration) => (
+      {chains.map((chain) => (
+        <Group key={chain.group.id} label={chain.group.label}>
+          <div className="flex items-center">
+            {chain.items.map((integration, index) => (
+              <Fragment key={integration.name}>
+                {index > 0 && <div aria-hidden className="h-px w-9 shrink-0 bg-border" />}
                 <IntegrationNode
-                  key={integration.name}
                   integration={integration}
                   selected={integration.name === selectedName}
                   onSelect={() => select(integration.name)}
                 />
-              ))}
-            </div>
-          </Group>
-        )}
-      </div>
+              </Fragment>
+            ))}
+          </div>
+        </Group>
+      ))}
 
-      {selected && (
-        <IntegrationDetail
-          integration={selected}
-          all={integrations}
-          actions={actions}
-          onClose={() => select(null)}
-        />
+      {standalone.length > 0 && (
+        <Group label="Standalone">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
+            {standalone.map((integration) => (
+              <IntegrationNode
+                key={integration.name}
+                integration={integration}
+                selected={integration.name === selectedName}
+                onSelect={() => select(integration.name)}
+              />
+            ))}
+          </div>
+        </Group>
       )}
-    </div>
+    </PageLayout>
   );
 }
 
 function Group({ label, children }: { label: string; children: ReactNode }) {
   return (
     <section className="flex max-w-4xl flex-col gap-2.5">
-      <h3 className="font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+      <h3 className="font-mono text-caption font-semibold tracking-wider text-muted-foreground uppercase">
         {label}
       </h3>
       {children}
@@ -131,13 +133,13 @@ function IntegrationNode({
       type="button"
       onClick={onSelect}
       className={cn(
-        'flex min-w-0 flex-1 basis-0 flex-col gap-1 rounded-[10px] border bg-card px-4 py-3.5 text-left transition-colors hover:bg-accent/40',
+        'flex min-w-0 flex-1 basis-0 flex-col gap-1 rounded-xl border bg-card px-4 py-3.5 text-left transition-colors hover:bg-accent/40',
         display.needsAttention && 'border-destructive/50',
         selected && 'ring-2 ring-ring'
       )}
     >
       <span className="truncate font-mono text-sm font-medium">{integration.name}</span>
-      <span className={cn('flex items-center gap-2 text-[13px]', TONE_TEXT[display.tone])}>
+      <span className={cn('flex items-center gap-2 text-body', TONE_TEXT[display.tone])}>
         <StatusDot
           tone={display.tone}
           pulse={integration.status === IntegrationStatus.CONNECTING}
@@ -179,7 +181,7 @@ function IntegrationDetail({
     <DetailPanel
       title={integration.name}
       subtitle={
-        <span className={cn('flex items-center gap-2 text-[13px]', TONE_TEXT[display.tone])}>
+        <span className={cn('flex items-center gap-2 text-body', TONE_TEXT[display.tone])}>
           <StatusDot tone={display.tone} />
           {display.label}
         </span>
@@ -189,7 +191,7 @@ function IntegrationDetail({
       {problem && (
         <Alert variant="destructive">
           <CircleAlert />
-          <AlertDescription className="font-mono text-[12.5px]">
+          <AlertDescription className="font-mono text-data">
             {integration.errorMessage}
           </AlertDescription>
         </Alert>
@@ -299,7 +301,7 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1 border-t py-3">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="font-mono text-[13px]">{children}</dd>
+      <dd className="font-mono text-body">{children}</dd>
     </div>
   );
 }

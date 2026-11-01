@@ -23,6 +23,7 @@ import { DataTableFacetedFilter } from '@/components/data-table/faceted-filter';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { DataTableViewOptions } from '@/components/data-table/view-options';
 import { PageHeader } from '@/components/page-header';
+import { PageLayout } from '@/components/page-layout';
 import { DotBadge } from '@/components/status';
 import { Button } from '@/components/ui/button';
 import {
@@ -73,7 +74,7 @@ export function CommandsPage() {
         size: 160,
         enableHiding: false,
         cell: ({ row }) => (
-          <span className="font-mono text-[13.5px] font-medium">!{row.original.name}</span>
+          <span className="font-mono text-body font-medium">!{row.original.name}</span>
         ),
       },
       {
@@ -105,7 +106,7 @@ export function CommandsPage() {
         header: ({ column }) => <DataTableColumnHeader column={column} title="Cooldown" />,
         size: 110,
         cell: ({ row }) => (
-          <span className="font-mono text-[12.5px] text-muted-foreground">
+          <span className="font-mono text-data text-muted-foreground">
             {row.original.cooldown > 0 ? `${row.original.cooldown}s` : '—'}
           </span>
         ),
@@ -119,7 +120,7 @@ export function CommandsPage() {
         filterFn: (row, _id, value: string[]) =>
           value.every((platform) => row.original.availableOn.some((p) => p === platform)),
         cell: ({ row }) => (
-          <span className="text-[12.5px] text-muted-foreground">
+          <span className="text-data text-muted-foreground">
             {formatPlatformList(row.original.availableOn) || '—'}
           </span>
         ),
@@ -191,7 +192,7 @@ export function CommandsPage() {
   const { pageIndex } = table.getState().pagination;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 px-8 py-6">
+    <PageLayout>
       <PageHeader
         title="Commands"
         description="Every chat command, its permission level and where it works."
@@ -237,6 +238,6 @@ export function CommandsPage() {
         onPageChange={(page) => table.setPageIndex(page)}
         summary={`${shown} of ${commands.length} commands`}
       />
-    </div>
+    </PageLayout>
   );
 }

@@ -452,7 +452,10 @@ prominent thing on the Dashboard and integration health stays quiet until someth
 Components are [shadcn/ui](https://ui.shadcn.com) (new-york, zinc), vendored in
 `src/components/ui/` from the shadcn repository; edit them there like any other source. Theme
 tokens, including the category/status accents (`--cat-*`), are CSS variables in `src/index.css`;
-use the tokens, not hex values or Tailwind's fixed palette (`red-900`). `@/` is `src/`, and imports from outside a file's own folder use it: lint rejects `../`. Every table is `components/data-table/data-table.tsx`
+use the tokens, not hex values or Tailwind's fixed palette (`red-900`). Text sizes are Tailwind's
+plus the console's dense ones in `index.css` (`text-caption`, `text-data`, `text-body`), not pixel
+values (`text-[13px]`); a size added there also goes in `lib/utils.ts`, or `cn()` mistakes it for a
+colour and drops a class. `@/` is `src/`, and imports from outside a file's own folder use it: lint rejects `../`. Every table is `components/data-table/data-table.tsx`
 over a TanStack table instance the page owns (sorting, filters and paging stay the page's, so the
 same component serves client-side lists and server-paged queries), with optional row
 virtualization for the live feed. History (`activity.history`) and the Data page (the read-only
@@ -468,7 +471,8 @@ simulator) is split: its context and hook in `context/`, the provider that rende
 kebab-case, like the shadcn components, and `.ts` files (logic, hooks) camelCase; a test is named
 after its subject. `testing/`, `app.tsx` and `index.tsx` sit above the layers.
 
-**Shared console pieces.** A page starts with `PageHeader` (title and what it's for), filters a
+**Shared console pieces.** A page sits in a `PageLayout` (its padding, and `panel` for a
+`DetailPanel`; the Dashboard's two-column grid is the exception), starts with `PageHeader` (title and what it's for), filters a
 table with `SearchInput`, shows what's selected in a `DetailPanel` at its right edge, and builds a
 form from `FormField`s, which tie each label and hint to the control they're for (all in
 `components/`). The activity tables share `components/activity/`: their columns, the category

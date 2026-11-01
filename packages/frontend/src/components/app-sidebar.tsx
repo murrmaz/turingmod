@@ -27,14 +27,14 @@ import {
   routePattern,
   URL_PARAMS,
 } from '@/constants/pages';
-import { useAppState } from '@/context/app-state-context';
+import { useIntegrationState } from '@/context/app-state-context';
 import { useConnection } from '@/context/trpc-context';
 import { useDataTables } from '@/hooks/useDataTables';
 import { describeIntegration } from '@/lib/integrationStatus';
 
 export function AppSidebar() {
   const { pathname } = useLocation();
-  const { integrations } = useAppState();
+  const { integrations } = useIntegrationState();
   const { state } = useSidebar();
   const current = pageAt(pathname);
   // A count beside a page's name, when it has something that needs looking at.

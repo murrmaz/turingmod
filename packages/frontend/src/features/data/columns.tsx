@@ -22,7 +22,7 @@ export function inspectorColumns(info: DataTableInfo): ColumnDef<InspectedRow>[]
       />
     ),
     enableSorting: !column.masked,
-    size: column.isTimestamp ? 170 : column.isJson ? 240 : column.enumValues ? 120 : 160,
+    size: column.isTimestamp ? 190 : column.isJson ? 240 : column.enumValues ? 240 : 160,
     meta: column.isJson ? { grow: true } : {},
     cell: ({ row }) => <Cell column={column} value={row.original.cells[column.name] ?? null} />,
   }));

@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { StatusDot } from '@/components/status';
 import { Button } from '@/components/ui/button';
 import { links } from '@/constants/pages';
-import { useAppState } from '@/context/app-state-context';
+import { useIntegrationState } from '@/context/app-state-context';
 import { useIntegrationActions } from '@/hooks/useIntegrationActions';
 import { type IntegrationAction, repairAction } from '@/lib/integrationActions';
 import { describeIntegration, inDisplayOrder } from '@/lib/integrationStatus';
@@ -15,7 +15,7 @@ import { describeIntegration, inDisplayOrder } from '@/lib/integrationStatus';
  * integration when something isn't.
  */
 export function HealthRail() {
-  const { integrations } = useAppState();
+  const { integrations } = useIntegrationState();
   const actions = useIntegrationActions();
   const navigate = useNavigate();
   const broken = integrations.filter((i) => describeIntegration(i).needsAttention);

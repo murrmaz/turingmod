@@ -16,4 +16,4 @@ export const OAUTH_INTEGRATION_REGISTRY: Record<string, OAuthProviderConfig> = {
   [IntegrationName.TWITCH_AUTH]: TWITCH_OAUTH_PROVIDER,
   [IntegrationName.SPOTIFY_AUTH]: SPOTIFY_OAUTH_PROVIDER,
   [IntegrationName.YOUTUBE_AUTH]: YOUTUBE_OAUTH_PROVIDER,
-};
+} satisfies Partial<Record<IntegrationName, OAuthProviderConfig>>;

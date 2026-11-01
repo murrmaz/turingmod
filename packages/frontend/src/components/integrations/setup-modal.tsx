@@ -3,7 +3,7 @@ import { ExternalLink, Info, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { FormField } from '@/components/form-field';
 import { Input } from '@/components/ui/input';
-import { useAppState } from '@/context/app-state-context';
+import { useIntegrationState } from '@/context/app-state-context';
 import { IntegrationConfigDialog } from './integration-config-dialog';
 import type { OAuthProviderConfig } from './oauth-providers';
 
@@ -20,7 +20,7 @@ export interface SetupModalProps {
  * Allows user to configure an OAuth-capable integration's Client ID and Client Secret
  */
 export function SetupModal({ provider, onDismiss, onSaved }: SetupModalProps) {
-  const { integrations } = useAppState();
+  const { integrations } = useIntegrationState();
   // Reported by the backend, which derives it from its own port and the one loopback host each
   // provider accepts for plain HTTP; never built or sent back by the console.
   const oauth = integrations.find(

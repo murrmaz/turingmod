@@ -153,7 +153,7 @@ Everything that consumes or produces chat lives under `packages/backend/src/chat
 ### Frontend State
 - **App State Context**: `packages/frontend/src/context/AppStateContext.tsx`
 - **Integration Hooks**: `packages/frontend/src/hooks/useIntegrations.ts`
-- **Integration actions**: `packages/frontend/src/hooks/useIntegrationActions.ts` (Start/Stop/OAuth/Reconnect decisions, shared by the Integrations page and the dashboard)
+- **Integration actions**: `packages/frontend/src/lib/integrationActions.ts` decides what the console offers for each integration (Authorize/Reconnect, Start/Retry, Stop: kind, label and what it acts on) as pure functions, `integrationActions()` for the Integrations page and `repairAction()` for the dashboard's Needs attention cards, so both always agree; `hooks/useIntegrationActions.ts` only carries an action out (`run()`)
 - **Command Hooks**: `packages/frontend/src/hooks/useCommands.ts`
 - **YouTube chat control**: `packages/frontend/src/hooks/useYouTubeChat.ts`, in the YouTube badge's menu in `components/site-header.tsx`
 - **Platform live badges**: `packages/frontend/src/hooks/usePlatformLiveState.ts`; backend `live/PlatformLiveStatus.ts` + `server/trpc/liveStateRouter.ts`

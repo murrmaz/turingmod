@@ -1,5 +1,14 @@
 import { type IntegrationInfo, IntegrationStatus } from '@turingmod/shared';
-import { CircleAlert, Copy, KeyRound, Play, Settings, Square, X } from 'lucide-react';
+import {
+  CircleAlert,
+  Copy,
+  KeyRound,
+  type LucideIcon,
+  Play,
+  Settings,
+  Square,
+  X,
+} from 'lucide-react';
 import { Fragment, type ReactNode, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CONFIG_SETUP_REGISTRY } from '@/components/integrations/configIntegrationRegistry';
@@ -10,12 +19,23 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAppState } from '@/context/AppStateContext';
 import { useIntegrationActions } from '@/hooks/useIntegrationActions';
 import {
+  type IntegrationAction,
+  integrationActions,
+  missingDependencies,
+} from '@/lib/integrationActions';
+import {
   describeIntegration,
   integrationChains,
   standaloneIntegrations,
 } from '@/lib/integrationStatus';
 import { copyToClipboard } from '@/lib/reportError';
 import { cn } from '@/lib/utils';
+
+const ACTION_ICONS: Record<IntegrationAction['kind'], LucideIcon> = {
+  authorize: KeyRound,
+  start: Play,
+  stop: Square,
+};
 
 export function IntegrationsPage() {
   const { integrations } = useAppState();
@@ -147,7 +167,9 @@ function IntegrationDetail({
   onClose: () => void;
 }) {
   const display = describeIntegration(integration);
-  const state = actions.getActionState(integration);
+  const offered = integrationActions(integration, all);
+  const busy = actions.isBusy(integration);
+  const waitingOn = missingDependencies(integration, all);
   const dependsOn = integration.metadata?.dependencies ?? [];
   const usedBy = all
     .filter((other) => other.metadata?.dependencies?.includes(integration.name))
@@ -157,8 +179,6 @@ function IntegrationDetail({
     (integration.status === IntegrationStatus.ERROR ||
       integration.status === IntegrationStatus.NEEDS_REAUTH);
 
-  // Stop applies to anything running or waiting to run; OAuth integrations start by authorizing.
-  const canStop = state.isConnected || state.isEnabled;
   const SetupModal = CONFIG_SETUP_REGISTRY[integration.name];
   const [setupOpen, setSetupOpen] = useState(false);
 
@@ -190,44 +210,22 @@ function IntegrationDetail({
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        {state.isOAuthIntegration && (!state.isConnected || state.needsReauth) && (
-          <Button
-            onClick={() => actions.handleAuthorize(integration)}
-            disabled={state.isLoading}
-            className="col-span-1"
-          >
-            <KeyRound />
-            {state.needsReauth ? 'Reconnect' : 'Authorize'}
-          </Button>
-        )}
-        {!(state.isOAuthIntegration || canStop) && (
-          <Button
-            onClick={() => void actions.handleStart(integration.name)}
-            disabled={state.isLoading}
-          >
-            <Play />
-            Start
-          </Button>
-        )}
-        {!state.isOAuthIntegration && integration.status === IntegrationStatus.ERROR && canStop && (
-          <Button
-            onClick={() => void actions.handleStart(integration.name)}
-            disabled={state.isLoading}
-          >
-            <Play />
-            Retry
-          </Button>
-        )}
-        {canStop && (
-          <Button
-            variant="outline"
-            onClick={() => void actions.handleStop(integration.name)}
-            disabled={state.isLoading}
-          >
-            <Square />
-            Stop
-          </Button>
-        )}
+        {offered.map((action) => {
+          const Icon = ACTION_ICONS[action.kind];
+          return (
+            <Button
+              key={action.kind}
+              variant={action.kind === 'stop' ? 'outline' : 'default'}
+              onClick={() => actions.run(action)}
+              disabled={busy}
+              // "Reconnect youtube-auth" doesn't fit in half the panel.
+              className={cn(action.target !== integration && 'col-span-2')}
+            >
+              <Icon />
+              {action.label}
+            </Button>
+          );
+        })}
         {SetupModal && (
           <Button variant="outline" onClick={() => setSetupOpen(true)}>
             <Settings />
@@ -244,16 +242,15 @@ function IntegrationDetail({
           onSaved={() => {
             setSetupOpen(false);
             if (!integration.enabled) {
-              void actions.handleStart(integration.name);
+              actions.start(integration);
             }
           }}
         />
       )}
 
-      {state.hasUnmetDependencies && (
+      {waitingOn.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Runs once {state.missingDependencies.join(', ')}{' '}
-          {state.missingDependencies.length === 1 ? 'connects' : 'connect'}.
+          Runs once {waitingOn.join(', ')} {waitingOn.length === 1 ? 'connects' : 'connect'}.
         </p>
       )}
 
@@ -287,7 +284,7 @@ function IntegrationDetail({
                   variant="ghost"
                   size="sm"
                   className="h-6 px-2 font-sans text-xs"
-                  onClick={() => actions.handleChangeCredentials(integration)}
+                  onClick={() => actions.changeCredentials(integration)}
                 >
                   Change
                 </Button>

@@ -172,6 +172,21 @@ describe('Integrations page actions', () => {
     expect(action('Start')).toBeEnabled();
   });
 
+  it('reconnects an API integration that lost its grant through its sign-in, as the dashboard does', async () => {
+    const { user, authorizationUrl } = setup(
+      [
+        oauthIntegration(TWITCH_AUTH, { status: CONNECTED, enabled: true }),
+        apiIntegration(TWITCH_API, TWITCH_AUTH, { status: NEEDS_REAUTH, enabled: true }),
+      ],
+      TWITCH_API
+    );
+
+    await user.click(action('Reconnect twitch-auth'));
+
+    expect(screen.getByRole('dialog', { name: 'Authorize Twitch' })).toBeInTheDocument();
+    expect(authorizationUrl).toHaveBeenCalledWith({ integrationName: TWITCH_AUTH });
+  });
+
   it('authorizes in the sign-in dialog once the client credentials are saved', async () => {
     const { user, authorizationUrl } = setup([oauthIntegration(TWITCH_AUTH)], TWITCH_AUTH);
 

@@ -1,101 +1,62 @@
 import type { IntegrationInfo } from '@turingmod/shared';
-import { IntegrationStatus } from '@turingmod/shared';
 import { useCallback, useState } from 'react';
 import { useOAuthFlow } from '@/components/integrations/OAuthFlow';
-import { reconnectTarget } from '@/lib/reconnect';
+import type { IntegrationAction } from '@/lib/integrationActions';
 import { reportActionError } from '@/lib/reportError';
 import { useIntegrations } from './useIntegrations';
 
 /**
- * Derived per-item flags a view needs to decide which action buttons to show.
- */
-export interface IntegrationActionState {
-  isLoading: boolean;
-  isConnected: boolean;
-  /** Turned on by the streamer, so Stop applies even while it waits on a dependency. */
-  isEnabled: boolean;
-  isOAuthIntegration: boolean;
-  needsReauth: boolean;
-  hasUnmetDependencies: boolean;
-  missingDependencies: string[];
-}
-
-/**
- * Shared state and handlers for the "start/stop/authorize an integration" flow, used by the
- * dashboard's Needs attention cards and the Integrations page. Authorizing opens the app-wide
- * OAuth dialogs (OAuthFlowProvider).
+ * Carries out the actions `integrationActions()` offers, for the Integrations page and the
+ * dashboard's Needs attention cards: authorizing opens the app-wide OAuth dialogs
+ * (OAuthFlowProvider); starting and stopping report a failure, and mark the integration busy
+ * until the state they left is showing.
  */
 export function useIntegrationActions() {
-  const { integrations, startIntegration, stopIntegration, getMissingDependencies } =
-    useIntegrations();
+  const { startIntegration, stopIntegration } = useIntegrations();
+  const { authorize, changeCredentials } = useOAuthFlow();
+  const [busyName, setBusyName] = useState<string | null>(null);
 
-  const { authorize: handleAuthorize, changeCredentials: handleChangeCredentials } = useOAuthFlow();
-  const [loadingIntegration, setLoadingIntegration] = useState<string | null>(null);
-
-  const handleStart = useCallback(
-    async (integrationName: string) => {
-      setLoadingIntegration(integrationName);
+  const send = useCallback(
+    async (name: string, verb: string, request: (name: string) => Promise<void>) => {
+      setBusyName(name);
       try {
-        await startIntegration(integrationName);
+        await request(name);
       } catch (error) {
-        reportActionError(`Couldn't start ${integrationName}`, error);
+        reportActionError(`Couldn't ${verb} ${name}`, error);
       } finally {
-        setLoadingIntegration(null);
+        setBusyName(null);
       }
     },
-    [startIntegration]
+    []
   );
 
-  const handleStop = useCallback(
-    async (integrationName: string) => {
-      setLoadingIntegration(integrationName);
-      try {
-        await stopIntegration(integrationName);
-      } catch (error) {
-        reportActionError(`Couldn't stop ${integrationName}`, error);
-      } finally {
-        setLoadingIntegration(null);
+  const start = useCallback(
+    (integration: IntegrationInfo) => void send(integration.name, 'start', startIntegration),
+    [send, startIntegration]
+  );
+
+  const run = useCallback(
+    (action: IntegrationAction) => {
+      switch (action.kind) {
+        case 'authorize':
+          authorize(action.target);
+          return;
+        case 'start':
+          start(action.target);
+          return;
+        case 'stop':
+          void send(action.target.name, 'stop', stopIntegration);
+          return;
       }
     },
-    [stopIntegration]
+    [authorize, start, send, stopIntegration]
   );
 
-  const getActionState = useCallback(
-    (item: IntegrationInfo): IntegrationActionState => {
-      const missingDependencies = getMissingDependencies(item.name);
-      return {
-        isLoading: loadingIntegration === item.name,
-        isConnected: item.status === IntegrationStatus.CONNECTED,
-        isEnabled: item.enabled,
-        isOAuthIntegration: Boolean(item.oauth),
-        needsReauth: item.status === IntegrationStatus.NEEDS_REAUTH,
-        hasUnmetDependencies: missingDependencies.length > 0,
-        missingDependencies,
-      };
-    },
-    [loadingIntegration, getMissingDependencies]
+  /** Whether a start or stop of this integration is still waiting for its answer. */
+  const isBusy = useCallback(
+    (integration: IntegrationInfo) => busyName === integration.name,
+    [busyName]
   );
 
-  // Fix a broken integration the one way that can: authorize again where OAuth is involved
-  // (on its auth integration, for an API integration that lost its grant), otherwise start it.
-  const handleReconnect = useCallback(
-    (integration: IntegrationInfo) => {
-      const target = reconnectTarget(integration, integrations);
-      if (target.oauth) {
-        handleAuthorize(target);
-      } else {
-        void handleStart(target.name);
-      }
-    },
-    [integrations, handleAuthorize, handleStart]
-  );
-
-  return {
-    handleAuthorize,
-    handleChangeCredentials,
-    handleStart,
-    handleStop,
-    getActionState,
-    handleReconnect,
-  };
+  return { run, start, isBusy, changeCredentials };
 }

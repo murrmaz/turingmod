@@ -134,7 +134,7 @@
       }
     },
     {
-      "includes": ["**/packages/frontend/src/**/*.tsx"],
+      "includes": ["**/packages/frontend/src/**/*.ts", "**/packages/frontend/src/**/*.tsx"],
       "linter": {
         "rules": {
           "correctness": {
@@ -164,6 +164,10 @@
                   {
                     "group": ["../**"],
                     "message": "Import from outside this folder with the @/ alias (src/), not ../"
+                  },
+                  {
+                    "group": ["@/testing", "@/testing/**"],
+                    "message": "Test helpers are for tests: production code can't depend on them"
                   }
                 ]
               }
@@ -188,6 +192,10 @@
                   {
                     "group": ["../**"],
                     "message": "Import from outside this folder with the @/ alias (src/), not ../"
+                  },
+                  {
+                    "group": ["@/testing", "@/testing/**"],
+                    "message": "Test helpers are for tests: production code can't depend on them"
                   },
                   {
                     "group": [
@@ -223,6 +231,10 @@
                     "message": "Import from outside this folder with the @/ alias (src/), not ../"
                   },
                   {
+                    "group": ["@/testing", "@/testing/**"],
+                    "message": "Test helpers are for tests: production code can't depend on them"
+                  },
+                  {
                     "group": ["@/components", "@/components/**", "@/features", "@/features/**"],
                     "message": "context and hooks draw nothing: a provider that renders UI goes in components/, its context in context/"
                   }
@@ -250,6 +262,10 @@
                     "message": "Import from outside this folder with the @/ alias (src/), not ../"
                   },
                   {
+                    "group": ["@/testing", "@/testing/**"],
+                    "message": "Test helpers are for tests: production code can't depend on them"
+                  },
+                  {
                     "group": ["@/features", "@/features/**"],
                     "message": "components are shared by pages and can't depend on one: move what both need into components/, hooks/ or lib/"
                   }
@@ -274,8 +290,36 @@
                     "message": "Import from outside this folder with the @/ alias (src/), not ../"
                   },
                   {
+                    "group": ["@/testing", "@/testing/**"],
+                    "message": "Test helpers are for tests: production code can't depend on them"
+                  },
+                  {
                     "group": ["@/features", "@/features/**"],
                     "message": "a page can't import another page: move what both need into components/, hooks/ or lib/"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "**/packages/frontend/src/**/*.test.ts",
+        "**/packages/frontend/src/**/*.test.tsx",
+        "**/packages/frontend/src/testing/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**"],
+                    "message": "Import from outside this folder with the @/ alias (src/), not ../"
                   }
                 ]
               }

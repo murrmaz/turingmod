@@ -1,5 +1,7 @@
 import {
   type ColumnDef,
+  type ColumnFiltersState,
+  functionalUpdate,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -7,7 +9,9 @@ import {
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table';
+import { useState } from 'react';
 import { DEFAULT_PAGE_SIZE } from '@/constants/paging';
+import { useStateFor } from './useStateFor';
 
 export interface ClientTableOptions<Row> {
   data: Row[];
@@ -20,9 +24,12 @@ export interface ClientTableOptions<Row> {
 
 /**
  * A table whose rows are all in the console, sorted, filtered and paged here rather than on the
- * server: the Commands and Suggestions pages. The table instance keeps its own sort, column
- * filters, selection and page, which a page reads and changes through `table`. `pagination` goes
- * straight to DataTablePagination.
+ * server: the Commands and Suggestions pages. A page reads and changes the sort, column filters and
+ * selection through `table`. `pagination` goes straight to DataTablePagination.
+ *
+ * Sorting or filtering differently goes back to the first page, but new rows don't: a list that
+ * changes under the streamer (a viewer's `!sg`, their own delete) leaves them on the page they're
+ * on, or the last one left. TanStack Table would go back to the first page for any new data.
  */
 export function useClientTable<Row>({
   data,
@@ -31,31 +38,42 @@ export function useClientTable<Row>({
   initialSort,
   matches,
 }: ClientTableOptions<Row>) {
+  const [sorting, setSorting] = useState(initialSort);
+  const [filter, setFilter] = useState('');
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [pageIndex, setPageIndex] = useStateFor([sorting, filter, columnFilters], 0);
+  const pagination = { pageIndex, pageSize: DEFAULT_PAGE_SIZE };
+
   const table = useReactTable({
     data,
     columns,
     getRowId,
+    state: { sorting, globalFilter: filter, columnFilters, pagination },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setFilter,
+    onColumnFiltersChange: setColumnFilters,
+    onPaginationChange: (updater) => setPageIndex(functionalUpdate(updater, pagination).pageIndex),
+    autoResetPageIndex: false,
     globalFilterFn: (row, _id, value: string) => matches(row.original, value.trim().toLowerCase()),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: {
-      sorting: initialSort,
-      globalFilter: '',
-      pagination: { pageSize: DEFAULT_PAGE_SIZE, pageIndex: 0 },
-    },
   });
-  const { globalFilter, pagination } = table.getState();
+
+  const lastPage = Math.max(0, table.getPageCount() - 1);
+  if (pageIndex > lastPage) {
+    setPageIndex(lastPage);
+  }
 
   return {
     table,
-    filter: String(globalFilter),
-    setFilter: table.setGlobalFilter,
+    filter,
+    setFilter,
     /** How many rows match the filters, on any page. */
     shown: table.getFilteredRowModel().rows.length,
     pagination: {
-      page: pagination.pageIndex,
+      page: pageIndex,
       pageCount: table.getPageCount(),
       onPageChange: table.setPageIndex,
     },

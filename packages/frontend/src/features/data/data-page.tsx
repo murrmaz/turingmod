@@ -13,7 +13,6 @@ import { SearchInput } from '@/components/search-input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { links, URL_PARAMS } from '@/constants/pages';
-import { DATA_PAGE_SIZES } from '@/constants/paging';
 import { useDataTables } from '@/hooks/useDataTables';
 import { useInspectedTable } from '@/hooks/useInspectedTable';
 import { useTableExport } from '@/hooks/useTableExport';
@@ -127,14 +126,7 @@ function TableInspector({ info }: { info: DataTableInfo }) {
           empty={inspected.error ?? 'No rows.'}
         />
       </div>
-      <DataTablePagination
-        page={inspected.page}
-        pageCount={Math.ceil(total / inspected.pageSize)}
-        onPageChange={inspected.goTo}
-        pageSize={inspected.pageSize}
-        pageSizes={DATA_PAGE_SIZES}
-        onPageSizeChange={inspected.setPageSize}
-      />
+      <DataTablePagination {...inspected.pagination} />
     </PageLayout>
   );
 }

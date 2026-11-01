@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Suggestion } from '@/hooks/useSuggestions';
@@ -23,8 +23,11 @@ function setup(suggestions: Suggestion[]) {
     },
   });
   watch.emit(suggestions);
-  return { user: userEvent.setup() };
+  return { user: userEvent.setup(), watch };
 }
+
+/** Lets a table finish reacting to a change, which it may do a moment later. */
+const settled = () => act(async () => {});
 
 /** The suggestions the table is showing, top to bottom. */
 function shown(): string[] {
@@ -91,6 +94,64 @@ describe('Suggestions', () => {
 
     expect(shown()).toHaveLength(10);
     expect(screen.getByText('Page 2 of 2')).toBeVisible();
+  });
+
+  describe('on a later page', () => {
+    const ideas = Array.from({ length: 120 }, (_, index) => suggestion(index, `idea ${index}`));
+
+    it('stays there when a viewer adds a suggestion', async () => {
+      const { user, watch } = setup(ideas);
+      await user.click(screen.getByRole('button', { name: 'Next page' }));
+
+      watch.emit([...ideas, suggestion(500, 'idea 500')]);
+      await settled();
+
+      expect(screen.getByText('Page 2 of 3')).toBeVisible();
+    });
+
+    it('stays there when one is deleted', async () => {
+      const { user } = setup(ideas);
+      await user.click(screen.getByRole('button', { name: 'Next page' }));
+
+      await user.click(
+        screen.getAllByRole('button', { name: 'Delete suggestion' })[0] as HTMLElement
+      );
+      await settled();
+
+      expect(screen.getByText('Page 2 of 3')).toBeVisible();
+    });
+
+    it('moves to the last page left when deleting empties this one', async () => {
+      const { user } = setup(ideas.slice(0, 51));
+      await user.click(screen.getByRole('button', { name: 'Next page' }));
+      expect(shown()).toHaveLength(1);
+
+      await user.click(screen.getByRole('button', { name: 'Delete suggestion' }));
+      await settled();
+
+      expect(screen.getByText('Page 1 of 1')).toBeVisible();
+      expect(shown()).toHaveLength(50);
+    });
+
+    it('goes back to the first page when filtered', async () => {
+      const { user } = setup(ideas);
+      await user.click(screen.getByRole('button', { name: 'Next page' }));
+
+      await user.type(filter(), 'idea');
+      await settled();
+
+      expect(screen.getByText('Page 1 of 3')).toBeVisible();
+    });
+
+    it('goes back to the first page when sorted', async () => {
+      const { user } = setup(ideas);
+      await user.click(screen.getByRole('button', { name: 'Next page' }));
+
+      await user.click(screen.getByRole('button', { name: 'From' }));
+      await settled();
+
+      expect(screen.getByText('Page 1 of 3')).toBeVisible();
+    });
   });
 
   it('hides a deleted suggestion at once, with the chance to undo it', async () => {

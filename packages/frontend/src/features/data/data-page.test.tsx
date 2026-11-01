@@ -244,4 +244,24 @@ describe('Data page', () => {
 
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
   });
+
+  it('leaves a closed row closed when the search goes back to what it was', async () => {
+    const { user } = setup(async (query) => pageOf(query, 3));
+    await user.click(await screen.findByText('row-2'));
+
+    await user.type(screen.getByPlaceholderText('Search data…'), 'r{Backspace}');
+
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  it('closes the open row on another page, and leaves it closed on coming back', async () => {
+    const { user } = setup(async (query) => pageOf(query, 120));
+    await user.click(await screen.findByText('row-2'));
+
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Previous page' }));
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
 });

@@ -9,7 +9,6 @@ import { DateRangeSelect } from '@/components/date-range-select';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { SearchInput } from '@/components/search-input';
-import { DATA_PAGE_SIZES } from '@/constants/paging';
 import { useHistoryView } from '@/hooks/useHistoryView';
 import { dayDivider, type FeedCategory, type FeedRow } from '@/lib/activityFormat';
 import { plural } from '@/lib/plural';
@@ -67,15 +66,7 @@ export function HistoryPage() {
           empty={view.error ?? 'No activity recorded for this filter.'}
         />
       </div>
-      <DataTablePagination
-        page={view.page}
-        pageCount={Math.ceil(view.total / view.pageSize)}
-        onPageChange={view.goTo}
-        pageSize={view.pageSize}
-        pageSizes={DATA_PAGE_SIZES}
-        onPageSizeChange={view.setPageSize}
-        summary={plural(view.total, 'event')}
-      />
+      <DataTablePagination {...view.pagination} summary={plural(view.total, 'event')} />
       <EventSheet
         rows={view.rows}
         selectedId={view.selectedId}

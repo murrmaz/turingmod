@@ -1,6 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ActivityLogEntry } from '@turingmod/shared';
+import { useNavigate } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { links } from '@/constants/pages';
 import type { ActivityHistoryQuery } from '@/hooks/useActivityHistory';
@@ -20,12 +21,33 @@ function command(name: string, timestamp = Date.now()): ActivityLogEntry {
 
 type Page = { entries: ActivityLogEntry[]; total: number };
 
+/** The browser's Back and Forward, which change the URL without the page asking. */
+function BrowserButtons() {
+  const navigate = useNavigate();
+  return (
+    <>
+      <button type="button" onClick={() => navigate(-1)}>
+        Browser back
+      </button>
+      <button type="button" onClick={() => navigate(1)}>
+        Browser forward
+      </button>
+    </>
+  );
+}
+
 function setup(answer: (query: ActivityHistoryQuery) => Promise<Page>, route = '/history') {
   const history = vi.fn((query: ActivityHistoryQuery, _options: unknown) => answer(query));
-  renderConsole(<HistoryPage />, {
-    route,
-    procedures: { activity: { history: { query: history } } },
-  });
+  renderConsole(
+    <>
+      <HistoryPage />
+      <BrowserButtons />
+    </>,
+    {
+      route,
+      procedures: { activity: { history: { query: history } } },
+    }
+  );
   /** What History asked for most recently. */
   const lastQuery = () => history.mock.lastCall?.[0];
   return { user: userEvent.setup(), history, lastQuery };
@@ -140,5 +162,52 @@ describe('History', () => {
 
     await waitFor(() => expect(lastQuery()).toMatchObject({ search: 'Ana & Bo' }));
     expect(screen.getByPlaceholderText('Search events, users…')).toHaveValue('Ana & Bo');
+  });
+
+  it('goes back to the first page for the viewer it is already searching for', async () => {
+    const { user, lastQuery } = setup(
+      async () => ({ entries: [command('bonk')], total: 120 }),
+      '/history?q=ana'
+    );
+    await user.click(await screen.findByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ page: 1 }));
+
+    await user.click(screen.getByText('!bonk'));
+    await user.click(screen.getByRole('button', { name: 'View ana’s history' }));
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ page: 0, search: 'ana' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('reads the first page of a search the browser goes Back or Forward to', async () => {
+    const { user, lastQuery } = setup(async (query) =>
+      query.search
+        ? { entries: query.page === 0 ? [command('anas')] : [], total: 1 }
+        : { entries: [command('bonk')], total: 500 }
+    );
+    await user.click(await screen.findByText('!bonk'));
+    await user.click(screen.getByRole('button', { name: 'View ana’s history' }));
+    await screen.findByText('!anas');
+
+    await user.click(screen.getByRole('button', { name: 'Browser back' }));
+    await user.click(await screen.findByRole('button', { name: 'Next page' }));
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ page: 2 }));
+
+    await user.click(screen.getByRole('button', { name: 'Browser forward' }));
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ search: 'ana', page: 0 }));
+    expect(await screen.findByText('!anas')).toBeInTheDocument();
+  });
+
+  it('starts a category over when coming back to it, rather than where it was left', async () => {
+    const { user, lastQuery } = setup(async () => ({ entries: [command('bonk')], total: 120 }));
+    await user.click(await screen.findByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ page: 1 }));
+
+    await user.click(screen.getByRole('tab', { name: 'Viewers' }));
+    await user.click(screen.getByRole('tab', { name: 'All' }));
+
+    await waitFor(() => expect(lastQuery()).toEqual({ page: 0, pageSize: 50 }));
   });
 });

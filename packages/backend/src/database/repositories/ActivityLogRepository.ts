@@ -2,10 +2,10 @@ import {
   type ActivityEventName,
   type ActivityLogEntry,
   ActivityLogEntrySchema,
-  messageOf,
 } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
+import { Logger } from '../../utils/Logger.js';
 import { DatabaseManager, type SqlValue } from '../DatabaseManager.js';
 import { containsPattern, LIKE_ESCAPE } from '../likePattern.js';
 
@@ -27,7 +27,10 @@ export interface ActivityLogQuery {
   pageSize: number;
 }
 
-/** One page of stored entries, and how many match across all pages. */
+/**
+ * One page of stored entries, and how many match across all pages. A row that's left out for not
+ * fitting (see readRows) still counts, so a page can hold fewer entries than its size.
+ */
 export interface ActivityLogPage {
   entries: ActivityLogEntry[];
   total: number;
@@ -50,28 +53,40 @@ interface ActivityLogRow {
 @singleton()
 export class ActivityLogRepository {
   private insertsSincePrune = 0;
+  private logger: Logger;
 
-  constructor(private db: DatabaseManager) {}
+  constructor(
+    private db: DatabaseManager,
+    logger: Logger
+  ) {
+    this.logger = logger.child({ component: 'ActivityLogRepository' });
+  }
 
   /**
-   * A stored row as an entry, checked against the schema it was written with. One that doesn't
-   * fit fails the read, naming the row and the fields: stored data is held to the same schema as
-   * new data rather than skipped or patched up.
+   * Stored rows as entries, leaving out and logging any that don't fit the schema. Unlike other
+   * stored data this doesn't fail the read: the log is capped, so a row written under an older
+   * payload ages out by itself, and one such row shouldn't take the Dashboard or History down.
    */
-  private rowToEntity(row: ActivityLogRow): ActivityLogEntry {
+  private readRows(rows: ActivityLogRow[]): ActivityLogEntry[] {
+    return rows.flatMap((row) => this.readRow(row) ?? []);
+  }
+
+  private readRow(row: ActivityLogRow): ActivityLogEntry | null {
     let data: unknown;
     try {
       data = JSON.parse(row.data);
     } catch (error) {
-      throw new Error(
-        `Stored activity log entry ${row.id} has unreadable data: ${messageOf(error)}`
-      );
+      this.logger.warn('Skipping an activity log row with unreadable data', { id: row.id, error });
+      return null;
     }
     const result = ActivityLogEntrySchema.safeParse({ ...row, data });
     if (!result.success) {
-      throw new Error(
-        `Stored activity log entry ${row.id} is invalid:\n${z.prettifyError(result.error)}`
-      );
+      this.logger.warn('Skipping an activity log row that does not fit its schema', {
+        id: row.id,
+        event: row.event,
+        problem: z.prettifyError(result.error),
+      });
+      return null;
     }
     return result.data;
   }
@@ -115,8 +130,7 @@ export class ActivityLogRepository {
     sql += ' ORDER BY timestamp DESC LIMIT ?';
     params.push(limit);
 
-    const rows = this.db.query<ActivityLogRow>(sql, params);
-    return rows.map((row) => this.rowToEntity(row));
+    return this.readRows(this.db.query<ActivityLogRow>(sql, params));
   }
 
   /** A page of the entries matching `query`, newest first (see ActivityLogQuery). */
@@ -149,7 +163,7 @@ export class ActivityLogRepository {
       `SELECT * FROM activity_log${where} ORDER BY timestamp DESC, rowid DESC LIMIT ? OFFSET ?`,
       [...params, query.pageSize, query.page * query.pageSize]
     );
-    return { entries: rows.map((row) => this.rowToEntity(row)), total: counted?.total ?? 0 };
+    return { entries: this.readRows(rows), total: counted?.total ?? 0 };
   }
 
   /**

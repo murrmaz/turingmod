@@ -47,7 +47,7 @@ export function createActivityRouter(forwarder: ActivityForwarder, repo: Activit
 
     /**
      * One page of the stored log, newest first, as entries (chat isn't stored). A stored entry
-     * that no longer fits the entry schema fails the read, naming it, rather than going missing.
+     * that no longer fits the entry schema is left out (see ActivityLogRepository).
      */
     history: procedure.input(HistoryQuerySchema).query(({ input }) => repo.findPage(input)),
   });

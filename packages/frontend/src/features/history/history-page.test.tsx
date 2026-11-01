@@ -4,18 +4,18 @@ import type { ActivityLogEntry } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { links } from '@/constants/pages';
 import type { ActivityHistoryQuery } from '@/hooks/useActivityHistory';
+import { activityEntry } from '@/testing/activity';
 import { renderConsole } from '@/testing/render-console';
 import { HistoryPage } from './history-page';
 
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 
 function command(name: string, timestamp = Date.now()): ActivityLogEntry {
-  return {
-    id: `command-${name}`,
-    event: 'command.executed',
-    timestamp,
-    data: { command: name, args: [], success: true, message: '', username: 'ana' },
-  };
+  return activityEntry(
+    'command.executed',
+    { command: name, username: 'ana' },
+    { id: `command-${name}`, timestamp }
+  );
 }
 
 type Page = { entries: ActivityLogEntry[]; total: number };

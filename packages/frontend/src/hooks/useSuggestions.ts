@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { type RouterOutputs, useTrpc } from '@/context/trpc-context';
 import { PendingDeletes } from '@/lib/pendingDeletes';
+import { plural } from '@/lib/plural';
 import { reportActionError } from '@/lib/reportError';
 import { useSubscription } from './useSubscription';
 
@@ -10,8 +11,6 @@ export type Suggestion = RouterOutputs['suggestions']['delete'][number];
 /** How long a delete can be undone before it's sent. */
 const UNDO_MS = 5000;
 const NONE: Suggestion[] = [];
-
-const count = (n: number) => `${n} suggestion${n === 1 ? '' : 's'}`;
 
 /**
  * Viewers' suggestions, newest first, and deleting them with Undo.
@@ -42,7 +41,7 @@ export function useSuggestions() {
       trpcRef.current.suggestions.delete
         .mutate({ ids: [...ids] })
         .then(show, (error: unknown) =>
-          reportActionError(`Couldn't delete ${count(ids.length)}`, error)
+          reportActionError(`Couldn't delete ${plural(ids.length, 'suggestion')}`, error)
         )
         .finally(() => {
           pending.settle(key);
@@ -70,7 +69,7 @@ export function useSuggestions() {
       const key = pending.hold(ids);
       refresh();
       // "Deleting", not "Deleted": nothing is deleted until the toast closes.
-      toast(`Deleting ${count(ids.length)}…`, {
+      toast(`Deleting ${plural(ids.length, 'suggestion')}…`, {
         id: key,
         duration: UNDO_MS,
         action: {

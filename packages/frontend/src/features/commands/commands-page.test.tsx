@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommandInfo } from '@/context/app-state-context';
+import { plural } from '@/lib/plural';
 import { renderConsole } from '@/testing/render-console';
 import { CommandsPage } from './commands-page';
 
@@ -30,7 +31,7 @@ async function setup(commands: CommandInfo[]) {
   renderConsole(<CommandsPage />, {
     procedures: { commands: { list: { query: async () => commands } } },
   });
-  await screen.findByText(`${commands.length} of ${commands.length} commands`);
+  await screen.findByText(`${commands.length} of ${plural(commands.length, 'command')}`);
   return { user };
 }
 
@@ -154,6 +155,19 @@ describe('Commands', () => {
     await user.click(await screen.findByRole('option', { name: 'YouTube' }));
 
     expect(shown()).toEqual(['!both']);
+  });
+
+  it('pages through more than fit on one page', async () => {
+    const { user } = await setup(
+      Array.from({ length: 60 }, (_, index) => command(`cmd${String(index).padStart(2, '0')}`))
+    );
+    expect(shown()).toHaveLength(50);
+    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+
+    expect(shown()).toEqual(Array.from({ length: 10 }, (_, index) => `!cmd${50 + index}`));
+    expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
   });
 
   it('opens the simulator on a command when its row is clicked', async () => {

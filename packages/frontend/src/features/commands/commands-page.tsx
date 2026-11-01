@@ -1,13 +1,4 @@
-import {
-  type ColumnDef,
-  type ColumnFiltersState,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  type SortingState,
-  useReactTable,
-} from '@tanstack/react-table';
+import type { ColumnDef } from '@tanstack/react-table';
 import {
   formatPlatformList,
   PERMISSION_HIERARCHY,
@@ -16,7 +7,7 @@ import {
   StreamingPlatform,
 } from '@turingmod/shared';
 import { Ellipsis } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { DataTableColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTableFacetedFilter } from '@/components/data-table/faceted-filter';
@@ -37,7 +28,9 @@ import { PERMISSION_LABELS } from '@/constants/permissions';
 
 import { type CommandInfo, useAppState } from '@/context/app-state-context';
 import { useSimulator } from '@/context/simulatorContext';
+import { useClientTable } from '@/hooks/useClientTable';
 import { copyToClipboard } from '@/lib/clipboard';
+import { plural } from '@/lib/plural';
 import type { Tone } from '@/lib/tone';
 
 const PERMISSION_TONES: Record<PermissionLevel, Tone> = {
@@ -56,14 +49,9 @@ function lowestPermission(command: CommandInfo): PermissionLevel {
   );
 }
 
-const PAGE_SIZE = 50;
-
 export function CommandsPage() {
   const { commands } = useAppState();
   const simulator = useSimulator();
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
-  const [globalFilter, setGlobalFilter] = useState('');
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
   const columns = useMemo<ColumnDef<CommandInfo>[]>(
     () => [
@@ -159,26 +147,15 @@ export function CommandsPage() {
     [simulator]
   );
 
-  const table = useReactTable({
+  const { table, filter, setFilter, shown, pagination } = useClientTable({
     data: commands,
     columns,
-    state: { sorting, globalFilter, columnFilters },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    onColumnFiltersChange: setColumnFilters,
-    globalFilterFn: (row, _id, value: string) => {
-      const needle = value.trim().toLowerCase().replace(/^!/, '');
-      return (
-        row.original.name.includes(needle) ||
-        row.original.description.toLowerCase().includes(needle)
-      );
+    getRowId: (command) => command.name,
+    initialSort: [{ id: 'name', desc: false }],
+    matches: (command, typed) => {
+      const needle = typed.replace(/^!/, '');
+      return command.name.includes(needle) || command.description.toLowerCase().includes(needle);
     },
-    getRowId: (row) => row.name,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: PAGE_SIZE, pageIndex: 0 } },
   });
 
   const facet = (id: string) => {
@@ -188,9 +165,6 @@ export function CommandsPage() {
   const setFacet = (id: string) => (next: Set<string>) =>
     table.getColumn(id)?.setFilterValue(next.size > 0 ? [...next] : undefined);
 
-  const shown = table.getFilteredRowModel().rows.length;
-  const { pageIndex } = table.getState().pagination;
-
   return (
     <PageLayout>
       <PageHeader
@@ -199,8 +173,8 @@ export function CommandsPage() {
       />
       <div className="flex flex-wrap items-center gap-2">
         <Input
-          value={globalFilter}
-          onChange={(event) => setGlobalFilter(event.target.value)}
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
           placeholder="Filter commands…"
           className="w-72"
         />
@@ -233,10 +207,8 @@ export function CommandsPage() {
         />
       </div>
       <DataTablePagination
-        page={pageIndex}
-        pageCount={table.getPageCount()}
-        onPageChange={(page) => table.setPageIndex(page)}
-        summary={`${shown} of ${commands.length} commands`}
+        {...pagination}
+        summary={`${shown} of ${plural(commands.length, 'command')}`}
       />
     </PageLayout>
   );

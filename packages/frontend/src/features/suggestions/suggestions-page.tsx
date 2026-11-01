@@ -1,15 +1,6 @@
-import {
-  type ColumnDef,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  type RowSelectionState,
-  type SortingState,
-  useReactTable,
-} from '@tanstack/react-table';
+import type { ColumnDef } from '@tanstack/react-table';
 import { Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { DataTableColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTablePagination } from '@/components/data-table/pagination';
@@ -18,16 +9,13 @@ import { PageLayout } from '@/components/page-layout';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { useClientTable } from '@/hooks/useClientTable';
 import { type Suggestion, useSuggestions } from '@/hooks/useSuggestions';
+import { plural } from '@/lib/plural';
 import { formatDateTime } from '@/lib/time';
-
-const PAGE_SIZE = 50;
 
 export function SuggestionsPage() {
   const { suggestions, remove } = useSuggestions();
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: true }]);
-  const [globalFilter, setGlobalFilter] = useState('');
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const columns = useMemo<ColumnDef<Suggestion>[]>(
     () => [
@@ -111,37 +99,22 @@ export function SuggestionsPage() {
     [remove]
   );
 
-  const table = useReactTable({
+  const { table, filter, setFilter, shown, pagination } = useClientTable({
     data: suggestions,
     columns,
-    state: { sorting, globalFilter, rowSelection },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    onRowSelectionChange: setRowSelection,
-    globalFilterFn: (row, _id, value: string) => {
-      const needle = value.trim().toLowerCase();
-      return (
-        row.original.suggestion.toLowerCase().includes(needle) ||
-        (row.original.suggestedBy ?? '').toLowerCase().includes(needle)
-      );
-    },
-    getRowId: (row) => String(row.id),
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: PAGE_SIZE, pageIndex: 0 } },
+    getRowId: (suggestion) => String(suggestion.id),
+    initialSort: [{ id: 'createdAt', desc: true }],
+    matches: (suggestion, needle) =>
+      suggestion.suggestion.toLowerCase().includes(needle) ||
+      (suggestion.suggestedBy ?? '').toLowerCase().includes(needle),
   });
 
   // Only rows still listed and matching the filter: a selection never deletes what isn't shown.
   const selected = table.getFilteredSelectedRowModel().rows.map((row) => row.original.id);
   const deleteSelected = () => {
     remove(selected);
-    setRowSelection({});
+    table.setRowSelection({});
   };
-
-  const shown = table.getFilteredRowModel().rows.length;
-  const { pageIndex } = table.getState().pagination;
 
   return (
     <PageLayout>
@@ -151,8 +124,8 @@ export function SuggestionsPage() {
       />
       <div className="flex flex-wrap items-center gap-2">
         <Input
-          value={globalFilter}
-          onChange={(event) => setGlobalFilter(event.target.value)}
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
           placeholder="Filter by text or viewer…"
           className="w-72"
         />
@@ -162,7 +135,7 @@ export function SuggestionsPage() {
               <Trash2 />
               Delete {selected.length} selected
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setRowSelection({})}>
+            <Button variant="ghost" size="sm" onClick={() => table.setRowSelection({})}>
               Clear selection
             </Button>
           </>
@@ -174,7 +147,9 @@ export function SuggestionsPage() {
           rowHeight={45}
           onRowClick={(suggestion) => table.getRow(String(suggestion.id)).toggleSelected()}
           rowClassName={(suggestion) =>
-            rowSelection[String(suggestion.id)] ? 'bg-muted hover:bg-muted' : undefined
+            table.getState().rowSelection[String(suggestion.id)]
+              ? 'bg-muted hover:bg-muted'
+              : undefined
           }
           empty={
             suggestions.length === 0
@@ -184,10 +159,8 @@ export function SuggestionsPage() {
         />
       </div>
       <DataTablePagination
-        page={pageIndex}
-        pageCount={table.getPageCount()}
-        onPageChange={(page) => table.setPageIndex(page)}
-        summary={`${shown} of ${suggestions.length} suggestions`}
+        {...pagination}
+        summary={`${shown} of ${plural(suggestions.length, 'suggestion')}`}
       />
     </PageLayout>
   );

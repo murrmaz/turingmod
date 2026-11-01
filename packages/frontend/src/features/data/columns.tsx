@@ -31,17 +31,17 @@ export function inspectorColumns(info: DataTableInfo): ColumnDef<InspectedRow>[]
 /** A value as its column's kind reads: a badge for an enum, a date for a timestamp, and so on. */
 function Cell({ column, value }: { column: DataColumnInfo; value: DataCell }) {
   if (value === null) {
-    return <span className="font-mono text-[12.5px] text-subtle-foreground">null</span>;
+    return <span className="font-mono text-data text-subtle-foreground">null</span>;
   }
   if (column.masked) {
-    return <span className="font-mono text-[12.5px] text-subtle-foreground italic">{value}</span>;
+    return <span className="font-mono text-data text-subtle-foreground italic">{value}</span>;
   }
   if (column.enumValues) {
     return <DotBadge tone={activityEventTone(String(value)) ?? 'idle'}>{value}</DotBadge>;
   }
   if (column.isTimestamp && typeof value === 'number') {
     return (
-      <span className="font-mono text-[12.5px] tabular-nums" title={String(value)}>
+      <span className="font-mono text-data tabular-nums" title={String(value)}>
         {formatDateTime(value)}
       </span>
     );
@@ -49,7 +49,7 @@ function Cell({ column, value }: { column: DataColumnInfo; value: DataCell }) {
   return (
     <span
       className={
-        column.isJson ? 'font-mono text-[12.5px] text-muted-foreground' : 'font-mono text-[12.5px]'
+        column.isJson ? 'font-mono text-data text-muted-foreground' : 'font-mono text-data'
       }
       title={String(value)}
     >

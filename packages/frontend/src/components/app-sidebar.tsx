@@ -49,7 +49,7 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild className="hover:bg-transparent">
               <NavLink to={pagePath(HOME_PAGE)}>
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-[15px] font-bold text-primary-foreground">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-base font-bold text-primary-foreground">
                   T
                 </div>
                 <div className="grid flex-1 text-left leading-tight">
@@ -85,7 +85,7 @@ export function AppSidebar() {
                       </NavLink>
                     </SidebarMenuButton>
                     {badge > 0 && (
-                      <SidebarMenuBadge className="rounded-md bg-cat-error/25 text-[11px] font-semibold text-foreground peer-hover/menu-button:text-foreground peer-data-[active=true]/menu-button:text-foreground">
+                      <SidebarMenuBadge className="rounded-md bg-cat-error/25 text-caption font-semibold text-foreground peer-hover/menu-button:text-foreground peer-data-[active=true]/menu-button:text-foreground">
                         {badge}
                       </SidebarMenuBadge>
                     )}
@@ -120,8 +120,8 @@ function DataTablesGroup({ page }: { page: Page }) {
             <SidebarMenuItem key={table.name}>
               <SidebarMenuButton asChild size="sm" isActive={table.name === active}>
                 <NavLink to={links.dataTable(table.name)} className="pl-8">
-                  <span className="truncate font-mono text-[12.5px]">{table.name}</span>
-                  <span className="ml-auto font-mono text-[11.5px] text-subtle-foreground">
+                  <span className="truncate font-mono text-data">{table.name}</span>
+                  <span className="ml-auto font-mono text-caption text-subtle-foreground">
                     {table.rowCount.toLocaleString()}
                   </span>
                 </NavLink>

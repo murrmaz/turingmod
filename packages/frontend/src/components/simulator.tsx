@@ -132,7 +132,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     <SimulatorContext.Provider value={{ open }}>
       {children}
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
-        <SheetContent className="w-[420px] gap-0 sm:max-w-[420px]">
+        <SheetContent className="w-sheet gap-0 sm:max-w-sheet">
           <SheetHeader className="p-6 pb-4">
             <SheetTitle className="text-lg">
               Simulate{' '}

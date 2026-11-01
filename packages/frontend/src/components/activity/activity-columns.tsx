@@ -33,7 +33,7 @@ export function activityColumns<T extends FeedRow>(actions: ActivityRowActions):
       enableHiding: false,
       cell: ({ row }) => (
         <span
-          className="font-mono text-[12.5px] text-muted-foreground tabular-nums"
+          className="font-mono text-data text-muted-foreground tabular-nums"
           title={formatDateTime(row.original.timestamp)}
         >
           {formatClock(row.original.timestamp)}
@@ -53,7 +53,7 @@ export function activityColumns<T extends FeedRow>(actions: ActivityRowActions):
       size: 200,
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="text-[13.5px] font-medium" title={row.original.title}>
+        <span className="text-body font-medium" title={row.original.title}>
           {row.original.title}
         </span>
       ),
@@ -82,7 +82,7 @@ export function activityColumns<T extends FeedRow>(actions: ActivityRowActions):
       size: 96,
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="text-[12.5px] text-muted-foreground">
+        <span className="text-data text-muted-foreground">
           {row.original.platform ? platformDisplayName(row.original.platform) : '—'}
         </span>
       ),

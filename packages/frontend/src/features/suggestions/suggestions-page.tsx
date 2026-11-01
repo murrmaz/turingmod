@@ -14,6 +14,7 @@ import { DataTableColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { PageHeader } from '@/components/page-header';
+import { PageLayout } from '@/components/page-layout';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -79,7 +80,7 @@ export function SuggestionsPage() {
         header: ({ column }) => <DataTableColumnHeader column={column} title="When" />,
         size: 180,
         cell: ({ row }) => (
-          <span className="font-mono text-[12.5px] text-muted-foreground">
+          <span className="font-mono text-data text-muted-foreground">
             {formatDateTime(row.original.createdAt)}
           </span>
         ),
@@ -143,7 +144,7 @@ export function SuggestionsPage() {
   const { pageIndex } = table.getState().pagination;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 px-8 py-6">
+    <PageLayout>
       <PageHeader
         title="Suggestions"
         description="Suggestions viewers have made in chat with !sg."
@@ -188,6 +189,6 @@ export function SuggestionsPage() {
         onPageChange={(page) => table.setPageIndex(page)}
         summary={`${shown} of ${suggestions.length} suggestions`}
       />
-    </div>
+    </PageLayout>
   );
 }

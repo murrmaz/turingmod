@@ -49,7 +49,7 @@ export function HealthRail() {
                   className="flex w-full items-center gap-2.5 px-4 py-1.5 text-left hover:bg-accent/50"
                 >
                   <StatusDot tone={display.tone} />
-                  <span className="font-mono text-[12.5px]">{integration.name}</span>
+                  <span className="font-mono text-data">{integration.name}</span>
                   <span className="ml-auto text-xs text-subtle-foreground">{display.label}</span>
                 </button>
               </li>
@@ -79,7 +79,7 @@ function NeedsAttention({
         <CircleAlert className="size-4 text-cat-error" />
         Needs attention
       </h2>
-      <p className="text-[13px] leading-relaxed text-soft-foreground">
+      <p className="text-body leading-relaxed text-soft-foreground">
         <span className="font-mono text-foreground">{integration.name}</span>{' '}
         {describeIntegration(integration).label}
         {integration.errorMessage && <>: {integration.errorMessage}</>}

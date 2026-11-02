@@ -14,6 +14,16 @@ while OBS is already streaming (after a restart, or a login recovering mid-strea
 doesn't mean every platform is live, so a platform treats the signal as a reason to look for its
 broadcast, bounded in time, not as proof of one.
 
+**Whether a platform is live** (`PlatformLiveStatus`) is asked only on a signal, since asking YouTube
+costs quota. A signal can be missed or answered too early (YouTube can go on listing a broadcast as
+active after chat ends and OBS stops; EventSub's socket can be down when `stream.offline` is sent),
+and a platform stuck reading live never posts "was live for" or announces the next stream. So a
+platform that reads live with no sign of a stream behind it (OBS stopped or isn't streaming, or
+YouTube chat went idle) is asked again after 1, 2, 4, 8, 16 and 32 minutes, until it reads offline
+or OBS starts sending. After that it's logged and left: it's what the platform reports, and a
+broadcast with auto-stop off really does stay live. Twitch is also asked each time EventSub's socket
+opens (`twitch.eventSub.ready`), since Twitch doesn't resend what it sent while the socket was down.
+
 **The Discord go-live post** (`GoLiveAnnouncer`) follows `platform.liveState`, not OBS: one post
 pinging `@everyone` when the first platform goes live, edited as other platforms join and leave
 and on `stream.info.changed` (a mirrored title/game write, or any change on Twitch via EventSub

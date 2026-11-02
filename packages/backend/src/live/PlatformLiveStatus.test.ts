@@ -1,10 +1,11 @@
 import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import type { IStreamPlatform, LiveBroadcast } from '../platforms/interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { Logger } from '../utils/Logger.js';
+import type { ObsStreamState } from './ObsStreamState.js';
 import { PlatformLiveStatus } from './PlatformLiveStatus.js';
 
 function fakePlatform(platform: StreamingPlatform) {
@@ -19,6 +20,7 @@ describe('PlatformLiveStatus', () => {
   let eventBus: EventBus;
   let twitch: ReturnType<typeof fakePlatform>;
   let youtube: ReturnType<typeof fakePlatform>;
+  let obsStreaming: boolean;
   let changed: ReturnType<typeof vi.fn<() => void>>;
   let service: PlatformLiveStatus;
 
@@ -29,7 +31,14 @@ describe('PlatformLiveStatus', () => {
     const registry = new PlatformRegistry();
     registry.register(twitch as unknown as IStreamPlatform);
     registry.register(youtube as unknown as IStreamPlatform);
-    service = new PlatformLiveStatus(eventBus, registry, new Logger({ level: 'silent' }));
+    obsStreaming = true;
+    const obsStream = { isStreaming: () => obsStreaming } as unknown as ObsStreamState;
+    service = new PlatformLiveStatus(
+      eventBus,
+      registry,
+      obsStream,
+      new Logger({ level: 'silent' })
+    );
     changed = vi.fn<() => void>();
     service.onChange(changed);
     service.start();
@@ -206,5 +215,207 @@ describe('PlatformLiveStatus', () => {
 
     await expect(service.refresh(StreamingPlatform.TWITCH)).resolves.toBeUndefined();
     expect(twitchState()?.live).toBe(false);
+  });
+
+  describe('a platform still reading live with no stream behind it', () => {
+    const Minute = 60_000;
+    const broadcast = { startedAt: new Date('2026-01-01T12:00:00Z') };
+    const youtubeLive = () => service.getStates()[1]?.live;
+
+    /** YouTube live, with chat streaming and OBS sending the stream out. */
+    const goLiveOnYouTube = async () => {
+      youtube.getLiveBroadcast.mockResolvedValue(broadcast);
+      await eventBus.emit('youtube.chat.state', { state: 'streaming' });
+      youtube.getLiveBroadcast.mockClear();
+    };
+    const obsStops = async () => {
+      obsStreaming = false;
+      await eventBus.emit('stream.output.changed', { streaming: false });
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      service.stop();
+      vi.useRealTimers();
+    });
+
+    it('notices YouTube ending the broadcast a while after OBS stops', async () => {
+      await goLiveOnYouTube();
+
+      await obsStops();
+      await eventBus.emit('youtube.chat.state', { state: 'idle' });
+      expect(youtubeLive()).toBe(true); // YouTube still lists the broadcast as active
+
+      youtube.getLiveBroadcast.mockResolvedValue(null);
+      await vi.advanceTimersByTimeAsync(Minute);
+
+      expect(youtubeLive()).toBe(false);
+    });
+
+    it('publishes that as a reported end, which is what ends the go-live post', async () => {
+      await goLiveOnYouTube();
+      const published = vi.fn();
+      eventBus.on('platform.liveState', published);
+
+      await obsStops();
+      youtube.getLiveBroadcast.mockResolvedValue(null);
+      await vi.advanceTimersByTimeAsync(Minute);
+
+      expect(published).toHaveBeenCalledWith(
+        expect.objectContaining({
+          platform: StreamingPlatform.YOUTUBE,
+          live: false,
+          cause: 'reported',
+        })
+      );
+    });
+
+    it('notices a Twitch stream.offline that was never delivered, once OBS stops', async () => {
+      await eventBus.emit('twitch.stream.online', {
+        broadcasterId: '1',
+        broadcasterName: 'b',
+        broadcasterDisplayName: 'B',
+        startedAt: new Date(),
+      });
+
+      await obsStops();
+      twitch.getLiveBroadcast.mockResolvedValue(null);
+      await vi.advanceTimersByTimeAsync(Minute);
+
+      expect(twitchState()?.live).toBe(false);
+    });
+
+    it('looks again after chat goes idle, even with OBS still sending', async () => {
+      await goLiveOnYouTube();
+
+      await eventBus.emit('youtube.chat.state', { state: 'idle' });
+      youtube.getLiveBroadcast.mockResolvedValue(null);
+      await vi.advanceTimersByTimeAsync(Minute);
+
+      expect(youtubeLive()).toBe(false);
+    });
+
+    it('looks again when a platform reads live with OBS not streaming, as after a restart', async () => {
+      obsStreaming = false;
+      youtube.getLiveBroadcast.mockResolvedValue(broadcast);
+      await service.refresh(StreamingPlatform.YOUTUBE);
+      expect(youtubeLive()).toBe(true);
+
+      youtube.getLiveBroadcast.mockResolvedValue(null);
+      await vi.advanceTimersByTimeAsync(Minute);
+
+      expect(youtubeLive()).toBe(false);
+    });
+
+    it('stops asking as soon as nothing reads live', async () => {
+      await goLiveOnYouTube();
+      await obsStops();
+
+      youtube.getLiveBroadcast.mockResolvedValue(null);
+      await vi.advanceTimersByTimeAsync(Minute);
+      expect(youtube.getLiveBroadcast).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(120 * Minute);
+      expect(youtube.getLiveBroadcast).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives up after about an hour, so an answer that never changes costs little quota', async () => {
+      await goLiveOnYouTube();
+      await obsStops();
+
+      await vi.advanceTimersByTimeAsync(24 * 60 * Minute);
+
+      expect(youtube.getLiveBroadcast).toHaveBeenCalledTimes(6);
+      expect(youtubeLive()).toBe(true);
+    });
+
+    it('keeps looking after a failed answer', async () => {
+      await goLiveOnYouTube();
+      await obsStops();
+
+      youtube.getLiveBroadcast.mockRejectedValueOnce(new Error('network'));
+      await vi.advanceTimersByTimeAsync(Minute);
+      expect(youtubeLive()).toBe(true);
+
+      youtube.getLiveBroadcast.mockResolvedValue(null);
+      await vi.advanceTimersByTimeAsync(2 * Minute);
+      expect(youtubeLive()).toBe(false);
+    });
+
+    it('stops looking when OBS starts sending again', async () => {
+      await goLiveOnYouTube();
+      await obsStops();
+
+      obsStreaming = true;
+      await eventBus.emit('stream.output.changed', { streaming: true });
+      await vi.advanceTimersByTimeAsync(120 * Minute);
+
+      expect(youtube.getLiveBroadcast).not.toHaveBeenCalled();
+    });
+
+    it('does not look again while OBS is sending', async () => {
+      await goLiveOnYouTube();
+
+      await vi.advanceTimersByTimeAsync(120 * Minute);
+
+      expect(youtube.getLiveBroadcast).not.toHaveBeenCalled();
+    });
+
+    it('stops looking when the service stops', async () => {
+      await goLiveOnYouTube();
+      await obsStops();
+
+      service.stop();
+      await vi.advanceTimersByTimeAsync(120 * Minute);
+
+      expect(youtube.getLiveBroadcast).not.toHaveBeenCalled();
+    });
+
+    it('does not carry on after stopping while an answer is on its way', async () => {
+      await goLiveOnYouTube();
+      await obsStops();
+
+      let answer: (broadcast: LiveBroadcast | null) => void = () => {};
+      youtube.getLiveBroadcast.mockReturnValueOnce(
+        new Promise((resolve) => {
+          answer = resolve;
+        })
+      );
+      await vi.advanceTimersByTimeAsync(Minute);
+      service.stop();
+      answer(broadcast);
+      await vi.advanceTimersByTimeAsync(120 * Minute);
+
+      expect(youtube.getLiveBroadcast).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Twitch EventSub coming back', () => {
+    const eventSubReady = () => eventBus.emit('twitch.eventSub.ready', { sessionId: 's' });
+
+    it('finds a stream.offline sent while the socket was down', async () => {
+      await eventBus.emit('twitch.stream.online', {
+        broadcasterId: '1',
+        broadcasterName: 'b',
+        broadcasterDisplayName: 'B',
+        startedAt: new Date(),
+      });
+
+      twitch.getLiveBroadcast.mockResolvedValue(null);
+      await eventSubReady();
+
+      expect(twitchState()?.live).toBe(false);
+    });
+
+    it('finds a stream.online sent while the socket was down', async () => {
+      twitch.getLiveBroadcast.mockResolvedValue({ startedAt: new Date() });
+
+      await eventSubReady();
+
+      expect(twitchState()?.live).toBe(true);
+    });
   });
 });

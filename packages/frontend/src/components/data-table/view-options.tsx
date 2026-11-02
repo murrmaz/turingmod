@@ -1,4 +1,4 @@
-import type { Table } from '@tanstack/react-table';
+import type { RowData, Table } from '@tanstack/react-table';
 import { Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,13 +9,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import type { ConsoleFeatures } from '@/lib/tableFeatures';
 
 /** Column visibility menu. Columns without a string header are left out of it. */
-export function DataTableViewOptions<TData>({
+export function DataTableViewOptions<TData extends RowData>({
   table,
   label = 'View',
 }: {
-  table: Table<TData>;
+  table: Table<ConsoleFeatures, TData>;
   label?: string;
 }) {
   return (

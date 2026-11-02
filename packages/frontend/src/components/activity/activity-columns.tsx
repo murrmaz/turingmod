@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { FeedRow } from '@/lib/activityFormat';
 import { copyToClipboard } from '@/lib/clipboard';
+import type { ConsoleFeatures } from '@/lib/tableFeatures';
 import { formatClock, formatDateTime } from '@/lib/time';
 
 export interface ActivityRowActions {
@@ -23,7 +24,9 @@ export interface ActivityRowActions {
  * Columns shared by the live feed and History. The time is only a clock: the tables' day dividers
  * (`dayDivider`) say which day it's on, and hovering shows the full date.
  */
-export function activityColumns<T extends FeedRow>(actions: ActivityRowActions): ColumnDef<T>[] {
+export function activityColumns<T extends FeedRow>(
+  actions: ActivityRowActions
+): ColumnDef<ConsoleFeatures, T>[] {
   return [
     {
       id: 'time',

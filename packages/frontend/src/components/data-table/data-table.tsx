@@ -1,12 +1,19 @@
-import { flexRender, type Row, type Table as TanStackTable } from '@tanstack/react-table';
+import {
+  flexRender,
+  type Row,
+  type RowData,
+  type TableFeatures,
+  type Table as TanStackTable,
+} from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { type ReactNode, type Ref, useEffect, useRef } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import type { ConsoleFeatures } from '@/lib/tableFeatures';
 import { cn } from '@/lib/utils';
 
 declare module '@tanstack/react-table' {
-  interface ColumnMeta<TData, TValue> {
+  interface ColumnMeta<TFeatures extends TableFeatures, TData extends RowData, TValue> {
     /** Take the width left over by fixed-size columns, instead of `size`. */
     grow?: boolean;
     /** Classes for this column's cells (not its header). */
@@ -15,8 +22,8 @@ declare module '@tanstack/react-table' {
   }
 }
 
-export interface DataTableProps<TData> {
-  table: TanStackTable<TData>;
+export interface DataTableProps<TData extends RowData> {
+  table: TanStackTable<ConsoleFeatures, TData>;
   onRowClick?: (row: TData) => void;
   selectedRowId?: string | null;
   rowClassName?: (row: TData) => string | undefined;
@@ -38,8 +45,8 @@ export interface DataTableProps<TData> {
 }
 
 /** What the table body lists, in order: the table's rows and any dividers between them. */
-type Line<TData> =
-  | { kind: 'row'; key: string; row: Row<TData> }
+type Line<TData extends RowData> =
+  | { kind: 'row'; key: string; row: Row<ConsoleFeatures, TData> }
   | { kind: 'divider'; key: string; content: ReactNode };
 
 /**
@@ -48,7 +55,7 @@ type Line<TData> =
  * for live feeds, row virtualization. Sorting, filtering and paging stay with the caller's table
  * instance, so the same component serves client-side and server-side data.
  */
-export function DataTable<TData>({
+export function DataTable<TData extends RowData>({
   table,
   onRowClick,
   selectedRowId,

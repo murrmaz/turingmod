@@ -1,9 +1,4 @@
-import {
-  getCoreRowModel,
-  getSortedRowModel,
-  type SortingState,
-  useReactTable,
-} from '@tanstack/react-table';
+import { type SortingState, useTable } from '@tanstack/react-table';
 import { ArrowUp, Pause, Play } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -19,6 +14,7 @@ import { usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import { dayDivider, type FeedCategory } from '@/lib/activityFormat';
 import { countEvents, streamStartedAt } from '@/lib/liveFeed';
 import { plural } from '@/lib/plural';
+import { consoleFeatures } from '@/lib/tableFeatures';
 import { HealthRail } from './health-rail';
 import { useLiveFeed } from './useLiveFeed';
 import type { LiveFeedRow } from './useLiveLog';
@@ -57,14 +53,15 @@ function LiveActivity() {
       }),
     [viewUser]
   );
-  const table = useReactTable({
+  const table = useTable({
+    features: consoleFeatures,
     data: feed.visible,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
     getRowId: (row) => row.id,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    manualFiltering: true,
+    manualPagination: true,
   });
   const shown = table.getRowModel().rows.map((row) => row.original);
   const now = Date.now();

@@ -1,4 +1,4 @@
-import { getCoreRowModel, useReactTable } from '@tanstack/react-table';
+import { useTable } from '@tanstack/react-table';
 import { useMemo } from 'react';
 import { activityColumns } from '@/components/activity/activity-columns';
 import { EventSheet } from '@/components/activity/event-sheet';
@@ -11,6 +11,7 @@ import { PageLayout } from '@/components/page-layout';
 import { SearchInput } from '@/components/search-input';
 import { dayDivider, type FeedCategory, type FeedRow } from '@/lib/activityFormat';
 import { plural } from '@/lib/plural';
+import { consoleFeatures } from '@/lib/tableFeatures';
 import { useHistoryView } from './useHistoryView';
 
 const CATEGORIES = ['command', 'reward', 'viewer', 'system'] as const satisfies FeedCategory[];
@@ -27,12 +28,14 @@ export function HistoryPage() {
     () => activityColumns<FeedRow>({ onInspect: (row) => select(row.id), onViewUser: viewUser }),
     [select, viewUser]
   );
-  const table = useReactTable({
+  const table = useTable({
+    features: consoleFeatures,
     data: view.rows,
     columns,
     getRowId: (row) => row.id,
-    getCoreRowModel: getCoreRowModel(),
     manualSorting: true,
+    manualFiltering: true,
+    manualPagination: true,
     enableSorting: false,
   });
 

@@ -31,6 +31,7 @@ import { useSimulator } from '@/context/simulatorContext';
 import { useClientTable } from '@/hooks/useClientTable';
 import { copyToClipboard } from '@/lib/clipboard';
 import { plural } from '@/lib/plural';
+import type { ConsoleFeatures } from '@/lib/tableFeatures';
 import type { Tone } from '@/lib/tone';
 
 /** Colours that tell the levels apart, the broadcaster's being the red of going live. */
@@ -54,7 +55,7 @@ export function CommandsPage() {
   const commands = useCommandList();
   const simulator = useSimulator();
 
-  const columns = useMemo<ColumnDef<CommandInfo>[]>(
+  const columns = useMemo<ColumnDef<ConsoleFeatures, CommandInfo>[]>(
     () => [
       {
         id: 'name',

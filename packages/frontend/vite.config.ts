@@ -47,5 +47,16 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rolldownOptions: {
+      // Tailwind's plugin rewrites the stylesheet without a source map, so the CSS map is
+      // approximate, which only matters when debugging CSS in the browser. It's the only plugin
+      // this is silenced for; the JavaScript maps are unaffected.
+      onLog(level, log, defaultHandler) {
+        if (log.code === 'SOURCEMAP_BROKEN' && log.plugin === '@tailwindcss/vite:generate:build') {
+          return;
+        }
+        defaultHandler(level, log);
+      },
+    },
   },
 });

@@ -1,14 +1,15 @@
-import type { Column } from '@tanstack/react-table';
+import type { Column, RowData } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
+import type { ConsoleFeatures } from '@/lib/tableFeatures';
 import { cn } from '@/lib/utils';
 
 /** A header that sorts its column when clicked, with an arrow for the current direction. */
-export function DataTableColumnHeader<TData, TValue>({
+export function DataTableColumnHeader<TData extends RowData, TValue>({
   column,
   title,
   className,
 }: {
-  column: Column<TData, TValue>;
+  column: Column<ConsoleFeatures, TData, TValue>;
   title: string;
   className?: string;
 }) {

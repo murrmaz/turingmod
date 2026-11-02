@@ -389,6 +389,46 @@ describe('IntegrationManager', () => {
     expect(info).toHaveBeenCalledWith('OAuth token refreshed: twitch-auth', {});
   });
 
+  it('keeps the status a failed start() reported for itself', async () => {
+    const auth = new FakeIntegration('auth');
+    vi.spyOn(auth, 'start').mockImplementation(() => {
+      auth.failReauth();
+      return Promise.reject(new Error('the raw failure'));
+    });
+    const manager = makeManager(makeStateRepo());
+    manager.register(auth);
+
+    await expect(manager.startIntegration('auth')).rejects.toThrow('the raw failure');
+
+    expect(auth.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
+    expect(auth.getErrorMessage()).toBe('needs reauth');
+  });
+
+  it('reports a failed start() once when the integration already reported it', async () => {
+    const obs = new FakeIntegration('obs');
+    obs.failOnStart = true;
+    const statuses: IntegrationStatus[] = [];
+    obs.on('status', (status) => statuses.push(status));
+    const manager = makeManager(makeStateRepo());
+    manager.register(obs);
+
+    await expect(manager.startIntegration('obs')).rejects.toThrow('start failed');
+
+    expect(statuses).toEqual([IntegrationStatus.ERROR]);
+  });
+
+  it('reports ERROR for a start() that threw without reporting anything', async () => {
+    const obs = new FakeIntegration('obs');
+    vi.spyOn(obs, 'start').mockRejectedValue(new Error('boom'));
+    const manager = makeManager(makeStateRepo());
+    manager.register(obs);
+
+    await expect(manager.startIntegration('obs')).rejects.toThrow('boom');
+
+    expect(obs.getStatus()).toBe(IntegrationStatus.ERROR);
+    expect(obs.getErrorMessage()).toBe('boom');
+  });
+
   it('reports an unmet dependency as BLOCKED rather than ERROR', async () => {
     const manager = makeManager(makeStateRepo(['twitch-api']));
     registerTwitchTrio(manager);

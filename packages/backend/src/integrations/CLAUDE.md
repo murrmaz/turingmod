@@ -64,7 +64,8 @@ dependencies being CONNECTED, and beyond that the manager reacts to status chang
   prerequisite is off — via `reportBlocked()`.
 
 **Integrations own their status**; `startIntegration`/`stopIntegration` never set it, except
-`reportError()` for a `start()` that threw before setting ERROR itself. Status isn't stored: the
+`reportError()` for a `start()` that threw without reporting ERROR or NEEDS_REAUTH itself, so what
+an integration reported about its own failure stands. Status isn't stored: the
 console gets it live, and boot starts what is `enabled`, whatever it last reported.
 
 Startup and shutdown both work in dependency *levels* (`DependencyGraph.levels()`), concurrent within
@@ -129,7 +130,7 @@ messages are parsed with `z.object`/`z.looseObject` like a third party's respons
 
 OAuth-capable integrations (`TwitchAuthIntegration`, `SpotifyAuthIntegration`, `YouTubeAuthIntegration`) extend `OAuthIntegration<TConfig>` (`integrations/OAuthIntegration.ts`), which implements `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and returns itself from the `get oauth()` getter (`null` on `BaseIntegration` by default). That getter is the single source of truth for OAuth capability — `OAuthFlowService` derives callback routing and the frontend's OAuth affordance from it instead of checking integration names.
 
-`OAuthIntegration` owns what doesn't vary by provider. A subclass declares `requiredScopes`, `callbackPath`, `redirectHost` and `configSchema`, and implements `getAuthorizationUrl()`, `exchangeCode()`, `hasTokens()` and `connect()` (build its client); the base's `start()` runs the shared checks first — no token yet stays DISCONNECTED, and a stored `grantedScopes` missing a required scope is NEEDS_REAUTH rather than a failure on the first call that needs it. Refresh is deliberately left to each subclass, because each SDK does it differently (Twurple refreshes proactively, the googleapis client on demand). Spotify's SDK can't be trusted
+`OAuthIntegration` owns what doesn't vary by provider. A subclass declares `requiredScopes`, `callbackPath`, `redirectHost` and `configSchema`, and implements `getAuthorizationUrl()`, `exchangeCode()`, `hasTokens()` and `connect()` (build its client); the base's `start()` runs the shared checks first — no token yet stays DISCONNECTED, and a stored `grantedScopes` missing a required scope is NEEDS_REAUTH rather than a failure on the first call that needs it. Refresh is deliberately left to each subclass, because each SDK does it differently (Twurple refreshes proactively, the googleapis client on demand). **A failed refresh is NEEDS_REAUTH only when the provider refused it.** No network, a 5xx or a rate limit leaves the grant as good as it was: the integration stays CONNECTED, so the cascade doesn't stop chat, and the next call that needs a token tries again. Twurple refuses a user after any failed refresh until they're added again, so `TwitchAuthIntegration` adds them again on the same provider, and reports the failure (`reportFailure()`) so it still shows in the activity log. **Twurple's errors for token requests hold the client secret and refresh token**, in a URL it keeps in the message, the stack and a field of the error, so `redactTokenRequest()` cleans the error object itself wherever one enters (a refresh failure, `connect()`, and `TwitchApiIntegration.onRequestFailure()`, which covers app tokens). gaxios redacts its own for YouTube. Spotify's SDK can't be trusted
 with it — its own refresh omits the client secret this grant needs — so `SpotifyAuthIntegration`
 refreshes before expiry in `getAccessToken()`, sharing one refresh between concurrent callers, and
 the SDK is never given the refresh token.

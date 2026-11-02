@@ -62,6 +62,12 @@ export class IntegrationManager {
    */
   private static readonly START_TIMEOUT_MS = 30 * 1000;
 
+  /** Statuses that already say a start failed, and why. */
+  private static readonly FAILURE_STATUSES: ReadonlySet<IntegrationStatus> = new Set([
+    IntegrationStatus.ERROR,
+    IntegrationStatus.NEEDS_REAUTH,
+  ]);
+
   constructor(
     private stateRepository: IntegrationStateRepository,
     private eventBus: EventBus,
@@ -251,9 +257,12 @@ export class IntegrationManager {
       this.logger.info(`Integration started: ${name}`);
     } catch (error) {
       this.logger.error(`Failed to start integration: ${name}`, error);
-      // Integrations normally set ERROR themselves; this covers a start()
-      // that threw before doing so.
-      integration.reportError(messageOf(error));
+      // An integration normally reports its own failure, and knows more about it than this does:
+      // NEEDS_REAUTH offers the streamer a different fix from ERROR. This covers a start() that
+      // threw before doing so.
+      if (!IntegrationManager.FAILURE_STATUSES.has(integration.getStatus())) {
+        integration.reportError(messageOf(error));
+      }
       throw error;
     }
   }

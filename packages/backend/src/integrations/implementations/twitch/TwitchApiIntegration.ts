@@ -7,6 +7,7 @@ import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { AuthorizedApiIntegration } from '../../AuthorizedApiIntegration.js';
 import { ClientCache } from '../../ClientCache.js';
+import { redactTokenRequest } from './redactTokenRequest.js';
 import { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
 /**
@@ -63,8 +64,12 @@ export class TwitchApiIntegration extends AuthorizedApiIntegration<
    * some other API error), marks this integration NEEDS_REAUTH and publishes
    * `twitch.authorizationRevoked`, the same way TwitchEventSubIntegration
    * does, rather than reaching into TwitchAuthIntegration directly.
+   *
+   * Calls that need no user's token fetch an app token, whose failed request names the client
+   * secret too and never reaches TwitchAuthIntegration, so the error is redacted here as well.
    */
   protected override onRequestFailure<T>(error: unknown): Promise<T> {
+    redactTokenRequest(error);
     if (isAuthorizationRevokedError(error)) {
       this.setStatus(
         IntegrationStatus.NEEDS_REAUTH,

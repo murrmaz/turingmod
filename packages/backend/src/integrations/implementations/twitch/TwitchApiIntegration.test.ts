@@ -116,6 +116,32 @@ describe('TwitchApiIntegration', () => {
     expect(integration.getApiClient()).toBeNull();
   });
 
+  it('keeps the client secret out of a failed app token request', async () => {
+    const integration = await startWithFailingCall(
+      new EventBus(new Logger({ level: 'silent' })),
+      new HttpStatusCodeError(
+        503,
+        'Service Unavailable',
+        'token?grant_type=client_credentials&client_id=client-id&client_secret=hunter2',
+        'POST',
+        '',
+        true
+      )
+    );
+
+    const error: HttpStatusCodeError = await integration
+      .request((c) => c.users.getUserByName('someone'))
+      .then(
+        () => expect.unreachable('the call should fail'),
+        (rejected) => rejected
+      );
+
+    expect(error.statusCode).toBe(503);
+    expect(error.message).toContain('client_secret=<redacted>');
+    expect(`${error.message} ${error.stack} ${error.url}`).not.toContain('hunter2');
+    expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
+  });
+
   it('marks itself NEEDS_REAUTH and reports authorizationRevoked on a 401', async () => {
     const eventBus = new EventBus(new Logger({ level: 'silent' }));
     const revoked = vi.fn();

@@ -1,10 +1,13 @@
 import 'reflect-metadata';
 import { IntegrationStatus } from '@turingmod/shared';
+import type { HttpStatusCodeError } from '@twurple/api-call';
+import { CachedRefreshFailureError } from '@twurple/auth';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../core/EventBus.js';
 import type { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
 import type { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
+import { IntegrationManager } from '../../IntegrationManager.js';
 import { TWITCH_REQUIRED_SCOPES, TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
 const CONFIG = {
@@ -18,6 +21,9 @@ const CONFIG = {
   // forcing Twurple's addUserForToken() to refresh it immediately.
   obtainmentTimestamp: Date.now() - 24 * 60 * 60 * 1000,
 };
+
+/** The same grant on a token that hasn't expired, so starting doesn't refresh it. */
+const FRESH_CONFIG = { ...CONFIG, obtainmentTimestamp: Date.now() };
 
 function jsonResponse(status: number, body: unknown): Promise<Response> {
   return Promise.resolve(
@@ -124,6 +130,152 @@ describe('TwitchAuthIntegration', () => {
 
     expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
     expect(integration.getErrorMessage()).toMatch(/re-authorization required/i);
+  });
+
+  describe('a token refresh failing while connected', () => {
+    /** Started on a token that hasn't expired, with Twitch's token endpoint under the test's control. */
+    async function connected(eventBus = new EventBus(new Logger({ level: 'silent' }))) {
+      const saveConfig = vi.fn();
+      const integration = makeIntegration({ saveConfig }, eventBus);
+      successfulTokenExchange();
+      await integration.initialize(FRESH_CONFIG);
+      await integration.start();
+      const provider = integration.getAuthProvider();
+      if (!provider) {
+        throw new Error('provider unexpectedly null after start()');
+      }
+      return { integration, provider, saveConfig };
+    }
+
+    const tokenEndpointAnswers = (answer: () => Promise<Response>) => {
+      const validate = vi.mocked(fetch).getMockImplementation();
+      vi.mocked(fetch).mockImplementation((input, init) =>
+        input.toString().includes('/oauth2/token')
+          ? answer()
+          : (validate as typeof fetch)(input, init)
+      );
+    };
+
+    const transientFailures: [string, () => Promise<Response>][] = [
+      ['the network being down', () => Promise.reject(new TypeError('fetch failed'))],
+      ['a 503', () => jsonResponse(503, { status: 503, message: 'Service Unavailable' })],
+      ['a rate limit', () => jsonResponse(429, { status: 429, message: 'Too Many Requests' })],
+    ];
+
+    it.each(transientFailures)('stays connected through %s, and recovers', async (_, failure) => {
+      const { integration, provider, saveConfig } = await connected();
+
+      tokenEndpointAnswers(failure);
+      await expect(provider.refreshAccessTokenForUser('user-123')).rejects.toThrow();
+      expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
+
+      // The same provider, so nothing holding it has to be rebuilt.
+      successfulTokenExchange();
+      const token = await provider.refreshAccessTokenForUser('user-123');
+
+      expect(token.accessToken).toBe('refreshed-access-token');
+      expect(integration.getAuthProvider()).toBe(provider);
+      expect(saveConfig).toHaveBeenCalledWith(
+        'twitch-auth',
+        expect.objectContaining({ accessToken: 'refreshed-access-token' })
+      );
+    });
+
+    it.each([400, 403])('requires re-authorization when Twitch refuses it (%i)', async (status) => {
+      const { integration, provider } = await connected();
+
+      tokenEndpointAnswers(() => jsonResponse(status, { status, message: 'refused' }));
+      await expect(provider.refreshAccessTokenForUser('user-123')).rejects.toThrow();
+
+      expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
+      await expect(provider.getAccessTokenForUser('user-123')).rejects.toThrow(
+        CachedRefreshFailureError
+      );
+    });
+
+    it('stays stopped when a refresh still in flight at stop() fails', async () => {
+      const { integration, provider } = await connected();
+      await integration.stop();
+
+      tokenEndpointAnswers(() => jsonResponse(400, { status: 400, message: 'refused' }));
+      await expect(provider.refreshAccessTokenForUser('user-123')).rejects.toThrow();
+
+      expect(integration.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
+    });
+  });
+
+  describe('credentials in a failed token request', () => {
+    /** An integration run by a real manager, with everything it logs and publishes collected. */
+    function managed() {
+      const written: string[] = [];
+      const logger = new Logger({
+        level: 'trace',
+        destination: { write: (line: string) => written.push(line) },
+      });
+      const eventBus = new EventBus(new Logger({ level: 'silent' }));
+      const stateRepo = { saveConfig: vi.fn() } as unknown as IntegrationStateRepository;
+      const integration = new TwitchAuthIntegration(eventBus, logger, stateRepo, {
+        serverPort: 8080,
+      } as TuringModConfig);
+      const manager = new IntegrationManager(stateRepo, eventBus, logger);
+      manager.register(integration);
+      const published: string[] = [];
+      eventBus.on('integration.error', ({ error }) => {
+        published.push(`${error.message} ${error.stack}`);
+      });
+      return { integration, manager, written, published };
+    }
+
+    const expectNoCredentials = (text: string) => {
+      expect(text).not.toContain(CONFIG.clientSecret);
+      expect(text).not.toContain(CONFIG.refreshToken);
+    };
+
+    it('keeps them out of the status and the log when starting', async () => {
+      const { integration, manager, written } = managed();
+      vi.mocked(fetch).mockImplementation(() =>
+        jsonResponse(503, { status: 503, message: 'Service Unavailable' })
+      );
+
+      await integration.initialize(CONFIG);
+      const error: Error = await manager.startIntegration(integration.name).then(
+        () => expect.unreachable('starting should fail'),
+        (rejected) => rejected
+      );
+
+      expect(integration.getStatus()).toBe(IntegrationStatus.ERROR);
+      // Checked, so the assertions below can't pass on a failure that never named them.
+      expect(integration.getErrorMessage()).toContain('client_secret=<redacted>');
+      expect(written.join('')).toContain('Failed to connect');
+      expectNoCredentials(`${integration.getErrorMessage()} ${error.message} ${error.stack}`);
+      expectNoCredentials(written.join(''));
+    });
+
+    it('keeps them out of the error thrown, the log and the activity log when connected', async () => {
+      const { integration, written, published } = managed();
+      successfulTokenExchange();
+      await integration.initialize(FRESH_CONFIG);
+      await integration.start();
+
+      vi.mocked(fetch).mockImplementation(() =>
+        jsonResponse(503, { status: 503, message: 'Service Unavailable' })
+      );
+      const error: HttpStatusCodeError = await integration
+        .getAuthProvider()
+        ?.refreshAccessTokenForUser('user-123')
+        .then(
+          () => expect.unreachable('refreshing should fail'),
+          (rejected) => rejected
+        );
+
+      expect(error.statusCode).toBe(503);
+      expect(error.message).toContain('client_secret=<redacted>');
+      expect(published).toHaveLength(1);
+      expect(written.join('')).toContain('Could not refresh the Twitch token');
+      expectNoCredentials(`${error.message} ${error.stack} ${error.url}`);
+      expectNoCredentials(published.join(''));
+      expectNoCredentials(written.join(''));
+    });
   });
 
   it('marks itself NEEDS_REAUTH when another integration reports the authorization was revoked', async () => {

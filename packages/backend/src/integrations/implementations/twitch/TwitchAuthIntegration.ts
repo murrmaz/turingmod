@@ -17,6 +17,7 @@ import {
   StandardOAuthConfigSchema,
   StandardOAuthIntegration,
 } from '../../StandardOAuthIntegration.js';
+import { redactTokenRequest } from './redactTokenRequest.js';
 import { TWITCH_GROUP } from './twitchGroup.js';
 
 /**
@@ -142,22 +143,49 @@ export class TwitchAuthIntegration extends StandardOAuthIntegration<
       );
     });
 
-    this.authProvider.onRefreshFailure((_userId, error) => {
+    const provider = this.authProvider;
+    provider.onRefreshFailure((userId, error) => {
+      this.onRefreshFailure(provider, userId, error);
+    });
+
+    try {
+      // Returns the authenticated user ID
+      this.userId = await provider.addUserForToken(toAccessToken(config));
+    } catch (error) {
+      // A refresh here is made directly, so it never reaches onRefreshFailure.
+      redactTokenRequest(error);
+      throw error;
+    }
+  }
+
+  /**
+   * A refresh failed. Only Twitch refusing it means the grant is gone. Anything else (no network,
+   * Twitch having a bad moment) leaves the grant as good as it was, so chat and EventSub keep
+   * running and the next call that needs a token tries again.
+   */
+  private onRefreshFailure(provider: RefreshingAuthProvider, userId: string, error: Error): void {
+    // Twurple rethrows this same error to whoever asked for the token, once this returns.
+    redactTokenRequest(error);
+    if (provider !== this.authProvider) {
+      return; // stopped or restarted meanwhile
+    }
+
+    if (this.isReauthRequiredError(error)) {
       this.logger.error('Token refresh failed', error);
       this.setStatus(
         IntegrationStatus.NEEDS_REAUTH,
         'Token refresh failed — re-authorization required'
       );
-    });
+      return;
+    }
 
-    // Returns the authenticated user ID
-    this.userId = await this.authProvider.addUserForToken({
-      accessToken: config.accessToken,
-      refreshToken: config.refreshToken,
-      expiresIn: config.expiresIn,
-      obtainmentTimestamp: config.obtainmentTimestamp || Date.now(),
-      scope: config.grantedScopes,
-    } as AccessToken);
+    // Twurple refuses a user whose refresh failed, for any reason, until they're added again.
+    provider.addUser(userId, toAccessToken(this.requireConfig()));
+    this.reportFailure(
+      new Error('Could not refresh the Twitch token; the next call will try again', {
+        cause: error,
+      })
+    );
   }
 
   protected override disconnect(): void {
@@ -171,17 +199,21 @@ export class TwitchAuthIntegration extends StandardOAuthIntegration<
   }
 
   /**
-   * Whether a connect() failure means the refresh token itself is dead
-   * (revoked or expired) rather than some transient/unexpected error. Twurple
-   * throws `InvalidTokenError`/`InvalidTokenTypeError` directly for a missing
-   * or malformed token; a dead refresh token surfaces as Twitch's token
-   * endpoint rejecting the refresh request with an HTTP 400.
+   * Whether a failed connect() or refresh means the user has to authorize again, rather than
+   * that trying later might work. Twurple throws `InvalidTokenError`/`InvalidTokenTypeError`
+   * directly for a missing or malformed token; a dead refresh token surfaces as Twitch's token
+   * endpoint refusing the request (a 400, or a 403 for client credentials it no longer accepts).
+   * A timeout or a rate limit refuses nothing.
    */
   protected override isReauthRequiredError(error: unknown): boolean {
     if (error instanceof InvalidTokenError || error instanceof InvalidTokenTypeError) {
       return true;
     }
-    return error instanceof HttpStatusCodeError && error.statusCode === 400;
+    if (!(error instanceof HttpStatusCodeError)) {
+      return false;
+    }
+    const { statusCode } = error;
+    return statusCode >= 400 && statusCode < 500 && statusCode !== 408 && statusCode !== 429;
   }
 
   override getGroup(): IntegrationGroup {
@@ -217,6 +249,17 @@ export class TwitchAuthIntegration extends StandardOAuthIntegration<
       scope: data.scope,
     });
   }
+}
+
+/** The stored tokens in the shape Twurple takes them. */
+function toAccessToken(config: StandardOAuthConfig): AccessToken {
+  return {
+    accessToken: config.accessToken,
+    refreshToken: config.refreshToken,
+    expiresIn: config.expiresIn,
+    obtainmentTimestamp: config.obtainmentTimestamp || Date.now(),
+    scope: config.grantedScopes,
+  } as AccessToken;
 }
 
 /** The stored-config fields for a Twurple token (only those it has, under exactOptionalPropertyTypes). */

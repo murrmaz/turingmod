@@ -162,6 +162,10 @@ export class TwitchEventSubIntegration extends BaseIntegration {
         }
       });
 
+      this.eventSubListener.onUserSocketReady((_userId, sessionId) => {
+        this.eventBus.emit('twitch.eventSub.ready', { sessionId });
+      });
+
       // Start listening
       await this.eventSubListener.start();
 

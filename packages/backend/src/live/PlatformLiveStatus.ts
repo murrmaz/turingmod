@@ -5,15 +5,30 @@ import type { PlatformLiveStateEvent } from '../core/events.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
 import { Logger } from '../utils/Logger.js';
+import { ObsStreamState } from './ObsStreamState.js';
+
+const MINUTE_MS = 60_000;
+/**
+ * The waits between asks about a platform that reads live with no stream behind it, about an hour
+ * in all. A platform can go on reporting a stream for a while after the output stops, so one answer
+ * isn't enough. It's bounded because asking YouTube costs API quota, and because a platform can
+ * really be live without OBS.
+ */
+const RECHECK_DELAYS_MS = [1, 2, 4, 8, 16, 32].map((minutes) => minutes * MINUTE_MS);
 
 /**
  * Whether each platform is broadcasting and since when, for the console's header badges, which
  * follow it through the `liveState.watch` subscription (onChange); going live or offline is also
  * published as `platform.liveState`.
  *
- * Event-driven, never polled: a platform is asked when it becomes usable, and again whenever it
- * signals a change (Twitch's stream.online/offline, YouTube chat finding or losing a broadcast).
- * Asking YouTube costs API quota, which is why nothing here asks it on a timer.
+ * Event-driven, never polled while a stream is going out: a platform is asked when it becomes
+ * usable, and again whenever it signals a change (Twitch's stream.online/offline and EventSub's
+ * socket coming back, YouTube chat finding or losing a broadcast).
+ *
+ * A signal can be missed or answered too early, and a platform stuck reading live never posts
+ * "was live for" or announces the next stream. So when a platform reads live with no sign of a
+ * stream behind it (OBS stopped or isn't streaming, or chat went idle), it's asked again on
+ * RECHECK_DELAYS_MS until it reads offline.
  */
 @singleton()
 export class PlatformLiveStatus implements IService {
@@ -22,11 +37,14 @@ export class PlatformLiveStatus implements IService {
   /** Bumped per refresh, so an answer that arrives after a newer one is dropped. */
   private generations = new Map<StreamingPlatform, number>();
   private changeListeners = new Set<() => void>();
+  /** Set from the first wait until the asking is over, including while an answer is awaited. */
+  private recheckTimer: NodeJS.Timeout | null = null;
   private logger: Logger;
 
   constructor(
     private eventBus: EventBus,
     private registry: PlatformRegistry,
+    private obsStream: ObsStreamState,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'PlatformLiveStatus' });
@@ -58,15 +76,30 @@ export class PlatformLiveStatus implements IService {
         this.bump(StreamingPlatform.TWITCH);
         this.set(offline(StreamingPlatform.TWITCH));
       }),
-      this.eventBus.on('youtube.chat.state', ({ state }) => {
+      this.eventBus.on('twitch.eventSub.ready', () => this.refresh(StreamingPlatform.TWITCH)),
+      this.eventBus.on('youtube.chat.state', async ({ state }) => {
         // 'resolving' is still looking, so it says nothing yet either way.
-        return state === 'resolving' ? Promise.resolve() : this.refresh(StreamingPlatform.YOUTUBE);
+        if (state === 'resolving') {
+          return;
+        }
+        await this.refresh(StreamingPlatform.YOUTUBE);
+        if (state === 'idle') {
+          this.startRechecks();
+        }
+      }),
+      this.eventBus.on('stream.output.changed', ({ streaming }) => {
+        if (streaming) {
+          this.cancelRechecks();
+        } else {
+          this.startRechecks();
+        }
       })
     );
   }
 
   stop(): void {
     this.subscriptions.clear();
+    this.cancelRechecks();
   }
 
   /**
@@ -114,6 +147,52 @@ export class PlatformLiveStatus implements IService {
     }
   }
 
+  /** Ask again from the first wait, if anything reads live. */
+  private startRechecks(): void {
+    this.cancelRechecks();
+    if (this.livePlatforms().length > 0) {
+      this.scheduleRecheck(0);
+    }
+  }
+
+  private cancelRechecks(): void {
+    if (this.recheckTimer) {
+      clearTimeout(this.recheckTimer);
+      this.recheckTimer = null;
+    }
+  }
+
+  private scheduleRecheck(attempt: number): void {
+    const delay = RECHECK_DELAYS_MS[attempt];
+    if (delay === undefined) {
+      this.recheckTimer = null;
+      this.logger.warn('A platform still reports a stream with none going out; no longer asking', {
+        platforms: this.livePlatforms(),
+      });
+      return;
+    }
+    this.recheckTimer = setTimeout(() => void this.recheck(attempt), delay);
+  }
+
+  private async recheck(attempt: number): Promise<void> {
+    const timer = this.recheckTimer;
+    await Promise.all(this.livePlatforms().map((platform) => this.refresh(platform)));
+    if (this.recheckTimer !== timer) {
+      return; // cancelled or started over while asking
+    }
+    if (this.livePlatforms().length > 0) {
+      this.scheduleRecheck(attempt + 1);
+    } else {
+      this.recheckTimer = null;
+    }
+  }
+
+  private livePlatforms(): StreamingPlatform[] {
+    return this.getStates()
+      .filter((state) => state.live)
+      .map((state) => state.platform);
+  }
+
   private bump(platform: StreamingPlatform): number {
     const next = (this.generations.get(platform) ?? 0) + 1;
     this.generations.set(platform, next);
@@ -131,6 +210,9 @@ export class PlatformLiveStatus implements IService {
     }
     if (current?.live !== state.live) {
       void this.eventBus.emit('platform.liveState', { ...state, cause });
+      if (state.live && !this.obsStream.isStreaming()) {
+        this.startRechecks();
+      }
     }
   }
 }

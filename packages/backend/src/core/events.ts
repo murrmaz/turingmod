@@ -54,6 +54,11 @@ export interface EventMap {
   'twitch.cheer': TwitchCheerEvent;
   'twitch.stream.online': TwitchStreamOnlineEvent;
   'twitch.stream.offline': TwitchStreamOfflineEvent;
+  /**
+   * EventSub's socket is open, at startup or after a drop. Twitch doesn't resend what it sent
+   * meanwhile, so whatever follows an EventSub topic asks for the current state here.
+   */
+  'twitch.eventSub.ready': TwitchEventSubReadyEvent;
   'twitch.ad.break': TwitchAdBreakEvent;
   'twitch.channelPoint.redemption': RewardRedemption;
   /** Twitch rejected our grant; `TwitchAuthIntegration` moves to NEEDS_REAUTH. */
@@ -203,6 +208,10 @@ export interface RewardRedemption {
   /** `unfulfilled` while the reward waits in the request queue, `fulfilled` if it skips it. */
   status: string;
   redeemedAt: Date;
+}
+
+export interface TwitchEventSubReadyEvent {
+  sessionId: string;
 }
 
 export interface TwitchAuthorizationRevokedEvent {

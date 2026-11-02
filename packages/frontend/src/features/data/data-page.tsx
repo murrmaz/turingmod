@@ -1,4 +1,4 @@
-import { getCoreRowModel, useReactTable, type VisibilityState } from '@tanstack/react-table';
+import { type ColumnVisibilityState, useTable } from '@tanstack/react-table';
 import type { DataTableInfo } from '@turingmod/shared';
 import { Download, Lock } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { links, URL_PARAMS } from '@/constants/pages';
 import { useDataTables } from '@/hooks/useDataTables';
 import { plural } from '@/lib/plural';
+import { consoleFeatures } from '@/lib/tableFeatures';
 import { inspectorColumns } from './columns';
 import { RowPanel } from './row-panel';
 import { useInspectedTable } from './useInspectedTable';
@@ -53,20 +54,22 @@ export function DataPage() {
 function TableInspector({ info }: { info: DataTableInfo }) {
   const inspected = useInspectedTable(info);
   const { exporting, exportCsv } = useTableExport(info, inspected.query, inspected.total);
-  const [visibility, setVisibility] = useState<VisibilityState>({});
+  const [visibility, setVisibility] = useState<ColumnVisibilityState>({});
   const { total } = inspected;
 
   const columns = useMemo(() => inspectorColumns(info), [info]);
-  const table = useReactTable({
+  const table = useTable({
+    features: consoleFeatures,
     data: inspected.rows,
     columns,
     state: { sorting: inspected.sorting, columnVisibility: visibility },
     onSortingChange: inspected.setSorting,
     onColumnVisibilityChange: setVisibility,
     manualSorting: true,
+    manualFiltering: true,
+    manualPagination: true,
     enableMultiSort: false,
     getRowId: (row) => row.rowKey,
-    getCoreRowModel: getCoreRowModel(),
   });
 
   return (

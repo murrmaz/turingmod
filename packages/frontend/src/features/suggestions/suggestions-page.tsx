@@ -11,13 +11,14 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useClientTable } from '@/hooks/useClientTable';
 import { plural } from '@/lib/plural';
+import type { ConsoleFeatures } from '@/lib/tableFeatures';
 import { formatDateTime } from '@/lib/time';
 import { type Suggestion, useSuggestions } from './useSuggestions';
 
 export function SuggestionsPage() {
   const { suggestions, remove } = useSuggestions();
 
-  const columns = useMemo<ColumnDef<Suggestion>[]>(
+  const columns = useMemo<ColumnDef<ConsoleFeatures, Suggestion>[]>(
     () => [
       {
         id: 'select',
@@ -147,9 +148,7 @@ export function SuggestionsPage() {
           rowHeight={45}
           onRowClick={(suggestion) => table.getRow(String(suggestion.id)).toggleSelected()}
           rowClassName={(suggestion) =>
-            table.getState().rowSelection[String(suggestion.id)]
-              ? 'bg-muted hover:bg-muted'
-              : undefined
+            table.state.rowSelection[String(suggestion.id)] ? 'bg-muted hover:bg-muted' : undefined
           }
           empty={
             suggestions.length === 0

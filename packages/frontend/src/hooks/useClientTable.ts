@@ -2,20 +2,18 @@ import {
   type ColumnDef,
   type ColumnFiltersState,
   functionalUpdate,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
+  type RowData,
   type SortingState,
-  useReactTable,
+  useTable,
 } from '@tanstack/react-table';
 import { useState } from 'react';
 import { DEFAULT_PAGE_SIZE } from '@/constants/paging';
+import { type ConsoleFeatures, consoleFeatures } from '@/lib/tableFeatures';
 import { useStateFor } from './useStateFor';
 
-export interface ClientTableOptions<Row> {
+export interface ClientTableOptions<Row extends RowData> {
   data: Row[];
-  columns: ColumnDef<Row>[];
+  columns: ColumnDef<ConsoleFeatures, Row>[];
   getRowId: (row: Row) => string;
   initialSort: SortingState;
   /** Whether a row matches the filter box; `needle` is what's typed, trimmed and lowercased. */
@@ -31,7 +29,7 @@ export interface ClientTableOptions<Row> {
  * changes under the streamer (a viewer's `!sg`, their own delete) leaves them on the page they're
  * on, or the last one left. TanStack Table would go back to the first page for any new data.
  */
-export function useClientTable<Row>({
+export function useClientTable<Row extends RowData>({
   data,
   columns,
   getRowId,
@@ -44,7 +42,8 @@ export function useClientTable<Row>({
   const [pageIndex, setPageIndex] = useStateFor([sorting, filter, columnFilters], 0);
   const pagination = { pageIndex, pageSize: DEFAULT_PAGE_SIZE };
 
-  const table = useReactTable({
+  const table = useTable({
+    features: consoleFeatures,
     data,
     columns,
     getRowId,
@@ -55,10 +54,6 @@ export function useClientTable<Row>({
     onPaginationChange: (updater) => setPageIndex(functionalUpdate(updater, pagination).pageIndex),
     autoResetPageIndex: false,
     globalFilterFn: (row, _id, value: string) => matches(row.original, value.trim().toLowerCase()),
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
   });
 
   const lastPage = Math.max(0, table.getPageCount() - 1);

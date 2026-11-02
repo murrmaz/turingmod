@@ -65,10 +65,19 @@ type Sent<Procedure> = Procedure extends {
   ? T
   : never;
 
+/**
+ * A `query` or `mutate` as a fake writes it: the client's version, but answering with a plain
+ * promise. tRPC tags the promises it returns with the procedure's error type, which a test's
+ * `async` function or `Promise.resolve()` has no way to add.
+ */
+type Fake<Call> = Call extends (...args: infer Args) => Promise<infer Answer>
+  ? (...args: Args) => Promise<Answer>
+  : Call;
+
 /** A procedure's fake: a FakeSubscription for a subscription, else `query` or `mutate` as typed. */
 type FakeProcedure<Procedure> = Procedure extends { subscribe: unknown }
   ? FakeSubscription<Sent<Procedure>>
-  : Procedure;
+  : { [Call in keyof Procedure]: Fake<Procedure[Call]> };
 
 /**
  * The fakes a test gives the client, by sub-router and procedure, e.g.

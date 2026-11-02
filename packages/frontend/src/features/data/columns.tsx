@@ -2,6 +2,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { DataCell, DataColumnInfo, DataTableInfo } from '@turingmod/shared';
 import { DataTableColumnHeader } from '@/components/data-table/column-header';
 import { DotBadge } from '@/components/status';
+import type { ConsoleFeatures } from '@/lib/tableFeatures';
 import { formatDateTime } from '@/lib/time';
 import { activityEventTone } from '@/lib/tone';
 import type { InspectedRow } from './useInspectedTable';
@@ -10,7 +11,7 @@ import type { InspectedRow } from './useInspectedTable';
  * One column per table column, sized by kind: a JSON column takes the width left over. A masked
  * column can't be sorted, since its values never leave the backend.
  */
-export function inspectorColumns(info: DataTableInfo): ColumnDef<InspectedRow>[] {
+export function inspectorColumns(info: DataTableInfo): ColumnDef<ConsoleFeatures, InspectedRow>[] {
   return info.columns.map((column) => ({
     id: column.name,
     accessorFn: (row) => row.cells[column.name],

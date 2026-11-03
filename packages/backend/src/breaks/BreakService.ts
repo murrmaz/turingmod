@@ -1,4 +1,4 @@
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { BreakReason } from '../core/events.js';
@@ -246,7 +246,10 @@ export class BreakService implements IService {
     }
   }
 
-  /** What an earlier run left to restore, if anything. Unreadable state is logged and dropped. */
+  /**
+   * What an earlier run left to restore, if anything. Unreadable state doesn't stop startup: it's
+   * dropped, and the streamer told, since OBS may still be showing the break.
+   */
   private loadOwed(): ObsBreakSnapshot | null {
     try {
       const owed = this.restoreRepo.get();
@@ -261,6 +264,12 @@ export class BreakService implements IService {
         'The stored OBS state to restore after a break is unreadable; check the facecam and mic',
         error
       );
+      this.eventBus.emitSync('service.error', {
+        service: 'Breaks',
+        message:
+          'The OBS state to restore after a break could not be read and was dropped; check the ' +
+          `facecam and mic in OBS. ${messageOf(error)}`,
+      });
       this.setOwed(null);
       return null;
     }

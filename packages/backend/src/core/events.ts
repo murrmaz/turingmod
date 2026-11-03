@@ -30,6 +30,8 @@ export interface EventMap {
 
   'integration.status': IntegrationStatusEvent;
   'integration.error': IntegrationErrorEvent;
+  /** A feature service hit a failure the streamer must know about and carried on. */
+  'service.error': ServiceErrorEvent;
   /** An authorization finished, either way (see OAuthFlowService.handleCallback). */
   'oauth.completed': OAuthCompletedEvent;
 
@@ -106,6 +108,14 @@ export interface IntegrationStatusEvent {
 export interface IntegrationErrorEvent {
   name: string;
   error: Error;
+}
+
+/** What went wrong in a feature service, for the activity log. */
+export interface ServiceErrorEvent {
+  /** The feature as the streamer knows it ("Facecam effects"). */
+  service: string;
+  /** What happened and what to check, written for the streamer. */
+  message: string;
 }
 
 /** An OAuth redirect reached the HTTP server, and how the authorization ended. */

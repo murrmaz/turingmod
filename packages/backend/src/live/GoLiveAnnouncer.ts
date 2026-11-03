@@ -1,4 +1,4 @@
-import { IntegrationStatus, type StreamingPlatform } from '@turingmod/shared';
+import { IntegrationStatus, messageOf, type StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
@@ -437,12 +437,21 @@ export class GoLiveAnnouncer implements IService {
     return starts.length > 0 ? Math.min(...starts) : null;
   }
 
-  /** The stored post; one that can't be read is logged and dropped rather than blocking posts. */
+  /**
+   * The stored post. One that can't be read is dropped rather than blocking posts, and the streamer
+   * told, since the post left open in Discord will never be finished.
+   */
   private storedPost(): GoLivePost | null {
     try {
       return this.posts.get();
     } catch (error) {
       this.logger.error('Dropping an unreadable go-live post', error);
+      this.eventBus.emitSync('service.error', {
+        service: 'Go-live post',
+        message:
+          'The stored go-live post could not be read and was dropped, so the next stream starts ' +
+          `a new one; any post still open in Discord stays as it is. ${messageOf(error)}`,
+      });
       this.posts.clear();
       return null;
     }

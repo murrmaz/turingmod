@@ -178,6 +178,7 @@ export const ActivityLogEntrySchema = z.discriminatedUnion('event', [
     z.object({ platform: Platform, live: z.boolean(), startedAt: z.number().nullable() })
   ),
   entryOf('integration.error', z.object({ name: z.string(), message: z.string() })),
+  entryOf('service.error', z.object({ service: z.string(), message: z.string() })),
 ]);
 
 export type ActivityLogEntry = z.infer<typeof ActivityLogEntrySchema>;
@@ -216,6 +217,7 @@ export const ACTIVITY_EVENT_CATEGORIES = {
   'platform.availability': ActivityCategory.STATUS,
   'platform.liveState': ActivityCategory.EVENT,
   'integration.error': ActivityCategory.ERROR,
+  'service.error': ActivityCategory.ERROR,
 } as const satisfies Record<ActivityEventName, ActivityCategory>;
 
 /**

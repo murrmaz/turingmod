@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { IntegrationStatus } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { EventBus } from '../core/EventBus.js';
+import type { ServiceErrorEvent } from '../core/events.js';
 import type {
   SettingsDefinition,
   SettingsRepository,
@@ -26,6 +28,7 @@ const makeLogger = () => {
 
 /** OBS with a main canvas (program scene "main-live") and an Aitum Vertical canvas. */
 class FakeObs {
+  readonly name = 'obs';
   status = IntegrationStatus.CONNECTED;
   programUuid = 'main-live';
   canvases: ObsCanvas[] = [
@@ -110,23 +113,58 @@ const effect = (
   usesCanvasSize = false
 ): FacecamEffect => ({ name: 'Test', usesCanvasSize, run });
 
+/** setSceneItemTransform as FakeObs starts out: records the write and succeeds. */
+const accepted =
+  (obs: FakeObs) => (sceneUuid: string, id: number, t: Partial<SceneItemTransform>) => {
+    obs.writes.push({ key: `${sceneUuid}:${id}`, transform: t });
+    return Promise.resolve();
+  };
+
 describe('FacecamEffectRunner', () => {
   let obs: FakeObs;
   let settings: unknown;
   let logger: ReturnType<typeof makeLogger>;
   let runner: FacecamEffectRunner;
+  let eventBus: EventBus;
+  let reported: ServiceErrorEvent[];
+
+  /** OBS going away, so every request fails until it returns, as ObsIntegration behaves. */
+  const obsDrops = () => {
+    obs.status = IntegrationStatus.CONNECTING;
+    const gone = () => Promise.reject(new Error('OBS is not connected'));
+    obs.setSceneItemTransform.mockImplementation(gone);
+    obs.removeFilter.mockImplementation(gone);
+  };
+
+  /** OBS back, accepting requests again, as IntegrationManager reports it. */
+  const obsReturns = () => {
+    obs.status = IntegrationStatus.CONNECTED;
+    obs.setSceneItemTransform.mockImplementation(accepted(obs));
+    obs.removeFilter.mockImplementation((_source, name) => {
+      obs.filters.delete(name);
+      return Promise.resolve();
+    });
+    return eventBus.emit('integration.status', { name: 'obs', status: obs.status });
+  };
 
   beforeEach(() => {
     obs = new FakeObs();
     settings = null;
     logger = makeLogger();
+    eventBus = new EventBus(logger);
+    reported = [];
+    eventBus.on('service.error', (event) => {
+      reported.push(event);
+    });
     runner = new FacecamEffectRunner(
+      eventBus,
       obs as unknown as ObsIntegration,
       {
         get: (definition: SettingsDefinition<unknown>) => definition.schema.parse(settings ?? {}),
       } as unknown as SettingsRepository,
       logger
     );
+    runner.start();
   });
 
   it("finds the facecam in the program scene and in the vertical canvas's first scene with it", async () => {
@@ -306,14 +344,116 @@ describe('FacecamEffectRunner', () => {
     expect(obs.lastWrite('main-live:7')).toEqual(restorableTransform(transform()));
   });
 
-  it('logs, rather than throws, a failed restore', async () => {
-    obs.setSceneItemTransform.mockRejectedValue(new Error('gone'));
+  it('reports a restore OBS refuses to the streamer, without rejecting or retrying it', async () => {
+    obs.setSceneItemTransform.mockRejectedValue(new Error('no such item'));
 
     await runner.run(effect(() => Promise.resolve()));
 
     expect(logger.error).toHaveBeenCalledWith(
-      'Could not restore "Facecam" after an effect; check its position in OBS',
+      'Could not restore "Facecam" after an effect',
       expect.any(Error)
     );
+    expect(reported).toEqual([
+      {
+        service: 'Facecam effects',
+        message: expect.stringMatching(/put "Facecam" back.*check.*OBS.*no such item/),
+      },
+    ]);
+
+    obs.setSceneItemTransform.mockClear();
+    await eventBus.emit('integration.status', { name: 'obs', status: obs.status });
+    expect(obs.setSceneItemTransform).not.toHaveBeenCalled();
+  });
+
+  describe('when OBS drops during an effect', () => {
+    const droppingEffect = effect(async (context) => {
+      await context.addFilter('tint', 'color_filter_v2', {});
+      await context.setTransform(mainTarget(context), { positionX: 500 });
+      obsDrops();
+      await context.setTransform(mainTarget(context), { positionX: 600 });
+    });
+
+    it('rejects, so the reward is refunded, and tells nobody yet', async () => {
+      await expect(runner.run(droppingEffect)).rejects.toThrow('OBS is not connected');
+
+      expect(reported).toEqual([]);
+    });
+
+    it('puts the facecam and filters back when OBS returns', async () => {
+      await runner.run(droppingEffect).catch(() => undefined);
+      const original = restorableTransform(transform());
+      expect(obs.lastWrite('main-live:7')).not.toEqual(original);
+      expect(obs.filters).toEqual(new Set(['tint']));
+
+      await obsReturns();
+
+      expect(obs.lastWrite('main-live:7')).toEqual(original);
+      expect(obs.lastWrite('vert-cam:3')).toEqual(
+        restorableTransform(transform({ positionX: 10 }))
+      );
+      expect(obs.filters).toEqual(new Set());
+      expect(reported).toEqual([]);
+    });
+
+    it('puts it back only once', async () => {
+      await runner.run(droppingEffect).catch(() => undefined);
+      await obsReturns();
+      obs.writes.length = 0;
+
+      await obsReturns();
+
+      expect(obs.writes).toEqual([]);
+    });
+
+    it('keeps it owed if OBS drops again before it could be put back', async () => {
+      await runner.run(droppingEffect).catch(() => undefined);
+      obsDrops();
+      await eventBus.emit('integration.status', {
+        name: 'obs',
+        status: IntegrationStatus.CONNECTED,
+      });
+
+      await obsReturns();
+
+      expect(obs.lastWrite('main-live:7')).toEqual(restorableTransform(transform()));
+    });
+
+    it('finishes putting it back before an effect asked for meanwhile can start', async () => {
+      await runner.run(droppingEffect).catch(() => undefined);
+      const returned = obsReturns();
+      let finishRestore = () => {};
+      obs.setSceneItemTransform.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            finishRestore = resolve;
+          })
+      );
+      const started = vi.fn(() => Promise.resolve());
+
+      // Handed out after the status event: the restore is underway and waiting on OBS.
+      const restoring = runner.run(effect(started));
+      await vi.waitFor(() => expect(obs.setSceneItemTransform).toHaveBeenCalled());
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(started).not.toHaveBeenCalled();
+
+      obs.setSceneItemTransform.mockImplementation(accepted(obs));
+      finishRestore();
+      await returned;
+      await restoring;
+      expect(started).toHaveBeenCalledOnce();
+    });
+
+    it('tells the streamer if TuringMod stops before OBS returns', async () => {
+      await runner.run(droppingEffect).catch(() => undefined);
+
+      await runner.stop();
+
+      expect(reported).toEqual([
+        {
+          service: 'Facecam effects',
+          message: expect.stringContaining('stopped before OBS came back'),
+        },
+      ]);
+    });
   });
 });

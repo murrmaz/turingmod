@@ -66,6 +66,7 @@ export const FEED_CATEGORY_EVENTS: Record<Exclude<FeedCategory, 'chat'>, Activit
     'integration.status',
     'platform.availability',
     'integration.error',
+    'service.error',
   ],
 };
 
@@ -267,6 +268,9 @@ function describe({ event, data, timestamp }: ActivityLogEntry): Described {
 
     case 'integration.error':
       return system('Error', data.name, data.message, 'error');
+
+    case 'service.error':
+      return system('Error', data.service, data.message, 'error');
   }
 }
 

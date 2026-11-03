@@ -31,11 +31,6 @@ export class SuggestionBox {
     return this.suggestions.all();
   }
 
-  /** The most recent `limit` suggestions, newest first. */
-  latest(limit: number): Suggestion[] {
-    return this.suggestions.latest(limit);
-  }
-
   /** Delete the suggestions with these ids; ones already gone are skipped. */
   delete(ids: readonly number[]): void {
     if (this.suggestions.delete(ids) > 0) {

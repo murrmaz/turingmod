@@ -1,4 +1,4 @@
-import { StreamingPlatform } from '@turingmod/shared';
+import { messageOf, StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
@@ -18,7 +18,8 @@ import { RewardSync } from './RewardSync.js';
  *
  * When the redemption is waiting in the request queue and the reward is one TuringMod created,
  * it's then marked fulfilled if the handler succeeded or canceled — refunding the viewer — if it
- * threw. Rewards made elsewhere are left for the streamer to resolve.
+ * threw. Rewards made elsewhere are left for the streamer to resolve. A redemption that should be
+ * resolved and can't be stays in Twitch's queue, and the streamer is told.
  */
 @singleton()
 export class RewardRouter implements IService {
@@ -64,7 +65,17 @@ export class RewardRouter implements IService {
       this.logger.error(`Reward handler "${redemption.rewardTitle}" failed`, error);
     }
 
-    if (redemption.status === 'unfulfilled' && this.sync.isManaged(redemption.rewardId)) {
+    if (redemption.status !== 'unfulfilled') {
+      return;
+    }
+    const managed = await this.sync.isManaged(redemption.rewardId);
+    if (managed === null) {
+      this.reportUnresolved(
+        redemption,
+        outcome,
+        "TuringMod couldn't read its rewards from Twitch, so it can't tell whether it may"
+      );
+    } else if (managed) {
       await this.resolve(redemption, outcome);
     }
   }
@@ -84,6 +95,21 @@ export class RewardRouter implements IService {
         `Failed to mark ${redemption.userDisplayName}'s "${redemption.rewardTitle}" redemption ${outcome}`,
         error
       );
+      this.reportUnresolved(redemption, outcome, messageOf(error));
     }
+  }
+
+  private reportUnresolved(
+    redemption: RewardRedemption,
+    outcome: RedemptionOutcome,
+    why: string
+  ): void {
+    const todo = outcome === 'canceled' ? 'its handler failed, so refund it' : 'approve it';
+    this.eventBus.emitSync('service.error', {
+      service: 'Channel point rewards',
+      message:
+        `${redemption.userDisplayName}'s "${redemption.rewardTitle}" redemption is still in ` +
+        `Twitch's request queue: ${todo} there. ${why}`,
+    });
   }
 }

@@ -10,6 +10,14 @@ mid-animation state as the "original" — finds the facecam afresh for each one,
 facecam where it was. Filters an effect adds are removed the same way. A run rejects when it can't
 play (OBS down, no facecam), which makes `RewardRouter` refund the redemption.
 
+A restore can fail too. What fails because OBS has gone is kept and put back when OBS next connects,
+queued like an effect, so a later effect never reads the displaced facecam as its "original". What
+OBS refuses while connected won't go better later, so it's reported (`service.error`) instead. Only
+that much is in memory: a stop before OBS returns is reported, and a crash loses it, unlike a break's
+stored restore, since an effect lasts seconds. `ObsIntegration` fails requests in flight when the
+connection closes, because obs-websocket-js never settles them, and without that the effect, the
+queue and shutdown would all wait forever.
+
 The facecam is found by source name (the `effects` setting), placed directly or inside a group, in
 the main canvas's program scene and, on every other canvas, in the first scene that contains it:
 obs-websocket reports no program scene for a non-main canvas. An item inside a group is addressed

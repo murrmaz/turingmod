@@ -60,15 +60,31 @@ describe('TwitchApiIntegration', () => {
 
     // A provider that is still non-null but can no longer refresh: the
     // integration must not keep calling Twitch through it.
+    const auth = { status: IntegrationStatus.CONNECTED, getAuthProvider: () => ({}) };
     const reauthing = new TwitchApiIntegration(
       new EventBus(new Logger({ level: 'silent' })),
       new Logger({ level: 'silent' }),
-      makeAuthIntegration(IntegrationStatus.NEEDS_REAUTH)
+      Object.assign(auth, { getStatus: () => auth.status }) as unknown as TwitchAuthIntegration
     );
+    await reauthing.start();
+    auth.status = IntegrationStatus.NEEDS_REAUTH;
     expect(reauthing.getApiClient()).toBeNull();
     await expect(reauthing.request((c) => c.users.getUserByName('someone'))).rejects.toThrow(
       'Twitch is not connected'
     );
+  });
+
+  it('hands out no client once stopped, so a listener cannot outlive the stop', async () => {
+    const integration = new TwitchApiIntegration(
+      new EventBus(new Logger({ level: 'silent' })),
+      new Logger({ level: 'silent' }),
+      makeAuthIntegration()
+    );
+    await integration.start();
+
+    await integration.stop();
+
+    expect(integration.getApiClient()).toBeNull();
   });
 
   it('rebuilds its client when the auth provider is replaced', async () => {

@@ -107,7 +107,7 @@ describe('RewardSync', () => {
     await sync.requestSync();
 
     expect(channelPoints.createChannelReward).toHaveBeenCalledWith(rewardSettingsFor(banAWord));
-    expect(sync.isManaged('new-Ban A Word')).toBe(true);
+    expect(await sync.isManaged('new-Ban A Word')).toBe(true);
   });
 
   it('leaves a reward that already matches its definition untouched', async () => {
@@ -118,7 +118,7 @@ describe('RewardSync', () => {
 
     expect(channelPoints.createChannelReward).not.toHaveBeenCalled();
     expect(channelPoints.updateChannelReward).not.toHaveBeenCalled();
-    expect(sync.isManaged('r1')).toBe(true);
+    expect(await sync.isManaged('r1')).toBe(true);
   });
 
   it('corrects only the settings that drifted', async () => {
@@ -153,7 +153,7 @@ describe('RewardSync', () => {
 
     expect(channelPoints.createChannelReward).not.toHaveBeenCalled();
     expect(channelPoints.updateChannelReward).not.toHaveBeenCalled();
-    expect(sync.isManaged('r1')).toBe(false);
+    expect(await sync.isManaged('r1')).toBe(false);
     expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(logger.warn.mock.calls[0]?.[0]).toContain(
       '"Ban A Word" was created by another application'
@@ -269,5 +269,44 @@ describe('RewardSync', () => {
       'Failed to sync reward "Barrel Roll"',
       expect.any(Error)
     );
+  });
+
+  describe('whether a reward is managed', () => {
+    it('retries a sync that failed, so a failed first sync strands no redemption', async () => {
+      registry.register(banAWord);
+      rewards = [onTwitch('r1', rewardSettingsFor(banAWord))];
+      channelPoints.getChannelRewards.mockRejectedValueOnce(new Error('Twitch answered 503'));
+      await sync.requestSync();
+
+      expect(await sync.isManaged('r1')).toBe(true);
+      expect(channelPoints.getChannelRewards).toHaveBeenCalledTimes(2);
+    });
+
+    it('is not known while Twitch still cannot be read', async () => {
+      registry.register(banAWord);
+      channelPoints.getChannelRewards.mockRejectedValue(new Error('Twitch answered 503'));
+
+      expect(await sync.isManaged('r1')).toBeNull();
+    });
+
+    it('waits for a pass that is running, which may be about to create the reward', async () => {
+      registry.register(banAWord);
+
+      const pass = sync.requestSync();
+      const managed = sync.isManaged('new-Ban A Word');
+      await pass;
+
+      expect(await managed).toBe(true);
+      expect(channelPoints.getChannelRewards).toHaveBeenCalledOnce();
+    });
+
+    it("doesn't read Twitch again once a pass has", async () => {
+      registry.register(banAWord);
+      await sync.requestSync();
+      channelPoints.getChannelRewards.mockClear();
+
+      expect(await sync.isManaged('someone-elses')).toBe(false);
+      expect(channelPoints.getChannelRewards).not.toHaveBeenCalled();
+    });
   });
 });

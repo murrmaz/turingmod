@@ -36,8 +36,12 @@ function setup() {
     },
     callApi: vi.fn(() => Promise.resolve()),
   };
+  let stopped: string | null = null;
   const api = {
-    request: vi.fn((call: (client: typeof twitch) => Promise<unknown>) => call(twitch)),
+    request: vi.fn((call: (client: typeof twitch) => Promise<unknown>) =>
+      stopped ? Promise.reject(new Error(stopped)) : call(twitch)
+    ),
+    getStoppedReason: () => stopped,
   };
   const ownMessages = {
     record: vi.fn((_platform: unknown, send: () => Promise<string | null>) =>
@@ -55,6 +59,9 @@ function setup() {
     platform,
     disconnect: () => {
       status = IntegrationStatus.DISCONNECTED;
+    },
+    stopApi: () => {
+      stopped = 'Twitch API is stopped';
     },
   };
 }
@@ -272,5 +279,34 @@ describe('TwitchPlatform', () => {
       NotAuthenticatedError
     );
     expect(disconnected.twitch.videos.getVideosByUser).not.toHaveBeenCalled();
+  });
+
+  describe('with its API integration stopped', () => {
+    it('is unavailable, saying so, though auth is connected', () => {
+      const { platform, stopApi } = setup();
+      expect(platform.getUnavailableReason()).toBeNull();
+
+      stopApi();
+
+      expect(platform.getUnavailableReason()).toBe('Twitch API is stopped');
+    });
+
+    it('reads as not live without asking Twitch', async () => {
+      const { platform, stopApi, twitch } = setup();
+      stopApi();
+
+      expect(await platform.isLive()).toBe(false);
+      expect(twitch.streams.getStreamByUserId).not.toHaveBeenCalled();
+    });
+
+    it('fails a call with the reason rather than as a lost authorization', async () => {
+      const { platform, stopApi } = setup();
+      stopApi();
+
+      const failure = platform.sendChatMessage('hello');
+
+      await expect(failure).rejects.toThrow('Twitch API is stopped');
+      await expect(failure).rejects.not.toBeInstanceOf(NotAuthenticatedError);
+    });
   });
 });

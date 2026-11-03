@@ -39,6 +39,9 @@ dependencies being CONNECTED, and beyond that the manager reacts to status chang
   - `BLOCK` leaves it running and reports `BLOCKED`. Used by the API layers (`AuthorizedApiIntegration`),
     which hold nothing bound to the grant, so stopping them would tear down nothing; `BLOCKED` also
     says more plainly than `DISCONNECTED` that they are waiting on something else.
+  - Stopping an API layer is real: `request()` and `getApiClient()` refuse while it's `DISCONNECTED`,
+    however healthy auth is, and that includes one never started, since authorizing enables only
+    the auth layer. Its façade reports `getStoppedReason()` as why the platform is unavailable.
   - A `BLOCK`-policy integration **must refuse to act while its dependency isn't CONNECTED**.
     `AuthorizedApiIntegration` enforces this for every API layer: no client is handed out and no
     `request()` made unless auth is CONNECTED. Resolving a client on access protects against

@@ -23,6 +23,7 @@ function setup() {
       getAdSchedule: vi.fn(),
       snoozeNextAd: vi.fn(),
       getChannelFollowers: vi.fn(),
+      getChannelInfoById: vi.fn(),
       updateChannelInfo: vi.fn(() => Promise.resolve()),
     },
     games: { getGameByName: vi.fn() },
@@ -35,6 +36,17 @@ function setup() {
       shoutoutUser: vi.fn(() => Promise.resolve()),
     },
     callApi: vi.fn(() => Promise.resolve()),
+    schedule: { getSchedule: vi.fn() },
+    channelPoints: {
+      getCustomRewards: vi.fn(),
+      updateCustomReward: vi.fn(() => Promise.resolve()),
+      updateRedemptionStatusByIds: vi.fn(() => Promise.resolve()),
+    },
+    moderation: {
+      banUser: vi.fn(() => Promise.resolve()),
+      deleteChatMessages: vi.fn(() => Promise.resolve()),
+    },
+    clips: { getClipById: vi.fn() },
   };
   let stopped: string | null = null;
   const api = {
@@ -47,6 +59,7 @@ function setup() {
     record: vi.fn((_platform: unknown, send: () => Promise<string | null>) =>
       send().then(() => undefined)
     ),
+    recordText: vi.fn((_platform: unknown, _text: string, send: () => Promise<void>) => send()),
   };
   const platform = new TwitchPlatform(
     auth as unknown as TwitchAuthIntegration,
@@ -176,6 +189,17 @@ describe('TwitchPlatform', () => {
     expect(twitch.chat.sendAnnouncement).toHaveBeenCalledWith(BROADCASTER, {
       message: 'Follow me',
     });
+  });
+
+  it('has its own echo recognized by its text, since Twitch returns no id', async () => {
+    const { platform, ownMessages } = setup();
+    await platform.announcements.sendAnnouncement('Follow me');
+
+    expect(ownMessages.recordText).toHaveBeenCalledWith(
+      StreamingPlatform.TWITCH,
+      'Follow me',
+      expect.any(Function)
+    );
   });
 
   it('never posts a chat message or announcement that starts with a command', async () => {
@@ -308,5 +332,227 @@ describe('TwitchPlatform', () => {
       await expect(failure).rejects.toThrow('Twitch API is stopped');
       await expect(failure).rejects.not.toBeInstanceOf(NotAuthenticatedError);
     });
+  });
+
+  describe('reading the channel', () => {
+    it('reads the title, game and tags, leaving out what is not set', async () => {
+      const { platform, twitch } = setup();
+      twitch.channels.getChannelInfoById
+        .mockResolvedValueOnce({ title: 'T', gameName: 'Celeste', tags: ['a'] })
+        .mockResolvedValueOnce({ title: 'T', gameName: '', tags: [] });
+
+      expect(await platform.getStreamInfo()).toEqual({ title: 'T', game: 'Celeste', tags: ['a'] });
+      expect(await platform.getStreamInfo()).toEqual({ title: 'T' });
+    });
+
+    it('fails when Twitch has no such channel', async () => {
+      const { platform, twitch } = setup();
+      twitch.channels.getChannelInfoById.mockResolvedValue(null);
+
+      await expect(platform.getStreamInfo()).rejects.toThrow('Failed to retrieve channel');
+      await expect(platform.contentLabels.getContentLabels()).rejects.toThrow(
+        'Failed to retrieve channel'
+      );
+    });
+
+    it('reads the live broadcast, and null when offline', async () => {
+      const { platform, twitch } = setup();
+      const startDate = new Date(1_000);
+      twitch.streams.getStreamByUserId
+        .mockResolvedValueOnce({ startDate })
+        .mockResolvedValueOnce(null);
+
+      expect(await platform.getLiveBroadcast()).toEqual({ startedAt: startDate });
+      expect(await platform.getLiveBroadcast()).toBeNull();
+    });
+
+    it("doesn't ask whether it's live while disconnected", async () => {
+      const { platform, twitch, disconnect } = setup();
+      disconnect();
+
+      expect(await platform.isLive()).toBe(false);
+      expect(twitch.streams.getStreamByUserId).not.toHaveBeenCalled();
+    });
+
+    it('builds the channel page from the broadcaster', async () => {
+      const { platform, twitch } = setup();
+      twitch.users.getUserById.mockResolvedValue({ displayName: 'Streamer', name: 'streamer' });
+
+      const page = await platform.getChannelPage();
+
+      expect(page).toMatchObject({
+        displayName: 'Streamer',
+        url: 'https://www.twitch.tv/streamer',
+      });
+      expect(page.previewImageUrl).toContain('live_user_streamer');
+    });
+
+    it('has no bio for one that is only whitespace', async () => {
+      const { platform, twitch } = setup();
+      twitch.users.getUserById
+        .mockResolvedValueOnce({ description: '  Hello  ' })
+        .mockResolvedValueOnce({ description: '   ' });
+
+      expect(await platform.broadcasterAbout.getBroadcasterAbout()).toBe('Hello');
+      expect(await platform.broadcasterAbout.getBroadcasterAbout()).toBeNull();
+    });
+  });
+
+  describe('getNextAdBreak', () => {
+    it('is null while offline, without asking for the schedule', async () => {
+      const { platform, twitch } = setup();
+      twitch.streams.getStreamByUserId.mockResolvedValue(null);
+
+      expect(await platform.ads.getNextAdBreak()).toBeNull();
+      expect(twitch.channels.getAdSchedule).not.toHaveBeenCalled();
+    });
+
+    it('reports the next ad while live', async () => {
+      const { platform, twitch } = setup();
+      const nextAdDate = new Date(5_000);
+      twitch.streams.getStreamByUserId.mockResolvedValue({});
+      twitch.channels.getAdSchedule.mockResolvedValue({ nextAdDate });
+
+      expect(await platform.ads.getNextAdBreak()).toEqual({ nextAdDate });
+    });
+  });
+
+  it('maps schedule segments, leaving out what is not set', async () => {
+    const { platform, twitch } = setup();
+    const startDate = new Date(1_000);
+    twitch.schedule.getSchedule.mockResolvedValue({
+      data: {
+        segments: [
+          { startDate, title: 'Runs', categoryName: 'Celeste' },
+          { startDate, title: '' },
+        ],
+      },
+    });
+
+    expect(await platform.schedule.getSchedule()).toEqual([
+      { startDate, title: 'Runs', category: 'Celeste' },
+      { startDate },
+    ]);
+  });
+
+  it('fails a shoutout for someone who does not exist', async () => {
+    const { platform, twitch } = setup();
+    twitch.users.getUserByName.mockResolvedValue(null);
+
+    await expect(platform.shoutout.shoutout('nobody')).rejects.toThrow(
+      'Twitch user not found: nobody'
+    );
+    expect(twitch.chat.shoutoutUser).not.toHaveBeenCalled();
+  });
+
+  describe('channel points', () => {
+    const reward = (id: string) => ({
+      id,
+      title: id,
+      cost: 100,
+      prompt: '',
+      userInputRequired: false,
+      globalCooldown: null,
+      maxRedemptionsPerStream: null,
+      maxRedemptionsPerUserPerStream: null,
+      autoFulfill: false,
+      isEnabled: true,
+      isPaused: false,
+    });
+
+    it('tells apart the rewards this application may edit', async () => {
+      const { platform, twitch } = setup();
+      twitch.channelPoints.getCustomRewards.mockImplementation((_id: string, onlyOurs: boolean) =>
+        Promise.resolve(onlyOurs ? [reward('ours')] : [reward('ours'), reward('theirs')])
+      );
+
+      const rewards = await platform.channelPoints.getChannelRewards();
+
+      expect(rewards.map(({ id, manageable }) => [id, manageable])).toEqual([
+        ['ours', true],
+        ['theirs', false],
+      ]);
+    });
+
+    it('sends only the fields being changed', async () => {
+      const { platform, twitch } = setup();
+
+      await platform.channelPoints.updateChannelReward('r1', {
+        cost: 200,
+        isPaused: true,
+        globalCooldownSeconds: null,
+      });
+
+      expect(twitch.channelPoints.updateCustomReward).toHaveBeenCalledWith(BROADCASTER, 'r1', {
+        cost: 200,
+        isPaused: true,
+        globalCooldown: null,
+      });
+    });
+
+    it.each([
+      ['fulfilled', 'FULFILLED'],
+      ['canceled', 'CANCELED'],
+    ] as const)('marks a redemption %s', async (outcome, status) => {
+      const { platform, twitch } = setup();
+
+      await platform.channelPoints.resolveRedemption('r1', 'd1', outcome);
+
+      expect(twitch.channelPoints.updateRedemptionStatusByIds).toHaveBeenCalledWith(
+        BROADCASTER,
+        'r1',
+        ['d1'],
+        status
+      );
+    });
+  });
+
+  describe('moderation', () => {
+    it('times someone out as the broadcaster', async () => {
+      const { platform, twitch } = setup();
+
+      await platform.moderation.timeoutUser('u1', 60, 'spam');
+
+      expect(twitch.moderation.banUser).toHaveBeenCalledWith(BROADCASTER, {
+        user: 'u1',
+        duration: 60,
+        reason: 'spam',
+      });
+    });
+
+    it('deletes a message as the broadcaster', async () => {
+      const { platform, twitch } = setup();
+
+      await platform.moderation.deleteChatMessage('m1');
+
+      expect(twitch.moderation.deleteChatMessages).toHaveBeenCalledWith(BROADCASTER, 'm1');
+    });
+  });
+
+  it('reads a clip, and null for one that does not exist', async () => {
+    const { platform, twitch } = setup();
+    const creationDate = new Date(1_000);
+    twitch.clips.getClipById
+      .mockResolvedValueOnce({
+        id: 'c1',
+        url: 'https://clips.twitch.tv/c1',
+        title: 'Nice',
+        creatorDisplayName: 'Someone',
+        broadcasterDisplayName: 'Streamer',
+        views: 3,
+        creationDate,
+      })
+      .mockResolvedValueOnce(null);
+
+    expect(await platform.clips.getClip('c1')).toEqual({
+      id: 'c1',
+      url: 'https://clips.twitch.tv/c1',
+      title: 'Nice',
+      creatorName: 'Someone',
+      broadcasterName: 'Streamer',
+      views: 3,
+      createdAt: creationDate,
+    });
+    expect(await platform.clips.getClip('gone')).toBeNull();
   });
 });

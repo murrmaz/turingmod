@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CommandExecutor } from '../commands/CommandExecutor.js';
 import { checkPermission } from '../commands/utils/permissionChecks.js';
 import { EventBus } from '../core/EventBus.js';
-import type { PlatformRegistry } from '../platforms/PlatformRegistry.js';
+import type { StreamControlService } from '../platforms/StreamControlService.js';
 import { chatMessage } from '../platforms/testing.js';
 import type { Logger } from '../utils/Logger.js';
 import { ChatRouter } from './ChatRouter.js';
@@ -31,12 +31,17 @@ function setup(
   const executor = {
     execute: vi.fn(() => Promise.resolve(result)),
   };
-  const twitch = { sendChatMessage: vi.fn(() => Promise.resolve()) };
+  const twitch = { sendChatMessage: vi.fn((_text: string) => Promise.resolve()) };
   const moderator = { review: vi.fn(() => Promise.resolve(verdict)) };
   const router = new ChatRouter(
     eventBus,
     executor as unknown as CommandExecutor,
-    { get: () => twitch } as unknown as PlatformRegistry,
+    {
+      sendChatMessage: (platform: StreamingPlatform, text: string) =>
+        platform === StreamingPlatform.TWITCH
+          ? twitch.sendChatMessage(text)
+          : Promise.reject(new Error(`Replied on ${platform}`)),
+    } as unknown as StreamControlService,
     moderator as unknown as ChatModerator,
     logger
   );

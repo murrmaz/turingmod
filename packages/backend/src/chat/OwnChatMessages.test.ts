@@ -113,4 +113,64 @@ describe('OwnChatMessages', () => {
 
     expect(delivered.map((event) => event.messageId)).toEqual(['old']);
   });
+
+  describe('a message the platform gives no id for', () => {
+    const announcement = message({ message: 'Follow me', messageId: 'echo-1' });
+
+    it('recognizes its echo by its wording, even one arriving before the send returns', async () => {
+      const { own } = setup();
+      let finishSend = () => {};
+
+      const sending = own.recordText(
+        StreamingPlatform.TWITCH,
+        'Follow me',
+        () =>
+          new Promise<void>((resolve) => {
+            finishSend = resolve;
+          })
+      );
+      expect(await own.isOwn(announcement)).toBe(true);
+
+      finishSend();
+      await sending;
+    });
+
+    it('recognizes it once, so the streamer can say the same thing afterwards', async () => {
+      const { own } = setup();
+      await own.recordText(StreamingPlatform.TWITCH, 'Follow me', () => Promise.resolve());
+
+      expect(await own.isOwn(announcement)).toBe(true);
+      expect(await own.isOwn({ ...announcement, messageId: 'typed-1' })).toBe(false);
+    });
+
+    it('ignores the same words from another platform or another person', async () => {
+      const { own } = setup();
+      await own.recordText(StreamingPlatform.TWITCH, 'Follow me', () => Promise.resolve());
+
+      expect(await own.isOwn({ ...announcement, platform: StreamingPlatform.YOUTUBE })).toBe(false);
+      expect(await own.isOwn({ ...announcement, permissionLevel: PermissionLevel.VIEWER })).toBe(
+        false
+      );
+    });
+
+    it('forgets a send that failed, and rethrows', async () => {
+      const { own } = setup();
+      const failed = own.recordText(StreamingPlatform.TWITCH, 'Follow me', () =>
+        Promise.reject(new Error('Twitch answered 500'))
+      );
+
+      await expect(failed).rejects.toThrow('Twitch answered 500');
+      expect(await own.isOwn(announcement)).toBe(false);
+    });
+
+    it('forgets it after the retention time', async () => {
+      vi.useFakeTimers();
+      const { own } = setup();
+      await own.recordText(StreamingPlatform.TWITCH, 'Follow me', () => Promise.resolve());
+      vi.advanceTimersByTime(OwnChatMessages.RETENTION_MS + 1);
+      await own.recordText(StreamingPlatform.TWITCH, 'Something else', () => Promise.resolve());
+
+      expect(await own.isOwn(announcement)).toBe(false);
+    });
+  });
 });

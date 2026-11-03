@@ -16,12 +16,17 @@ const STABLE_AFTER_MS = 30_000;
  * integration still decides what failed, whether it can be retried at all, when to give up, and
  * what counts as working again (`connected()`/`disconnected()` for a connection that must last,
  * `reset()` for anything else).
+ *
+ * `begin()`, `end()` and `retry()` add what an integration with a connect loop needs on top: a
+ * generation, moved on by every start and stop, so an attempt or retry that outlives either can see
+ * that it has and drop what it was doing.
  */
 export class ReconnectBackoff {
   private delayMs = INITIAL_DELAY_MS;
   private timer: NodeJS.Timeout | null = null;
   private connectedAt: number | null = null;
   private attemptCount = 0;
+  private generation = 0;
 
   /** Attempts scheduled since the delays last started over: for an integration that gives up. */
   get attempts(): number {
@@ -33,6 +38,35 @@ export class ReconnectBackoff {
     this.cancel();
     this.startOver();
     this.connectedAt = null;
+  }
+
+  /** A fresh `start()`: start over, and return the generation its attempt belongs to. */
+  begin(): number {
+    this.reset();
+    this.generation += 1;
+    return this.generation;
+  }
+
+  /** A `stop()`: drop the pending attempt, and leave any attempt in progress out of date. */
+  end(): void {
+    this.cancel();
+    this.generation += 1;
+  }
+
+  /** Whether no start or stop has happened since this generation's attempt began. */
+  isCurrent(generation: number): boolean {
+    return generation === this.generation;
+  }
+
+  /**
+   * `schedule()` another attempt in the current generation. A rejection is dropped, since an attempt
+   * reports its own failure as the integration's status.
+   */
+  retry(connect: (generation: number) => Promise<void>): number {
+    const { generation } = this;
+    return this.schedule(() => {
+      connect(generation).catch(() => {});
+    });
   }
 
   /** A connection came up. */

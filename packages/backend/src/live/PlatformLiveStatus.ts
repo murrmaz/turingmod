@@ -3,7 +3,7 @@ import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { PlatformLiveStateEvent } from '../core/events.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
-import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
+import { StreamControlService } from '../platforms/StreamControlService.js';
 import { Logger } from '../utils/Logger.js';
 import { ObsStreamState } from './ObsStreamState.js';
 
@@ -43,7 +43,7 @@ export class PlatformLiveStatus implements IService {
 
   constructor(
     private eventBus: EventBus,
-    private registry: PlatformRegistry,
+    private streamControl: StreamControlService,
     private obsStream: ObsStreamState,
     logger: Logger
   ) {
@@ -51,8 +51,8 @@ export class PlatformLiveStatus implements IService {
   }
 
   start(): void {
-    for (const platform of this.registry.getAll()) {
-      this.states.set(platform.platform, offline(platform.platform));
+    for (const platform of this.streamControl.platforms()) {
+      this.states.set(platform, offline(platform));
     }
     this.subscriptions.add(
       this.eventBus.on('platform.availability', ({ platform, available }) => {
@@ -119,18 +119,14 @@ export class PlatformLiveStatus implements IService {
 
   /** Ask a platform whether it's live. Resolves once the answer is recorded; never rejects. */
   async refresh(platform: StreamingPlatform): Promise<void> {
-    const facade = this.registry.get(platform);
-    if (!facade) {
-      return;
-    }
     const generation = this.bump(platform);
-    if (facade.getUnavailableReason() !== null) {
+    if (this.streamControl.getUnavailableReason(platform) !== null) {
       this.set(offline(platform), 'unavailable');
       return;
     }
 
     try {
-      const broadcast = await facade.getLiveBroadcast();
+      const broadcast = await this.streamControl.getLiveBroadcast(platform);
       if (this.generations.get(platform) !== generation) {
         return;
       }

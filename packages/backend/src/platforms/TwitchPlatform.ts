@@ -420,7 +420,10 @@ export class TwitchPlatform implements IStreamPlatform {
     sendAnnouncement: async (message) => {
       const userId = this.requireUserId();
       const text = toSafeChatText(message);
-      await this.api.request((c) => c.chat.sendAnnouncement(userId, { message: text }));
+      // Twitch returns no id for an announcement, so it's remembered by its text.
+      await this.ownMessages.recordText(this.platform, text, () =>
+        this.api.request((c) => c.chat.sendAnnouncement(userId, { message: text }))
+      );
     },
   };
 
@@ -430,9 +433,9 @@ export class TwitchPlatform implements IStreamPlatform {
   }
 
   /**
-   * The broadcaster id, but only while auth is actually usable. Keyed on the integration's
-   * status rather than the id alone: the id outlives a stop(), so a non-null id on its own
-   * doesn't prove the API client behind it still exists.
+   * The broadcaster id, but only while auth is actually usable. Keyed on the integration's status
+   * rather than the id alone: the id outlives a lost authorization, so a non-null id on its own
+   * doesn't prove a call made with it can succeed.
    */
   private authenticatedUserId(): string | null {
     if (this.auth.getStatus() !== IntegrationStatus.CONNECTED) {

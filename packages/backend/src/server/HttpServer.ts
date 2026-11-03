@@ -4,28 +4,16 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { extname, isAbsolute, join, relative, sep } from 'node:path';
 import type { Duplex } from 'node:stream';
 import type { OAuthFlowService } from '../integrations/OAuthFlowService.js';
+import { escapeHtml } from '../utils/escapeHtml.js';
 import type { Logger } from '../utils/Logger.js';
-
-const HTML_ESCAPES: Readonly<Record<string, string>> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#39;',
-};
-
-/**
- * Make text safe to place in HTML. The OAuth callback page shows the provider's error, which comes
- * from the URL and so from whoever made the link: a page served from this origin is trusted by the
- * WebSocket's origin check, so script injected into it could drive the whole console.
- */
-export function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char] ?? char);
-}
 
 interface CallbackPage {
   title: string;
-  /** Plain text, escaped here: an error can come from the provider's redirect URL. */
+  /**
+   * Plain text, escaped here: an error can come from the provider's redirect URL, and a page served
+   * from this origin is trusted by the WebSocket's origin check, so script injected into it could
+   * drive the whole console.
+   */
   lines: string[];
   /** The console page to go back to, or null when it isn't known. */
   returnUrl?: string | null;
@@ -122,7 +110,7 @@ export class HttpServer {
   /**
    * Start the HTTP server
    */
-  async start(): Promise<void> {
+  async start(): Promise<number> {
     this.logger.debug('Starting HTTP server', {
       host: this.host,
       port: this.port,
@@ -157,6 +145,9 @@ export class HttpServer {
         reject(error);
       });
     });
+
+    const address = this.server.address();
+    return typeof address === 'object' && address !== null ? address.port : this.port;
   }
 
   /**
@@ -360,16 +351,6 @@ export class HttpServer {
     };
 
     return contentTypes[ext] || 'application/octet-stream';
-  }
-
-  /**
-   * Get the underlying Node.js HTTP server
-   */
-  getServer(): Server {
-    if (!this.server) {
-      throw new Error('HTTP server not started');
-    }
-    return this.server;
   }
 
   /**

@@ -45,13 +45,8 @@ export class IntervalAnnouncer implements IService {
       const entry = messages[index];
       if (!entry) return false;
 
-      const { name, message } = entry;
+      const { message } = entry;
       const result = await this.streamControl.announce(() => message, { highlight: true });
-      for (const failure of result.failures) {
-        this.logger.warn(
-          `Interval message "${name}" failed on ${failure.platform}: ${failure.error}`
-        );
-      }
       if (result.updated.length === 0) return false;
 
       this.next = index + 1;

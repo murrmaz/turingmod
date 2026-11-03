@@ -115,11 +115,6 @@ export class BreakService implements IService {
     return this.settings;
   }
 
-  /** When the current break ends (epoch ms), or null if not on a break. */
-  getBreakEndsAt(): number | null {
-    return this.active?.endsAt ?? null;
-  }
-
   /**
    * Start a break, or extend the running one so it lasts at least `durationSeconds` from now.
    * Resolves once the break is in effect (OBS applied, chat told).
@@ -288,14 +283,7 @@ export class BreakService implements IService {
 
   private async announce(message: PerPlatformMessage, vars: Record<string, string>): Promise<void> {
     try {
-      const result = await this.streamControl.announce((platform) =>
-        renderMessage(message, platform, vars)
-      );
-      for (const failure of result.failures) {
-        this.logger.warn(`Could not post break message to ${failure.platform}`, {
-          error: failure.error,
-        });
-      }
+      await this.streamControl.announce((platform) => renderMessage(message, platform, vars));
     } catch (error) {
       this.logger.error('Could not post break message', error);
     }

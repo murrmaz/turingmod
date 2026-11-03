@@ -1,29 +1,15 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { OAuthCallbackOutcome, OAuthFlowService } from '../integrations/OAuthFlowService.js';
+import { escapeHtml } from '../utils/escapeHtml.js';
 import { Logger } from '../utils/Logger.js';
-import { escapeHtml, HttpServer, rejectUpgrade } from './HttpServer.js';
+import { HttpServer, rejectUpgrade } from './HttpServer.js';
 
 const logger = new Logger({ level: 'silent' });
-
-describe('escapeHtml', () => {
-  it('escapes the characters that can open a tag or an attribute', () => {
-    expect(escapeHtml(`<script>alert("x" & 'y')</script>`)).toBe(
-      '&lt;script&gt;alert(&quot;x&quot; &amp; &#39;y&#39;)&lt;/script&gt;'
-    );
-  });
-
-  it('leaves ordinary text alone', () => {
-    expect(escapeHtml('access_denied: The user denied the request')).toBe(
-      'access_denied: The user denied the request'
-    );
-  });
-});
 
 describe('HttpServer OAuth callback', () => {
   let server: HttpServer | null = null;
@@ -40,8 +26,7 @@ describe('HttpServer OAuth callback', () => {
       handleCallback: () => Promise.resolve(outcome),
     } as unknown as OAuthFlowService;
     server = new HttpServer(0, '127.0.0.1', '/nonexistent', oauthFlow, logger);
-    await server.start();
-    const { port } = server.getServer().address() as AddressInfo;
+    const port = await server.start();
     return `http://127.0.0.1:${port}`;
   }
 
@@ -113,8 +98,7 @@ describe('HttpServer static files', () => {
 
     const oauthFlow = { getCallbackRoutes: () => [] } as unknown as OAuthFlowService;
     server = new HttpServer(0, '127.0.0.1', join(root, 'dist'), oauthFlow, logger);
-    await server.start();
-    ({ port } = server.getServer().address() as AddressInfo);
+    port = await server.start();
   });
 
   afterEach(async () => {

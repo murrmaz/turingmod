@@ -147,6 +147,9 @@
       "includes": ["**/packages/backend/src/**/*.ts"],
       "linter": {
         "rules": {
+          "nursery": {
+            "noFloatingPromises": "error"
+          },
           "style": {
             "useImportType": "off"
           }

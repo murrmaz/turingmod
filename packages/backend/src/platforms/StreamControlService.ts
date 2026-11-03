@@ -10,6 +10,7 @@ import type {
   CapabilityApis,
   ChannelPage,
   IStreamPlatform,
+  LiveBroadcast,
   StreamInfo,
 } from './interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from './PlatformRegistry.js';
@@ -72,7 +73,8 @@ export class StreamControlService {
   /**
    * Post a chat message to every live platform. `messageFor` picks the wording per platform and
    * returns null to skip one. Platforms whose auth is broken are skipped and logged, never
-   * reported to chat, for the same reason as mirrored writes (see mirror()).
+   * reported to chat, for the same reason as mirrored writes (see mirror()). A platform that fails
+   * is logged here and listed in the result, so a caller needn't log it again.
    *
    * With `highlight`, platforms that have highlighted announcements (ANNOUNCEMENTS) post one;
    * the rest post a plain message.
@@ -111,9 +113,14 @@ export class StreamControlService {
     return this.target(platform).getStreamInfo();
   }
 
+  /** The platform's current broadcast, or null when it's offline. */
+  getLiveBroadcast(platform: StreamingPlatform): Promise<LiveBroadcast | null> {
+    return this.target(platform).getLiveBroadcast();
+  }
+
   /** Read current broadcast uptime (ms) from a specific platform, or null if offline. */
   async getUptime(platform: StreamingPlatform): Promise<number | null> {
-    const startedAt = (await this.target(platform).getLiveBroadcast())?.startedAt;
+    const startedAt = (await this.getLiveBroadcast(platform))?.startedAt;
     return startedAt ? Date.now() - startedAt.getTime() : null;
   }
 
@@ -216,6 +223,7 @@ export class StreamControlService {
       try {
         live = await platform.isLive();
       } catch (error) {
+        this.logger.error(`Could not ask whether ${platform.platform} is live`, error);
         result.failures.push({ platform: platform.platform, error: messageOf(error) });
         continue;
       }

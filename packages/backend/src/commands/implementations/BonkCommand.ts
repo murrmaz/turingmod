@@ -10,7 +10,7 @@ import { ok } from '../utils/results.js';
 export const BONK_REVOLT_CHANCE = 0.1;
 
 /**
- * Example command: !bonk
+ * !bonk command
  * Bonks a user (playful command for demonstration)
  */
 @injectable()

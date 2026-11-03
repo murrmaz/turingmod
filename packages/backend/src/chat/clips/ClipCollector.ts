@@ -6,6 +6,7 @@ import { EventBus } from '../../core/EventBus.js';
 import { type IService, Subscriptions } from '../../core/ServiceLifecycle.js';
 import type { ClipInfo } from '../../platforms/interfaces/IStreamPlatform.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
+import { escapeHtml } from '../../utils/escapeHtml.js';
 import { Logger } from '../../utils/Logger.js';
 import { DATA_DIRECTORY } from '../../utils/paths.js';
 import type { ChatMessageEvent } from '../chatMessage.js';
@@ -92,14 +93,6 @@ export class ClipCollector implements IService {
       }
     }
   }
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
 }
 
 /** A standalone page listing clips, newest last. */

@@ -128,7 +128,7 @@ describe('BreakService', () => {
       twitch: "Break's over, welcome back!",
       youtube: "Break's over, welcome back!",
     });
-    expect(service.getBreakEndsAt()).toBeNull();
+    expect(await service.endBreak()).toBe(false);
   });
 
   it('plays the configured break sounds from the sound library', async () => {
@@ -309,7 +309,7 @@ describe('BreakService', () => {
       obs.status = IntegrationStatus.DISCONNECTED;
       overlay.restore.mockResolvedValueOnce(false);
       await vi.advanceTimersByTimeAsync(60_000);
-      expect(service.getBreakEndsAt()).toBeNull();
+      expect(await service.endBreak()).toBe(false);
       expect(restoreRepo.owed).toEqual(micSnapshot());
 
       await obsConnects();

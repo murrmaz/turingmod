@@ -44,6 +44,28 @@ describe('EventBus', () => {
     expect(logger.error).toHaveBeenCalledTimes(1);
   });
 
+  it('resolves emit only once every async handler has settled, and emitSync at once', async () => {
+    const bus = new EventBus(makeLogger());
+    let finish = () => {};
+    bus.on(
+      'youtube.chat.state',
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        })
+    );
+    const settled = vi.fn();
+
+    bus.emitSync('youtube.chat.state', { state: 'idle' });
+    const emitted = bus.emit('youtube.chat.state', { state: 'idle' }).then(settled);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(settled).not.toHaveBeenCalled();
+
+    finish();
+    await emitted;
+    expect(settled).toHaveBeenCalled();
+  });
+
   it('stops calling a handler once it unsubscribes', async () => {
     const bus = new EventBus(makeLogger());
     const handler = vi.fn();

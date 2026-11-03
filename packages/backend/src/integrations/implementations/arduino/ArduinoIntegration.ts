@@ -54,8 +54,6 @@ export class ArduinoIntegration extends BaseIntegration {
   private socket: WebSocket | null = null;
   /** The board on the other end, once it has answered `hello`. */
   private device: ArduinoDevice | null = null;
-  /** Bumped by `start()` and `stop()`, so an attempt or retry that outlives either is dropped. */
-  private generation = 0;
   private readonly backoff = new ReconnectBackoff();
   /** The current one-second window of the frame rate limit. */
   private frameWindowStart = 0;
@@ -88,8 +86,7 @@ export class ArduinoIntegration extends BaseIntegration {
    */
   async start(): Promise<void> {
     this.logger.debug('Starting Arduino integration');
-    const generation = ++this.generation;
-    this.backoff.reset();
+    const generation = this.backoff.begin();
     this.closeSocket();
     this.setStatus(IntegrationStatus.CONNECTING);
     await this.connect(generation);
@@ -97,16 +94,10 @@ export class ArduinoIntegration extends BaseIntegration {
 
   stop(): Promise<void> {
     this.logger.debug('Stopping Arduino integration');
-    this.generation++;
-    this.backoff.cancel();
+    this.backoff.end();
     this.closeSocket();
     this.setStatus(IntegrationStatus.DISCONNECTED);
     return Promise.resolve();
-  }
-
-  /** The connected board as it described itself, or null when none is connected. */
-  getDevice(): ArduinoDevice | null {
-    return this.device;
   }
 
   /**
@@ -140,7 +131,7 @@ export class ArduinoIntegration extends BaseIntegration {
       });
 
       socket.on('message', (raw, isBinary) => {
-        if (generation !== this.generation) {
+        if (!this.backoff.isCurrent(generation)) {
           return;
         }
         answeredPing = true;
@@ -204,7 +195,7 @@ export class ArduinoIntegration extends BaseIntegration {
         if (heartbeat) {
           clearInterval(heartbeat);
         }
-        if (generation !== this.generation) {
+        if (!this.backoff.isCurrent(generation)) {
           resolve(); // stopped or restarted meanwhile; that call reports its own state
           return;
         }
@@ -267,7 +258,7 @@ export class ArduinoIntegration extends BaseIntegration {
       return;
     }
     this.logger.debug('Message from the Arduino', message.data);
-    this.eventBus.emit('arduino.message', message.data);
+    this.eventBus.emitSync('arduino.message', message.data);
   }
 
   /**
@@ -275,11 +266,7 @@ export class ArduinoIntegration extends BaseIntegration {
    * delay that doubles each time.
    */
   private scheduleRetry(error: unknown, lost: boolean): void {
-    const generation = this.generation;
-    const delayMs = this.backoff.schedule(() => {
-      // A failure here has already been reported as this integration's status.
-      this.connect(generation).catch(() => {});
-    });
+    const delayMs = this.backoff.retry((generation) => this.connect(generation));
     const reason = messageOf(error, '');
     const message =
       `${lost ? 'Lost the connection to' : "Can't reach"} the Arduino at ${this.config.url}` +

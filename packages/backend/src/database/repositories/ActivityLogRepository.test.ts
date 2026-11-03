@@ -106,24 +106,35 @@ describe('ActivityLogRepository', () => {
     expect(page.map((e) => e.event)).toEqual(['twitch.raid', 'twitch.follow']);
   });
 
-  it('caps the limit at MAX_QUERY_LIMIT', () => {
+  it('returns no more than 500 entries however many are asked for', () => {
+    db.transaction(() => {
+      for (let i = 0; i < 501; i++) {
+        addFollow(i);
+      }
+    });
+
+    expect(repo.findRecent({ limit: 10_000 })).toHaveLength(500);
+  });
+
+  it('asks for the limit given below that', () => {
     for (let i = 0; i < 5; i++) {
       addFollow(i);
     }
 
-    const results = repo.findRecent({ limit: 2 });
-    expect(results).toHaveLength(2);
+    expect(repo.findRecent({ limit: 2 })).toHaveLength(2);
   });
 
-  it('prunes to the cap after enough inserts', () => {
-    // PRUNE_EVERY is 100 and ACTIVITY_LOG_CAP is 5000; insert just over one prune cycle
-    // worth of rows to exercise the prune path without inserting 5000+ rows.
-    for (let i = 0; i < 101; i++) {
-      addFollow(i);
-    }
+  it('keeps the newest 5,000 entries', () => {
+    db.transaction(() => {
+      for (let i = 0; i < 5_100; i++) {
+        addFollow(i);
+      }
+    });
 
-    const all = repo.findRecent({ limit: 500 });
-    expect(all).toHaveLength(101);
+    const [row] = db.query<{ count: number; oldest: number }>(
+      'SELECT COUNT(*) AS count, MIN(timestamp) AS oldest FROM activity_log'
+    );
+    expect(row).toEqual({ count: 5_000, oldest: 100 });
   });
 
   it('leaves out and logs a stored event the log does not record', () => {

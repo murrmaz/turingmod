@@ -176,7 +176,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       });
 
       listener.onUserSocketReady((_userId, sessionId) => {
-        this.eventBus.emit('twitch.eventSub.ready', { sessionId });
+        this.eventBus.emitSync('twitch.eventSub.ready', { sessionId });
       });
       listener.onSubscriptionCreateSuccess((subscription) => {
         if (listener === this.eventSubListener) {
@@ -300,7 +300,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.track(
         'channel.follow',
         listener.onChannelFollow(broadcasterId, broadcasterId, (event) => {
-          this.eventBus.emit('twitch.follow', {
+          this.eventBus.emitSync('twitch.follow', {
             userId: event.userId,
             userName: event.userName,
             userDisplayName: event.userDisplayName,
@@ -315,7 +315,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.track(
         'channel.subscribe',
         listener.onChannelSubscription(broadcasterId, (event) => {
-          this.eventBus.emit('twitch.subscribe', {
+          this.eventBus.emitSync('twitch.subscribe', {
             userId: event.userId,
             userName: event.userName,
             userDisplayName: event.userDisplayName,
@@ -331,7 +331,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.track(
         'channel.raid',
         listener.onChannelRaidTo(broadcasterId, (event) => {
-          this.eventBus.emit('twitch.raid', {
+          this.eventBus.emitSync('twitch.raid', {
             fromBroadcasterId: event.raidingBroadcasterId,
             fromBroadcasterName: event.raidingBroadcasterName,
             fromBroadcasterDisplayName: event.raidingBroadcasterDisplayName,
@@ -346,7 +346,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.track(
         'channel.cheer',
         listener.onChannelCheer(broadcasterId, (event) => {
-          this.eventBus.emit('twitch.cheer', {
+          this.eventBus.emitSync('twitch.cheer', {
             userId: event.userId,
             userName: event.userName,
             userDisplayName: event.userDisplayName,
@@ -362,7 +362,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.track(
         'stream.online',
         listener.onStreamOnline(broadcasterId, (event) => {
-          this.eventBus.emit('twitch.stream.online', {
+          this.eventBus.emitSync('twitch.stream.online', {
             broadcasterId: event.broadcasterId,
             broadcasterName: event.broadcasterName,
             broadcasterDisplayName: event.broadcasterDisplayName,
@@ -377,7 +377,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.track(
         'stream.offline',
         listener.onStreamOffline(broadcasterId, (event) => {
-          this.eventBus.emit('twitch.stream.offline', {
+          this.eventBus.emitSync('twitch.stream.offline', {
             broadcasterId: event.broadcasterId,
             broadcasterName: event.broadcasterName,
             broadcasterDisplayName: event.broadcasterDisplayName,
@@ -391,7 +391,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.track(
         'channel.update',
         listener.onChannelUpdate(broadcasterId, () => {
-          this.eventBus.emit('stream.info.changed', { platforms: [StreamingPlatform.TWITCH] });
+          this.eventBus.emitSync('stream.info.changed', { platforms: [StreamingPlatform.TWITCH] });
         })
       );
     }
@@ -401,7 +401,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.track(
         'channel.ad_break.begin',
         listener.onChannelAdBreakBegin(broadcasterId, (event) => {
-          this.eventBus.emit('twitch.ad.break', {
+          this.eventBus.emitSync('twitch.ad.break', {
             durationSeconds: event.durationSeconds,
             startedAt: event.startDate,
             isAutomatic: event.isAutomatic,
@@ -418,7 +418,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.track(
         'channel.channel_points_custom_reward_redemption.add',
         listener.onChannelRedemptionAdd(broadcasterId, (event) => {
-          this.eventBus.emit('twitch.channelPoint.redemption', {
+          this.eventBus.emitSync('twitch.channelPoint.redemption', {
             id: event.id,
             userId: event.userId,
             userName: event.userName,
@@ -453,7 +453,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
 
     // OwnChatMessages republishes this as `chat.message`, minus TuringMod's own messages.
     // Commands are parsed out by ChatRouter, after moderation.
-    this.eventBus.emit('chat.received', {
+    this.eventBus.emitSync('chat.received', {
       platform: StreamingPlatform.TWITCH,
       platformUserId: event.chatterId,
       username: event.chatterDisplayName,

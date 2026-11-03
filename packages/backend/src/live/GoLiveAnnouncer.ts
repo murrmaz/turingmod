@@ -4,6 +4,7 @@ import { EventBus } from '../core/EventBus.js';
 import {
   failureReporter,
   type IService,
+  RepeatingFailures,
   type ReportFailure,
   Subscriptions,
 } from '../core/ServiceLifecycle.js';
@@ -68,6 +69,8 @@ export class GoLiveAnnouncer implements IService {
   private subscriptions = new Subscriptions();
   private logger: Logger;
   private report: ReportFailure;
+  /** Retried every minute while live, so an outage is reported once. */
+  private updateFailures: RepeatingFailures;
   /** Serializes the work, so two platforms going live together can't make two posts. */
   private queue: Promise<void> = Promise.resolve();
   private stopped = false;
@@ -90,6 +93,7 @@ export class GoLiveAnnouncer implements IService {
   ) {
     this.logger = logger.child({ component: 'GoLiveAnnouncer' });
     this.report = failureReporter(eventBus, this.logger, 'Go-live post');
+    this.updateFailures = new RepeatingFailures(this.report, this.logger);
   }
 
   start(): Promise<void> {
@@ -141,9 +145,17 @@ export class GoLiveAnnouncer implements IService {
     if (this.stopped) {
       return Promise.resolve();
     }
-    const run = this.queue.then(task).catch((error: unknown) => {
-      this.logger.warn('Could not update the Discord go-live post', { error });
-    });
+    const run = this.queue
+      .then(task)
+      .then(() => this.updateFailures.recovered('update'))
+      .catch((error: unknown) => {
+        this.updateFailures.failed(
+          'update',
+          "Could not update the Discord go-live post, so it may be missing or out of date. It's " +
+            'tried again while you are live.',
+          error
+        );
+      });
     this.queue = run;
     return run;
   }
@@ -358,9 +370,11 @@ export class GoLiveAnnouncer implements IService {
       this.logger.info('Marked the Discord go-live post as ended');
     } catch (error) {
       if (!(error instanceof DiscordMessageDeletedError)) {
-        this.logger.warn('Could not mark the Discord go-live post as ended', {
-          error,
-        });
+        this.report(
+          'Could not mark the Discord go-live post as ended, so it still says you are live. ' +
+            'Edit or delete it in Discord.',
+          error
+        );
       }
     }
   }

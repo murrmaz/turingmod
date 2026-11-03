@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
+import type { ServiceErrorEvent } from '../core/events.js';
 import type { ShoutoutApi, ShoutoutResult } from '../platforms/interfaces/IStreamPlatform.js';
 import type { StreamControlService } from '../platforms/StreamControlService.js';
 import { fakeRequire } from '../platforms/testing.js';
@@ -30,6 +31,7 @@ const raid = {
 describe('RaidShoutout', () => {
   let logger: ReturnType<typeof makeLogger>;
   let eventBus: EventBus;
+  let reported: ReturnType<typeof vi.fn<(event: ServiceErrorEvent) => void>>;
   let streamControl: {
     sendChatMessage: ReturnType<typeof vi.fn<StreamControlService['sendChatMessage']>>;
     require: StreamControlService['require'];
@@ -39,6 +41,8 @@ describe('RaidShoutout', () => {
   beforeEach(() => {
     logger = makeLogger();
     eventBus = new EventBus(logger);
+    reported = vi.fn<(event: ServiceErrorEvent) => void>();
+    eventBus.on('service.error', reported);
     shoutout = vi.fn(() => Promise.resolve<ShoutoutResult>({ sent: true }));
     streamControl = {
       sendChatMessage: vi.fn(() => Promise.resolve()),
@@ -67,10 +71,10 @@ describe('RaidShoutout', () => {
     await eventBus.emit('twitch.raid', raid);
 
     expect(shoutout).toHaveBeenCalled();
-    expect(logger.error).toHaveBeenCalledWith(
-      'Failed to post the raid shoutout message for coolraider',
-      expect.any(Error)
-    );
+    expect(reported).toHaveBeenCalledWith({
+      service: 'Raid shoutouts',
+      message: 'Could not post the raid shoutout for coolraider. chat down',
+    });
   });
 
   it('logs a rate-limited native shoutout as info, not an error', async () => {
@@ -83,18 +87,32 @@ describe('RaidShoutout', () => {
     await eventBus.emit('twitch.raid', raid);
 
     expect(logger.error).not.toHaveBeenCalled();
+    expect(reported).not.toHaveBeenCalled();
     expect(logger.info).toHaveBeenCalledWith(
       'Twitch declined the shoutout for coolraider (global_cooldown; retry in 91s)'
     );
   });
 
-  it('logs a failed native shoutout without throwing', async () => {
+  it('reports a failed native shoutout without throwing', async () => {
     shoutout.mockRejectedValue(new Error('not live'));
 
     await expect(eventBus.emit('twitch.raid', raid)).resolves.toBeUndefined();
-    expect(logger.error).toHaveBeenCalledWith(
-      'Failed to send the native shoutout for coolraider',
-      expect.any(Error)
-    );
+    expect(reported).toHaveBeenCalledWith({
+      service: 'Raid shoutouts',
+      message: "Could not send Twitch's shoutout for coolraider. not live",
+    });
+  });
+
+  it('reports one run of failures once, and again after a shoutout works', async () => {
+    shoutout.mockRejectedValueOnce(new Error('not live'));
+    shoutout.mockRejectedValueOnce(new Error('not live'));
+    await eventBus.emit('twitch.raid', raid);
+    await eventBus.emit('twitch.raid', raid);
+    expect(reported).toHaveBeenCalledOnce();
+
+    await eventBus.emit('twitch.raid', raid);
+    shoutout.mockRejectedValueOnce(new Error('not live'));
+    await eventBus.emit('twitch.raid', raid);
+    expect(reported).toHaveBeenCalledTimes(2);
   });
 });

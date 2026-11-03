@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EventBus } from '../../core/EventBus.js';
+import type { ServiceErrorEvent } from '../../core/events.js';
 import type { DatabaseManager } from '../../database/DatabaseManager.js';
 import { IntervalMessageRepository } from '../../database/repositories/IntervalMessageRepository.js';
 import { createTestDatabase } from '../../database/repositories/testDatabase.js';
@@ -15,6 +17,8 @@ describe('IntervalAnnouncer', () => {
   let posted: string[];
   let live: boolean;
   let announcer: IntervalAnnouncer;
+  let reported: ReturnType<typeof vi.fn<(event: ServiceErrorEvent) => void>>;
+  let announce: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     ({ db, cleanup } = await createTestDatabase());
@@ -23,7 +27,7 @@ describe('IntervalAnnouncer', () => {
     live = true;
     const streamControl = {
       announce: (messageFor: (platform: StreamingPlatform) => string | null) => {
-        const result: MirrorResult = { updated: [], failures: [] };
+        const result: MirrorResult = { updated: [], failures: [], skipped: [] };
         if (live) {
           posted.push(messageFor(StreamingPlatform.TWITCH) ?? '');
           result.updated.push(StreamingPlatform.TWITCH);
@@ -31,10 +35,16 @@ describe('IntervalAnnouncer', () => {
         return Promise.resolve(result);
       },
     };
+    const logger = new Logger({ level: 'silent' });
+    const eventBus = new EventBus(logger);
+    reported = vi.fn<(event: ServiceErrorEvent) => void>();
+    eventBus.on('service.error', reported);
+    announce = vi.fn(streamControl.announce);
     announcer = new IntervalAnnouncer(
+      eventBus,
       messages,
-      streamControl as unknown as StreamControlService,
-      new Logger({ level: 'silent' })
+      { announce } as unknown as StreamControlService,
+      logger
     );
   });
 
@@ -87,5 +97,34 @@ describe('IntervalAnnouncer', () => {
     expect(posted).toEqual([]);
     await vi.advanceTimersByTimeAsync(1);
     await vi.waitFor(() => expect(posted).toEqual(['Follow me']));
+  });
+
+  it('reports a platform that refused a message, once until one gets through', async () => {
+    messages.add('socials', 'Follow me', null);
+    const refused: MirrorResult = {
+      updated: [],
+      failures: [{ platform: StreamingPlatform.TWITCH, error: 'refused' }],
+      skipped: [],
+    };
+    announce.mockResolvedValueOnce(refused).mockResolvedValueOnce(refused);
+
+    expect(await announcer.announceNext()).toBe(false);
+    expect(await announcer.announceNext()).toBe(false);
+
+    expect(reported).toHaveBeenCalledOnce();
+    expect(reported).toHaveBeenCalledWith({
+      service: 'Interval messages',
+      message: 'Could not post an interval message on Twitch. refused',
+    });
+  });
+
+  it('reports messages it cannot read', async () => {
+    vi.spyOn(messages, 'list').mockImplementation(() => {
+      throw new Error('database is locked');
+    });
+
+    expect(await announcer.announceNext()).toBe(false);
+
+    expect(reported.mock.calls[0]?.[0].message).toMatch(/interval message.*database is locked/);
   });
 });

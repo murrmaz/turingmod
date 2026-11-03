@@ -2,7 +2,12 @@ import { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { TwitchRaidEvent } from '../core/events.js';
-import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
+import {
+  failureReporter,
+  type IService,
+  RepeatingFailures,
+  Subscriptions,
+} from '../core/ServiceLifecycle.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
 import { Logger } from '../utils/Logger.js';
 
@@ -23,6 +28,7 @@ export function raidShoutoutMessage(channelName: string): string {
 export class RaidShoutout implements IService {
   private subscriptions = new Subscriptions();
   private logger: Logger;
+  private failures: RepeatingFailures;
 
   constructor(
     private eventBus: EventBus,
@@ -30,6 +36,10 @@ export class RaidShoutout implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'RaidShoutout' });
+    this.failures = new RepeatingFailures(
+      failureReporter(eventBus, this.logger, 'Raid shoutouts'),
+      this.logger
+    );
   }
 
   start(): void {
@@ -40,7 +50,7 @@ export class RaidShoutout implements IService {
     this.subscriptions.clear();
   }
 
-  /** Never rejects: each failure is logged and the other half still runs. */
+  /** Never rejects: each failure is reported and the other half still runs. */
   async onRaid(event: TwitchRaidEvent): Promise<void> {
     const channel = event.fromBroadcasterName;
     this.logger.info(`${event.fromBroadcasterDisplayName} raided with ${event.viewers} viewer(s)`);
@@ -50,14 +60,16 @@ export class RaidShoutout implements IService {
         StreamingPlatform.TWITCH,
         raidShoutoutMessage(channel)
       );
+      this.failures.recovered('message');
     } catch (error) {
-      this.logger.error(`Failed to post the raid shoutout message for ${channel}`, error);
+      this.failures.failed('message', `Could not post the raid shoutout for ${channel}.`, error);
     }
 
     try {
       const result = await this.streamControl
         .require(StreamingPlatform.TWITCH, 'shoutout')
         .shoutout(channel);
+      this.failures.recovered('shoutout');
       if (!result.sent) {
         this.logger.info(
           `Twitch declined the shoutout for ${channel} (${result.reason ?? 'rate limited'}; ` +
@@ -65,7 +77,7 @@ export class RaidShoutout implements IService {
         );
       }
     } catch (error) {
-      this.logger.error(`Failed to send the native shoutout for ${channel}`, error);
+      this.failures.failed('shoutout', `Could not send Twitch's shoutout for ${channel}.`, error);
     }
   }
 }

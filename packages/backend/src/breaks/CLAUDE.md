@@ -23,6 +23,8 @@ show the break.
 effects: what fails because OBS has gone is done when OBS connects, and what OBS refuses while
 connected won't go better later, so it's reported once and not retried. A break started while OBS is
 down is reported too, since the streamer is still on air, but a restore waiting for OBS isn't.
+Break messages and ad warnings report a platform that refused them through `reportAnnouncement()`,
+since `announce()` lists a failed platform rather than throwing.
 A new break started while a restore is still owed builds on that state, so its "before" is never
 the hidden facecam. `ObsIntegration` reconnects on its own while it is started, backing off to
 30s; only a failure the streamer must fix (wrong password, old obs-websocket) is an ERROR. Chat fan-out goes through `StreamControlService.announce()`, which

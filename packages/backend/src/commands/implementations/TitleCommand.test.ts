@@ -47,6 +47,7 @@ describe('TitleCommand', () => {
   it('mirrors a multi-word title and names the platforms it reached', async () => {
     setTitle.mockResolvedValue({
       updated: [StreamingPlatform.TWITCH, StreamingPlatform.YOUTUBE],
+      skipped: [],
       failures: [],
     });
 
@@ -60,6 +61,7 @@ describe('TitleCommand', () => {
   it('reports a divergent mirror as a success naming only the platforms that took it', async () => {
     setTitle.mockResolvedValue({
       updated: [StreamingPlatform.TWITCH],
+      skipped: [],
       failures: [{ platform: StreamingPlatform.YOUTUBE, error: 'No active YouTube broadcast' }],
     });
 
@@ -72,6 +74,7 @@ describe('TitleCommand', () => {
   it('fails when no platform took the change', async () => {
     setTitle.mockResolvedValue({
       updated: [],
+      skipped: [],
       failures: [{ platform: StreamingPlatform.TWITCH, error: 'Helix rejected the update' }],
     });
 

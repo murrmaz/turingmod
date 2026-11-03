@@ -2,6 +2,7 @@ import type { StreamingPlatform } from '@turingmod/shared';
 import { messageOf, PlatformCapability, platformDisplayName } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
+import type { RepeatingFailures } from '../core/ServiceLifecycle.js';
 import { Logger } from '../utils/Logger.js';
 import { CAPABILITY_OF_API, capabilitiesOf } from './capabilities.js';
 import { InvalidStreamInfoError } from './errors.js';
@@ -24,6 +25,14 @@ export interface MirrorResult {
   updated: StreamingPlatform[];
   /** Per-platform failures encountered while mirroring. */
   failures: MirrorFailure[];
+  /** Platforms that couldn't be tried, which `failures` leaves out since chat may repeat those. */
+  skipped: MirrorSkip[];
+}
+
+export interface MirrorSkip {
+  platform: StreamingPlatform;
+  /** Why it can't be acted on (authorization lost, not connected), for the streamer only. */
+  reason: string;
 }
 
 export interface MirrorFailure {
@@ -35,6 +44,25 @@ export interface MirrorFailure {
    * written for whoever asked and may be repeated in chat. Absent for any other failure.
    */
   invalidValue?: true;
+}
+
+/**
+ * Reports what an announcement didn't reach. `announce()` lists a platform that fails instead of
+ * throwing, so a caller that doesn't read its result hears nothing about it. Per platform and once
+ * per run of failures, since announcements repeat. A skipped platform isn't reported: its integration
+ * already shows why.
+ */
+export function reportAnnouncement(
+  result: MirrorResult,
+  failures: RepeatingFailures,
+  what: string
+): void {
+  for (const { platform, error } of result.failures) {
+    failures.failed(platform, `Could not post ${what} on ${platformDisplayName(platform)}.`, error);
+  }
+  for (const platform of result.updated) {
+    failures.recovered(platform);
+  }
 }
 
 /**
@@ -74,7 +102,8 @@ export class StreamControlService {
    * Post a chat message to every live platform. `messageFor` picks the wording per platform and
    * returns null to skip one. Platforms whose auth is broken are skipped and logged, never
    * reported to chat, for the same reason as mirrored writes (see mirror()). A platform that fails
-   * is logged here and listed in the result, so a caller needn't log it again.
+   * doesn't make this reject: it's logged here and listed in the result, which a caller passes to
+   * `reportAnnouncement()` so the streamer hears about it.
    *
    * With `highlight`, platforms that have highlighted announcements (ANNOUNCEMENTS) post one;
    * the rest post a plain message.
@@ -200,7 +229,7 @@ export class StreamControlService {
     capability: PlatformCapability,
     action: (platform: IStreamPlatform) => Promise<boolean>
   ): Promise<MirrorResult> {
-    const result: MirrorResult = { updated: [], failures: [] };
+    const result: MirrorResult = { updated: [], failures: [], skipped: [] };
 
     for (const platform of this.registry.getAll()) {
       if (!capabilitiesOf(platform).has(capability)) {
@@ -209,13 +238,14 @@ export class StreamControlService {
 
       // A broken OAuth grant must not reach chat: a mirrored write replies in public, so the
       // whole channel would see the state of the broadcaster's tokens. It mustn't vanish
-      // either, or the command reports the misleading "No live platforms to update". Log it
-      // for the streamer and skip.
+      // either, or the command reports the misleading "No live platforms to update". So it's
+      // listed apart from failures, whose text chat may repeat.
       const unavailable = platform.getUnavailableReason();
       if (unavailable) {
         this.logger.warn(
           `Skipping ${platformDisplayName(platform.platform)} for ${capability}: ${unavailable}`
         );
+        result.skipped.push({ platform: platform.platform, reason: unavailable });
         continue;
       }
 

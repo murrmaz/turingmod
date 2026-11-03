@@ -55,6 +55,34 @@ export function failureReporter(
 }
 
 /**
+ * Failures that would recur for as long as their cause lasts, such as chat replies while a platform
+ * is refusing them. The first of a run of one kind is reported; the rest are only logged, until
+ * `recovered()` says that kind worked again, so an outage is one entry in the feed rather than one
+ * per message.
+ */
+export class RepeatingFailures {
+  private failing = new Set<string>();
+
+  constructor(
+    private report: ReportFailure,
+    private logger: Logger
+  ) {}
+
+  failed(kind: string, message: string, error?: unknown): void {
+    if (this.failing.has(kind)) {
+      this.logger.error(message, error);
+      return;
+    }
+    this.failing.add(kind);
+    this.report(message, error);
+  }
+
+  recovered(kind: string): void {
+    this.failing.delete(kind);
+  }
+}
+
+/**
  * Starts feature services in the order they were added and stops them in reverse.
  *
  * `Application` starts them before integrations, so a subscriber sees the availability changes

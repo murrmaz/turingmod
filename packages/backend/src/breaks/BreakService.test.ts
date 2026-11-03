@@ -9,7 +9,7 @@ import type {
   SettingsRepository,
 } from '../database/repositories/SettingsRepository.js';
 import type { ObsIntegration } from '../integrations/implementations/obs/ObsIntegration.js';
-import type { StreamControlService } from '../platforms/StreamControlService.js';
+import type { MirrorResult, StreamControlService } from '../platforms/StreamControlService.js';
 import type { SoundLibrary } from '../sounds/SoundLibrary.js';
 import { Logger } from '../utils/Logger.js';
 import { BreakService } from './BreakService.js';
@@ -59,7 +59,7 @@ function setup(stored: unknown = null, { owed = null as unknown } = {}) {
       const twitch = messageFor(StreamingPlatform.TWITCH);
       const youtube = messageFor(StreamingPlatform.YOUTUBE);
       posted.push({ ...(twitch && { twitch }), ...(youtube && { youtube }) });
-      return Promise.resolve({ updated: [], failures: [] });
+      return Promise.resolve<MirrorResult>({ updated: [], failures: [], skipped: [] });
     }),
   };
   const settingsRepo = {
@@ -406,6 +406,23 @@ describe('BreakService', () => {
       context.eventBus.on('service.error', reported);
       return { ...context, reported };
     }
+
+    it('reports a platform that refused a break message, which announce() only lists', async () => {
+      const { reported, service, streamControl } = reporting();
+      streamControl.announce.mockResolvedValueOnce({
+        updated: [],
+        failures: [{ platform: StreamingPlatform.TWITCH, error: 'refused' }],
+        skipped: [],
+      });
+      await service.start();
+
+      await service.startBreak('ad', 60);
+
+      expect(reported).toHaveBeenCalledWith({
+        service: 'Breaks',
+        message: 'Could not post a break message on Twitch. refused',
+      });
+    });
 
     it('says nothing when a break starts and ends cleanly', async () => {
       const { reported, service } = reporting();

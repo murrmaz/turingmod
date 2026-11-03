@@ -16,6 +16,7 @@ describe('command results', () => {
     const result = mirrorReply(
       {
         updated: [StreamingPlatform.TWITCH],
+        skipped: [],
         failures: [{ platform: StreamingPlatform.YOUTUBE, error: 'No active broadcast' }],
       },
       'title',
@@ -29,6 +30,7 @@ describe('command results', () => {
     const result = mirrorReply(
       {
         updated: [],
+        skipped: [],
         failures: [{ platform: StreamingPlatform.TWITCH, error: 'Helix rejected the update' }],
       },
       'title',
@@ -44,6 +46,7 @@ describe('command results', () => {
     const result = mirrorReply(
       {
         updated: [],
+        skipped: [],
         failures: [
           { platform: StreamingPlatform.TWITCH, error: 'Game not found: Nope', invalidValue: true },
         ],
@@ -56,8 +59,52 @@ describe('command results', () => {
   });
 
   it('fails a mirrored write when no platform is live', () => {
-    const result = mirrorReply({ updated: [], failures: [] }, 'tags', () => 'unused');
+    const result = mirrorReply({ updated: [], skipped: [], failures: [] }, 'tags', () => 'unused');
 
     expect(result).toMatchObject({ error: { reason: 'No live platforms to update' } });
+  });
+
+  it('names a platform that could not be tried to the streamer, and keeps it out of chat', () => {
+    const result = mirrorReply(
+      {
+        updated: [],
+        failures: [],
+        skipped: [{ platform: StreamingPlatform.TWITCH, reason: 'Re-authorization needed' }],
+      },
+      'title',
+      () => 'unused'
+    );
+
+    expect(result).toEqual(
+      fail('API_ERROR', 'Failed to update title', 'Twitch: Re-authorization needed')
+    );
+  });
+
+  it('prefers what a platform answered over one that could not be tried', () => {
+    const result = mirrorReply(
+      {
+        updated: [],
+        failures: [{ platform: StreamingPlatform.YOUTUBE, error: 'quota' }],
+        skipped: [{ platform: StreamingPlatform.TWITCH, reason: 'Re-authorization needed' }],
+      },
+      'title',
+      () => 'unused'
+    );
+
+    expect(result).toEqual(fail('API_ERROR', 'Failed to update title on YouTube', 'quota'));
+  });
+
+  it('succeeds when another platform took the write', () => {
+    const result = mirrorReply(
+      {
+        updated: [StreamingPlatform.YOUTUBE],
+        failures: [],
+        skipped: [{ platform: StreamingPlatform.TWITCH, reason: 'Re-authorization needed' }],
+      },
+      'title',
+      (platforms) => `Updated on ${platforms}`
+    );
+
+    expect(result).toEqual(ok('Updated on YouTube'));
   });
 });

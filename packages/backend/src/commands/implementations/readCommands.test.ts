@@ -55,7 +55,7 @@ describe('!game', () => {
 
   it('changes it for a moderator, keeping every word of the name', async () => {
     const setGame = vi.fn(() =>
-      Promise.resolve({ updated: [StreamingPlatform.TWITCH], failures: [] })
+      Promise.resolve({ updated: [StreamingPlatform.TWITCH], failures: [], skipped: [] })
     );
     const command = new GameCommand(control({ setGame }));
 

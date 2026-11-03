@@ -126,6 +126,8 @@ export class YouTubeChatIntegration extends BaseIntegration {
 
   private resolveTimer: NodeJS.Timeout | null = null;
   private resolveDeadline = 0;
+  /** Why the last lookup failed, if it did: running out of time then isn't a quiet "no broadcast". */
+  private lastLookupError: unknown = null;
   /** When to reopen a dropped stream. A working response, or a new broadcast, starts it over. */
   private readonly backoff = new ReconnectBackoff();
 
@@ -263,6 +265,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
       if (this.isStale(epoch)) {
         return;
       }
+      this.lastLookupError = null;
 
       if (broadcast?.liveChatId) {
         const { title: _title, ...identity } = broadcast;
@@ -284,10 +287,19 @@ export class YouTubeChatIntegration extends BaseIntegration {
         return;
       }
       this.logger.warn('Failed to check for an active YouTube broadcast', error);
+      this.lastLookupError = error;
     }
 
     if (Date.now() >= this.resolveDeadline) {
-      this.logger.info('No active YouTube broadcast appeared; returning to idle');
+      if (this.lastLookupError === null) {
+        // Normal: OBS streaming doesn't mean this stream is on YouTube.
+        this.logger.info('No active YouTube broadcast appeared; returning to idle');
+      } else {
+        this.reportChatStopped(
+          "Could not look up the YouTube broadcast, so YouTube chat isn't connected.",
+          this.lastLookupError
+        );
+      }
       this.teardown();
       return;
     }
@@ -416,7 +428,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
 
     // Anything else is unexpected. Surface it loudly rather than silently idling — with polling
     // removed there is no degraded mode, so a quiet failure looks identical to a quiet stream.
-    this.logger.error('YouTube chat stream failed unexpectedly; returning to idle', error);
+    this.reportChatStopped('YouTube chat stopped on an unexpected error.', error);
     this.teardown();
   }
 
@@ -440,14 +452,23 @@ export class YouTubeChatIntegration extends BaseIntegration {
     if (this.backoff.attempts >= MAX_RECONNECT_ATTEMPTS) {
       // Bounded on purpose: a broadcast that has ended tends to close the stream immediately every
       // time, which would otherwise be an endless reconnect loop still reporting `streaming`.
-      this.logger.warn(
-        `YouTube chat stream failed ${this.backoff.attempts} times in a row; returning to idle`
+      this.reportChatStopped(
+        `YouTube chat stopped after failing to reconnect ${this.backoff.attempts} times in a row. ` +
+          "That's expected if the broadcast just ended."
       );
       this.teardown();
       return;
     }
 
     this.backoff.schedule(() => this.openStream());
+  }
+
+  /** Tell the streamer chat has gone idle. Nothing else shows it: the status stays CONNECTED. */
+  private reportChatStopped(message: string, cause?: unknown): void {
+    const detail = cause === undefined ? '' : ` ${messageOf(cause)}`;
+    this.reportFailure(
+      new Error(`${message}${detail} Use Connect chat in the console to try again.`, { cause })
+    );
   }
 
   /**

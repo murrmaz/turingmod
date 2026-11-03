@@ -20,7 +20,8 @@ export function fail(code: CommandErrorCode, message: string, reason: string): C
  * The reply to a write mirrored to every live platform (title, game, tags): `describe` given the
  * platforms that took it, or a failure if none did. A platform's error text reaches chat only when
  * it is about the value asked for ("Game not found"); anything else is the streamer's business, so
- * chat hears only which platform failed and the error goes to the activity log as the reason.
+ * chat hears only which platform failed and the error goes to the activity log as the reason. A
+ * platform that couldn't be tried is the streamer's business too: chat hears nothing about it.
  */
 export function mirrorReply(
   mirror: MirrorResult,
@@ -32,6 +33,12 @@ export function mirrorReply(
   }
   const failure = mirror.failures[0];
   if (!failure) {
+    if (mirror.skipped.length > 0) {
+      const reason = mirror.skipped
+        .map(({ platform, reason }) => `${platformDisplayName(platform)}: ${reason}`)
+        .join('; ');
+      return fail('API_ERROR', `Failed to update ${what}`, reason);
+    }
     const reason = 'No live platforms to update';
     return fail('API_ERROR', `Failed to update ${what}: ${reason}`, reason);
   }

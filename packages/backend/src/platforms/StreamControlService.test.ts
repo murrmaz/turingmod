@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
+import { RepeatingFailures } from '../core/ServiceLifecycle.js';
 import { Logger } from '../utils/Logger.js';
 import { InvalidStreamInfoError } from './errors.js';
 import type {
@@ -12,7 +13,7 @@ import type {
   StreamInfo,
 } from './interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from './PlatformRegistry.js';
-import { StreamControlService } from './StreamControlService.js';
+import { reportAnnouncement, StreamControlService } from './StreamControlService.js';
 
 /** A façade whose availability and live state the test drives directly. */
 class FakePlatform implements IStreamPlatform {
@@ -70,7 +71,7 @@ describe('StreamControlService mirroring', () => {
     registry = new PlatformRegistry();
   });
 
-  it('logs a warning and skips a platform whose auth is broken, without reporting a failure', async () => {
+  it('logs a warning and lists a platform whose auth is broken as skipped, not failed', async () => {
     const twitch = new FakePlatform(StreamingPlatform.TWITCH, 'Token refresh failed', true);
     registry.register(twitch);
     const service = makeService(registry, logger);
@@ -78,8 +79,12 @@ describe('StreamControlService mirroring', () => {
     const result = await service.setTitle('New title');
 
     expect(twitch.setStreamInfo).not.toHaveBeenCalled();
-    // Nothing for chat to see: the auth problem stays out of MirrorResult entirely.
-    expect(result).toEqual({ updated: [], failures: [] });
+    // Listed apart from failures, whose text chat may repeat.
+    expect(result).toEqual({
+      updated: [],
+      failures: [],
+      skipped: [{ platform: StreamingPlatform.TWITCH, reason: 'Token refresh failed' }],
+    });
     expect(logger.warn).toHaveBeenCalledWith('Skipping Twitch for set_title: Token refresh failed');
   });
 
@@ -178,7 +183,7 @@ describe('StreamControlService.announce', () => {
 
     expect(twitch.sendChatMessage).toHaveBeenCalledWith('hello twitch');
     expect(youtube.sendChatMessage).not.toHaveBeenCalled();
-    expect(result).toEqual({ updated: [StreamingPlatform.TWITCH], failures: [] });
+    expect(result).toEqual({ updated: [StreamingPlatform.TWITCH], failures: [], skipped: [] });
   });
 
   it('skips a platform whose message is null without counting it', async () => {
@@ -189,7 +194,7 @@ describe('StreamControlService.announce', () => {
     const result = await service.announce(() => null);
 
     expect(twitch.sendChatMessage).not.toHaveBeenCalled();
-    expect(result).toEqual({ updated: [], failures: [] });
+    expect(result).toEqual({ updated: [], failures: [], skipped: [] });
   });
 
   it('reports a send failure without stopping the other platforms', async () => {
@@ -295,5 +300,55 @@ describe('StreamControlService announcements', () => {
 
     expect(twitch.sendChatMessage).toHaveBeenCalledWith('Hello');
     expect(twitch.announcements.sendAnnouncement).not.toHaveBeenCalled();
+  });
+});
+
+describe('reportAnnouncement', () => {
+  function setup() {
+    const report = vi.fn();
+    const failures = new RepeatingFailures(report, new Logger({ level: 'silent' }));
+    return { report, failures };
+  }
+  const twitchFailed = {
+    updated: [],
+    failures: [{ platform: StreamingPlatform.TWITCH, error: 'refused' }],
+    skipped: [],
+  };
+
+  it('reports a platform that failed, naming what and where', () => {
+    const { report, failures } = setup();
+
+    reportAnnouncement(twitchFailed, failures, 'an ad warning');
+
+    expect(report).toHaveBeenCalledWith('Could not post an ad warning on Twitch.', 'refused');
+  });
+
+  it('reports once until that platform takes an announcement again', () => {
+    const { report, failures } = setup();
+
+    reportAnnouncement(twitchFailed, failures, 'an ad warning');
+    reportAnnouncement(twitchFailed, failures, 'an ad warning');
+    expect(report).toHaveBeenCalledOnce();
+
+    const worked = { updated: [StreamingPlatform.TWITCH], failures: [], skipped: [] };
+    reportAnnouncement(worked, failures, 'an ad warning');
+    reportAnnouncement(twitchFailed, failures, 'an ad warning');
+    expect(report).toHaveBeenCalledTimes(2);
+  });
+
+  it('says nothing about a skipped platform, whose integration shows why', () => {
+    const { report, failures } = setup();
+
+    reportAnnouncement(
+      {
+        updated: [],
+        failures: [],
+        skipped: [{ platform: StreamingPlatform.TWITCH, reason: 'Re-authorization needed' }],
+      },
+      failures,
+      'an ad warning'
+    );
+
+    expect(report).not.toHaveBeenCalled();
   });
 });

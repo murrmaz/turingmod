@@ -103,7 +103,7 @@ describe('RewardRouter', () => {
     expect(logger.error).not.toHaveBeenCalled();
   });
 
-  it('logs a failing handler and keeps routing later redemptions', async () => {
+  it('reports a failing handler and keeps routing later redemptions', async () => {
     const failing = handlerFor(
       'Jumpscare',
       vi.fn(() => Promise.reject(new Error('sound missing')))
@@ -115,10 +115,8 @@ describe('RewardRouter', () => {
     await eventBus.emit('twitch.channelPoint.redemption', redemption('Jumpscare'));
     await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk'));
 
-    expect(logger.error).toHaveBeenCalledWith(
-      'Reward handler "Jumpscare" failed',
-      expect.any(Error)
-    );
+    expect(reported).toHaveBeenCalledOnce();
+    expect(reported.mock.calls[0]?.[0].message).toMatch(/"Jumpscare" reward failed for Viewer/);
     expect(bonk.handle).toHaveBeenCalledTimes(1);
   });
 

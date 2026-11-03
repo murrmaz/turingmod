@@ -157,6 +157,13 @@ describe('YouTubeChatIntegration', () => {
     vi.useRealTimers();
   });
 
+  /** What the integration reports from now on, as `IntegrationManager` would publish it. */
+  function reportedFailures(): string[] {
+    const failures: string[] = [];
+    integration.on('failure', (error) => failures.push(error.message));
+    return failures;
+  }
+
   /** Drive the integration all the way to a live stream and consume the backlog response. */
   async function connect(): Promise<void> {
     integration.connectChat('console');
@@ -245,6 +252,40 @@ describe('YouTubeChatIntegration', () => {
 
       // Bounded: roughly deadline/interval attempts, not an unbounded loop.
       expect(api.getActiveBroadcast.mock.calls.length).toBeLessThanOrEqual(26);
+    });
+
+    it('stays quiet when no broadcast appeared, since a stream may not be on YouTube', async () => {
+      const failures = reportedFailures();
+      api.getActiveBroadcast.mockResolvedValue(null);
+
+      integration.connectChat('console');
+      await vi.advanceTimersByTimeAsync(130_000);
+
+      expect(failures).toEqual([]);
+    });
+
+    it('reports giving up when the lookup was still failing, not just finding nothing', async () => {
+      const failures = reportedFailures();
+      api.getActiveBroadcast.mockRejectedValue(new Error('quota exceeded'));
+
+      integration.connectChat('console');
+      await vi.advanceTimersByTimeAsync(130_000);
+
+      expect(integration.getState()).toBe('idle');
+      expect(failures).toHaveLength(1);
+      expect(failures[0]).toMatch(/Could not look up.*quota exceeded.*Connect chat/);
+    });
+
+    it('stays quiet when the lookup recovered before the deadline', async () => {
+      const failures = reportedFailures();
+      api.getActiveBroadcast
+        .mockRejectedValueOnce(new Error('network blip'))
+        .mockResolvedValue(null);
+
+      integration.connectChat('console');
+      await vi.advanceTimersByTimeAsync(130_000);
+
+      expect(failures).toEqual([]);
     });
 
     it('keeps retrying when the broadcast lookup throws', async () => {
@@ -427,11 +468,14 @@ describe('YouTubeChatIntegration', () => {
       await connect();
 
       // A bug in our own parsing, say. Reconnecting would loop on it; idling surfaces it instead.
+      const failures = reportedFailures();
       call.emitTransportError('ERR_SOMETHING_UNEXPECTED');
       await flush();
 
       expect(integration.getState()).toBe('idle');
       expect(vi.getTimerCount()).toBe(0);
+      expect(failures).toHaveLength(1);
+      expect(failures[0]).toMatch(/stopped on an unexpected error.*Connect chat/);
     });
 
     it('flags re-authorization when the broadcast lookup fails on a dead token', async () => {
@@ -491,6 +535,7 @@ describe('YouTubeChatIntegration', () => {
     it('gives up instead of reconnecting forever when the stream keeps ending', async () => {
       await connect();
 
+      const failures = reportedFailures();
       // A broadcast that has ended closes the stream immediately, every time.
       for (let attempt = 0; attempt < 12; attempt += 1) {
         call.emitEnd();
@@ -499,6 +544,8 @@ describe('YouTubeChatIntegration', () => {
 
       expect(integration.getState()).toBe('idle');
       expect(vi.getTimerCount()).toBe(0);
+      expect(failures).toHaveLength(1);
+      expect(failures[0]).toMatch(/failing to reconnect.*expected if the broadcast just ended/);
     });
 
     it('returns to idle when a response reports the broadcast went offline', async () => {

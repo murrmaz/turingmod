@@ -1,7 +1,12 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
-import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
+import {
+  failureReporter,
+  type IService,
+  RepeatingFailures,
+  Subscriptions,
+} from '../core/ServiceLifecycle.js';
 import { NotAuthenticatedError } from '../platforms/errors.js';
 import type {
   ChannelReward,
@@ -61,10 +66,11 @@ export class RewardSync implements IService {
   private managedIds = new Set<string>();
   /** Whether a pass has read Twitch's rewards, without which managedIds says nothing. */
   private synced = false;
-  private reportedUnmanageable = new Set<string>();
   private running: Promise<void> | null = null;
   private rerun = false;
   private logger: Logger;
+  /** Passes repeat, on every break among other things, so each problem is reported once. */
+  private failures: RepeatingFailures;
 
   constructor(
     private eventBus: EventBus,
@@ -73,6 +79,10 @@ export class RewardSync implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'RewardSync' });
+    this.failures = new RepeatingFailures(
+      failureReporter(eventBus, this.logger, 'Channel point rewards'),
+      this.logger
+    );
   }
 
   start(): void {
@@ -148,17 +158,27 @@ export class RewardSync implements IService {
       if (error instanceof NotAuthenticatedError) {
         this.logger.debug('Twitch is not connected; rewards will sync once it is');
       } else {
-        this.logger.error('Could not read channel point rewards from Twitch', error);
+        this.failures.failed(
+          'read',
+          "Could not read channel point rewards from Twitch, so they aren't being kept in step.",
+          error
+        );
       }
       return;
     }
+    this.failures.recovered('read');
     this.synced = true;
 
     for (const handler of handlers) {
       try {
         await this.syncReward(handler, rewards);
+        this.failures.recovered(`sync:${handler.rewardTitle}`);
       } catch (error) {
-        this.logger.error(`Failed to sync reward "${handler.rewardTitle}"`, error);
+        this.failures.failed(
+          `sync:${handler.rewardTitle}`,
+          `Could not update the "${handler.rewardTitle}" reward on Twitch.`,
+          error
+        );
       }
     }
   }
@@ -183,17 +203,15 @@ export class RewardSync implements IService {
     }
 
     if (!existing.manageable) {
-      if (!this.reportedUnmanageable.has(title)) {
-        this.reportedUnmanageable.add(title);
-        this.logger.warn(
-          `Reward "${title}" was created by another application, so TuringMod can't update it, ` +
-            'resolve its redemptions, or pause it during breaks. Delete it on Twitch and ' +
-            'TuringMod will create its own on the next sync.'
-        );
-      }
+      this.failures.failed(
+        `unmanageable:${title}`,
+        `Reward "${title}" was created by another application, so TuringMod can't update it, ` +
+          'resolve its redemptions, or pause it during breaks. Delete it on Twitch and ' +
+          'TuringMod will create its own on the next sync.'
+      );
       return;
     }
-    this.reportedUnmanageable.delete(title);
+    this.failures.recovered(`unmanageable:${title}`);
     this.managedIds.add(existing.id);
 
     const changes: ChannelRewardChanges = changedSettings(existing, desired);

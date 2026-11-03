@@ -1,10 +1,15 @@
-import { isExecutorErrorCode } from '@turingmod/shared';
+import { isExecutorErrorCode, platformDisplayName } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { CommandExecutor } from '../commands/CommandExecutor.js';
 import type { CommandContext } from '../commands/interfaces/ICommand.js';
 import { parseCommand } from '../commands/parseCommand.js';
 import { EventBus } from '../core/EventBus.js';
-import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
+import {
+  failureReporter,
+  type IService,
+  RepeatingFailures,
+  Subscriptions,
+} from '../core/ServiceLifecycle.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
 import { Logger } from '../utils/Logger.js';
 import type { ChatMessageEvent } from './chatMessage.js';
@@ -22,6 +27,7 @@ import { ChatModerator } from './moderation/ChatModerator.js';
 export class ChatRouter implements IService {
   private subscriptions = new Subscriptions();
   private logger: Logger;
+  private replyFailures: RepeatingFailures;
 
   constructor(
     private eventBus: EventBus,
@@ -31,6 +37,10 @@ export class ChatRouter implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'ChatRouter' });
+    this.replyFailures = new RepeatingFailures(
+      failureReporter(eventBus, this.logger, 'Chat'),
+      this.logger
+    );
   }
 
   /** Subscribe to `chat.message` and route replies. */
@@ -89,11 +99,13 @@ export class ChatRouter implements IService {
 
     try {
       await this.streamControl.sendChatMessage(event.platform, result.message);
+      this.replyFailures.recovered(event.platform);
     } catch (error) {
-      this.logger.error('Failed to send command reply to chat', error, {
-        platform: event.platform,
-        command: parsed.command,
-      });
+      this.replyFailures.failed(
+        event.platform,
+        `Could not post the reply to !${parsed.command} in ${platformDisplayName(event.platform)} chat.`,
+        error
+      );
     }
   }
 }

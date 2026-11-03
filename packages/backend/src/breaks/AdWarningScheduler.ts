@@ -1,8 +1,13 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
-import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
-import { StreamControlService } from '../platforms/StreamControlService.js';
+import {
+  failureReporter,
+  type IService,
+  RepeatingFailures,
+  Subscriptions,
+} from '../core/ServiceLifecycle.js';
+import { reportAnnouncement, StreamControlService } from '../platforms/StreamControlService.js';
 import { formatCountdown } from '../utils/FormatHelpers.js';
 import { Logger } from '../utils/Logger.js';
 import { BreakService } from './BreakService.js';
@@ -34,6 +39,8 @@ export class AdWarningScheduler implements IService {
   private posted = new Set<string>();
   private subscriptions = new Subscriptions();
   private logger: Logger;
+  /** The schedule is read every few minutes, so an outage would report on every read. */
+  private failures: RepeatingFailures;
 
   constructor(
     private eventBus: EventBus,
@@ -42,6 +49,10 @@ export class AdWarningScheduler implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'AdWarningScheduler' });
+    this.failures = new RepeatingFailures(
+      failureReporter(eventBus, this.logger, 'Ad warnings'),
+      this.logger
+    );
   }
 
   start(): void {
@@ -110,11 +121,14 @@ export class AdWarningScheduler implements IService {
       const adBreak = await this.streamControl
         .require(StreamingPlatform.TWITCH, 'ads')
         .getNextAdBreak();
+      this.failures.recovered('schedule');
       return adBreak?.nextAdDate?.getTime() ?? null;
     } catch (error) {
-      this.logger.warn('Could not read the Twitch ad schedule', {
-        error,
-      });
+      this.failures.failed(
+        'schedule',
+        "Could not read Twitch's ad schedule, so chat won't be warned before ads until it can be.",
+        error
+      );
       return null;
     }
   }
@@ -170,9 +184,12 @@ export class AdWarningScheduler implements IService {
     const time = formatCountdown(current - Date.now());
     const message = this.breakService.getSettings().messages.adWarning;
     try {
-      await this.streamControl.announce((platform) => renderMessage(message, platform, { time }));
+      const result = await this.streamControl.announce((platform) =>
+        renderMessage(message, platform, { time })
+      );
+      reportAnnouncement(result, this.failures, 'an ad warning');
     } catch (error) {
-      this.logger.error('Could not post ad warning', error);
+      this.failures.failed('announce', 'Could not post an ad warning.', error);
     }
   }
 

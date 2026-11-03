@@ -34,7 +34,9 @@ unknown, not offline, so a crashed or restarted stream, or an auth outage, carri
 post without a second ping. Going live continues the post only if the broadcast started within
 the grace period of the post's last heartbeat; a later start ends the old post and announces anew.
 The open post is stored (`GoLivePostRepository`) with a once-a-minute "still live" time; one that
-can't be read is dropped and reported (`service.error`) rather than stopping anything. Only the
+can't be read is dropped and reported (`service.error`) rather than stopping anything, and so is a
+post that can't be updated (once per outage, retried each minute while live) or marked as ended,
+which leaves it saying live in Discord. Only the
 first post pings: `DiscordIntegration` allows `@everyone` and no other mention, and never on an
 edit. A post someone deletes stays deleted for the rest of the stream. Twitch's `stream.offline`
 and `channel.update` topics are on by default for this; YouTube Studio title changes reach the

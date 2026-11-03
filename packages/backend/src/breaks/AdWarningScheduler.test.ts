@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
-import type { StreamControlService } from '../platforms/StreamControlService.js';
+import type { MirrorResult, StreamControlService } from '../platforms/StreamControlService.js';
 import { fakeRequire } from '../platforms/testing.js';
 import { Logger } from '../utils/Logger.js';
 import { AdWarningScheduler } from './AdWarningScheduler.js';
@@ -27,7 +27,7 @@ function setup(settings: BreakSettings = DEFAULT_BREAK_SETTINGS) {
         twitch: messageFor(StreamingPlatform.TWITCH),
         youtube: messageFor(StreamingPlatform.YOUTUBE),
       });
-      return Promise.resolve({ updated: [], failures: [] });
+      return Promise.resolve<MirrorResult>({ updated: [], failures: [], skipped: [] });
     }),
   };
   const breakService = { getSettings: () => settings };
@@ -37,9 +37,13 @@ function setup(settings: BreakSettings = DEFAULT_BREAK_SETTINGS) {
     streamControl as unknown as StreamControlService,
     new Logger({ level: 'silent' })
   );
+  const reported = vi.fn();
+  eventBus.on('service.error', reported);
   return {
     eventBus,
     getNextAdBreak,
+    reported,
+    streamControl,
     posted,
     scheduler,
     setNextAd: (at: number | null) => {
@@ -171,5 +175,43 @@ describe('AdWarningScheduler', () => {
     await vi.advanceTimersByTimeAsync(10 * MINUTE);
 
     expect(posted).toHaveLength(0);
+  });
+
+  it('reports a platform that refused a warning, which announce() only lists', async () => {
+    const { reported, scheduler, streamControl } = setup();
+    streamControl.announce.mockResolvedValueOnce({
+      updated: [],
+      failures: [{ platform: StreamingPlatform.TWITCH, error: 'refused' }],
+      skipped: [],
+    });
+    scheduler.start();
+
+    await vi.advanceTimersByTimeAsync(5 * MINUTE);
+
+    expect(reported).toHaveBeenCalledWith({
+      service: 'Ad warnings',
+      message: 'Could not post an ad warning on Twitch. refused',
+    });
+    scheduler.stop();
+  });
+
+  it('reports a schedule it cannot read once, until a read works', async () => {
+    const { getNextAdBreak, reported, scheduler } = setup();
+    getNextAdBreak.mockRejectedValueOnce(new Error('503'));
+    getNextAdBreak.mockRejectedValueOnce(new Error('503'));
+    getNextAdBreak.mockRejectedValueOnce(new Error('503'));
+
+    await scheduler.poll();
+    await scheduler.poll();
+    expect(reported).toHaveBeenCalledOnce();
+    expect(reported.mock.calls[0]?.[0].message).toMatch(/ad schedule.*503/);
+
+    await scheduler.poll();
+    expect(reported).toHaveBeenCalledOnce();
+    await scheduler.poll(); // works
+    getNextAdBreak.mockRejectedValueOnce(new Error('503'));
+    await scheduler.poll();
+    expect(reported).toHaveBeenCalledTimes(2);
+    scheduler.stop();
   });
 });

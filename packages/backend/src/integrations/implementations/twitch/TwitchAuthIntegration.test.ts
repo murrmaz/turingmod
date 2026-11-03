@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { IntegrationStatus } from '@turingmod/shared';
-import type { HttpStatusCodeError } from '@twurple/api-call';
+import { HttpStatusCodeError } from '@twurple/api-call';
 import { CachedRefreshFailureError } from '@twurple/auth';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../core/EventBus.js';
@@ -8,6 +8,7 @@ import type { IntegrationStateRepository } from '../../../database/repositories/
 import type { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
 import { IntegrationManager } from '../../IntegrationManager.js';
+import { TwitchApiIntegration } from './TwitchApiIntegration.js';
 import { TWITCH_REQUIRED_SCOPES, TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 
 const CONFIG = {
@@ -36,11 +37,9 @@ function jsonResponse(status: number, body: unknown): Promise<Response> {
 
 function makeIntegration(
   stateRepo: Pick<IntegrationStateRepository, 'saveConfig'>,
-  eventBus: EventBus = new EventBus(new Logger({ level: 'silent' })),
   serverPort = 8080
 ) {
   return new TwitchAuthIntegration(
-    eventBus,
     new Logger({ level: 'silent' }),
     stateRepo as IntegrationStateRepository,
     { serverPort } as TuringModConfig
@@ -134,9 +133,9 @@ describe('TwitchAuthIntegration', () => {
 
   describe('a token refresh failing while connected', () => {
     /** Started on a token that hasn't expired, with Twitch's token endpoint under the test's control. */
-    async function connected(eventBus = new EventBus(new Logger({ level: 'silent' }))) {
+    async function connected() {
       const saveConfig = vi.fn();
-      const integration = makeIntegration({ saveConfig }, eventBus);
+      const integration = makeIntegration({ saveConfig });
       successfulTokenExchange();
       await integration.initialize(FRESH_CONFIG);
       await integration.start();
@@ -214,7 +213,7 @@ describe('TwitchAuthIntegration', () => {
       });
       const eventBus = new EventBus(new Logger({ level: 'silent' }));
       const stateRepo = { saveConfig: vi.fn() } as unknown as IntegrationStateRepository;
-      const integration = new TwitchAuthIntegration(eventBus, logger, stateRepo, {
+      const integration = new TwitchAuthIntegration(logger, stateRepo, {
         serverPort: 8080,
       } as TuringModConfig);
       const manager = new IntegrationManager(stateRepo, eventBus, logger);
@@ -278,63 +277,26 @@ describe('TwitchAuthIntegration', () => {
     });
   });
 
-  it('marks itself NEEDS_REAUTH when another integration reports the authorization was revoked', async () => {
-    const eventBus = new EventBus(new Logger({ level: 'silent' }));
-    const integration = makeIntegration({ saveConfig: vi.fn() }, eventBus);
+  it('needs re-authorization when its API layer finds the grant dead, and stops the calls', async () => {
+    const integration = makeIntegration({ saveConfig: vi.fn() });
+    const api = new TwitchApiIntegration(new Logger({ level: 'silent' }), integration);
     successfulTokenExchange();
-
     await integration.initialize(CONFIG);
     await integration.start();
-    expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
+    await api.start();
+    const unauthorized = new HttpStatusCodeError(401, 'Unauthorized', 'https://x', 'GET', '', true);
 
-    // Simulates TwitchEventSubIntegration detecting a revoked subscription
-    // and publishing the fact, independent of this integration's own
-    // refresh-failure detection.
-    await eventBus.emit('twitch.authorizationRevoked', { reason: 'authorization_revoked' });
+    await expect(api.request(() => Promise.reject(unauthorized))).rejects.toBe(unauthorized);
 
     expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
-    expect(integration.getErrorMessage()).toMatch(/re-authorization required/i);
-  });
-
-  it('stops reacting to authorizationRevoked events after being stopped', async () => {
-    const eventBus = new EventBus(new Logger({ level: 'silent' }));
-    const integration = makeIntegration({ saveConfig: vi.fn() }, eventBus);
-    successfulTokenExchange();
-
-    await integration.initialize(CONFIG);
-    await integration.start();
-    await integration.stop();
-
-    expect(eventBus.listenerCount('twitch.authorizationRevoked')).toBe(0);
-
-    await eventBus.emit('twitch.authorizationRevoked', { reason: 'authorization_revoked' });
-
-    expect(integration.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
-  });
-
-  it('does not accumulate listeners across repeated failed start() retries', async () => {
-    const eventBus = new EventBus(new Logger({ level: 'silent' }));
-    const integration = makeIntegration({ saveConfig: vi.fn() }, eventBus);
-
-    vi.mocked(fetch).mockImplementation((input) => {
-      const url = input.toString();
-      if (url.includes('/oauth2/token')) {
-        return jsonResponse(400, { status: 400, message: 'Invalid refresh token' });
-      }
-      throw new Error(`Unexpected fetch call: ${url}`);
-    });
-
-    await integration.initialize(CONFIG);
-    await expect(integration.start()).rejects.toThrow();
-    await expect(integration.start()).rejects.toThrow();
-    await expect(integration.start()).rejects.toThrow();
-
-    expect(eventBus.listenerCount('twitch.authorizationRevoked')).toBe(1);
+    expect(integration.getErrorMessage()).toMatch(/rejected an API call/);
+    const call = vi.fn();
+    await expect(api.request(call)).rejects.toThrow('Twitch is not connected');
+    expect(call).not.toHaveBeenCalled();
   });
 
   it('requires re-authorization, without contacting Twitch, when the stored grant predates a required scope', async () => {
-    const eventBus = new EventBus(new Logger({ level: 'silent' }));
-    const integration = makeIntegration({ saveConfig: vi.fn() }, eventBus);
+    const integration = makeIntegration({ saveConfig: vi.fn() });
 
     await integration.initialize({ ...CONFIG, grantedScopes: ['chat:read'] });
     await integration.start();
@@ -355,7 +317,7 @@ describe('TwitchAuthIntegration', () => {
 
   it('derives its redirect URI from the server port', async () => {
     const saveConfig = vi.fn();
-    const integration = makeIntegration({ saveConfig }, undefined, 9123);
+    const integration = makeIntegration({ saveConfig }, 9123);
     successfulTokenExchange();
 
     expect(integration.getRedirectUri()).toBe('http://localhost:9123/callback/twitch');

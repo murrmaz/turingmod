@@ -169,4 +169,43 @@ describe('OAuthIntegration', () => {
     expect(parseScopes(undefined)).toBeUndefined();
     expect(parseScopes('')).toBeUndefined();
   });
+
+  describe('markAuthRequired', () => {
+    async function connected() {
+      const integration = new TestOAuthIntegration();
+      await integration.initialize(GRANT);
+      await integration.start();
+      const statuses: IntegrationStatus[] = [];
+      integration.on('status', (status) => statuses.push(status));
+      return { integration, statuses };
+    }
+
+    it('needs re-authorization, saying why', async () => {
+      const { integration } = await connected();
+
+      integration.markAuthRequired('Revoked on the dashboard');
+
+      expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
+      expect(integration.getErrorMessage()).toBe('Revoked on the dashboard');
+    });
+
+    it('is one status change when several calls fail together, keeping the first reason', async () => {
+      const { integration, statuses } = await connected();
+
+      integration.markAuthRequired('first');
+      integration.markAuthRequired('second');
+
+      expect(statuses).toEqual([IntegrationStatus.NEEDS_REAUTH]);
+      expect(integration.getErrorMessage()).toBe('first');
+    });
+
+    it("can't undo a stop when a call fails late", async () => {
+      const { integration } = await connected();
+      await integration.stop();
+
+      integration.markAuthRequired();
+
+      expect(integration.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
+    });
+  });
 });

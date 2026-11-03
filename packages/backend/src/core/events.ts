@@ -64,7 +64,6 @@ export interface EventMap {
   'twitch.ad.break': TwitchAdBreakEvent;
   'twitch.channelPoint.redemption': RewardRedemption;
   /** Twitch rejected our grant; `TwitchAuthIntegration` moves to NEEDS_REAUTH. */
-  'twitch.authorizationRevoked': TwitchAuthorizationRevokedEvent;
 
   'youtube.chat.state': YouTubeChatStateEvent;
 
@@ -222,11 +221,6 @@ export interface RewardRedemption {
 
 export interface TwitchEventSubReadyEvent {
   sessionId: string;
-}
-
-export interface TwitchAuthorizationRevokedEvent {
-  /** The EventSub revocation status, or `api-call-unauthorized` for a 401 from Helix. */
-  reason: string;
 }
 
 export interface StreamInfoChangedEvent {

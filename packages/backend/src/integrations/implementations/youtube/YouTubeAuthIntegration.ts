@@ -1,9 +1,4 @@
-import {
-  type IntegrationGroup,
-  IntegrationName,
-  IntegrationStatus,
-  messageOf,
-} from '@turingmod/shared';
+import { type IntegrationGroup, IntegrationName, messageOf } from '@turingmod/shared';
 import { google } from 'googleapis';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
@@ -124,14 +119,6 @@ export class YouTubeAuthIntegration extends OAuthIntegration<YouTubeAuthConfig> 
    */
   isAuthError(error: unknown): boolean {
     return httpStatusOf(error) === 401 || messageOf(error).includes('invalid_grant');
-  }
-
-  /**
-   * Flag this integration as needing the user to redo the OAuth flow. Called by
-   * YouTubeApiIntegration when isAuthError() identifies a refresh failure.
-   */
-  markAuthRequired(message = 'Token refresh failed — re-authorization required'): void {
-    this.setStatus(IntegrationStatus.NEEDS_REAUTH, message);
   }
 
   /**

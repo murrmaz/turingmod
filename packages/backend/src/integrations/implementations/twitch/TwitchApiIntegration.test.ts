@@ -3,7 +3,6 @@ import { IntegrationStatus } from '@turingmod/shared';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import { CachedRefreshFailureError, type RefreshingAuthProvider } from '@twurple/auth';
 import { describe, expect, it, vi } from 'vitest';
-import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { TwitchApiIntegration } from './TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
@@ -24,18 +23,15 @@ function makeAuthIntegration(
   return {
     getStatus: () => status,
     getAuthProvider: () => authProvider,
+    markAuthRequired: vi.fn(),
   } as unknown as TwitchAuthIntegration;
 }
 
 async function startWithFailingCall(
-  eventBus: EventBus,
-  error: unknown
+  error: unknown,
+  auth = makeAuthIntegration()
 ): Promise<TwitchApiIntegration> {
-  const integration = new TwitchApiIntegration(
-    eventBus,
-    new Logger({ level: 'silent' }),
-    makeAuthIntegration()
-  );
+  const integration = new TwitchApiIntegration(new Logger({ level: 'silent' }), auth);
 
   await integration.start();
 
@@ -51,7 +47,6 @@ async function startWithFailingCall(
 describe('TwitchApiIntegration', () => {
   it('refuses to resolve a client while auth is not connected', async () => {
     const integration = new TwitchApiIntegration(
-      new EventBus(new Logger({ level: 'silent' })),
       new Logger({ level: 'silent' }),
       makeAuthIntegration(IntegrationStatus.CONNECTED)
     );
@@ -62,7 +57,6 @@ describe('TwitchApiIntegration', () => {
     // integration must not keep calling Twitch through it.
     const auth = { status: IntegrationStatus.CONNECTED, getAuthProvider: () => ({}) };
     const reauthing = new TwitchApiIntegration(
-      new EventBus(new Logger({ level: 'silent' })),
       new Logger({ level: 'silent' }),
       Object.assign(auth, { getStatus: () => auth.status }) as unknown as TwitchAuthIntegration
     );
@@ -76,7 +70,6 @@ describe('TwitchApiIntegration', () => {
 
   it('hands out no client once stopped, so a listener cannot outlive the stop', async () => {
     const integration = new TwitchApiIntegration(
-      new EventBus(new Logger({ level: 'silent' })),
       new Logger({ level: 'silent' }),
       makeAuthIntegration()
     );
@@ -94,11 +87,7 @@ describe('TwitchApiIntegration', () => {
       getAuthProvider: () => authProvider,
     } as unknown as TwitchAuthIntegration;
 
-    const integration = new TwitchApiIntegration(
-      new EventBus(new Logger({ level: 'silent' })),
-      new Logger({ level: 'silent' }),
-      authIntegration
-    );
+    const integration = new TwitchApiIntegration(new Logger({ level: 'silent' }), authIntegration);
 
     await integration.start();
     const firstClient = integration.getApiClient();
@@ -119,11 +108,7 @@ describe('TwitchApiIntegration', () => {
       getAuthProvider: () => authProvider,
     } as unknown as TwitchAuthIntegration;
 
-    const integration = new TwitchApiIntegration(
-      new EventBus(new Logger({ level: 'silent' })),
-      new Logger({ level: 'silent' }),
-      authIntegration
-    );
+    const integration = new TwitchApiIntegration(new Logger({ level: 'silent' }), authIntegration);
 
     await integration.start();
     expect(integration.getApiClient()).not.toBeNull();
@@ -134,7 +119,6 @@ describe('TwitchApiIntegration', () => {
 
   it('keeps the client secret out of a failed app token request', async () => {
     const integration = await startWithFailingCall(
-      new EventBus(new Logger({ level: 'silent' })),
       new HttpStatusCodeError(
         503,
         'Service Unavailable',
@@ -158,13 +142,9 @@ describe('TwitchApiIntegration', () => {
     expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
   });
 
-  it('marks itself NEEDS_REAUTH and reports authorizationRevoked on a 401', async () => {
-    const eventBus = new EventBus(new Logger({ level: 'silent' }));
-    const revoked = vi.fn();
-    eventBus.on('twitch.authorizationRevoked', revoked);
-
+  it('tells the auth integration the grant is dead on a 401', async () => {
+    const auth = makeAuthIntegration();
     const integration = await startWithFailingCall(
-      eventBus,
       new HttpStatusCodeError(
         401,
         'Unauthorized',
@@ -172,38 +152,31 @@ describe('TwitchApiIntegration', () => {
         'GET',
         '',
         true
-      )
+      ),
+      auth
     );
 
     await expect(integration.request((c) => c.users.getUserByName('someone'))).rejects.toThrow();
 
-    expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
-    expect(revoked).toHaveBeenCalledWith({ reason: 'api-call-unauthorized' });
+    expect(auth.markAuthRequired).toHaveBeenCalledWith(
+      'Twitch rejected an API call as unauthorized — re-authorization required'
+    );
+    // Whose grant it is decides its status; this one follows through the cascade.
+    expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
   });
 
-  it('marks itself NEEDS_REAUTH when Twurple already knows the token refresh failed', async () => {
-    const eventBus = new EventBus(new Logger({ level: 'silent' }));
-    const revoked = vi.fn();
-    eventBus.on('twitch.authorizationRevoked', revoked);
-
-    const integration = await startWithFailingCall(
-      eventBus,
-      new CachedRefreshFailureError('user-123')
-    );
+  it('tells the auth integration when Twurple already knows the token refresh failed', async () => {
+    const auth = makeAuthIntegration();
+    const integration = await startWithFailingCall(new CachedRefreshFailureError('user-123'), auth);
 
     await expect(integration.request((c) => c.users.getUserByName('someone'))).rejects.toThrow();
 
-    expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
-    expect(revoked).toHaveBeenCalledWith({ reason: 'api-call-unauthorized' });
+    expect(auth.markAuthRequired).toHaveBeenCalledOnce();
   });
 
-  it('does not report authorizationRevoked for unrelated API errors', async () => {
-    const eventBus = new EventBus(new Logger({ level: 'silent' }));
-    const revoked = vi.fn();
-    eventBus.on('twitch.authorizationRevoked', revoked);
-
+  it('says nothing about the grant for unrelated API errors', async () => {
+    const auth = makeAuthIntegration();
     const integration = await startWithFailingCall(
-      eventBus,
       new HttpStatusCodeError(
         429,
         'Too Many Requests',
@@ -211,12 +184,13 @@ describe('TwitchApiIntegration', () => {
         'GET',
         '',
         true
-      )
+      ),
+      auth
     );
 
     await expect(integration.request((c) => c.users.getUserByName('someone'))).rejects.toThrow();
 
     expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
-    expect(revoked).not.toHaveBeenCalled();
+    expect(auth.markAuthRequired).not.toHaveBeenCalled();
   });
 });

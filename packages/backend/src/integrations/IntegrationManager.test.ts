@@ -67,7 +67,7 @@ class FakeIntegration extends BaseIntegration {
 
   /** Simulate a dead refresh token. */
   failReauth(): void {
-    this.setStatus(IntegrationStatus.NEEDS_REAUTH, 'needs reauth');
+    this.setNeedsReauth('needs reauth');
   }
 
   /** Simulate a non-auth runtime failure. */

@@ -90,8 +90,7 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
     const missingScopes = this.requiredScopes.filter((scope) => !granted.includes(scope));
     if (missingScopes.length > 0) {
       this.logger.warn('Stored grant is missing required scopes', { missingScopes });
-      this.setStatus(
-        IntegrationStatus.NEEDS_REAUTH,
+      this.markAuthRequired(
         `Re-authorization required for new permissions: ${missingScopes.join(', ')}`
       );
       return;
@@ -103,10 +102,7 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
     } catch (error) {
       this.logger.error('Failed to connect', error);
       if (this.isReauthRequiredError(error)) {
-        this.setStatus(
-          IntegrationStatus.NEEDS_REAUTH,
-          'Refresh token is invalid or revoked — re-authorization required'
-        );
+        this.markAuthRequired('Refresh token is invalid or revoked — re-authorization required');
       } else {
         this.setStatus(IntegrationStatus.ERROR, messageOf(error));
       }
@@ -118,6 +114,25 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
     this.disconnect();
     this.setStatus(IntegrationStatus.DISCONNECTED);
     return Promise.resolve();
+  }
+
+  /**
+   * The grant is dead and only the streamer redoing OAuth can fix it. This is the one way to say so,
+   * for this integration and for whatever finds out on its behalf (an API layer's 401, a revoked
+   * EventSub subscription): its dependents follow through the cascade, and come back with it.
+   *
+   * Keeps what connect() built, which the API layers refuse to use while this isn't CONNECTED.
+   * Ignored once stopped, so a call failing late can't undo a stop, and when already reported, so
+   * several calls failing together are one status change.
+   */
+  markAuthRequired(message = 'Token refresh failed — re-authorization required'): void {
+    if (
+      this.status === IntegrationStatus.DISCONNECTED ||
+      this.status === IntegrationStatus.NEEDS_REAUTH
+    ) {
+      return;
+    }
+    this.setNeedsReauth(message);
   }
 
   /** Whether client credentials have been saved: the schema doesn't admit a config without them. */

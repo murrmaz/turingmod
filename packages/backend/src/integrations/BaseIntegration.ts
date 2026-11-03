@@ -119,9 +119,23 @@ export abstract class BaseIntegration implements IIntegration {
   }
 
   /**
-   * Set integration status and emit event so IntegrationManager can forward it.
+   * Set integration status and emit event so IntegrationManager can forward it. Not NEEDS_REAUTH:
+   * whether a grant is dead is said only about the integration holding it, with
+   * OAuthIntegration.markAuthRequired(), which every layer above it reaches through the cascade.
    */
-  protected setStatus(status: IntegrationStatus, errorMessage?: string): void {
+  protected setStatus(
+    status: Exclude<IntegrationStatus, IntegrationStatus.NEEDS_REAUTH>,
+    errorMessage?: string
+  ): void {
+    this.applyStatus(status, errorMessage);
+  }
+
+  /** For OAuthIntegration.markAuthRequired(), which is what everything else calls. */
+  protected setNeedsReauth(message: string): void {
+    this.applyStatus(IntegrationStatus.NEEDS_REAUTH, message);
+  }
+
+  private applyStatus(status: IntegrationStatus, errorMessage?: string): void {
     this.status = status;
     this.errorMessage = BaseIntegration.STATUSES_WITH_MESSAGE.has(status)
       ? errorMessage

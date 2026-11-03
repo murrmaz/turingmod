@@ -43,7 +43,9 @@ the first broadcaster message with exactly those words.
 **Outgoing chat can never start with a command**, a second layer that also protects other bots in
 the channel. Every `IStreamPlatform` passes outgoing chat and announcements through
 `toSafeChatText()` (`platforms/safeChatText.ts`), which strips leading whitespace, invisible format
-characters and `!`/`/` prefixes. There is deliberately no `!echo`-style command that repeats
+characters and `!`/`/` prefixes. It also cuts text to the limit the façade passes (500 characters on
+Twitch, 200 on YouTube), so a long reply is shortened rather than refused. A message Twitch accepts
+but doesn't post (`isSent` false: AutoMod held it, say) rejects like any other failed send. There is deliberately no `!echo`-style command that repeats
 viewer input.
 
 **Commands receive their arguments already parsed.** `parseCommand()` (`features/commands/parseCommand.ts`)

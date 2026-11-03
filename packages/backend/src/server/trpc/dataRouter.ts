@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
-import { DataRowsQuerySchema, messageOf } from '@turingmod/shared';
-import type { DataInspector } from '../../database/DataInspector.js';
+import { DataRowsQuerySchema } from '@turingmod/shared';
+import { type DataInspector, DataRefusedError } from '../../database/DataInspector.js';
 import { procedure, router } from './trpc.js';
 
 /**
@@ -9,18 +9,17 @@ import { procedure, router } from './trpc.js';
  */
 export function createDataRouter(inspector: DataInspector) {
   /**
-   * The inspector refuses what it won't read (an unknown table or column) by throwing; that's
-   * a bad request from the console, not a failure here.
+   * What the inspector refuses (an unknown table or column) is a bad request from the console.
+   * Anything else, such as a corrupt database, is a read failing, and is logged as one.
    */
   const read = <T>(work: () => T): T => {
     try {
       return work();
     } catch (error) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: messageOf(error, 'Failed to read data'),
-        cause: error,
-      });
+      if (error instanceof DataRefusedError) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: error.message, cause: error });
+      }
+      throw error;
     }
   };
 

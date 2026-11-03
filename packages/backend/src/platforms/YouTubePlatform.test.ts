@@ -105,6 +105,14 @@ describe('YouTubePlatform', () => {
     });
   });
 
+  it('cuts a message to 200 characters, the most its chat box takes', async () => {
+    chat.getBroadcast.mockReturnValue(STREAMED);
+
+    await platform.sendChatMessage('x'.repeat(300));
+
+    expect(sentTo()).toEqual({ liveChatId: 'streamed-chat', text: `${'x'.repeat(199)}…` });
+  });
+
   it('posts to the streamed chat without looking up the broadcast', async () => {
     chat.getBroadcast.mockReturnValue(STREAMED);
 

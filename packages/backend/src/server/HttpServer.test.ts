@@ -3,7 +3,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OAuthCallbackOutcome, OAuthFlowService } from '../integrations/OAuthFlowService.js';
 import { escapeHtml } from '../utils/escapeHtml.js';
 import { Logger } from '../utils/Logger.js';
@@ -35,6 +35,17 @@ describe('HttpServer OAuth callback', () => {
     const response = await fetch(`${base}/callback/spotify?code=c&state=s`);
     return { status: response.status, body: await response.text() };
   }
+
+  it('keeps the single-use code in the query string out of the debug log', async () => {
+    const debug = vi.spyOn(Logger.prototype, 'debug');
+
+    await page({ result: 'connected', consoleOrigin: null });
+
+    const logged = debug.mock.calls.map(([message]) => message);
+    debug.mockRestore();
+    expect(logged).toContain('HTTP GET /callback/spotify');
+    expect(logged.join()).not.toContain('code=');
+  });
 
   it('reports success and leads back to the console that asked', async () => {
     const { status, body } = await page({

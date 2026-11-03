@@ -6,8 +6,12 @@
  */
 const LEADING_COMMAND_PREFIX = /^[\s\p{Cf}!/]+/u;
 
+/** What ends a message cut to fit its platform's limit. */
+const CUT_OFF = '…';
+
 /**
- * Make text safe for the bot to post: it can never begin with a command.
+ * Make text safe for the bot to post: it can never begin with a command, and it fits `maxLength`,
+ * so a long `!lurk` reason is cut off rather than costing the whole reply.
  *
  * The bot's own messages come back through chat ingest under the sending account's identity — a
  * moderator or the broadcaster — so a reply that echoed a viewer's `!delvod` would otherwise run
@@ -17,10 +21,14 @@ const LEADING_COMMAND_PREFIX = /^[\s\p{Cf}!/]+/u;
  *
  * Throws if nothing is left, since a message that was only a command prefix has nothing to say.
  */
-export function toSafeChatText(message: string): string {
+export function toSafeChatText(message: string, maxLength: number): string {
   const safe = message.replace(LEADING_COMMAND_PREFIX, '');
   if (safe === '') {
     throw new Error('Refusing to post a chat message that is only a command prefix');
   }
-  return safe;
+  // By code point, so an emoji isn't split in half.
+  const characters = Array.from(safe);
+  return characters.length > maxLength
+    ? characters.slice(0, maxLength - CUT_OFF.length).join('') + CUT_OFF
+    : safe;
 }

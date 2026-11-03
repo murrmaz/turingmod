@@ -32,7 +32,14 @@ function setup() {
     videos: { getVideosByUser: vi.fn(), deleteVideosByIds: vi.fn(() => Promise.resolve()) },
     chat: {
       sendAnnouncement: vi.fn(() => Promise.resolve()),
-      sendChatMessage: vi.fn(() => Promise.resolve({ id: 'sent-id', isSent: true })),
+      sendChatMessage: vi.fn(() =>
+        Promise.resolve<{
+          id: string;
+          isSent: boolean;
+          dropReasonCode?: string;
+          dropReasonMessage?: string;
+        }>({ id: 'sent-id', isSent: true })
+      ),
       shoutoutUser: vi.fn(() => Promise.resolve()),
     },
     callApi: vi.fn(() => Promise.resolve()),
@@ -212,19 +219,61 @@ describe('TwitchPlatform', () => {
     });
   });
 
-  it("records the sent message's id, or nothing when Twitch dropped it", async () => {
-    const { platform, twitch, ownMessages } = setup();
-    const recorded: (string | null)[] = [];
-    ownMessages.record.mockImplementation(async (_platform, send) => {
-      recorded.push(await send());
+  describe('what Twitch does with a message', () => {
+    function recording() {
+      const context = setup();
+      const recorded: (string | null)[] = [];
+      context.ownMessages.record.mockImplementation(async (_platform, send) => {
+        recorded.push(await send());
+      });
+      return { ...context, recorded };
+    }
+
+    it("records the sent message's id", async () => {
+      const { platform, ownMessages, recorded } = recording();
+
+      await platform.sendChatMessage('hello');
+
+      expect(ownMessages.record).toHaveBeenCalledWith(
+        StreamingPlatform.TWITCH,
+        expect.any(Function)
+      );
+      expect(recorded).toEqual(['sent-id']);
     });
 
-    await platform.sendChatMessage('hello');
-    twitch.chat.sendChatMessage.mockResolvedValueOnce({ id: 'held-id', isSent: false });
-    await platform.sendChatMessage('held by AutoMod');
+    it("fails with Twitch's reason when it accepts the request but drops the message", async () => {
+      const { platform, twitch, recorded } = recording();
+      twitch.chat.sendChatMessage.mockResolvedValueOnce({
+        id: 'held-id',
+        isSent: false,
+        dropReasonCode: 'msg_rejected',
+        dropReasonMessage: 'Held by AutoMod',
+      });
 
-    expect(ownMessages.record).toHaveBeenCalledWith(StreamingPlatform.TWITCH, expect.any(Function));
-    expect(recorded).toEqual(['sent-id', null]);
+      await expect(platform.sendChatMessage('hello')).rejects.toThrow(
+        "Twitch didn't post the message: Held by AutoMod"
+      );
+      expect(recorded).toEqual([]);
+    });
+
+    it('still fails when Twitch gives no reason', async () => {
+      const { platform, twitch } = recording();
+      twitch.chat.sendChatMessage.mockResolvedValueOnce({ id: 'held-id', isSent: false });
+
+      await expect(platform.sendChatMessage('hello')).rejects.toThrow(/it gave no reason/);
+    });
+
+    it('cuts a message and an announcement to the 500 characters Twitch allows', async () => {
+      const { platform, twitch } = setup();
+
+      await platform.sendChatMessage('x'.repeat(600));
+      await platform.announcements.sendAnnouncement('y'.repeat(600));
+
+      expect(twitch.chat.sendChatMessage).toHaveBeenCalledWith(BROADCASTER, `${'x'.repeat(499)}…`);
+      expect(twitch.chat.sendAnnouncement).toHaveBeenCalledWith(BROADCASTER, {
+        message: `${'y'.repeat(499)}…`,
+      });
+    });
   });
 
   describe('setStreamInfo', () => {

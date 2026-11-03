@@ -170,7 +170,8 @@ export class HttpServer {
     const url = req.url || '/';
     const pathname = url.split('?')[0] || '/';
 
-    this.logger.debug(`HTTP ${req.method} ${url}`);
+    // Not the query string: an OAuth callback's holds its authorization code.
+    this.logger.debug(`HTTP ${req.method} ${pathname}`);
 
     // Health check endpoint
     if (url === '/health') {

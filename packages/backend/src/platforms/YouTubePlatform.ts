@@ -36,6 +36,12 @@ const KEPT_SNIPPET_FIELDS = ['description', 'scheduledStartTime', 'scheduledEndT
  * UPTIME and has no capability objects — commands requiring the other capabilities auto-hide on
  * YouTube.
  */
+/**
+ * YouTube's chat box takes 200 characters. Its API documents no limit, only that it can refuse a
+ * message as `messageTextInvalid`, so this is the safe side of what isn't written down.
+ */
+const MAX_CHAT_MESSAGE_LENGTH = 200;
+
 @singleton()
 export class YouTubePlatform implements IStreamPlatform {
   readonly platform = StreamingPlatform.YOUTUBE;
@@ -62,7 +68,7 @@ export class YouTubePlatform implements IStreamPlatform {
 
   async sendChatMessage(message: string): Promise<void> {
     this.requireAvailable();
-    const text = toSafeChatText(message);
+    const text = toSafeChatText(message, MAX_CHAT_MESSAGE_LENGTH);
     const liveChatId = (await this.liveBroadcast())?.liveChatId;
     if (!liveChatId) {
       throw new Error('No active YouTube live chat to post to');

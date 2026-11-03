@@ -80,8 +80,11 @@ export class YouTubeAuthIntegration extends OAuthIntegration<YouTubeAuthConfig> 
     this.applyCredentials(this.oauth2Client, config);
 
     // Persist tokens whenever the client refreshes them.
+    const grant = this.currentGrant();
     this.oauth2Client.on('tokens', (tokens) => {
-      this.saveRefreshedTokens(toConfigPatch(tokens));
+      if (!this.saveRefreshedTokens(grant, toConfigPatch(tokens))) {
+        return;
+      }
       if (this.oauth2Client && this.config) {
         this.applyCredentials(this.oauth2Client, this.config);
       }
@@ -137,7 +140,7 @@ export class YouTubeAuthIntegration extends OAuthIntegration<YouTubeAuthConfig> 
     this.logger.info('Exchanging authorization code for tokens');
 
     const { tokens } = await this.buildClient(this.requireConfig()).getToken(code);
-    this.saveTokens(toConfigPatch(tokens));
+    this.saveNewGrant(toConfigPatch(tokens));
 
     this.logger.info('Successfully exchanged code for tokens');
   }

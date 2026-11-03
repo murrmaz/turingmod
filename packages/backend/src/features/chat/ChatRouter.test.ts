@@ -179,4 +179,13 @@ describe('ChatRouter', () => {
     await eventBus.emit('chat.message', chatMessage('!bonk'));
     await vi.waitFor(() => expect(reported).toHaveBeenCalledTimes(2));
   });
+
+  it("hands an unexpected failure to the bus, which logs it, so it can't end the process", async () => {
+    const { eventBus, logger, moderator } = setup();
+    moderator.review.mockRejectedValueOnce(new Error('bug'));
+
+    await expect(eventBus.emit('chat.message', chatMessage('!bonk'))).resolves.toBeUndefined();
+
+    expect(logger.error).toHaveBeenCalled();
+  });
 });

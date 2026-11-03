@@ -60,6 +60,9 @@ function toContentLabelId(name: string): string {
   return id;
 }
 
+/** Twitch's limit on a chat message and on an announcement. */
+const MAX_CHAT_MESSAGE_LENGTH = 500;
+
 /**
  * IStreamPlatform façade over the Twitch integration trio: everything TuringMod does on Twitch.
  *
@@ -109,10 +112,15 @@ export class TwitchPlatform implements IStreamPlatform {
 
   async sendChatMessage(message: string): Promise<void> {
     const userId = this.requireUserId();
-    const text = toSafeChatText(message);
+    const text = toSafeChatText(message, MAX_CHAT_MESSAGE_LENGTH);
     await this.ownMessages.record(this.platform, async () => {
       const sent = await this.api.request((c) => c.chat.sendChatMessage(userId, text));
-      return sent.isSent ? sent.id : null;
+      // Twitch answers 200 for a message it won't post (AutoMod held it, say).
+      if (!sent.isSent) {
+        const reason = sent.dropReasonMessage ?? sent.dropReasonCode ?? 'it gave no reason';
+        throw new Error(`Twitch didn't post the message: ${reason}`);
+      }
+      return sent.id;
     });
   }
 
@@ -419,7 +427,7 @@ export class TwitchPlatform implements IStreamPlatform {
   readonly announcements: AnnouncementsApi = {
     sendAnnouncement: async (message) => {
       const userId = this.requireUserId();
-      const text = toSafeChatText(message);
+      const text = toSafeChatText(message, MAX_CHAT_MESSAGE_LENGTH);
       // Twitch returns no id for an announcement, so it's remembered by its text.
       await this.ownMessages.recordText(this.platform, text, () =>
         this.api.request((c) => c.chat.sendAnnouncement(userId, { message: text }))

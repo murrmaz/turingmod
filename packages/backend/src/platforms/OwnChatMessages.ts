@@ -64,7 +64,8 @@ export class OwnChatMessages implements IService {
 
   /**
    * Run a send and remember the id of the message it posted. `send` resolves to that id, or null
-   * when the platform accepted the request but posted nothing (e.g. AutoMod held the message).
+   * if the platform's answer didn't include one. A message the platform refused rejects instead,
+   * so that its caller hears about it.
    */
   async record(platform: StreamingPlatform, send: () => Promise<string | null>): Promise<void> {
     const pending = send();

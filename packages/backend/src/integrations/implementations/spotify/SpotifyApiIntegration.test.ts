@@ -5,10 +5,11 @@ import { Logger } from '../../../utils/Logger.js';
 import { SpotifyApiIntegration, SpotifyHttpError } from './SpotifyApiIntegration.js';
 import type { SpotifyAuthIntegration } from './SpotifyAuthIntegration.js';
 
-function setup(status = IntegrationStatus.CONNECTED) {
+async function setup() {
   let token = 'token-1';
   const auth = {
-    getStatus: () => status,
+    status: IntegrationStatus.CONNECTED,
+    getStatus: () => auth.status,
     getAccessToken: vi.fn(() => Promise.resolve(token)),
     refreshAccessToken: vi.fn(() => {
       token = 'token-2';
@@ -19,6 +20,7 @@ function setup(status = IntegrationStatus.CONNECTED) {
     new Logger({ level: 'silent' }),
     auth as unknown as SpotifyAuthIntegration
   );
+  await api.start();
   return { api, auth };
 }
 
@@ -39,7 +41,7 @@ describe('SpotifyApiIntegration', () => {
   });
 
   it('sends the token the auth integration hands out', async () => {
-    const { api } = setup();
+    const { api } = await setup();
     vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 204 }));
 
     expect(await api.request((sdk) => sdk.player.getCurrentlyPlayingTrack())).toBeNull();
@@ -47,7 +49,7 @@ describe('SpotifyApiIntegration', () => {
   });
 
   it('refreshes once and retries when Spotify rejects the token', async () => {
-    const { api, auth } = setup();
+    const { api, auth } = await setup();
     vi.mocked(fetch)
       .mockResolvedValueOnce(new Response('expired', { status: 401 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
@@ -59,7 +61,7 @@ describe('SpotifyApiIntegration', () => {
   });
 
   it('does not retry other failures', async () => {
-    const { api, auth } = setup();
+    const { api, auth } = await setup();
     vi.mocked(fetch).mockResolvedValue(new Response('slow down', { status: 429 }));
 
     const failure = api.request((sdk) => sdk.player.getCurrentlyPlayingTrack());
@@ -71,7 +73,8 @@ describe('SpotifyApiIntegration', () => {
   });
 
   it('refuses to call Spotify while auth is not connected', async () => {
-    const { api } = setup(IntegrationStatus.NEEDS_REAUTH);
+    const { api, auth } = await setup();
+    auth.status = IntegrationStatus.NEEDS_REAUTH;
 
     await expect(api.request((sdk) => sdk.player.getCurrentlyPlayingTrack())).rejects.toThrow(
       'Spotify is not connected'

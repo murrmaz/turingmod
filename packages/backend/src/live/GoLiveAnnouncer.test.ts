@@ -394,4 +394,21 @@ describe('GoLiveAnnouncer', () => {
     expect(discord.postMessage).toHaveBeenCalledTimes(2);
     expect(posts.get()).not.toBeNull();
   });
+
+  it('drops an unreadable stored post, says so, and still posts for the stream', async () => {
+    const reported = vi.fn();
+    eventBus.on('service.error', reported);
+    vi.spyOn(posts, 'get').mockImplementationOnce(() => {
+      throw new Error('bad JSON');
+    });
+
+    await setLive(StreamingPlatform.TWITCH, true);
+
+    expect(reported).toHaveBeenCalledOnce();
+    expect(reported).toHaveBeenCalledWith({
+      service: 'Go-live post',
+      message: expect.stringMatching(/could not be read.*bad JSON/),
+    });
+    expect(discord.postMessage).toHaveBeenCalledOnce();
+  });
 });

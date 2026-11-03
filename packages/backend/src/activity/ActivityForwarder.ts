@@ -65,6 +65,7 @@ const TO_ACTIVITY_DATA: {
   // already recorded as platform.availability; a stream ending is only what a platform reports.
   'platform.liveState': (payload) => (payload.cause === 'unavailable' ? null : payload),
   'integration.error': ({ name, error }) => ({ name, message: error.message }),
+  'service.error': asIs,
 };
 
 /**

@@ -18,6 +18,10 @@ import { DependencyFailurePolicy, type IIntegration } from './interfaces/IIntegr
  * isn't CONNECTED. Auth can be NEEDS_REAUTH and still hold its provider (`markAuthRequired()`
  * doesn't discard it), so a client existing says nothing about whether it can still refresh.
  *
+ * Stopping it is real: nothing is handed out while it's DISCONNECTED, even with auth connected, and
+ * getStoppedReason() lets a façade say so. Starting one that auth is ready for is cheap, so an
+ * integration that has never been started counts as stopped too.
+ *
  * A subclass supplies resolveClient(), and overrides onRequestFailure() to recognize the
  * provider's way of saying the grant is gone.
  */
@@ -75,7 +79,8 @@ export abstract class AuthorizedApiIntegration<
   }
 
   /**
-   * Run a call through the current client. Throws while auth isn't connected. A failure goes to
+   * Run a call through the current client. Throws while this is stopped or auth isn't connected. A
+   * failure goes to
    * onRequestFailure(), which may retry it once.
    */
   async request<T>(call: (client: TClient) => Promise<T>): Promise<T> {
@@ -87,9 +92,22 @@ export abstract class AuthorizedApiIntegration<
     }
   }
 
-  /** The client to call through, or null while auth isn't CONNECTED or has nothing to build on. */
+  /** Why calls are refused because this was stopped or never started, or null if it wasn't. */
+  getStoppedReason(): string | null {
+    return this.status === IntegrationStatus.DISCONNECTED
+      ? `${this.service} API is stopped: start it on the Integrations page`
+      : null;
+  }
+
+  /**
+   * The client to call through, or null while this is stopped, auth isn't CONNECTED, or auth has
+   * nothing to build on.
+   */
   protected currentClient(): TClient | null {
-    if (this.auth.getStatus() !== IntegrationStatus.CONNECTED) {
+    if (
+      this.status === IntegrationStatus.DISCONNECTED ||
+      this.auth.getStatus() !== IntegrationStatus.CONNECTED
+    ) {
       this.forgetClient();
       return null;
     }
@@ -117,6 +135,10 @@ export abstract class AuthorizedApiIntegration<
   }
 
   private requireClient(): TClient {
+    const stopped = this.getStoppedReason();
+    if (stopped) {
+      throw new Error(stopped);
+    }
     const client = this.currentClient();
     if (!client) {
       throw new Error(`${this.service} is not connected`);

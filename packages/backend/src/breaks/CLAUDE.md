@@ -17,6 +17,8 @@ What a break changed in OBS is stored (`ObsBreakRestoreRepository`) until it has
 and whenever OBS connects `BreakService` brings OBS in line: the overlay applied again if a break
 is running, the stored state restored if not. That covers a break that ends while OBS is down and
 one cut short by TuringMod crashing (a break doesn't survive a restart; what it owes OBS does).
+A stored state that can't be read is dropped and reported (`service.error`), since OBS may still
+show the break.
 A new break started while a restore is still owed builds on that state, so its "before" is never
 the hidden facecam. `ObsIntegration` reconnects on its own while it is started, backing off to
 30s; only a failure the streamer must fix (wrong password, old obs-websocket) is an ERROR. Chat fan-out goes through `StreamControlService.announce()`, which

@@ -22,6 +22,7 @@ describe('YouTubePlatform', () => {
   let api: {
     getActiveBroadcast: ReturnType<typeof vi.fn>;
     request: ReturnType<typeof vi.fn>;
+    getStoppedReason: ReturnType<typeof vi.fn<() => string | null>>;
   };
   // The slice of the googleapis client these tests touch; request() runs each call against it.
   let youtube: {
@@ -46,6 +47,7 @@ describe('YouTubePlatform', () => {
     api = {
       getActiveBroadcast: vi.fn().mockResolvedValue({ id: 'b1', liveChatId: 'looked-up-chat' }),
       request: vi.fn((call: (client: typeof youtube) => Promise<unknown>) => call(youtube)),
+      getStoppedReason: vi.fn<() => string | null>(() => null),
     };
     chat = { getBroadcast: vi.fn().mockReturnValue(null) };
     ownMessages = {
@@ -80,6 +82,14 @@ describe('YouTubePlatform', () => {
 
       expect(await platform.isLive()).toBe(false);
       expect(await platform.getLiveBroadcast()).toBeNull();
+      expect(api.getActiveBroadcast).not.toHaveBeenCalled();
+    });
+
+    it('is unavailable, and not live, while its API integration is stopped', async () => {
+      api.getStoppedReason.mockReturnValue('YouTube API is stopped');
+
+      expect(platform.getUnavailableReason()).toBe('YouTube API is stopped');
+      expect(await platform.isLive()).toBe(false);
       expect(api.getActiveBroadcast).not.toHaveBeenCalled();
     });
 

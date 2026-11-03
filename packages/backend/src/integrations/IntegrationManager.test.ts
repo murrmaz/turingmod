@@ -620,6 +620,25 @@ describe('IntegrationManager configs', () => {
     expect(obs.startCount).toBe(0);
   });
 
+  it("clears the old config's error from an integration that is not enabled", async () => {
+    const repo = makeStateRepo();
+    Object.assign(repo, {
+      findAll: vi.fn().mockReturnValue([{ name: 'obs', config: 'encrypted' }]),
+      getDecryptedConfig: vi.fn().mockReturnValue({ url: 42 }),
+    });
+    const manager = makeManager(repo);
+    const obs = new ConfiguredFake('obs');
+    manager.register(obs);
+    await manager.loadIntegrations();
+    expect(obs.getStatus()).toBe(IntegrationStatus.ERROR);
+
+    await manager.configureIntegration('obs', { url: 'ws://fixed' });
+
+    expect(obs.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
+    expect(obs.getErrorMessage()).toBeUndefined();
+    expect(obs.startCount).toBe(0);
+  });
+
   it('reports a stored config that does not fit the schema as the integration error', async () => {
     const repo = makeStateRepo();
     Object.assign(repo, {

@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
+import type { ServiceErrorEvent } from '../core/events.js';
 import type { ChannelPointsApi } from '../platforms/interfaces/IStreamPlatform.js';
 import type { StreamControlService } from '../platforms/StreamControlService.js';
 import { fakeRequire } from '../platforms/testing.js';
@@ -47,7 +48,8 @@ describe('RewardRouter', () => {
   let eventBus: EventBus;
   let registry: RewardRegistry;
   let router: RewardRouter;
-  let managed: boolean;
+  let managed: boolean | null;
+  let reported: ReturnType<typeof vi.fn<(event: ServiceErrorEvent) => void>>;
   let resolveRedemption: ReturnType<typeof vi.fn<ChannelPointsApi['resolveRedemption']>>;
 
   beforeEach(() => {
@@ -59,7 +61,9 @@ describe('RewardRouter', () => {
     const streamControl = {
       require: fakeRequire(StreamingPlatform.TWITCH, { channelPoints: { resolveRedemption } }),
     };
-    const sync = { isManaged: () => managed } as unknown as RewardSync;
+    reported = vi.fn<(event: ServiceErrorEvent) => void>();
+    eventBus.on('service.error', reported);
+    const sync = { isManaged: () => Promise.resolve(managed) } as unknown as RewardSync;
     router = new RewardRouter(
       eventBus,
       registry,
@@ -177,6 +181,48 @@ describe('RewardRouter', () => {
     await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk'));
 
     expect(bonk.handle).not.toHaveBeenCalled();
+  });
+
+  describe('a redemption that should be resolved and cannot be', () => {
+    it("tells the streamer when Twitch's rewards can't be read, to refund it by hand", async () => {
+      managed = null;
+      registry.register(
+        handlerFor(
+          'Bonk',
+          vi.fn(() => Promise.reject(new Error('sound missing')))
+        )
+      );
+
+      await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'unfulfilled'));
+
+      expect(resolveRedemption).not.toHaveBeenCalled();
+      expect(reported).toHaveBeenCalledWith({
+        service: 'Channel point rewards',
+        message: expect.stringMatching(/Viewer's "Bonk".*still in.*refund it/),
+      });
+    });
+
+    it('tells the streamer when Twitch refuses to resolve it, to approve it by hand', async () => {
+      resolveRedemption.mockRejectedValue(new Error('Twitch answered 500'));
+      registry.register(handlerFor('Bonk'));
+
+      await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'unfulfilled'));
+
+      expect(reported).toHaveBeenCalledWith({
+        service: 'Channel point rewards',
+        message: expect.stringMatching(/still in.*approve it.*Twitch answered 500/),
+      });
+    });
+
+    it("says nothing about a reward TuringMod doesn't own, which is the streamer's anyway", async () => {
+      managed = false;
+      registry.register(handlerFor('Bonk'));
+
+      await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'unfulfilled'));
+
+      expect(resolveRedemption).not.toHaveBeenCalled();
+      expect(reported).not.toHaveBeenCalled();
+    });
   });
 });
 

@@ -227,4 +227,28 @@ describe('ObsIntegration', () => {
       );
     });
   });
+
+  describe('a request OBS never answers', () => {
+    it('fails when the connection drops, once OBS already reads as gone', async () => {
+      socket.call.mockReturnValue(new Promise(() => {}));
+      await integration.start();
+
+      const request = integration.getCurrentSceneUuid();
+      const seen = request.catch(() => integration.getStatus());
+      socket.drop();
+
+      await expect(request).rejects.toThrow('The connection to OBS closed before it answered');
+      expect(await seen).toBe(IntegrationStatus.CONNECTING);
+    });
+
+    it('fails when the integration is stopped', async () => {
+      socket.call.mockReturnValue(new Promise(() => {}));
+      await integration.start();
+
+      const request = integration.getCurrentSceneUuid();
+      await integration.stop();
+
+      await expect(request).rejects.toThrow('The connection to OBS closed before it answered');
+    });
+  });
 });

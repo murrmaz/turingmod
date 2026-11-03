@@ -1,6 +1,7 @@
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
-import type { IService } from '../core/ServiceLifecycle.js';
+import { EventBus } from '../core/EventBus.js';
+import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
 import { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import {
   ObsIntegration,
@@ -16,13 +17,23 @@ import { EFFECT_SETTINGS } from './effectSettings.js';
 import type { EffectContext, FacecamEffect, FacecamTarget } from './FacecamEffect.js';
 import { restorableTransform } from './transformMath.js';
 
+/** What an effect changed on a source, to be put back. */
+interface FacecamRestore {
+  source: string;
+  targets: FacecamTarget[];
+  filters: string[];
+}
+
 /**
  * Plays facecam effects one at a time and always puts the facecam back.
  *
  * Effects queue rather than overlap: two effects transforming the same source at once would
  * each restore the other's mid-animation state as the "original". Each effect starts from a
  * fresh read of the facecam's transform, which is restored when the effect ends — normally, by
- * throwing, or by `stop()` — and any filter it added is removed.
+ * throwing, or by `stop()` — and any filter it added is removed. What couldn't be put back because
+ * OBS had gone is put back when OBS connects again, before any later effect reads the transform as
+ * its "original"; what OBS itself refused is reported to the streamer. Nothing here is stored, so a
+ * restart while OBS is down loses it, and that is reported too when it's a clean stop.
  *
  * The facecam is found by source name, placed directly or inside a group, in the program scene on
  * the main canvas and, on every other canvas (e.g. Aitum Vertical), in the first scene that
@@ -34,14 +45,28 @@ import { restorableTransform } from './transformMath.js';
 export class FacecamEffectRunner implements IService {
   private queue: Promise<void> = Promise.resolve();
   private abort = new AbortController();
+  /** What couldn't be put back because OBS was gone. */
+  private owed: FacecamRestore[] = [];
+  private subscriptions = new Subscriptions();
   private logger: Logger;
 
   constructor(
+    private eventBus: EventBus,
     private obs: ObsIntegration,
     private settingsRepo: SettingsRepository,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'FacecamEffectRunner' });
+  }
+
+  start(): void {
+    this.subscriptions.add(
+      this.eventBus.on('integration.status', ({ name, status }) => {
+        if (name === this.obs.name && status === IntegrationStatus.CONNECTED) {
+          return this.restoreOwed();
+        }
+      })
+    );
   }
 
   /**
@@ -57,8 +82,25 @@ export class FacecamEffectRunner implements IService {
 
   /** Cut the running effect short (restoring the facecam) and refuse queued ones. */
   async stop(): Promise<void> {
+    this.subscriptions.clear();
     this.abort.abort();
     await this.queue;
+    if (this.owed.length > 0) {
+      this.report(
+        `TuringMod stopped before OBS came back, so "${this.owed[0]?.source}" was not put back ` +
+          'after an effect; check its position and filters in OBS.'
+      );
+    }
+  }
+
+  /** Put back what an outage left behind. Queued, so it runs before any effect asked for after. */
+  private restoreOwed(): Promise<void> {
+    this.queue = this.queue.then(async () => {
+      for (const owed of this.owed.splice(0)) {
+        await this.restore(owed);
+      }
+    });
+    return this.queue;
   }
 
   private async play(effect: FacecamEffect): Promise<void> {
@@ -97,15 +139,18 @@ export class FacecamEffectRunner implements IService {
     try {
       await effect.run(context);
     } finally {
-      await this.restore(facecamSource, targets, filters);
+      await this.restore({ source: facecamSource, targets, filters: [...filters] });
     }
   }
 
-  private async restore(
-    source: string,
-    targets: readonly FacecamTarget[],
-    filters: Set<string>
-  ): Promise<void> {
+  /**
+   * Put back what an effect changed, as far as OBS lets it. Never rejects. Whatever fails while OBS
+   * is gone is kept for when it returns; whatever OBS refuses won't go better next time, so it's
+   * reported instead of blocking later effects.
+   */
+  private async restore({ source, targets, filters }: FacecamRestore): Promise<void> {
+    const failed: FacecamRestore = { source, targets: [], filters: [] };
+    let lastError: unknown;
     for (const target of targets) {
       try {
         await this.obs.setSceneItemTransform(
@@ -114,19 +159,36 @@ export class FacecamEffectRunner implements IService {
           restorableTransform(target.original)
         );
       } catch (error) {
-        this.logger.error(
-          `Could not restore "${source}" after an effect; check its position in OBS`,
-          error
-        );
+        failed.targets.push(target);
+        lastError = error;
       }
     }
     for (const filter of filters) {
       try {
         await this.obs.removeFilter(source, filter);
       } catch (error) {
-        this.logger.error(`Could not remove filter "${filter}" from "${source}"`, error);
+        failed.filters.push(filter);
+        lastError = error;
       }
     }
+    if (failed.targets.length === 0 && failed.filters.length === 0) {
+      return;
+    }
+
+    if (this.obs.getStatus() !== IntegrationStatus.CONNECTED) {
+      this.owed.push(failed);
+      this.logger.warn(`OBS is gone; restoring "${source}" when it reconnects`);
+      return;
+    }
+    this.logger.error(`Could not restore "${source}" after an effect`, lastError);
+    this.report(
+      `Could not put "${source}" back after an effect; check its position and filters in OBS. ` +
+        messageOf(lastError)
+    );
+  }
+
+  private report(message: string): void {
+    this.eventBus.emitSync('service.error', { service: 'Facecam effects', message });
   }
 
   private async findFacecam(source: string, effect: FacecamEffect): Promise<FacecamTarget[]> {

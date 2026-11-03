@@ -73,6 +73,7 @@ const PAYLOADS: { [E in ActivityEventName]: EventMap[E] } = {
   'platform.availability': { platform: twitch, available: false, reason: 'Not signed in' },
   'platform.liveState': { platform: twitch, live: true, startedAt: 0, cause: 'reported' },
   'integration.error': { name: 'obs', error: new Error('refused') },
+  'service.error': { service: 'Facecam effects', message: 'could not restore' },
 };
 
 function setup() {

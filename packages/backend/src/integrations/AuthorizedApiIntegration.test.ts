@@ -96,8 +96,43 @@ describe('AuthorizedApiIntegration', () => {
     expect(api.onRequestFailureSpy).not.toHaveBeenCalled();
   });
 
+  it('refuses to call once stopped, though auth is still connected', async () => {
+    const { api } = setup();
+    await api.start();
+    expect(api.getStoppedReason()).toBeNull();
+    await api.stop();
+    const call = vi.fn();
+
+    await expect(api.request(call)).rejects.toThrow(
+      'Fake API is stopped: start it on the Integrations page'
+    );
+    expect(call).not.toHaveBeenCalled();
+    expect(api.getStoppedReason()).toContain('Fake API is stopped');
+    expect(api.onRequestFailureSpy).not.toHaveBeenCalled();
+  });
+
+  it('refuses to call before it has been started, and works once it is', async () => {
+    const { api } = setup();
+    const call = vi.fn(() => Promise.resolve('ok'));
+
+    await expect(api.request(call)).rejects.toThrow('Fake API is stopped');
+    await api.start();
+
+    expect(await api.request(call)).toBe('ok');
+  });
+
+  it('keeps calling while blocked on auth having just recovered', async () => {
+    const { api } = setup();
+    await api.start();
+    api.reportBlocked('fake-auth went away');
+
+    expect(api.getStoppedReason()).toBeNull();
+    expect(await api.request(() => Promise.resolve('ok'))).toBe('ok');
+  });
+
   it('rethrows a failed call by default', async () => {
     const { api } = setup();
+    await api.start();
     const error = new Error('rate limited');
 
     await expect(api.request(() => Promise.reject(error))).rejects.toBe(error);
@@ -106,6 +141,7 @@ describe('AuthorizedApiIntegration', () => {
 
   it("lets a subclass retry once, on auth's current credentials", async () => {
     const { auth, api } = setup();
+    await api.start();
     const before = auth.credentials;
     const after = {};
     api.onRequestFailureSpy.mockImplementation((_error, retry: () => Promise<unknown>) => {

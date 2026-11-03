@@ -367,10 +367,19 @@ describe('BreakService', () => {
       expect(overlay.apply).toHaveBeenCalledWith(expect.anything(), owed);
     });
 
-    it('drops an unreadable stored restore rather than failing to start', async () => {
-      const { overlay, restoreRepo, service } = setup(null, { owed: new Error('bad JSON') });
+    it('drops an unreadable stored restore rather than failing to start, and says so', async () => {
+      const { eventBus, overlay, restoreRepo, service } = setup(null, {
+        owed: new Error('bad JSON'),
+      });
+      const reported = vi.fn();
+      eventBus.on('service.error', reported);
 
       await service.start();
+
+      expect(reported).toHaveBeenCalledWith({
+        service: 'Breaks',
+        message: expect.stringMatching(/check the facecam and mic.*bad JSON/),
+      });
       await service.stop();
 
       expect(restoreRepo.clear).toHaveBeenCalled();

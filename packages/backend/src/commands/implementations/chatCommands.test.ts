@@ -26,7 +26,6 @@ import { parseRoll, RollCommand } from './RollCommand.js';
 import { SgCommand } from './SgCommand.js';
 import { SnoozeCommand } from './SnoozeCommand.js';
 import { SoCommand } from './SoCommand.js';
-import { SuggestionlistCommand } from './SuggestionlistCommand.js';
 import { TagsCommand } from './TagsCommand.js';
 import { streamerTime } from './TimeCommand.js';
 import { VoiceCommand } from './VoiceCommand.js';
@@ -67,18 +66,14 @@ describe('counter commands', () => {
     expect(result.message).toBe("Streamer's voice has cracked 1 times");
   });
 
-  it('!sg records a suggestion and !suggestionlist shows the latest first', async () => {
+  it('!sg records a suggestion and refuses an empty one', async () => {
     const suggestions = new SuggestionBox(new SuggestionRepository(db));
     const sg = new SgCommand(suggestions);
 
     expect((await sg.execute(commandContext('!sg'))).success).toBe(false);
     await sg.execute(commandContext('!sg a quote command'));
-    await sg.execute(commandContext('!sg more bonk'));
 
-    const list = await new SuggestionlistCommand(suggestions).execute(
-      commandContext('!suggestionlist')
-    );
-    expect(list.message).toBe('Latest suggestions for the bot: more bonk; a quote command');
+    expect(suggestions.list().map((s) => s.suggestion)).toEqual(['a quote command']);
   });
 });
 

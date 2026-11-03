@@ -77,6 +77,7 @@ const PAYLOADS: { [E in ActivityEventName]: ActivityData<E> } = {
   'platform.availability': { platform: twitch, available: true, reason: null },
   'platform.liveState': { platform: twitch, live: false, startedAt: null },
   'integration.error': { name: 'obs', message: 'refused' },
+  'service.error': { service: 'Facecam effects', message: 'could not restore' },
 };
 
 /**

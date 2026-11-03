@@ -627,7 +627,8 @@ export class IntegrationManager {
    * Replace an integration's config. It is applied first, which checks it against the
    * integration's schema, so a config that doesn't fit is rejected before anything is stored.
    * An enabled integration is restarted on it, so the change takes effect now; whether it is
-   * enabled doesn't change.
+   * enabled doesn't change. A disabled one is settled to DISCONNECTED, so an error about the old
+   * config doesn't outlive it.
    */
   configureIntegration(name: string, config: Record<string, unknown>): Promise<void> {
     const integration = this.integrations.get(name);
@@ -643,6 +644,9 @@ export class IntegrationManager {
       this.logger.info(`Integration configured: ${name}`);
 
       if (!this.isEnabled(name)) {
+        if (integration.getStatus() !== IntegrationStatus.DISCONNECTED) {
+          await this.doStop(integration);
+        }
         return;
       }
       await this.doStop(integration);

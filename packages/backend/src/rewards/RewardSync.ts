@@ -59,6 +59,8 @@ export class RewardSync implements IService {
   private subscriptions = new Subscriptions();
   private inBreak = false;
   private managedIds = new Set<string>();
+  /** Whether a pass has read Twitch's rewards, without which managedIds says nothing. */
+  private synced = false;
   private reportedUnmanageable = new Set<string>();
   private running: Promise<void> | null = null;
   private rerun = false;
@@ -98,9 +100,17 @@ export class RewardSync implements IService {
     this.subscriptions.clear();
   }
 
-  /** True if the reward was created by TuringMod, so its redemptions can be resolved. */
-  isManaged(rewardId: string): boolean {
-    return this.managedIds.has(rewardId);
+  /**
+   * Whether the reward was created by TuringMod, so its redemptions can be resolved. Waits for a
+   * pass that is running, and runs one if none has read Twitch's rewards yet, which also retries a
+   * sync that failed. Null if that failed too, so the answer isn't known. Never rejects.
+   */
+  async isManaged(rewardId: string): Promise<boolean | null> {
+    await this.running;
+    if (!this.synced) {
+      await this.requestSync();
+    }
+    return this.synced ? this.managedIds.has(rewardId) : null;
   }
 
   /**
@@ -142,6 +152,7 @@ export class RewardSync implements IService {
       }
       return;
     }
+    this.synced = true;
 
     for (const handler of handlers) {
       try {

@@ -28,8 +28,8 @@ const KEPT_SNIPPET_FIELDS = ['description', 'scheduledStartTime', 'scheduledEndT
  * Owns the YouTube endpoints it calls and the rules around them, and translates them into the
  * platform-agnostic types commands see. Connection health is not its concern: it makes every call
  * through YouTubeApiIntegration.request(), and is usable whenever YouTubeAuthIntegration is
- * connected, which is what request() itself waits on. Each call checks that first and fails with
- * NotAuthenticatedError, like Twitch's. The live broadcast comes from YouTubeChatIntegration
+ * connected and the API integration hasn't been stopped, which is what request() itself waits on.
+ * Each call checks auth first and fails with NotAuthenticatedError, like Twitch's. The live broadcast comes from YouTubeChatIntegration
  * while chat is streaming, and from the API otherwise.
  *
  * YouTube has no game/category or tags model, so it declares only SEND_CHAT, SET_TITLE, and
@@ -53,7 +53,7 @@ export class YouTubePlatform implements IStreamPlatform {
   ) {}
 
   getUnavailableReason(): string | null {
-    return unavailableReason(this.auth, this.platform);
+    return unavailableReason(this.auth, this.platform) ?? this.api.getStoppedReason();
   }
 
   async isLive(): Promise<boolean> {
@@ -175,9 +175,9 @@ export class YouTubePlatform implements IStreamPlatform {
     return this.chat.getBroadcast() ?? (await this.api.getActiveBroadcast());
   }
 
-  /** Throw NotAuthenticatedError, saying why, unless YouTube can be acted on. */
+  /** Throw NotAuthenticatedError, saying why, unless auth is usable. request() covers the rest. */
   private requireAvailable(): void {
-    const reason = this.getUnavailableReason();
+    const reason = unavailableReason(this.auth, this.platform);
     if (reason !== null) {
       throw new NotAuthenticatedError(
         this.platform,

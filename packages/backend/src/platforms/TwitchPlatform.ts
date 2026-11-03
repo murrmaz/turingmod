@@ -94,7 +94,7 @@ export class TwitchPlatform implements IStreamPlatform {
   ) {}
 
   getUnavailableReason(): string | null {
-    const reason = unavailableReason(this.auth, this.platform);
+    const reason = unavailableReason(this.auth, this.platform) ?? this.api.getStoppedReason();
     if (reason) {
       return reason;
     }
@@ -158,10 +158,10 @@ export class TwitchPlatform implements IStreamPlatform {
   }
 
   async getLiveBroadcast(): Promise<LiveBroadcast | null> {
-    // Null rather than a throw, so StreamControlService can skip an unauthenticated platform
-    // while mirroring instead of recording it as a failure.
+    // Null rather than a throw, so StreamControlService can skip an unusable platform while
+    // mirroring instead of recording it as a failure.
     const userId = this.authenticatedUserId();
-    if (!userId) {
+    if (!userId || this.api.getStoppedReason() !== null) {
       return null;
     }
     const stream = await this.liveStream(userId);

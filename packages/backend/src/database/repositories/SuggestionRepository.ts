@@ -45,16 +45,6 @@ export class SuggestionRepository {
       .map(toSuggestion);
   }
 
-  /** The most recent `limit` suggestions, newest first. */
-  latest(limit: number): Suggestion[] {
-    return this.db
-      .query<SuggestionRow>(
-        'SELECT id, suggestion, suggested_by, created_at FROM suggestions ORDER BY id DESC LIMIT ?',
-        [limit]
-      )
-      .map(toSuggestion);
-  }
-
   /** Delete the suggestions with these ids; ones already gone are skipped. Returns how many went. */
   delete(ids: readonly number[]): number {
     if (ids.length === 0) {

@@ -1,8 +1,7 @@
 import 'reflect-metadata';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { ObsBreakSnapshot } from '../../breaks/ObsBreakOverlay.js';
 import type { DatabaseManager } from '../DatabaseManager.js';
-import { ObsBreakRestoreRepository } from './ObsBreakRestoreRepository.js';
+import { ObsBreakRestoreRepository, type ObsBreakSnapshot } from './ObsBreakRestoreRepository.js';
 import { createTestDatabase } from './testDatabase.js';
 
 describe('ObsBreakRestoreRepository', () => {

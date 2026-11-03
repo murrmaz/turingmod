@@ -48,6 +48,23 @@ npm workspaces monorepo with three packages:
 - **`packages/backend`** (`@turingmod/backend`) — Node.js server with WebSocket + HTTP. Its package exports only the tRPC router's type (`@turingmod/backend/trpc`), so the console never bundles backend code. Dev mode runs `tsc --build --watch` and `node --watch dist/index.js` concurrently (not `tsx`: esbuild's TS transform — what `tsx` uses — doesn't emit `emitDecoratorMetadata`, which tsyringe's constructor injection needs).
 - **`packages/frontend`** (`@turingmod/frontend`) — React 19 + React Router 7 + Vite 8 + shadcn/ui on Tailwind CSS v4 + TanStack Table. Dev server proxies `/trpc` to backend.
 
+### Backend Layout
+
+`packages/backend/src/` is layered, and Biome rejects an import that goes the wrong way
+(`noRestrictedImports` overrides in `biome.json`):
+
+- **Foundation:** `core/`, `database/`, `utils/`, `integrations/` (connections to the outside world)
+  and `platforms/` (the façades over them). None of it imports `features/`. What a feature and the
+  foundation both need moves down: a repository defines the shape it stores, and the feature imports
+  that from it, even for a repository only one feature uses.
+- **`features/`:** one folder per feature (`activity/`, `breaks/`, `chat/`, `commands/`, `effects/`,
+  `live/`, `raids/`, `rewards/`, `sounds/`, `suggestions/`). Features may import each other, since
+  some are real pipelines (`chat/` runs `commands/`, rewards play `effects/`).
+- **`server/`** (the console's API) sits above features and may import them; a feature never imports
+  it. `setup.ts` and `index.ts` sit above everything.
+
+Tests and `testing.ts` helpers are exempt, as in the console.
+
 ### Backend Core Flow
 
 Entry point: `packages/backend/src/index.ts` → calls `registerRootFactories()`, `initializeDatabase()` (open, migrate, validate every settings group) and `initializeComponents()` from `setup.ts` → resolves `Application` → `app.initialize()` (apply stored integration configs) → `app.start()`.
@@ -56,7 +73,7 @@ Entry point: `packages/backend/src/index.ts` → calls `registerRootFactories()`
 
 A handful of classes take primitives or derived values rather than other injectable classes (e.g. `Logger`'s log level, `DatabaseManager`'s file path, `Encryption`'s master password + DB-stored salt, `HttpServer`'s port/host and `TrpcServer`'s router/allowed-origins) — these can't be auto-constructed from decorated parameters, so they're registered via `container.register(Token, { useFactory: instanceCachingFactory(...) })` in `registerRootFactories()` (`setup.ts`) instead. `instanceCachingFactory` makes each factory lazy and run-once, like a singleton, which matters for `Encryption`: its factory reads a salt from the database and must not run before `initializeDatabase()` has created the schema.
 
-Commands are auto-discovered by directory scan (`loadCommands.ts`): each file's default-exported class is `@injectable()`, and the loader calls `container.resolve(mod.default)` instead of registering it anywhere — tsyringe can construct any `@injectable()` class on demand, so dropping a new command file in `commands/implementations/` requires no other wiring. Reward handlers are loaded the same way (`loadRewardHandlers.ts`). Integrations are discovered too (`discoverIntegrations.ts`), by what they are rather than how they're exported: every class a module under `integrations/implementations/` exports that extends `BaseIntegration` (checked with `instanceof` on its prototype, without constructing it), so helper modules can sit beside them. They're found in file order, which doesn't matter: `IntegrationManager` orders startup and shutdown from the dependency graph.
+Commands are auto-discovered by directory scan (`loadCommands.ts`): each file's default-exported class is `@injectable()`, and the loader calls `container.resolve(mod.default)` instead of registering it anywhere — tsyringe can construct any `@injectable()` class on demand, so dropping a new command file in `features/commands/implementations/` requires no other wiring. Reward handlers are loaded the same way (`loadRewardHandlers.ts`). Integrations are discovered too (`discoverIntegrations.ts`), by what they are rather than how they're exported: every class a module under `integrations/implementations/` exports that extends `BaseIntegration` (checked with `instanceof` on its prototype, without constructing it), so helper modules can sit beside them. They're found in file order, which doesn't matter: `IntegrationManager` orders startup and shutdown from the dependency graph.
 
 **Feature services** (chat routing, rewards, breaks, effects, announcers — anything that isn't an
 integration but subscribes to the bus or holds timers) implement `IService` and are added, in
@@ -159,7 +176,7 @@ and their capability sets are built, and how to add a capability, is in
 can recover it automatically — an expired access token is refreshed transparently by the provider, so
 `NotAuthenticatedError` means a human must redo OAuth. Two paths handle it differently:
 `requireUserId()` throws `NotAuthenticatedError`, which `CommandExecutor` maps, with
-`toCommandError()` (`commands/utils/commandErrors.ts`), to a `NOT_AUTHENTICATED` result; mirrored *writes* instead
+`toCommandError()` (`features/commands/utils/commandErrors.ts`), to a `NOT_AUTHENTICATED` result; mirrored *writes* instead
 call `getUnavailableReason()` and list the platform as `skipped`, because a mirror replies in public
 chat where the broadcaster's token state doesn't belong: chat hears the write failed, and the reason
 goes to the activity log.
@@ -169,7 +186,7 @@ goes to the activity log.
 change and publishes only transitions, so a feature like `RewardSync` ("Twitch is back, sync
 rewards") never needs to know which integration name decides a platform's availability.
 
-Deep dives into these subsystems live in `CLAUDE.md` files beside their code and load when you work there: `live/` (going live, Discord post), `breaks/`, `rewards/` (channel points, raids), `effects/` (facecam), `sounds/`, `chat/` (pipeline, own-message gate, moderation), `database/` (data inspector), `activity/` (the activity log), plus `integrations/` and `platforms/`.
+Deep dives into these subsystems live in `CLAUDE.md` files beside their code and load when you work there: under `features/`, `live/` (going live, Discord post), `breaks/`, `rewards/` (channel points, raids), `effects/` (facecam), `sounds/`, `chat/` (pipeline, own-message gate, moderation) and `activity/` (the activity log); and `database/` (data inspector), `integrations/` and `platforms/`.
 
 ### Frontend State
 
@@ -233,7 +250,7 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
   (`z.strictObject`: an unknown key is an error) and fail rather than fall back; a field may be
   optional or have a default, but a value that is present must be valid. (Activity log payloads
   are the one exception, since the capped log ages old rows out: see
-  `packages/backend/src/activity/CLAUDE.md`.) Schemas for a third
+  `packages/backend/src/features/activity/CLAUDE.md`.) Schemas for a third
   party's responses use `z.object`, requiring only the fields we use. Use `.exactOptional()` for
   optional fields, to match `exactOptionalPropertyTypes`.
 - **Errors**: throw only `Error`s, with a message (Biome's `useThrowOnlyError` and `useErrorMessage`
@@ -272,8 +289,8 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
   returning a fresh object per call makes them rebuild on every access.
 - **Integration lifecycle** — `IntegrationManager` calls `initialize(config)` before `start()`: at load, and again only when the config is replaced. An integration with a config declares a Zod schema for it and parses it in `initialize()` with `parseConfig()`. Saving its own config (OAuth tokens) goes through `IntegrationStateRepository.saveConfig()`, which never changes `enabled`.
 - **New feature services** implement `IService` and get one `services.add(...)` line in `setup.ts`, placed by what they depend on at shutdown — never start or stop them anywhere else.
-- **New commands** go in `packages/backend/src/commands/implementations/` and implement `ICommand`. They're auto-discovered by `loadCommands()`. A command that calls something outside itself doesn't catch the failure: it names what chat hears in `failureMessage` and lets the call throw, and `CommandExecutor` logs and reports it (lint rejects `toCommandError` in a command).
-- **New channel point reward handlers** go in `packages/backend/src/rewards/implementations/` and implement `IRewardHandler`, matched by exact `rewardTitle`. They're auto-discovered by `loadRewardHandlers()`.
+- **New commands** go in `packages/backend/src/features/commands/implementations/` and implement `ICommand`. They're auto-discovered by `loadCommands()`. A command that calls something outside itself doesn't catch the failure: it names what chat hears in `failureMessage` and lets the call throw, and `CommandExecutor` logs and reports it (lint rejects `toCommandError` in a command).
+- **New channel point reward handlers** go in `packages/backend/src/features/rewards/implementations/` and implement `IRewardHandler`, matched by exact `rewardTitle`. They're auto-discovered by `loadRewardHandlers()`.
 - **Behaviour lives in code, not the database.** Commands and reward handlers are TypeScript classes; a table may hold a feature's own data (a banned-word list, a counter), never its logic.
 - **Commands reach platforms through `StreamControlService`**, never through a platform's integrations directly, and never check auth themselves (see Platform Provider Layer). An integration that isn't a platform (Spotify, sound) is used directly, through its `request()` or the feature class over it.
 - **A new platform capability** is a `PlatformCapability` value, an object type in `CapabilityApis`, its `CAPABILITY_OF_API` entry, and the façades' implementations; the compiler holds those together. Don't add a pass-through to `StreamControlService` — callers use `require()`.

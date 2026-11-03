@@ -1,9 +1,8 @@
 import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { GoLivePost } from '../../live/goLivePost.js';
 import type { DatabaseManager } from '../DatabaseManager.js';
-import { GoLivePostRepository } from './GoLivePostRepository.js';
+import { type GoLivePost, GoLivePostRepository } from './GoLivePostRepository.js';
 import { createTestDatabase } from './testDatabase.js';
 
 describe('GoLivePostRepository', () => {

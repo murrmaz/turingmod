@@ -5,8 +5,6 @@ import type {
   HelixUpdateCustomRewardData,
 } from '@twurple/api';
 import { singleton } from 'tsyringe';
-import { toSafeChatText } from '../chat/chatMessage.js';
-import { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
 import { unavailableReason } from './availability.js';
@@ -34,6 +32,8 @@ import type {
   StreamInfo,
   VodsApi,
 } from './interfaces/IStreamPlatform.js';
+import { OwnChatMessages } from './OwnChatMessages.js';
+import { toSafeChatText } from './safeChatText.js';
 import { TwitchShoutoutCooldowns } from './TwitchShoutoutCooldowns.js';
 
 /**

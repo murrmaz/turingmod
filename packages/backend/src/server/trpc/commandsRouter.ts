@@ -1,11 +1,11 @@
 import { SimulatedUserSchema, StreamingPlatform } from '@turingmod/shared';
 import { z } from 'zod';
-import type { CommandAvailability } from '../../commands/CommandAvailability.js';
-import type { CommandExecutor } from '../../commands/CommandExecutor.js';
-import type { CommandRegistry } from '../../commands/CommandRegistry.js';
-import type { CommandContext, ICommand } from '../../commands/interfaces/ICommand.js';
-import { parseCommand } from '../../commands/parseCommand.js';
-import { fail } from '../../commands/utils/results.js';
+import type { CommandAvailability } from '../../features/commands/CommandAvailability.js';
+import type { CommandExecutor } from '../../features/commands/CommandExecutor.js';
+import type { CommandRegistry } from '../../features/commands/CommandRegistry.js';
+import type { CommandContext, ICommand } from '../../features/commands/interfaces/ICommand.js';
+import { parseCommand } from '../../features/commands/parseCommand.js';
+import { fail } from '../../features/commands/utils/results.js';
 import type { Logger } from '../../utils/Logger.js';
 import { procedure, router } from './trpc.js';
 

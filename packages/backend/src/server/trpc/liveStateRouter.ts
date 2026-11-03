@@ -1,4 +1,4 @@
-import type { PlatformLiveStatus } from '../../live/PlatformLiveStatus.js';
+import type { PlatformLiveStatus } from '../../features/live/PlatformLiveStatus.js';
 import { procedure, router } from './trpc.js';
 import { watchable } from './watch.js';
 

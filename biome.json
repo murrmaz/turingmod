@@ -124,7 +124,55 @@
   },
   "overrides": [
     {
-      "includes": ["**/packages/backend/src/commands/implementations/**"],
+      "includes": [
+        "**/packages/backend/src/core/**",
+        "**/packages/backend/src/database/**",
+        "**/packages/backend/src/utils/**",
+        "**/packages/backend/src/integrations/**",
+        "**/packages/backend/src/platforms/**",
+        "!**/*.test.ts",
+        "!**/testing.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/features/**"],
+                    "message": "Foundation code can't depend on a feature: move what they share down to this layer, or publish an event"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/packages/backend/src/features/**", "!**/*.test.ts", "!**/testing.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/server/**"],
+                    "message": "server/ sits above features: it may import them, never the reverse. Publish an event instead"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/packages/backend/src/features/commands/implementations/**"],
       "linter": {
         "rules": {
           "style": {
@@ -135,6 +183,10 @@
                   {
                     "group": ["**/commandErrors.js"],
                     "message": "A command lets a failed call throw and names what chat hears in failureMessage; CommandExecutor reports it"
+                  },
+                  {
+                    "group": ["**/server/**"],
+                    "message": "server/ sits above features: it may import them, never the reverse. Publish an event instead"
                   }
                 ]
               }

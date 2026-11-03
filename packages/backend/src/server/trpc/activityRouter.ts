@@ -1,7 +1,7 @@
 import { ACTIVITY_EVENT_NAMES, type ActivityLogEntry, MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
 import { z } from 'zod';
-import type { ActivityForwarder } from '../../activity/ActivityForwarder.js';
 import type { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
+import type { ActivityForwarder } from '../../features/activity/ActivityForwarder.js';
 import { procedure, router } from './trpc.js';
 import { events } from './watch.js';
 

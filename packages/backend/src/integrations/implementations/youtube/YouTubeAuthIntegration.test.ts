@@ -181,6 +181,35 @@ describe('YouTubeAuthIntegration', () => {
     });
   });
 
+  describe('a refresh finishing after the client has moved on', () => {
+    it('keeps a new authorization from being overwritten by the grant it replaced', async () => {
+      const { client, integration, saveConfig } = await connected();
+      vi.spyOn(google.auth.OAuth2.prototype, 'getToken').mockImplementation((() =>
+        Promise.resolve({
+          tokens: { access_token: 'new-grant', refresh_token: 'new-refresh', scope: SCOPES[0] },
+        })) as never);
+      await integration.exchangeCode('code');
+      saveConfig.mockClear();
+
+      client.emit('tokens', { access_token: 'old-grant-refreshed', refresh_token: 'old-refresh' });
+
+      expect(saveConfig).not.toHaveBeenCalled();
+      expect(client.credentials.access_token).toBe('access-1');
+    });
+
+    it('still saves after a plain stop, since Google may have rotated the refresh token', async () => {
+      const { client, integration, saveConfig } = await connected();
+
+      await integration.stop();
+      client.emit('tokens', { refresh_token: 'rotated' });
+
+      expect(saveConfig).toHaveBeenCalledWith(
+        'youtube-auth',
+        expect.objectContaining({ refreshToken: 'rotated' })
+      );
+    });
+  });
+
   describe('recognizing a dead grant', () => {
     const { integration } = setup();
 

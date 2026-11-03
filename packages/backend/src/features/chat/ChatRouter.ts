@@ -46,9 +46,7 @@ export class ChatRouter implements IService {
   /** Subscribe to `chat.message` and route replies. */
   start(): void {
     this.subscriptions.add(
-      this.eventBus.on('chat.message', (event) => {
-        void this.handleChatMessage(event);
-      })
+      this.eventBus.on('chat.message', (event) => this.handleChatMessage(event))
     );
     this.logger.info('ChatRouter live loop enabled');
   }

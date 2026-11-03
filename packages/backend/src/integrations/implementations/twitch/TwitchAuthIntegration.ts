@@ -114,9 +114,12 @@ export class TwitchAuthIntegration extends StandardOAuthIntegration<
     // and fire this event synchronously from inside the call — a listener
     // added afterwards would miss it, leaving the refreshed token stranded in
     // memory and never persisted.
+    const grant = this.currentGrant();
     this.authProvider.onRefresh((_userId, newToken) => {
+      if (!this.saveRefreshedTokens(grant, accessTokenPatch(newToken))) {
+        return;
+      }
       this.logger.info('Access token refreshed');
-      this.saveRefreshedTokens(accessTokenPatch(newToken));
       this.reportTokenRefreshed(
         newToken.expiresIn === null
           ? undefined

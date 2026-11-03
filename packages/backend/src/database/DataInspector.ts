@@ -65,6 +65,14 @@ interface ColumnRow {
   type: string;
 }
 
+/** A request the inspector won't serve (an unknown table or column), as opposed to a read failing. */
+export class DataRefusedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DataRefusedError';
+  }
+}
+
 /**
  * Read-only view of the database for the console's Data page.
  *
@@ -75,6 +83,7 @@ interface ColumnRow {
 @singleton()
 export class DataInspector implements IService {
   private connection: DatabaseSync | null = null;
+  private stopped = false;
 
   constructor(private config: TuringModConfig) {}
 
@@ -100,7 +109,7 @@ export class DataInspector implements IService {
     for (const [name, values] of Object.entries(request.filters ?? {})) {
       const column = this.requireColumn(columns, table.name, name);
       if (column.masked) {
-        throw new Error(`Column ${name} can't be filtered`);
+        throw new DataRefusedError(`Column ${name} can't be filtered`);
       }
       conditions.push(`${quote(name)} IN (${values.map(() => '?').join(', ')})`);
       params.push(...values);
@@ -123,7 +132,7 @@ export class DataInspector implements IService {
     if (request.since !== undefined) {
       const timeColumn = policy.timestamps?.[0];
       if (!timeColumn) {
-        throw new Error(`Table ${table.name} has no time column to filter by`);
+        throw new DataRefusedError(`Table ${table.name} has no time column to filter by`);
       }
       conditions.push(`${quote(timeColumn)} >= ?`);
       params.push(request.since);
@@ -131,7 +140,7 @@ export class DataInspector implements IService {
 
     const sortColumn = request.sort?.column ?? table.defaultSort;
     if (this.requireColumn(columns, table.name, sortColumn).masked) {
-      throw new Error(`Column ${sortColumn} can't be sorted`);
+      throw new DataRefusedError(`Column ${sortColumn} can't be sorted`);
     }
 
     // Masking a secret row's output isn't enough: matching or ordering on its hidden values would
@@ -180,6 +189,7 @@ export class DataInspector implements IService {
 
   /** Close the read connection, so the main one can checkpoint the WAL cleanly at shutdown. */
   stop(): void {
+    this.stopped = true;
     this.close();
   }
 
@@ -228,12 +238,17 @@ export class DataInspector implements IService {
   ): DataColumnInfo {
     const column = columns.get(name);
     if (!column) {
-      throw new Error(`Unknown column ${name} in ${table}`);
+      throw new DataRefusedError(`Unknown column ${name} in ${table}`);
     }
     return column;
   }
 
   private db(): DatabaseSync {
+    // A console can still ask between this stopping and the server stopping. Reopening for it would
+    // leave the connection open at shutdown, which is what stop() closes it to prevent.
+    if (this.stopped) {
+      throw new Error('The Data page is unavailable: TuringMod is shutting down');
+    }
     this.connection ??= new DatabaseSync(this.config.dbPath, { readOnly: true });
     return this.connection;
   }
@@ -243,7 +258,7 @@ function policyOf(name: string): TablePolicy {
   // hasOwn first, so a name like `constructor` can't reach the prototype.
   const policy = Object.hasOwn(TABLES, name) ? TABLES[name] : undefined;
   if (!policy) {
-    throw new Error(`Unknown table: ${name}`);
+    throw new DataRefusedError(`Unknown table: ${name}`);
   }
   return policy;
 }

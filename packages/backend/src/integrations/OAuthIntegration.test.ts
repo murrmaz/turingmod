@@ -42,7 +42,7 @@ class TestOAuthIntegration extends OAuthIntegration<TestConfig> {
 
   /** Simulates a refresh listener nobody awaits. */
   refreshed(patch: Partial<TestConfig>): void {
-    this.saveRefreshedTokens(patch);
+    this.saveRefreshedTokens(this.currentGrant(), patch);
   }
 
   protected hasTokens(config: TestConfig): boolean {

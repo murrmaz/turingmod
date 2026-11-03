@@ -153,7 +153,7 @@ Twitch, or as HTTP `'basic'` auth, Spotify: each provider documents one) and
 `StandardOAuthConfigSchema`: the token fields as a token response gives them (`expiresIn` with
 `obtainmentTimestamp`). A provider whose SDK builds the URL and exchanges the code, like Google's
 for YouTube, extends `OAuthIntegration` directly; YouTube stores Google's absolute `expiryDate`
-instead. A new OAuth provider without an SDK of its own is a `StandardOAuthIntegration`. A refresh listener that nothing awaits saves through `saveRefreshedTokens()`, which logs a failed write instead of leaving an unhandled rejection.
+instead. A new OAuth provider without an SDK of its own is a `StandardOAuthIntegration`. A refresh listener that nothing awaits saves through `saveRefreshedTokens()`, which logs a failed write instead of leaving an unhandled rejection. It takes the grant the listener was connected with (`currentGrant()`), since an SDK client can refresh after a new authorization replaced it: those tokens are dropped, so they can't overwrite the new grant. A client that was only stopped still saves, because the provider may have rotated the refresh token.
 
 ## Integration events
 

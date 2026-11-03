@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TuringModConfig } from '../utils/Config.js';
 import { ENCRYPTION_SALT_SETTINGS_KEY, Encryption } from '../utils/Encryption.js';
 import type { DatabaseManager } from './DatabaseManager.js';
-import { DataInspector } from './DataInspector.js';
+import { DataInspector, DataRefusedError } from './DataInspector.js';
 import { createTestDatabase } from './repositories/testDatabase.js';
 
 describe('DataInspector', () => {
@@ -147,6 +147,22 @@ describe('DataInspector', () => {
     expect(
       inspector.queryRows({ table: 'activity_log', page: 0, pageSize: 10, search: '%' }).total
     ).toBe(0);
+  });
+
+  it('marks what it refuses, so a refusal can be told from a read failing', () => {
+    expect(() => inspector.queryRows({ table: 'sqlite_master', page: 0, pageSize: 10 })).toThrow(
+      DataRefusedError
+    );
+  });
+
+  it('does not reopen its connection once stopped, which would hold up the shutdown', () => {
+    inspector.listTables();
+    inspector.stop();
+
+    expect(() => inspector.listTables()).toThrow(/shutting down/);
+    expect(() => inspector.queryRows({ table: 'settings', page: 0, pageSize: 10 })).toThrow(
+      /shutting down/
+    );
   });
 
   it('refuses tables and columns it does not know', () => {

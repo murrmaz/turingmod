@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DataInspector } from '../../database/DataInspector.js';
+import { type DataInspector, DataRefusedError } from '../../database/DataInspector.js';
 import { createDataRouter } from './dataRouter.js';
 import { createCallerFactory } from './trpc.js';
 
@@ -18,13 +18,28 @@ describe('data router', () => {
   it("reports what the inspector refuses as the console's bad request, with its reason", async () => {
     const refusing = caller({
       queryRows: () => {
-        throw new Error('Unknown table: secrets');
+        throw new DataRefusedError('Unknown table: secrets');
       },
     });
 
     await expect(
       refusing.queryRows({ table: 'secrets', page: 0, pageSize: 25 })
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Unknown table: secrets' });
+  });
+
+  it('reports a read that failed as a failure, not as the console asking wrongly', async () => {
+    const failing = caller({
+      queryRows: () => {
+        throw new Error('database disk image is malformed');
+      },
+    });
+
+    await expect(
+      failing.queryRows({ table: 'settings', page: 0, pageSize: 25 })
+    ).rejects.toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'database disk image is malformed',
+    });
   });
 
   it('rejects a page larger than the most one page may hold', async () => {

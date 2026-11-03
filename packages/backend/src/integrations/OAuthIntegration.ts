@@ -50,6 +50,8 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
   protected abstract readonly configSchema: z.ZodType<TConfig>;
 
   protected config: TConfig | null = null;
+  /** Counts the grants this has held, which a token refresh still in flight can outlive. */
+  private grant = 0;
 
   protected constructor(
     logger: Logger,
@@ -66,6 +68,7 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
 
   override initialize(stored: unknown): Promise<void> {
     this.config = this.parseConfig(this.configSchema, stored);
+    this.grant += 1;
     return Promise.resolve();
   }
 
@@ -206,17 +209,37 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
     this.stateRepo.saveConfig(this.name, this.config);
   }
 
+  /** saveTokens() for tokens from a new authorization, which replace the grant held until now. */
+  protected saveNewGrant(patch: Partial<TConfig>): void {
+    this.grant += 1;
+    this.saveTokens(patch);
+  }
+
+  /** The grant held now, which connect() gives its refresh listener to save under. */
+  protected currentGrant(): number {
+    return this.grant;
+  }
+
   /**
-   * saveTokens() for a refresh listener, where a throw would escape into the
-   * SDK's event emitter: a failed save is logged instead. The refreshed tokens
-   * stay in use either way.
+   * saveTokens() for a refresh listener, where a throw would escape into the SDK's event emitter: a
+   * failed save is logged instead, and the refreshed tokens stay in use.
+   *
+   * `grant` is the one the listener was connected with. An SDK client can refresh after being
+   * replaced, and its tokens must not overwrite a newer authorization, so those are dropped and this
+   * returns false. A client that was only stopped still saves: the provider may have rotated the
+   * refresh token, and dropping the only copy of the new one would lose the grant.
    */
-  protected saveRefreshedTokens(patch: Partial<TConfig>): void {
+  protected saveRefreshedTokens(grant: number, patch: Partial<TConfig>): boolean {
+    if (grant !== this.grant) {
+      this.logger.info('Ignoring tokens refreshed for a grant that has since been replaced');
+      return false;
+    }
     try {
       this.saveTokens(patch);
     } catch (error) {
       this.logger.error('Failed to save refreshed tokens', error);
     }
+    return true;
   }
 }
 

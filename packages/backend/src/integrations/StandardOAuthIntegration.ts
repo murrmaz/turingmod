@@ -75,7 +75,7 @@ export abstract class StandardOAuthIntegration<
     if (!response.ok) {
       throw new Error(`Failed to exchange code: ${await response.text()}`);
     }
-    this.saveTokens(
+    this.saveNewGrant(
       this.toConfigPatch(await this.parseTokenResponse(this.tokenResponseSchema, response))
     );
 

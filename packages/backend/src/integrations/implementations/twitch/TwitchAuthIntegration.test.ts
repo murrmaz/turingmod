@@ -345,4 +345,81 @@ describe('TwitchAuthIntegration', () => {
     const url = new URL(integration.getAuthorizationUrl('state-123'));
     expect(url.searchParams.get('client_id')).toBe('client-id');
   });
+
+  describe('a refresh finishing after the provider has moved on', () => {
+    /** Connected on an unexpired token, with Twitch answering token requests with `accessToken`. */
+    async function connected() {
+      const saveConfig = vi.fn();
+      const integration = makeIntegration({ saveConfig });
+      const token = { accessToken: 'unused' };
+      vi.mocked(fetch).mockImplementation((input) => {
+        const url = input.toString();
+        if (url.includes('/oauth2/token')) {
+          return jsonResponse(200, {
+            access_token: token.accessToken,
+            refresh_token: `${token.accessToken}-refresh`,
+            expires_in: 14400,
+            scope: [...TWITCH_REQUIRED_SCOPES],
+          });
+        }
+        if (url.includes('/oauth2/validate')) {
+          return jsonResponse(200, {
+            client_id: CONFIG.clientId,
+            login: 'streamer',
+            user_id: 'user-123',
+            scopes: [...TWITCH_REQUIRED_SCOPES],
+            expires_in: 14400,
+          });
+        }
+        throw new Error(`Unexpected fetch call: ${url}`);
+      });
+      await integration.initialize(FRESH_CONFIG);
+      await integration.start();
+      const provider = integration.getAuthProvider();
+      if (!provider) {
+        throw new Error('no provider after start()');
+      }
+      return { integration, provider, saveConfig, token };
+    }
+
+    it('keeps a new authorization from being overwritten by the grant it replaced', async () => {
+      const { integration, provider, saveConfig, token } = await connected();
+
+      token.accessToken = 'new-grant';
+      await integration.exchangeCode('code');
+      token.accessToken = 'old-grant-refreshed';
+      await provider.refreshAccessTokenForUser('user-123');
+
+      expect(saveConfig).toHaveBeenCalledOnce();
+      expect(saveConfig).toHaveBeenCalledWith(
+        'twitch-auth',
+        expect.objectContaining({ accessToken: 'new-grant', refreshToken: 'new-grant-refresh' })
+      );
+    });
+
+    it('still saves after a plain stop, since Twitch may have rotated the refresh token', async () => {
+      const { integration, provider, saveConfig, token } = await connected();
+
+      await integration.stop();
+      token.accessToken = 'rotated';
+      await provider.refreshAccessTokenForUser('user-123');
+
+      expect(saveConfig).toHaveBeenCalledWith(
+        'twitch-auth',
+        expect.objectContaining({ refreshToken: 'rotated-refresh' })
+      );
+    });
+
+    it('still saves when the refresh is for the grant it holds', async () => {
+      const { provider, saveConfig, token } = await connected();
+
+      token.accessToken = 'refreshed';
+      await provider.refreshAccessTokenForUser('user-123');
+
+      expect(saveConfig).toHaveBeenCalledWith(
+        'twitch-auth',
+        expect.objectContaining({ accessToken: 'refreshed' })
+      );
+    });
+  });
 });

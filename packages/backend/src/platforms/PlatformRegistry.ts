@@ -5,7 +5,7 @@ import type { IStreamPlatform } from './interfaces/IStreamPlatform.js';
 
 /**
  * Registry mapping each StreamingPlatform to its IStreamPlatform façade. Populated in setup.ts and
- * consulted by StreamControlService, CommandAvailability, and ChatRouter.
+ * consulted by StreamControlService, CommandAvailability, and PlatformAvailability.
  */
 @singleton()
 export class PlatformRegistry {

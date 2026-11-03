@@ -110,27 +110,15 @@ export class ActivityLogRepository {
   }
 
   /**
-   * Find recent entries, most-recent-first. `before` is an exclusive timestamp cursor for
-   * pagination.
+   * Find recent entries, most-recent-first.
    */
-  findRecent(opts: { limit?: number; before?: number }): ActivityLogEntry[] {
+  findRecent(opts: { limit?: number }): ActivityLogEntry[] {
     const limit = Math.min(opts.limit ?? DEFAULT_QUERY_LIMIT, MAX_QUERY_LIMIT);
-    const conditions: string[] = [];
-    const params: SqlValue[] = [];
-
-    if (opts.before !== undefined) {
-      conditions.push('timestamp < ?');
-      params.push(opts.before);
-    }
-
-    let sql = 'SELECT * FROM activity_log';
-    if (conditions.length > 0) {
-      sql += ` WHERE ${conditions.join(' AND ')}`;
-    }
-    sql += ' ORDER BY timestamp DESC LIMIT ?';
-    params.push(limit);
-
-    return this.readRows(this.db.query<ActivityLogRow>(sql, params));
+    return this.readRows(
+      this.db.query<ActivityLogRow>('SELECT * FROM activity_log ORDER BY timestamp DESC LIMIT ?', [
+        limit,
+      ])
+    );
   }
 
   /** A page of the entries matching `query`, newest first (see ActivityLogQuery). */

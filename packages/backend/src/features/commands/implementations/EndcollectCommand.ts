@@ -8,7 +8,7 @@ import { ok } from '../utils/results.js';
 /**
  * !endcollect command
  * Stops collecting clip links and writes them to a page for the streamer. The page's location
- * is on the streamer's machine, so it goes to the log and the console, not chat.
+ * is on the streamer's machine, so it goes to the terminal's log, not chat.
  */
 @injectable()
 export class EndcollectCommand implements ICommand {

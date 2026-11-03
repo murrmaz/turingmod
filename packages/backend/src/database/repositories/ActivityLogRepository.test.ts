@@ -97,15 +97,6 @@ describe('ActivityLogRepository', () => {
     expect(results.map((e) => e.event)).toEqual(['twitch.raid', 'twitch.cheer', 'twitch.follow']);
   });
 
-  it('paginates with an exclusive `before` cursor', () => {
-    addFollow(10);
-    addRaid(20);
-    addCheer(30);
-
-    const page = repo.findRecent({ before: 30 });
-    expect(page.map((e) => e.event)).toEqual(['twitch.raid', 'twitch.follow']);
-  });
-
   it('returns no more than 500 entries however many are asked for', () => {
     db.transaction(() => {
       for (let i = 0; i < 501; i++) {

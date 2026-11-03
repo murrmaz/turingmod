@@ -1,10 +1,11 @@
 import { IntegrationName } from '@turingmod/shared';
-import { google, type youtube_v3 } from 'googleapis';
+import type { youtube_v3 } from 'googleapis';
 import { singleton } from 'tsyringe';
 import { Logger } from '../../../utils/Logger.js';
 import { AuthorizedApiIntegration } from '../../AuthorizedApiIntegration.js';
 import { ClientCache } from '../../ClientCache.js';
-import { YouTubeAuthIntegration, type YouTubeOAuth2Client } from './YouTubeAuthIntegration.js';
+import { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
+import { createYouTubeClient } from './youtubeClient.js';
 
 /**
  * Normalized view of the broadcaster's currently active live broadcast. `liveChatId` and the
@@ -45,9 +46,8 @@ export class YouTubeApiIntegration extends AuthorizedApiIntegration<
 > {
   readonly name = IntegrationName.YOUTUBE_API;
 
-  private readonly clients = new ClientCache(
-    (auth: YouTubeOAuth2Client) => google.youtube({ version: 'v3', auth }),
-    () => this.logger.info('YouTube auth client was replaced; rebuilding API client')
+  private readonly clients = new ClientCache(createYouTubeClient, () =>
+    this.logger.info('YouTube auth client was replaced; rebuilding API client')
   );
 
   constructor(logger: Logger, authIntegration: YouTubeAuthIntegration) {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { EventBus } from '../../core/EventBus.js';
 import type { SuggestionBox } from '../../features/suggestions/SuggestionBox.js';
 import { procedure, router } from './trpc.js';
 import { watchable } from './watch.js';
@@ -8,10 +9,10 @@ import { watchable } from './watch.js';
  * left, so the console that asked can show it at once; every other console gets it through
  * `watch`. Undo is the console's: it holds a delete back until its Undo has lapsed.
  */
-export function createSuggestionsRouter(box: SuggestionBox) {
+export function createSuggestionsRouter(box: SuggestionBox, eventBus: EventBus) {
   const suggestions = watchable(
     () => box.list(),
-    (onChange) => box.onChange(onChange)
+    (onChange) => eventBus.on('suggestions.changed', onChange)
   );
 
   return router({

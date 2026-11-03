@@ -26,7 +26,8 @@ moderator-only branch) are still replied to. The two sets of codes are separate 
 neither. Commands build results with `ok()`/`fail()` (`features/commands/utils/results.ts`), never by hand;
 `message` is the reply for chat, and `reason` is for the streamer, recorded with
 `command.executed` in the activity log (a crashed command's reason is the error it threw). Protocol
-error messages likewise use the `ErrorCode` union in `messages.ts`, not free strings.
+error codes are the `CommandErrorCode` and `ExecutorErrorCode` unions (`shared/src/types/command.ts`),
+not free strings.
 
 **TuringMod never acts on its own chat messages.** It posts with the broadcaster's login — one
 identity per platform, deliberately, rather than a separate bot account that would split actions
@@ -60,5 +61,6 @@ themselves.
 The command simulator deliberately runs commands for real, side effects included: it lets the
 streamer act as a viewer to integration-test a command without asking someone to type it. It parses
 its text with the same `parseCommand()` as chat, so a command behaves identically in both, and text
-chat wouldn't run is answered as not a command. It is only reachable from the localhost console;
-there is no message for running a command as an arbitrary user.
+chat wouldn't run is answered as not a command. It runs as whichever user the console names, so it
+can run a command as anyone at any permission level, which is why it's reachable only from the
+localhost console.

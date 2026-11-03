@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EventBus } from '../../../core/EventBus.js';
 import type { DatabaseManager } from '../../../database/DatabaseManager.js';
 import { COUNTERS, CounterRepository } from '../../../database/repositories/CounterRepository.js';
 import { SuggestionRepository } from '../../../database/repositories/SuggestionRepository.js';
@@ -67,7 +68,10 @@ describe('counter commands', () => {
   });
 
   it('!sg records a suggestion and refuses an empty one', async () => {
-    const suggestions = new SuggestionBox(new SuggestionRepository(db));
+    const suggestions = new SuggestionBox(
+      new EventBus(new Logger({ level: 'silent' })),
+      new SuggestionRepository(db)
+    );
     const sg = new SgCommand(suggestions);
 
     expect((await sg.execute(commandContext('!sg'))).success).toBe(false);

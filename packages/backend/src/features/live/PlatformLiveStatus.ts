@@ -18,8 +18,8 @@ const RECHECK_DELAYS_MS = [1, 2, 4, 8, 16, 32].map((minutes) => minutes * MINUTE
 
 /**
  * Whether each platform is broadcasting and since when, for the console's header badges, which
- * follow it through the `liveState.watch` subscription (onChange); going live or offline is also
- * published as `platform.liveState`.
+ * follow it through `platform.liveState.changed` and the `liveState.watch` subscription; going live
+ * or offline is also published as `platform.liveState`.
  *
  * Event-driven, never polled while a stream is going out: a platform is asked when it becomes
  * usable, and again whenever it signals a change (Twitch's stream.online/offline and EventSub's
@@ -36,7 +36,6 @@ export class PlatformLiveStatus implements IService {
   private states = new Map<StreamingPlatform, PlatformLiveState>();
   /** Bumped per refresh, so an answer that arrives after a newer one is dropped. */
   private generations = new Map<StreamingPlatform, number>();
-  private changeListeners = new Set<() => void>();
   /** Set from the first wait until the asking is over, including while an answer is awaited. */
   private recheckTimer: NodeJS.Timeout | null = null;
   private logger: Logger;
@@ -100,16 +99,6 @@ export class PlatformLiveStatus implements IService {
   stop(): void {
     this.subscriptions.clear();
     this.cancelRechecks();
-  }
-
-  /**
-   * Be told whenever any platform's state changes, a start time included, which
-   * `platform.liveState` (going live or offline only) doesn't cover. Returns the unsubscribe
-   * function.
-   */
-  onChange(listener: () => void): () => void {
-    this.changeListeners.add(listener);
-    return () => this.changeListeners.delete(listener);
   }
 
   /** Every platform's current state, in registry order. */
@@ -201,11 +190,9 @@ export class PlatformLiveStatus implements IService {
       return;
     }
     this.states.set(state.platform, state);
-    for (const listener of this.changeListeners) {
-      listener();
-    }
+    this.eventBus.emitSync('platform.liveState.changed', undefined);
     if (current?.live !== state.live) {
-      void this.eventBus.emit('platform.liveState', { ...state, cause });
+      this.eventBus.emitSync('platform.liveState', { ...state, cause });
       if (state.live && !this.obsStream.isStreaming()) {
         this.startRechecks();
       }

@@ -293,6 +293,20 @@ describe('TwitchEventSubIntegration', () => {
       expect(twurple.listeners).toHaveLength(2);
     });
 
+    it('ignores a revoke or a socket opening on a listener it has moved on from', async () => {
+      await integration.start();
+      const first = current();
+      await integration.start();
+      const ready = vi.fn();
+      eventBus.on('twitch.eventSub.ready', ready);
+
+      first.handlers.get('onRevoke')?.({ id: 'onChannelFollow' }, 'authorization_revoked');
+      first.handlers.get('onUserSocketReady')?.('1', 'session');
+
+      expect(auth.markAuthRequired).not.toHaveBeenCalled();
+      expect(ready).not.toHaveBeenCalled();
+    });
+
     it('ignores a late answer from a listener it has moved on from', async () => {
       await integration.start();
       const first = current();

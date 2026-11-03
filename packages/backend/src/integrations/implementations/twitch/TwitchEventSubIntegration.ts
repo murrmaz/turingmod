@@ -165,6 +165,9 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       // version_removed); only 'authorization_revoked' and 'user_removed'
       // mean the whole OAuth grant is dead and no reconnect will fix it.
       listener.onRevoke((subscription, status) => {
+        if (listener !== this.eventSubListener) {
+          return;
+        }
         this.logger.warn(`EventSub subscription revoked: ${subscription.id} (${status})`);
         if (isAuthorizationRevokedStatus(status)) {
           // Told directly, since a revoked subscription doesn't necessarily mean the next token
@@ -176,7 +179,9 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       });
 
       listener.onUserSocketReady((_userId, sessionId) => {
-        this.eventBus.emitSync('twitch.eventSub.ready', { sessionId });
+        if (listener === this.eventSubListener) {
+          this.eventBus.emitSync('twitch.eventSub.ready', { sessionId });
+        }
       });
       listener.onSubscriptionCreateSuccess((subscription) => {
         if (listener === this.eventSubListener) {

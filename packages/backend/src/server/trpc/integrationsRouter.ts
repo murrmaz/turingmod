@@ -19,26 +19,16 @@ export function createIntegrationsRouter(
 ) {
   const log = logger.child({ component: 'IntegrationsRouter' });
 
-  // What a mutation changes isn't always a status change: saving OAuth credentials, or turning
-  // off an integration that had already stopped, changes only `oauth` or `enabled`.
-  const mutated = new Set<() => void>();
-  const afterMutation = () => {
-    for (const onChange of mutated) {
-      onChange();
-    }
-  };
-
   const onIntegrationChange = (onChange: () => void) => {
     const unsubscribe = [
       eventBus.on('integration.status', onChange),
+      eventBus.on('integration.changed', onChange),
       eventBus.on('oauth.completed', onChange),
     ];
-    mutated.add(onChange);
     return () => {
       for (const off of unsubscribe) {
         off();
       }
-      mutated.delete(onChange);
     };
   };
 
@@ -49,7 +39,7 @@ export function createIntegrationsRouter(
     try {
       await work();
     } finally {
-      afterMutation();
+      eventBus.emitSync('integration.changed', undefined);
     }
     return integrations.current();
   };

@@ -1,6 +1,8 @@
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { parseCommand } from '../../commands/parseCommand.js';
+import { EventBus } from '../../core/EventBus.js';
+import { failureReporter, RepeatingFailures } from '../../core/ServiceLifecycle.js';
 import { BannedWordRepository } from '../../database/repositories/BannedWordRepository.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
@@ -26,13 +28,20 @@ export type ModerationVerdict = 'allowed' | 'blocked';
 export class ChatModerator {
   private quietMode = false;
   private logger: Logger;
+  /** Moderation runs per message, so an outage would otherwise report once per message. */
+  private failures: RepeatingFailures;
 
   constructor(
+    eventBus: EventBus,
     private streamControl: StreamControlService,
     private bannedWords: BannedWordRepository,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'ChatModerator' });
+    this.failures = new RepeatingFailures(
+      failureReporter(eventBus, this.logger, 'Chat moderation'),
+      this.logger
+    );
   }
 
   isQuietMode(): boolean {
@@ -60,7 +69,7 @@ export class ChatModerator {
     }
 
     if (this.quietMode && !parseCommand(event.message) && mentionsChannel(event)) {
-      await this.act('delete a message mentioning the streamer', () =>
+      await this.act('delete', 'delete a message mentioning the streamer', () =>
         this.streamControl.require(event.platform, 'moderation').deleteChatMessage(event.messageId)
       );
       return 'blocked';
@@ -73,8 +82,13 @@ export class ChatModerator {
     let banned: string[];
     try {
       banned = this.bannedWords.listActive(banCutoff());
+      this.failures.recovered('read');
     } catch (error) {
-      this.logger.error('Could not read banned words; letting the message through', error);
+      this.failures.failed(
+        'read',
+        "Could not read the banned words, so chat isn't being checked for them.",
+        error
+      );
       return null;
     }
     if (banned.length === 0) return null;
@@ -84,13 +98,13 @@ export class ChatModerator {
 
   private async punishBannedWord(event: ChatMessageEvent, word: string): Promise<void> {
     this.logger.info(`${event.username} said the banned word "${word}"`);
-    await this.act('reply about a banned word', () =>
+    await this.act('reply', 'reply about a banned word', () =>
       this.streamControl.sendChatMessage(
         event.platform,
         `@${event.username}: OOPS! You said the banned word "${word}"! To the penal colony with you!`
       )
     );
-    await this.act(`time out ${event.username}`, () =>
+    await this.act('timeout', `time out ${event.username} for a banned word`, () =>
       this.streamControl
         .require(event.platform, 'moderation')
         .timeoutUser(
@@ -101,11 +115,12 @@ export class ChatModerator {
     );
   }
 
-  private async act(what: string, action: () => Promise<void>): Promise<void> {
+  private async act(kind: string, what: string, action: () => Promise<void>): Promise<void> {
     try {
       await action();
+      this.failures.recovered(kind);
     } catch (error) {
-      this.logger.error(`Could not ${what}`, error);
+      this.failures.failed(kind, `Could not ${what}.`, error);
     }
   }
 }

@@ -69,7 +69,10 @@ export class RewardRouter implements IService {
       await handler.handle(redemption);
     } catch (error) {
       outcome = 'canceled';
-      this.logger.error(`Reward handler "${redemption.rewardTitle}" failed`, error);
+      this.report(
+        `The "${redemption.rewardTitle}" reward failed for ${redemption.userDisplayName}.`,
+        error
+      );
     }
 
     if (redemption.status !== 'unfulfilled') {

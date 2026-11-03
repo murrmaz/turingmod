@@ -5,13 +5,14 @@ import type { BreakReason } from '../core/events.js';
 import {
   failureReporter,
   type IService,
+  RepeatingFailures,
   type ReportFailure,
   Subscriptions,
 } from '../core/ServiceLifecycle.js';
 import { ObsBreakRestoreRepository } from '../database/repositories/ObsBreakRestoreRepository.js';
 import { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import { ObsIntegration } from '../integrations/implementations/obs/ObsIntegration.js';
-import { StreamControlService } from '../platforms/StreamControlService.js';
+import { reportAnnouncement, StreamControlService } from '../platforms/StreamControlService.js';
 import { SoundLibrary } from '../sounds/SoundLibrary.js';
 import { formatCountdown } from '../utils/FormatHelpers.js';
 import { Logger } from '../utils/Logger.js';
@@ -67,6 +68,7 @@ export class BreakService implements IService {
   private stopped = false;
   private logger: Logger;
   private report: ReportFailure;
+  private chatFailures: RepeatingFailures;
 
   constructor(
     private eventBus: EventBus,
@@ -80,6 +82,7 @@ export class BreakService implements IService {
   ) {
     this.logger = logger.child({ component: 'BreakService' });
     this.report = failureReporter(eventBus, this.logger, 'Breaks');
+    this.chatFailures = new RepeatingFailures(this.report, this.logger);
   }
 
   start(): void {
@@ -318,9 +321,12 @@ export class BreakService implements IService {
 
   private async announce(message: PerPlatformMessage, vars: Record<string, string>): Promise<void> {
     try {
-      await this.streamControl.announce((platform) => renderMessage(message, platform, vars));
+      const result = await this.streamControl.announce((platform) =>
+        renderMessage(message, platform, vars)
+      );
+      reportAnnouncement(result, this.chatFailures, 'a break message');
     } catch (error) {
-      this.logger.error('Could not post break message', error);
+      this.chatFailures.failed('announce', 'Could not post a break message.', error);
     }
   }
 

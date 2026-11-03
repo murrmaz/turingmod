@@ -1,7 +1,8 @@
 import { singleton } from 'tsyringe';
-import type { IService } from '../../core/ServiceLifecycle.js';
+import { EventBus } from '../../core/EventBus.js';
+import { failureReporter, type IService, RepeatingFailures } from '../../core/ServiceLifecycle.js';
 import { IntervalMessageRepository } from '../../database/repositories/IntervalMessageRepository.js';
-import { StreamControlService } from '../../platforms/StreamControlService.js';
+import { reportAnnouncement, StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 
 /** How often an interval message is posted, as in the original bot. */
@@ -18,13 +19,19 @@ export class IntervalAnnouncer implements IService {
   private timer: NodeJS.Timeout | null = null;
   private next = 0;
   private logger: Logger;
+  private failures: RepeatingFailures;
 
   constructor(
+    eventBus: EventBus,
     private messages: IntervalMessageRepository,
     private streamControl: StreamControlService,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'IntervalAnnouncer' });
+    this.failures = new RepeatingFailures(
+      failureReporter(eventBus, this.logger, 'Interval messages'),
+      this.logger
+    );
   }
 
   start(): void {
@@ -41,18 +48,20 @@ export class IntervalAnnouncer implements IService {
   async announceNext(): Promise<boolean> {
     try {
       const messages = this.messages.list();
+      this.failures.recovered('read');
       const index = messages.length === 0 ? 0 : this.next % messages.length;
       const entry = messages[index];
       if (!entry) return false;
 
       const { message } = entry;
       const result = await this.streamControl.announce(() => message, { highlight: true });
+      reportAnnouncement(result, this.failures, 'an interval message');
       if (result.updated.length === 0) return false;
 
       this.next = index + 1;
       return true;
     } catch (error) {
-      this.logger.error('Could not post an interval message', error);
+      this.failures.failed('read', 'Could not post an interval message.', error);
       return false;
     }
   }

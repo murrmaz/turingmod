@@ -16,7 +16,9 @@ moderated or not.
 Failures `CommandExecutor` produces itself (`EXECUTOR_ERROR_CODES`: unknown command, permissions,
 cooldown, crashed) get **no reply in chat** — an unknown `!word` is often meant for
 another bot — and are recorded in the activity log instead (unknown commands are also logged at
-debug). Failures a command reports itself (usage, "game not found", a viewer trying a
+debug). A reply that can't be posted is reported (`service.error`), like a moderation action that
+fails or banned words that can't be read, once per run of failures since these happen per message
+(`RepeatingFailures`). Failures a command reports itself (usage, "game not found", a viewer trying a
 moderator-only branch) are still replied to. The two sets of codes are separate unions in
 `shared/src/types/command.ts`: `ICommand.execute()` returns a `CommandResult`, which admits only
 `CommandErrorCode`, so a command can't report an executor code and have its reply silenced.

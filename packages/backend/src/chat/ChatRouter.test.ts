@@ -156,4 +156,27 @@ describe('ChatRouter', () => {
       expect(twitch.sendChatMessage).toHaveBeenCalledWith('Only moderators can change the game')
     );
   });
+
+  it('reports a reply that could not be posted, once until replies work again', async () => {
+    const { eventBus, twitch } = setup();
+    const reported = vi.fn();
+    eventBus.on('service.error', reported);
+    twitch.sendChatMessage.mockRejectedValueOnce(new Error('refused'));
+    twitch.sendChatMessage.mockRejectedValueOnce(new Error('refused'));
+
+    await eventBus.emit('chat.message', chatMessage('!bonk'));
+    await eventBus.emit('chat.message', chatMessage('!bonk'));
+    await vi.waitFor(() => expect(twitch.sendChatMessage).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(reported).toHaveBeenCalledOnce());
+    expect(reported).toHaveBeenCalledWith({
+      service: 'Chat',
+      message: 'Could not post the reply to !bonk in Twitch chat. refused',
+    });
+
+    await eventBus.emit('chat.message', chatMessage('!bonk')); // works, ending the run
+    await vi.waitFor(() => expect(twitch.sendChatMessage).toHaveBeenCalledTimes(3));
+    twitch.sendChatMessage.mockRejectedValueOnce(new Error('refused'));
+    await eventBus.emit('chat.message', chatMessage('!bonk'));
+    await vi.waitFor(() => expect(reported).toHaveBeenCalledTimes(2));
+  });
 });

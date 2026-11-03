@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
+import type { ServiceErrorEvent } from '../core/events.js';
 import { NotAuthenticatedError } from '../platforms/errors.js';
 import type {
   ChannelPointsApi,
@@ -50,6 +51,7 @@ const onTwitch = (
 describe('RewardSync', () => {
   let logger: ReturnType<typeof makeLogger>;
   let eventBus: EventBus;
+  let reported: ReturnType<typeof vi.fn<(event: ServiceErrorEvent) => void>>;
   let registry: RewardRegistry;
   let rewards: ChannelReward[];
   let channelPoints: {
@@ -69,6 +71,8 @@ describe('RewardSync', () => {
   beforeEach(() => {
     logger = makeLogger();
     eventBus = new EventBus(logger);
+    reported = vi.fn<(event: ServiceErrorEvent) => void>();
+    eventBus.on('service.error', reported);
     registry = new RewardRegistry(logger);
     rewards = [];
     channelPoints = {
@@ -154,8 +158,8 @@ describe('RewardSync', () => {
     expect(channelPoints.createChannelReward).not.toHaveBeenCalled();
     expect(channelPoints.updateChannelReward).not.toHaveBeenCalled();
     expect(await sync.isManaged('r1')).toBe(false);
-    expect(logger.warn).toHaveBeenCalledTimes(1);
-    expect(logger.warn.mock.calls[0]?.[0]).toContain(
+    expect(reported).toHaveBeenCalledOnce();
+    expect(reported.mock.calls[0]?.[0].message).toContain(
       '"Ban A Word" was created by another application'
     );
   });
@@ -265,9 +269,44 @@ describe('RewardSync', () => {
     await sync.requestSync();
 
     expect(channelPoints.createChannelReward).toHaveBeenCalledTimes(2);
-    expect(logger.error).toHaveBeenCalledWith(
-      'Failed to sync reward "Barrel Roll"',
-      expect.any(Error)
+    expect(reported).toHaveBeenCalledOnce();
+    expect(reported.mock.calls[0]?.[0].message).toMatch(
+      /Could not update the "Barrel Roll" reward.*DUPLICATE_REWARD/
+    );
+  });
+
+  it('reports a reward that keeps failing once, and again if it fails after recovering', async () => {
+    registry.register(barrelRoll);
+    channelPoints.createChannelReward.mockRejectedValueOnce(new Error('one'));
+    channelPoints.createChannelReward.mockRejectedValueOnce(new Error('two'));
+
+    await sync.requestSync();
+    await sync.requestSync();
+    expect(reported).toHaveBeenCalledOnce();
+
+    await sync.requestSync(); // the create works this time
+    channelPoints.getChannelRewards.mockResolvedValueOnce([]);
+    channelPoints.createChannelReward.mockRejectedValueOnce(new Error('three'));
+    await sync.requestSync();
+    expect(reported).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports rewards it cannot read once, but stays quiet when Twitch simply is not connected', async () => {
+    registry.register(barrelRoll);
+    channelPoints.getChannelRewards.mockRejectedValueOnce(
+      new NotAuthenticatedError(StreamingPlatform.TWITCH, false, 'Not connected')
+    );
+    await sync.requestSync();
+    expect(reported).not.toHaveBeenCalled();
+
+    channelPoints.getChannelRewards.mockRejectedValueOnce(new Error('503'));
+    channelPoints.getChannelRewards.mockRejectedValueOnce(new Error('503'));
+    await sync.requestSync();
+    await sync.requestSync();
+
+    expect(reported).toHaveBeenCalledOnce();
+    expect(reported.mock.calls[0]?.[0].message).toMatch(
+      /Could not read channel point rewards.*503/
     );
   });
 

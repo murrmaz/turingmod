@@ -384,6 +384,37 @@ describe('GoLiveAnnouncer', () => {
     });
   });
 
+  it('reports a post that keeps failing once, then makes it when Discord recovers', async () => {
+    const reported = vi.fn();
+    eventBus.on('service.error', reported);
+    discord.postMessage.mockRejectedValueOnce(new Error('Discord answered 503'));
+    discord.postMessage.mockRejectedValueOnce(new Error('Discord answered 503'));
+
+    await setLive(TWITCH, true);
+    expect(posts.get()).toBeNull();
+
+    await advance(MINUTE); // fails again on the heartbeat, then works
+
+    expect(discord.postMessage).toHaveBeenCalledTimes(3);
+    expect(posts.get()).not.toBeNull();
+    expect(reported).toHaveBeenCalledOnce();
+    expect(reported.mock.calls[0]?.[0].message).toMatch(/go-live post.*Discord answered 503/);
+  });
+
+  it('reports a post it could not mark as ended, which stays saying live', async () => {
+    const reported = vi.fn();
+    eventBus.on('service.error', reported);
+    await setLive(TWITCH, true);
+    discord.editMessage.mockRejectedValueOnce(new Error('Discord answered 503'));
+
+    await setLive(TWITCH, false);
+    await advance(GO_LIVE_GRACE_MS);
+
+    expect(reported).toHaveBeenCalledOnce();
+    expect(reported.mock.calls[0]?.[0].message).toMatch(/still says you are live.*503/);
+    expect(posts.get()).toBeNull();
+  });
+
   it('retries a post that failed, on the next heartbeat', async () => {
     discord.postMessage.mockRejectedValueOnce(new Error('Discord answered 503'));
 

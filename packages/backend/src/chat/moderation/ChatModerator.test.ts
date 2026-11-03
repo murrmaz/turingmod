@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { PermissionLevel, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EventBus } from '../../core/EventBus.js';
+import type { ServiceErrorEvent } from '../../core/events.js';
 import type { DatabaseManager } from '../../database/DatabaseManager.js';
 import { BannedWordRepository } from '../../database/repositories/BannedWordRepository.js';
 import { createTestDatabase } from '../../database/repositories/testDatabase.js';
@@ -32,6 +34,7 @@ describe('ChatModerator', () => {
     deleteChatMessage: ReturnType<typeof vi.fn<ModerationApi['deleteChatMessage']>>;
   };
   let moderator: ChatModerator;
+  let reported: ReturnType<typeof vi.fn<(event: ServiceErrorEvent) => void>>;
 
   beforeEach(async () => {
     ({ db, cleanup } = await createTestDatabase());
@@ -47,10 +50,15 @@ describe('ChatModerator', () => {
       sendChatMessage: vi.fn(() => Promise.resolve()),
       require: fakeRequire(StreamingPlatform.TWITCH, { moderation }),
     };
+    const logger = makeLogger();
+    const eventBus = new EventBus(logger);
+    reported = vi.fn<(event: ServiceErrorEvent) => void>();
+    eventBus.on('service.error', reported);
     moderator = new ChatModerator(
+      eventBus,
       streamControl as unknown as StreamControlService,
       bannedWords,
-      makeLogger()
+      logger
     );
   });
 
@@ -132,5 +140,48 @@ describe('ChatModerator', () => {
     moderation.timeoutUser.mockRejectedValue(new Error('cannot time out a moderator'));
 
     expect(await moderator.review(chatMessage('cheese'))).toBe('blocked');
+  });
+
+  it('reports a timeout that failed, once until one works', async () => {
+    bannedWords.ban('cheese', null);
+    moderation.timeoutUser.mockRejectedValueOnce(new Error('refused'));
+    moderation.timeoutUser.mockRejectedValueOnce(new Error('refused'));
+
+    await moderator.review(chatMessage('cheese'));
+    await moderator.review(chatMessage('cheese'));
+
+    expect(reported).toHaveBeenCalledOnce();
+    expect(reported).toHaveBeenCalledWith({
+      service: 'Chat moderation',
+      message: 'Could not time out Viewer for a banned word. refused',
+    });
+
+    await moderator.review(chatMessage('cheese'));
+    moderation.timeoutUser.mockRejectedValueOnce(new Error('refused'));
+    await moderator.review(chatMessage('cheese'));
+    expect(reported).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports a delete in quiet mode that failed, apart from timeouts', async () => {
+    moderator.setQuietMode(true);
+    moderation.deleteChatMessage.mockRejectedValue(new Error('refused'));
+
+    await moderator.review(chatMessage('hey @pope_pontius'));
+
+    expect(reported.mock.calls[0]?.[0].message).toMatch(/Could not delete a message.*refused/);
+  });
+
+  it('reports banned words it cannot read once, and lets messages through', async () => {
+    vi.spyOn(bannedWords, 'listActive').mockImplementation(() => {
+      throw new Error('database is locked');
+    });
+
+    expect(await moderator.review(chatMessage('one'))).toBe('allowed');
+    expect(await moderator.review(chatMessage('two'))).toBe('allowed');
+
+    expect(reported).toHaveBeenCalledOnce();
+    expect(reported.mock.calls[0]?.[0].message).toMatch(
+      /Could not read the banned words.*database is locked/
+    );
   });
 });

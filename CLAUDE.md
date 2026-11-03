@@ -68,7 +68,9 @@ break or an effect while those are being restored. Each service keeps its bus su
 `Subscriptions` and clears them in `stop()`. A failure a service carries on from but the streamer
 must know about goes through its `failureReporter()` (`core/ServiceLifecycle.ts`), which logs it and
 publishes `service.error`, putting it in the activity log and live feed; a log line alone reaches
-only the terminal.
+only the terminal. A failure that recurs for as long as its cause lasts (one per chat message, or
+per poll) goes through `RepeatingFailures`, which reports the first of a run. `announce()` lists a
+platform that fails rather than throwing, so its caller passes the result to `reportAnnouncement()`.
 
 **Console requests**: the console calls procedures on the tRPC router (`server/trpc/appRouter.ts`), served at `TRPC_PATH` by `TrpcServer`; each procedure's Zod input schema is checked before it runs, so procedures never check input shape themselves, and a malformed input is a `BAD_REQUEST` naming the bad fields. See Console ↔ Backend Protocol below.
 
@@ -158,8 +160,9 @@ can recover it automatically — an expired access token is refreshed transparen
 `NotAuthenticatedError` means a human must redo OAuth. Two paths handle it differently:
 `requireUserId()` throws `NotAuthenticatedError`, which `CommandExecutor` maps, with
 `toCommandError()` (`commands/utils/commandErrors.ts`), to a `NOT_AUTHENTICATED` result; mirrored *writes* instead
-call `getUnavailableReason()` and log a warning, because a mirror replies in public chat where the
-broadcaster's token state doesn't belong.
+call `getUnavailableReason()` and list the platform as `skipped`, because a mirror replies in public
+chat where the broadcaster's token state doesn't belong: chat hears the write failed, and the reason
+goes to the activity log.
 
 **Features react to a platform recovering through `platform.availability`, not `integration.status`.**
 `PlatformAvailability` re-checks every façade's `getUnavailableReason()` on each integration status

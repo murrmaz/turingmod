@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { SuggestionBox } from '../../suggestions/SuggestionBox.js';
+import type { SuggestionBox } from '../../features/suggestions/SuggestionBox.js';
 import { procedure, router } from './trpc.js';
 import { watchable } from './watch.js';
 

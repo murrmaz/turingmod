@@ -286,7 +286,7 @@ export interface IStreamPlatform extends Partial<Readonly<CapabilityApis>> {
 
   /**
    * Post a message to this platform's own chat. ChatRouter posts command replies with this.
-   * Implementations must pass the message through `toSafeChatText()` (see chat/chatMessage.ts) and
+   * Implementations must pass the message through `toSafeChatText()` (`platforms/safeChatText.ts`) and
    * send it through `OwnChatMessages.record()`, so TuringMod ignores it when it comes back.
    */
   sendChatMessage(message: string): Promise<void>;

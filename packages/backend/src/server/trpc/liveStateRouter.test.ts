@@ -1,6 +1,6 @@
 import { type PlatformLiveState, StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
-import type { PlatformLiveStatus } from '../../live/PlatformLiveStatus.js';
+import type { PlatformLiveStatus } from '../../features/live/PlatformLiveStatus.js';
 import { createLiveStateRouter } from './liveStateRouter.js';
 import { createCallerFactory } from './trpc.js';
 

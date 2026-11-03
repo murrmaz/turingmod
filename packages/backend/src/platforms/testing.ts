@@ -1,5 +1,5 @@
 import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
-import type { ChatMessageEvent } from '../chat/chatMessage.js';
+import type { ChatMessageEvent } from '../core/events.js';
 import type { CapabilityApiName, CapabilityApis } from './interfaces/IStreamPlatform.js';
 
 /**

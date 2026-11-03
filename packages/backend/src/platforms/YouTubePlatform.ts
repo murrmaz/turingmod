@@ -1,8 +1,6 @@
 import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import type { youtube_v3 } from 'googleapis';
 import { singleton } from 'tsyringe';
-import { toSafeChatText } from '../chat/chatMessage.js';
-import { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import {
   type BroadcastIdentity,
   YouTubeApiIntegration,
@@ -18,6 +16,8 @@ import type {
   LiveBroadcast,
   StreamInfo,
 } from './interfaces/IStreamPlatform.js';
+import { OwnChatMessages } from './OwnChatMessages.js';
+import { toSafeChatText } from './safeChatText.js';
 
 /** A broadcast snippet's mutable fields besides the title, carried over when the title changes. */
 const KEPT_SNIPPET_FIELDS = ['description', 'scheduledStartTime', 'scheduledEndTime'] as const;

@@ -1,11 +1,11 @@
 import 'reflect-metadata';
 import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { OwnChatMessages } from '../chat/OwnChatMessages.js';
 import type { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
 import type { YouTubeAuthIntegration } from '../integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import type { YouTubeChatIntegration } from '../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { NotAuthenticatedError } from './errors.js';
+import type { OwnChatMessages } from './OwnChatMessages.js';
 import { YouTubePlatform } from './YouTubePlatform.js';
 
 /** The broadcast chat is streaming, as YouTubeChatIntegration.getBroadcast() reports it. */

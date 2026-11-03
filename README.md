@@ -169,7 +169,7 @@ level, and the platforms it works on (some need Twitch-only features). Highlight
 - **Moderators**: `!title <title>`, `!game <name>`, `!so <channel>`, `!break [minutes | end]`,
   `!snooze`, `!quiet`, `!startcollect`/`!endcollect` (clip links), `!delvod`
 
-New commands are TypeScript classes in `packages/backend/src/commands/implementations/`, picked up
+New commands are TypeScript classes in `packages/backend/src/features/commands/implementations/`, picked up
 automatically.
 
 ## Command Simulator

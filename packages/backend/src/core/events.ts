@@ -2,12 +2,12 @@ import type {
   CommandErrorCode,
   ExecutorErrorCode,
   IntegrationStatus,
+  PermissionLevel,
   PlatformLiveState,
   StreamingPlatform,
   YouTubeChatState,
 } from '@turingmod/shared';
 import type { OBSEventTypes } from 'obs-websocket-js';
-import type { ChatMessageEvent } from '../chat/chatMessage.js';
 import type { DeviceMessage } from '../integrations/implementations/arduino/arduinoProtocol.js';
 
 /**
@@ -77,6 +77,28 @@ export interface EventMap {
 }
 
 export type EventName = keyof EventMap;
+
+/**
+ * One chat message, emitted identically by every platform's chat integration as `chat.received`.
+ * OwnChatMessages republishes it as `chat.message` unless TuringMod posted it, and everything else
+ * listens to that. Commands are parsed out of it in one place (ChatRouter), after moderation has
+ * had its say, rather than by each integration.
+ */
+export interface ChatMessageEvent {
+  platform: StreamingPlatform;
+  platformUserId: string;
+  username: string;
+  message: string;
+  permissionLevel: PermissionLevel;
+  badges: string[];
+  timestamp: number;
+  /** The platform's id for the message, which moderation needs to delete it. */
+  messageId: string;
+  /** The channel the message was posted in. */
+  channelId: string;
+  /** The channel's login name, where the platform has one (Twitch), for spotting @-mentions. */
+  channelName?: string;
+}
 
 /** A command run, successful or not (see CommandExecutor). */
 export type CommandExecutedEvent = {

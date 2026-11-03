@@ -1,10 +1,10 @@
 import { type ActivityLogEntry, MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivityForwarder } from '../../activity/ActivityForwarder.js';
 import type {
   ActivityLogQuery,
   ActivityLogRepository,
 } from '../../database/repositories/ActivityLogRepository.js';
+import type { ActivityForwarder } from '../../features/activity/ActivityForwarder.js';
 import { chatMessage } from '../../platforms/testing.js';
 import { createActivityRouter } from './activityRouter.js';
 import { createCallerFactory } from './trpc.js';

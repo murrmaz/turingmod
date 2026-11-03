@@ -1,7 +1,17 @@
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
-import type { ObsBreakSnapshot } from '../../breaks/ObsBreakOverlay.js';
 import { DatabaseManager } from '../DatabaseManager.js';
+
+/** What the overlay changed, recorded before changing it, so restore() can put it back exactly. */
+export interface ObsBreakSnapshot {
+  /**
+   * Original visibility of every scene item the overlay touched, keyed by `containerUuid:itemId`
+   * (`sceneUuid` is the group's UUID for an item inside a group).
+   */
+  items: Map<string, { sceneUuid: string; sceneItemId: number; enabled: boolean }>;
+  /** Original mute state of every input the overlay touched. */
+  inputs: Map<string, boolean>;
+}
 
 /** A snapshot as stored: its maps as arrays of entries. */
 const StoredSnapshotSchema = z.strictObject({

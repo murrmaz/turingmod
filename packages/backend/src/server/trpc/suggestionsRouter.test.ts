@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DatabaseManager } from '../../database/DatabaseManager.js';
 import { SuggestionRepository } from '../../database/repositories/SuggestionRepository.js';
 import { createTestDatabase } from '../../database/repositories/testDatabase.js';
-import { SuggestionBox } from '../../suggestions/SuggestionBox.js';
+import { SuggestionBox } from '../../features/suggestions/SuggestionBox.js';
 import { createSuggestionsRouter } from './suggestionsRouter.js';
 import { createCallerFactory } from './trpc.js';
 

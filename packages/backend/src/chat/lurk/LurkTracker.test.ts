@@ -5,7 +5,7 @@ import { EventBus } from '../../core/EventBus.js';
 import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import { chatMessage } from '../../platforms/testing.js';
 import { Logger } from '../../utils/Logger.js';
-import { LurkTracker, welcomeBackMessage } from './LurkTracker.js';
+import { LurkTracker, lurkerKeyOf, welcomeBackMessage } from './LurkTracker.js';
 
 function setup() {
   const logger = new Logger({ level: 'silent' });
@@ -61,5 +61,11 @@ describe('LurkTracker', () => {
     expect(welcomeBackMessage('Viewer', { since: 0, reason: '' }, 1000)).toBe(
       'Welcome back @Viewer! You were gone for 1 second because of "No Message Provided"'
     );
+  });
+
+  it('keys whoever ran a command by the platform they ran it on', () => {
+    expect(
+      lurkerKeyOf({ platform: StreamingPlatform.YOUTUBE, user: { platformUserId: 'u1' } })
+    ).toEqual({ platform: StreamingPlatform.YOUTUBE, platformUserId: 'u1' });
   });
 });

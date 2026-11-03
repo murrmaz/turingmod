@@ -13,8 +13,6 @@ import type { ParsedCommand } from '../parseCommand.js';
 export interface CommandContext extends ParsedCommand {
   /** User executing the command */
   user: {
-    id: string;
-    platform: StreamingPlatform;
     platformUserId: string;
     username: string;
     permissionLevel: PermissionLevel;
@@ -51,7 +49,15 @@ export interface ICommand {
   readonly requiredCapabilities: PlatformCapability[];
 
   /**
-   * Execute the command
+   * What chat hears if `execute()` throws because something outside it failed (a platform, an
+   * integration), which the executor turns into the failed result. Without one, a throw is a crash:
+   * it's recorded, and chat hears nothing.
+   */
+  readonly failureMessage?: string;
+
+  /**
+   * Execute the command. Let a failed call throw rather than catching it: the executor logs it and
+   * reports it, including a lost authorization (see toCommandError()).
    * @param context - Execution context
    * @returns Command result
    */

@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import type { PlaybackState } from '@spotify/web-api-ts-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import type { SpotifyApiIntegration } from '../../integrations/implementations/spotify/SpotifyApiIntegration.js';
-import { Logger } from '../../utils/Logger.js';
+import { commandContext, runCommand } from '../testing.js';
 import { describePlayback, SongCommand } from './SongCommand.js';
 
 function playing(item: Record<string, unknown> | null, isPlaying = true): PlaybackState {
@@ -45,7 +45,7 @@ describe('describePlayback', () => {
 
 describe('SongCommand', () => {
   function command(request: SpotifyApiIntegration['request']) {
-    return new SongCommand({ request } as SpotifyApiIntegration, new Logger({ level: 'silent' }));
+    return new SongCommand({ request } as SpotifyApiIntegration);
   }
 
   it('asks Spotify for episodes as well as tracks', async () => {
@@ -62,7 +62,7 @@ describe('SongCommand', () => {
   it('reports a failure without leaking the error to chat', async () => {
     const song = command(() => Promise.reject(new Error('Spotify is not connected')));
 
-    const result = await song.execute({} as never);
+    const result = await runCommand(song, commandContext('!song'));
 
     expect(result).toMatchObject({
       success: false,

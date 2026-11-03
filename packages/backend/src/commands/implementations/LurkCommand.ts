@@ -1,7 +1,7 @@
 import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
-import { LurkTracker } from '../../chat/lurk/LurkTracker.js';
+import { LurkTracker, lurkerKeyOf } from '../../chat/lurk/LurkTracker.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
 import { ok } from '../utils/results.js';
 
@@ -22,7 +22,7 @@ export class LurkCommand implements ICommand {
 
   execute(context: CommandContext): Promise<CommandResult> {
     const { user } = context;
-    const lurking = this.lurkers.lurk(user, context.argText);
+    const lurking = this.lurkers.lurk(lurkerKeyOf(context), context.argText);
     return Promise.resolve(
       ok(
         lurking

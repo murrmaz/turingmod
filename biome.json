@@ -124,6 +124,26 @@
   },
   "overrides": [
     {
+      "includes": ["**/packages/backend/src/commands/implementations/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/commandErrors.js"],
+                    "message": "A command lets a failed call throw and names what chat hears in failureMessage; CommandExecutor reports it"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["**/packages/backend/src/**/*.ts"],
       "linter": {
         "rules": {

@@ -3,9 +3,7 @@ import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { formatElapsed } from '../../utils/FormatHelpers.js';
-import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
-import { toCommandError } from '../utils/commandErrors.js';
 import { ok } from '../utils/results.js';
 
 /**
@@ -21,15 +19,9 @@ export class FollowageCommand implements ICommand {
   /** Per-viewer, to keep a Helix-backed read off the rate limit. */
   readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.FOLLOW_INFO];
+  readonly failureMessage = 'Failed to look up the follow date';
 
-  private logger: Logger;
-
-  constructor(
-    private streamControl: StreamControlService,
-    logger: Logger
-  ) {
-    this.logger = logger.child({ command: 'followage' });
-  }
+  constructor(private streamControl: StreamControlService) {}
 
   async execute(context: CommandContext): Promise<CommandResult> {
     const { user } = context;
@@ -37,20 +29,15 @@ export class FollowageCommand implements ICommand {
       return ok("You're literally the streamer, I can't get a follow time for yourself >:-(");
     }
 
-    try {
-      const followDate = await this.streamControl
-        .require(context.platform, 'followInfo')
-        .getFollowDate(user.platformUserId);
-      if (!followDate) {
-        return ok(`@${user.username}: You are currently not following this channel`);
-      }
-      return ok(
-        `@${user.username} has been following for ${formatElapsed(Date.now() - followDate.getTime())}`
-      );
-    } catch (error) {
-      this.logger.error('Error in followage command', error);
-      return toCommandError(error, 'Failed to look up the follow date');
+    const followDate = await this.streamControl
+      .require(context.platform, 'followInfo')
+      .getFollowDate(user.platformUserId);
+    if (!followDate) {
+      return ok(`@${user.username}: You are currently not following this channel`);
     }
+    return ok(
+      `@${user.username} has been following for ${formatElapsed(Date.now() - followDate.getTime())}`
+    );
   }
 }
 

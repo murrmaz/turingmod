@@ -2,9 +2,7 @@ import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
-import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
-import { toCommandError } from '../utils/commandErrors.js';
 import { checkPermission } from '../utils/permissionChecks.js';
 import { mirrorReply, ok } from '../utils/results.js';
 
@@ -22,57 +20,46 @@ export class TagsCommand implements ICommand {
   /** Per-viewer, to keep a Helix-backed read off the rate limit. Throttles the viewer-readable branch; moderators are exempt, so !tags <list> stays responsive. */
   readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.SET_TAGS];
+  readonly failureMessage = 'Failed to get/set stream tags';
 
-  private logger: Logger;
-
-  constructor(
-    private streamControl: StreamControlService,
-    logger: Logger
-  ) {
-    this.logger = logger.child({ command: 'tags' });
-  }
+  constructor(private streamControl: StreamControlService) {}
 
   async execute(context: CommandContext): Promise<CommandResult> {
     const { user, argText } = context;
 
-    try {
-      // Write mode: set new tags (mirrors to all live platforms that support SET_TAGS)
-      if (argText !== '') {
-        const permissionError = checkPermission(
-          user.permissionLevel,
-          PermissionLevel.MODERATOR,
-          'edit stream tags'
-        );
-        if (permissionError) {
-          return permissionError;
-        }
-
-        const tags = argText
-          .split(',')
-          .map((tag) => tag.trim())
-          .filter((tag) => tag !== '');
-
-        const mirror = await this.streamControl.setTags(tags);
-        return mirrorReply(
-          mirror,
-          'tags',
-          (platforms) => `Tags updated on ${platforms}: [${tags.join(', ')}]`
-        );
+    // Write mode: set new tags (mirrors to all live platforms that support SET_TAGS)
+    if (argText !== '') {
+      const permissionError = checkPermission(
+        user.permissionLevel,
+        PermissionLevel.MODERATOR,
+        'edit stream tags'
+      );
+      if (permissionError) {
+        return permissionError;
       }
 
-      // Read mode: show current tags on the origin platform
-      const info = await this.streamControl.getStreamInfo(context.platform);
-      const tags = info.tags;
+      const tags = argText
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter((tag) => tag !== '');
 
-      if (!tags || tags.length === 0) {
-        return ok('Tags: None');
-      }
-
-      return ok(`Tags: [${tags.join(', ')}]`);
-    } catch (error) {
-      this.logger.error('Error in tags command', error);
-      return toCommandError(error, 'Failed to get/set stream tags');
+      const mirror = await this.streamControl.setTags(tags);
+      return mirrorReply(
+        mirror,
+        'tags',
+        (platforms) => `Tags updated on ${platforms}: [${tags.join(', ')}]`
+      );
     }
+
+    // Read mode: show current tags on the origin platform
+    const info = await this.streamControl.getStreamInfo(context.platform);
+    const tags = info.tags;
+
+    if (!tags || tags.length === 0) {
+      return ok('Tags: None');
+    }
+
+    return ok(`Tags: [${tags.join(', ')}]`);
   }
 }
 

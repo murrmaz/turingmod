@@ -73,8 +73,6 @@ export function createCommandsRouter(
         const context: CommandContext = {
           ...parsed,
           user: {
-            id: userId,
-            platform,
             platformUserId: userId,
             username: simulatedUser.username,
             permissionLevel: simulatedUser.permissionLevel,

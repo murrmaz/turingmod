@@ -4,7 +4,6 @@ import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
-import { toCommandError } from '../utils/commandErrors.js';
 import { fail, ok } from '../utils/results.js';
 
 /**
@@ -21,6 +20,7 @@ export class DelvodCommand implements ICommand {
   readonly permissions = [PermissionLevel.MODERATOR];
   readonly cooldown = 0;
   readonly requiredCapabilities = [PlatformCapability.VODS];
+  readonly failureMessage = 'Failed to delete the VOD';
 
   private logger: Logger;
 
@@ -40,19 +40,14 @@ export class DelvodCommand implements ICommand {
       );
     }
 
-    try {
-      const vod = await this.streamControl.require(context.platform, 'vods').deleteLatestVod();
-      if (!vod) {
-        return ok('There is no past broadcast to delete');
-      }
-      this.logger.warn(
-        `Deleted VOD ${vod.id} ("${vod.title}") at ${context.user.username}'s request`
-      );
-      return ok('VOD successfully deleted');
-    } catch (error) {
-      this.logger.error('Error in delvod command', error);
-      return toCommandError(error, 'Failed to delete the VOD');
+    const vod = await this.streamControl.require(context.platform, 'vods').deleteLatestVod();
+    if (!vod) {
+      return ok('There is no past broadcast to delete');
     }
+    this.logger.warn(
+      `Deleted VOD ${vod.id} ("${vod.title}") at ${context.user.username}'s request`
+    );
+    return ok('VOD successfully deleted');
   }
 }
 

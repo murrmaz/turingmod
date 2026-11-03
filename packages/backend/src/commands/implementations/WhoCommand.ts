@@ -2,9 +2,7 @@ import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
-import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
-import { toCommandError } from '../utils/commandErrors.js';
 import { ok } from '../utils/results.js';
 
 /**
@@ -20,31 +18,20 @@ export class WhoCommand implements ICommand {
   /** Per-viewer, to keep a Helix-backed read off the rate limit. The channel bio almost never changes. */
   readonly cooldown = 60;
   readonly requiredCapabilities = [PlatformCapability.BROADCASTER_ABOUT];
+  readonly failureMessage = 'Failed to retrieve broadcaster info';
 
-  private logger: Logger;
-
-  constructor(
-    private streamControl: StreamControlService,
-    logger: Logger
-  ) {
-    this.logger = logger.child({ command: 'who' });
-  }
+  constructor(private streamControl: StreamControlService) {}
 
   async execute(context: CommandContext): Promise<CommandResult> {
-    try {
-      const description = await this.streamControl
-        .require(context.platform, 'broadcasterAbout')
-        .getBroadcasterAbout();
+    const description = await this.streamControl
+      .require(context.platform, 'broadcasterAbout')
+      .getBroadcasterAbout();
 
-      if (!description) {
-        return ok('No description set');
-      }
-
-      return ok(`About: ${description}`);
-    } catch (error) {
-      this.logger.error('Error in who command', error);
-      return toCommandError(error, 'Failed to retrieve broadcaster info');
+    if (!description) {
+      return ok('No description set');
     }
+
+    return ok(`About: ${description}`);
   }
 }
 

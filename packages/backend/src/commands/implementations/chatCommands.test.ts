@@ -13,7 +13,7 @@ import { raidShoutoutMessage } from '../../raids/RaidShoutout.js';
 import type { SoundLibrary } from '../../sounds/SoundLibrary.js';
 import { SuggestionBox } from '../../suggestions/SuggestionBox.js';
 import { Logger } from '../../utils/Logger.js';
-import { commandContext } from '../testing.js';
+import { commandContext, runCommand } from '../testing.js';
 import { AdCommand } from './AdCommand.js';
 import { BonkCommand } from './BonkCommand.js';
 import { ContentWarningCommand } from './ContentWarningCommand.js';
@@ -113,7 +113,7 @@ describe('reading with a trailing space', () => {
       setTags,
       getStreamInfo: () => Promise.resolve({ tags: ['English'] }),
     } as unknown as StreamControlService;
-    const command = new TagsCommand(streamControl, logger);
+    const command = new TagsCommand(streamControl);
 
     const result = await command.execute(commandContext('!tags ', moderator));
 
@@ -127,7 +127,7 @@ describe('reading with a trailing space', () => {
       setContentLabels,
       getContentLabels: () => Promise.resolve(['ViolentGraphic']),
     };
-    const command = new ContentWarningCommand(fakeStreamControl({ contentLabels }), logger);
+    const command = new ContentWarningCommand(fakeStreamControl({ contentLabels }));
 
     await command.execute(commandContext('!cw ', moderator));
 
@@ -141,8 +141,7 @@ describe('!cw', () => {
   it('clears the labels with none', async () => {
     const setContentLabels = vi.fn(() => Promise.resolve());
     const command = new ContentWarningCommand(
-      fakeStreamControl({ contentLabels: { setContentLabels, getContentLabels: vi.fn() } }),
-      logger
+      fakeStreamControl({ contentLabels: { setContentLabels, getContentLabels: vi.fn() } })
     );
 
     const result = await command.execute(commandContext('!cw None', moderator));
@@ -155,11 +154,10 @@ describe('!cw', () => {
     const setContentLabels = () =>
       Promise.reject(new InvalidStreamInfoError('Unknown content label: Spiders'));
     const command = new ContentWarningCommand(
-      fakeStreamControl({ contentLabels: { setContentLabels, getContentLabels: vi.fn() } }),
-      logger
+      fakeStreamControl({ contentLabels: { setContentLabels, getContentLabels: vi.fn() } })
     );
 
-    const result = await command.execute(commandContext('!cw Spiders', moderator));
+    const result = await runCommand(command, commandContext('!cw Spiders', moderator));
 
     expect(result).toMatchObject({
       success: false,
@@ -198,7 +196,7 @@ describe('!ad', () => {
       .fn()
       .mockResolvedValueOnce({ nextAdDate: new Date(45_000) })
       .mockResolvedValueOnce({ nextAdDate: new Date(4 * 60_000 + 50_000) });
-    const command = new AdCommand(fakeStreamControl({ ads: { getNextAdBreak } }), logger);
+    const command = new AdCommand(fakeStreamControl({ ads: { getNextAdBreak } }));
 
     expect((await command.execute(commandContext('!ad'))).message).toBe('Next ad in 45s');
     expect((await command.execute(commandContext('!ad'))).message).toBe('Next ad in 4m 50s');
@@ -211,7 +209,7 @@ describe('!snooze', () => {
       .fn()
       .mockResolvedValueOnce({ snoozed: true, snoozesLeft: 2, nextAdDate: null })
       .mockResolvedValueOnce({ snoozed: false, snoozesLeft: 0, nextAdDate: null });
-    const command = new SnoozeCommand(fakeStreamControl({ ads: { snoozeNextAd } }), logger);
+    const command = new SnoozeCommand(fakeStreamControl({ ads: { snoozeNextAd } }));
 
     expect((await command.execute(commandContext('!snooze'))).message).toBe(
       '@Viewer: Ads snoozed! There are 2 left.'
@@ -228,10 +226,7 @@ describe('!followage', () => {
       .fn()
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(new Date(Date.now() - 3 * 24 * 60 * 60 * 1000));
-    const command = new FollowageCommand(
-      fakeStreamControl({ followInfo: { getFollowDate } }),
-      logger
-    );
+    const command = new FollowageCommand(fakeStreamControl({ followInfo: { getFollowDate } }));
 
     expect(
       (

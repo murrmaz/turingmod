@@ -2,9 +2,7 @@ import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
-import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
-import { toCommandError } from '../utils/commandErrors.js';
 import { fail, mirrorReply } from '../utils/results.js';
 
 /**
@@ -25,15 +23,9 @@ export class TitleCommand implements ICommand {
   /** No cooldown needed: write-only and moderator-only, and moderators are exempt anyway. */
   readonly cooldown = 0;
   readonly requiredCapabilities = [PlatformCapability.SET_TITLE];
+  readonly failureMessage = 'Failed to update stream title';
 
-  private logger: Logger;
-
-  constructor(
-    private streamControl: StreamControlService,
-    logger: Logger
-  ) {
-    this.logger = logger.child({ command: 'title' });
-  }
+  constructor(private streamControl: StreamControlService) {}
 
   async execute(context: CommandContext): Promise<CommandResult> {
     // No inner permission check: the command has no viewer-readable branch left, so
@@ -44,17 +36,12 @@ export class TitleCommand implements ICommand {
       return fail('INVALID_INPUT', `Usage: ${this.usage}`, 'Title must not be empty');
     }
 
-    try {
-      const mirror = await this.streamControl.setTitle(newTitle);
-      return mirrorReply(
-        mirror,
-        'title',
-        (platforms) => `Title updated on ${platforms}: ${newTitle}`
-      );
-    } catch (error) {
-      this.logger.error('Error in title command', error);
-      return toCommandError(error, 'Failed to update stream title');
-    }
+    const mirror = await this.streamControl.setTitle(newTitle);
+    return mirrorReply(
+      mirror,
+      'title',
+      (platforms) => `Title updated on ${platforms}: ${newTitle}`
+    );
   }
 }
 

@@ -19,6 +19,7 @@
     "clean": "npm run clean --workspaces --if-present",
     "type-check": "npm run type-check --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "coverage": "npm run test --workspaces --if-present -- --coverage",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "format": "biome format .",

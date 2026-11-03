@@ -1,7 +1,13 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
 import { Logger } from '../utils/Logger.js';
-import { type IService, ServiceLifecycle, Subscriptions } from './ServiceLifecycle.js';
+import { EventBus } from './EventBus.js';
+import {
+  failureReporter,
+  type IService,
+  ServiceLifecycle,
+  Subscriptions,
+} from './ServiceLifecycle.js';
 
 function setup() {
   const logger = new Logger({ level: 'silent' });
@@ -72,5 +78,38 @@ describe('Subscriptions', () => {
 
     expect(first).toHaveBeenCalledOnce();
     expect(second).toHaveBeenCalledOnce();
+  });
+});
+
+describe('failureReporter', () => {
+  function reporter() {
+    const logger = new Logger({ level: 'silent' });
+    const logged = vi.spyOn(logger, 'error');
+    const eventBus = new EventBus(logger);
+    const published = vi.fn();
+    eventBus.on('service.error', published);
+    return { report: failureReporter(eventBus, logger, 'Breaks'), logged, published };
+  }
+
+  it('logs the caught error itself and publishes its message after the text', () => {
+    const { report, logged, published } = reporter();
+    const error = new Error('refused');
+
+    report('Could not unmute the mic.', error);
+
+    expect(logged).toHaveBeenCalledWith('Could not unmute the mic.', error);
+    expect(published).toHaveBeenCalledWith({
+      service: 'Breaks',
+      message: 'Could not unmute the mic. refused',
+    });
+  });
+
+  it('logs and publishes a failure with no caught error', () => {
+    const { report, logged, published } = reporter();
+
+    report('OBS is not connected.');
+
+    expect(logged).toHaveBeenCalledOnce();
+    expect(published).toHaveBeenCalledWith({ service: 'Breaks', message: 'OBS is not connected.' });
   });
 });

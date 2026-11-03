@@ -1,9 +1,10 @@
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { ObsIntegration } from '../integrations/implementations/obs/ObsIntegration.js';
 import {
   listPlacements,
   listScenesByCanvas,
+  type OnSkipped,
   type Placement,
   warnSkipped,
 } from '../integrations/implementations/obs/sceneGraph.js';
@@ -24,6 +25,17 @@ export interface ObsBreakSnapshot {
 /** Whether a snapshot records nothing, so there is nothing to put back. */
 export function isEmptySnapshot(snapshot: ObsBreakSnapshot): boolean {
   return snapshot.items.size === 0 && snapshot.inputs.size === 0;
+}
+
+/** How far applying or restoring got. */
+export interface ObsBreakOutcome {
+  /**
+   * OBS stayed connected throughout. False means what's missing can be done when it reconnects,
+   * so `failed` is empty: a request that fails as OBS goes away says nothing about the source.
+   */
+  connected: boolean;
+  /** What OBS wouldn't do while connected, each with its reason, for the streamer to read. */
+  failed: string[];
 }
 
 /**
@@ -54,12 +66,12 @@ export class ObsBreakOverlay {
   /**
    * Apply the break state and return what it changed, added to `recorded` (what an earlier apply
    * recorded and hasn't been restored yet), so the result always holds the pre-break state.
-   * Never throws; failures are logged.
+   * Never throws: what failed is logged and returned, for the caller to report.
    */
   async apply(
     settings: BreakSettings['obs'],
     recorded?: ObsBreakSnapshot
-  ): Promise<ObsBreakSnapshot> {
+  ): Promise<ObsBreakOutcome & { snapshot: ObsBreakSnapshot }> {
     const snapshot: ObsBreakSnapshot = {
       items: new Map(recorded?.items),
       inputs: new Map(recorded?.inputs),
@@ -67,12 +79,14 @@ export class ObsBreakOverlay {
 
     if (this.obs.getStatus() !== IntegrationStatus.CONNECTED) {
       this.logger.warn('OBS is not connected; skipping the break overlay');
-      return snapshot;
+      return { snapshot, connected: false, failed: [] };
     }
 
+    // A set, since one source that can't be changed fails the same way in every scene holding it.
+    const failed = new Set<string>();
     const seen = new Set<string>();
-    for (const scene of await this.allScenes(settings.keepVisibleInScenes)) {
-      await this.applyToScene(scene.uuid, scene.keepVisible, settings, snapshot, seen);
+    for (const scene of await this.allScenes(settings.keepVisibleInScenes, failed)) {
+      await this.applyToScene(scene.uuid, scene.keepVisible, settings, snapshot, seen, failed);
     }
 
     for (const inputName of settings.muteInputs) {
@@ -86,6 +100,7 @@ export class ObsBreakOverlay {
         }
       } catch (error) {
         this.logger.warn(`Could not mute OBS input "${inputName}"`, { error });
+        failed.add(`mute "${inputName}" (${messageOf(error)})`);
       }
     }
 
@@ -93,25 +108,26 @@ export class ObsBreakOverlay {
       sceneItems: snapshot.items.size,
       inputs: snapshot.inputs.size,
     });
-    return snapshot;
+    return { snapshot, ...this.outcome(failed) };
   }
 
   /**
-   * Put back everything recorded in `snapshot`. Resolves to whether OBS was connected throughout,
-   * so the restore is done: false means it is still owed. A source that can't be restored while
-   * OBS is connected (most likely deleted) is logged and skipped. Never throws.
+   * Put back everything recorded in `snapshot`. If OBS wasn't connected throughout, the restore is
+   * still owed (`connected` is false). If it was, the restore is done, and what OBS wouldn't put
+   * back (most likely deleted) is in `failed`, since trying again wouldn't help. Never throws.
    */
-  async restore(snapshot: ObsBreakSnapshot): Promise<boolean> {
+  async restore(snapshot: ObsBreakSnapshot): Promise<ObsBreakOutcome> {
     if (isEmptySnapshot(snapshot)) {
-      return true;
+      return { connected: true, failed: [] };
     }
     if (this.obs.getStatus() !== IntegrationStatus.CONNECTED) {
       this.logger.warn(
         'OBS is not connected; the facecam and mic will be restored when it reconnects'
       );
-      return false;
+      return { connected: false, failed: [] };
     }
 
+    const failed = new Set<string>();
     for (const { sceneUuid, sceneItemId, enabled } of snapshot.items.values()) {
       try {
         await this.obs.setSceneItemEnabled(sceneUuid, sceneItemId, enabled);
@@ -122,6 +138,8 @@ export class ObsBreakOverlay {
           sceneItemId,
           error,
         });
+        // The snapshot holds only ids: a source's name may be gone along with the source.
+        failed.add(`show or hide scene item ${sceneItemId} (${messageOf(error)})`);
       }
     }
 
@@ -130,22 +148,41 @@ export class ObsBreakOverlay {
         await this.obs.setInputMuted(inputName, wasMuted);
       } catch (error) {
         this.logger.error(`Could not restore OBS input "${inputName}" after the break`, error);
+        failed.add(`${wasMuted ? 'mute' : 'unmute'} "${inputName}" (${messageOf(error)})`);
       }
     }
 
-    if (this.obs.getStatus() !== IntegrationStatus.CONNECTED) {
+    const outcome = this.outcome(failed);
+    if (outcome.connected) {
+      this.logger.info('Break overlay restored');
+    } else {
       this.logger.warn('OBS disconnected while restoring the break overlay; will retry');
-      return false;
     }
-    this.logger.info('Break overlay restored');
-    return true;
+    return outcome;
+  }
+
+  /** The outcome of work that has finished, given what failed along the way. */
+  private outcome(failed: Set<string>): ObsBreakOutcome {
+    return this.obs.getStatus() === IntegrationStatus.CONNECTED
+      ? { connected: true, failed: [...failed] }
+      : { connected: false, failed: [] };
+  }
+
+  /** Logs a part of OBS that couldn't be read, and counts it as failed: the break missed it. */
+  private onSkipped(failed: Set<string>): OnSkipped {
+    const warn = warnSkipped(this.logger);
+    return (what, error) => {
+      warn(what, error);
+      failed.add(`read ${what} (${messageOf(error)})`);
+    };
   }
 
   /** Every scene UUID across all canvases, flagged if its name is in `keepVisibleInScenes`. */
   private async allScenes(
-    keepVisibleInScenes: string[]
+    keepVisibleInScenes: string[],
+    failed: Set<string>
   ): Promise<{ uuid: string; keepVisible: boolean }[]> {
-    const canvases = await listScenesByCanvas(this.obs, warnSkipped(this.logger));
+    const canvases = await listScenesByCanvas(this.obs, this.onSkipped(failed));
     return canvases
       .flatMap((canvas) => canvas.scenes)
       .map((scene) => ({
@@ -159,13 +196,15 @@ export class ObsBreakOverlay {
     keepVisible: boolean,
     settings: BreakSettings['obs'],
     snapshot: ObsBreakSnapshot,
-    seen: Set<string>
+    seen: Set<string>,
+    failed: Set<string>
   ): Promise<void> {
     let placements: Placement[];
     try {
-      placements = await listPlacements(this.obs, sceneUuid, warnSkipped(this.logger));
+      placements = await listPlacements(this.obs, sceneUuid, this.onSkipped(failed));
     } catch (error) {
       this.logger.warn('Could not list scene items', { sceneUuid, error });
+      failed.add(`read the items in a scene (${messageOf(error)})`);
       return;
     }
 
@@ -203,6 +242,7 @@ export class ObsBreakOverlay {
           sceneUuid: containerUuid,
           error,
         });
+        failed.add(`${target ? 'show' : 'hide'} "${item.sourceName}" (${messageOf(error)})`);
       }
     }
   }

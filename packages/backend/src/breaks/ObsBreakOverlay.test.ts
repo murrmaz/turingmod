@@ -111,7 +111,7 @@ describe('ObsBreakOverlay', () => {
   });
 
   it('restores exactly the pre-break state', async () => {
-    const snapshot = await overlay.apply(settings);
+    const { snapshot } = await overlay.apply(settings);
     await overlay.restore(snapshot);
 
     expect(obs.visible('gameplay', 'Facecam')).toBe(true);
@@ -123,7 +123,7 @@ describe('ObsBreakOverlay', () => {
   it('leaves a mic that was already muted muted afterwards (absolute, not toggled)', async () => {
     obs.muted.set('Mic/Aux', true);
 
-    await overlay.restore(await overlay.apply(settings));
+    await overlay.restore((await overlay.apply(settings)).snapshot);
 
     expect(obs.muted.get('Mic/Aux')).toBe(true);
   });
@@ -159,7 +159,7 @@ describe('ObsBreakOverlay', () => {
     obs.items.set('chatting', [item(4, 'Camera', true, 'camera-group')]);
     obs.items.set('camera-group', [item(1, 'Facecam', true), item(2, 'Frame', true)]);
 
-    const snapshot = await overlay.apply(settings);
+    const { snapshot } = await overlay.apply(settings);
     expect(obs.visible('camera-group', 'Facecam')).toBe(false);
     expect(obs.visible('camera-group', 'Frame')).toBe(true);
     expect(obs.visible('chatting', 'Camera')).toBe(true);
@@ -210,19 +210,19 @@ describe('ObsBreakOverlay', () => {
   it('does nothing when OBS is not connected', async () => {
     obs.status = IntegrationStatus.DISCONNECTED;
 
-    const snapshot = await overlay.apply(settings);
+    const { snapshot } = await overlay.apply(settings);
 
     expect(snapshot.items.size).toBe(0);
     expect(obs.visible('gameplay', 'Facecam')).toBe(true);
   });
 
   it('applies again over what it recorded, keeping the pre-break state', async () => {
-    const first = await overlay.apply(settings);
+    const { snapshot: first } = await overlay.apply(settings);
     // OBS restarted mid-break without having saved the hidden facecam.
     obs.items.set('gameplay', [item(1, 'Facecam', true), item(2, 'Ads Text', true)]);
     obs.muted.set('Mic/Aux', true);
 
-    const second = await overlay.apply(settings, first);
+    const { snapshot: second } = await overlay.apply(settings, first);
 
     expect(obs.visible('gameplay', 'Facecam')).toBe(false);
     expect(second.items.get('gameplay:1')?.enabled).toBe(true);
@@ -232,10 +232,10 @@ describe('ObsBreakOverlay', () => {
   });
 
   it('reports a restore as done only when OBS is connected throughout', async () => {
-    const snapshot = await overlay.apply(settings);
+    const { snapshot } = await overlay.apply(settings);
 
     obs.status = IntegrationStatus.DISCONNECTED;
-    expect(await overlay.restore(snapshot)).toBe(false);
+    expect((await overlay.restore(snapshot)).connected).toBe(false);
     expect(obs.visible('gameplay', 'Facecam')).toBe(false);
 
     obs.status = IntegrationStatus.CONNECTED;
@@ -243,14 +243,110 @@ describe('ObsBreakOverlay', () => {
       obs.status = IntegrationStatus.DISCONNECTED; // OBS goes away mid-restore
       return Promise.reject(new Error('OBS is not connected'));
     };
-    expect(await overlay.restore(snapshot)).toBe(false);
+    expect((await overlay.restore(snapshot)).connected).toBe(false);
   });
 
   it('reports a restore as done when a source has gone, since retrying cannot bring it back', async () => {
-    const snapshot = await overlay.apply(settings);
+    const { snapshot } = await overlay.apply(settings);
     obs.items.set('chatting', []);
 
-    expect(await overlay.restore(snapshot)).toBe(true);
+    expect((await overlay.restore(snapshot)).connected).toBe(true);
     expect(obs.visible('gameplay', 'Facecam')).toBe(true);
+  });
+
+  describe('saying what failed', () => {
+    it('returns nothing failed when everything worked', async () => {
+      const { snapshot, connected, failed } = await overlay.apply(settings);
+      expect({ connected, failed }).toEqual({ connected: true, failed: [] });
+
+      expect(await overlay.restore(snapshot)).toEqual({ connected: true, failed: [] });
+    });
+
+    it('names a mic OBS would not mute', async () => {
+      obs.setInputMuted = () => Promise.reject(new Error('refused'));
+
+      expect((await overlay.apply(settings)).failed).toEqual(['mute "Mic/Aux" (refused)']);
+    });
+
+    it('names a mic it could not read, since that one was not muted either', async () => {
+      obs.muted.delete('Mic/Aux');
+
+      expect((await overlay.apply(settings)).failed).toEqual([
+        'mute "Mic/Aux" (No source was found)',
+      ]);
+    });
+
+    it('names a source once, however many scenes hold it', async () => {
+      obs.failSetFor.add('Facecam');
+
+      expect((await overlay.apply(settings)).failed).toEqual([
+        'hide "Facecam" (No source was found)',
+      ]);
+    });
+
+    it('counts a canvas or scene it could not read, since the break missed it', async () => {
+      const getScenes = obs.getScenes.bind(obs);
+      obs.getScenes = (canvasUuid?: string) =>
+        canvasUuid === 'vert' ? Promise.reject(new Error('gone')) : getScenes(canvasUuid);
+      const getSceneItems = obs.getSceneItems.bind(obs);
+      obs.getSceneItems = (sceneUuid: string) =>
+        sceneUuid === 'chatting' ? Promise.reject(new Error('busy')) : getSceneItems(sceneUuid);
+
+      expect((await overlay.apply(settings)).failed).toEqual([
+        'read the scenes on canvas "Aitum Vertical" (gone)',
+        'read the items in a scene (busy)',
+      ]);
+    });
+
+    it('names a mic OBS would not unmute, as done rather than still owed', async () => {
+      const { snapshot } = await overlay.apply(settings);
+      obs.setInputMuted = () => Promise.reject(new Error('refused'));
+
+      expect(await overlay.restore(snapshot)).toEqual({
+        connected: true,
+        failed: ['unmute "Mic/Aux" (refused)'],
+      });
+    });
+
+    it('says to mute again a mic that was muted before the break', async () => {
+      obs.muted.set('Mic/Aux', true);
+      const { snapshot } = await overlay.apply(settings);
+      obs.setInputMuted = () => Promise.reject(new Error('refused'));
+
+      expect((await overlay.restore(snapshot)).failed).toEqual(['mute "Mic/Aux" (refused)']);
+    });
+
+    it('counts a scene item it could not put back', async () => {
+      const { snapshot } = await overlay.apply(settings);
+      obs.items.set('chatting', []);
+
+      expect((await overlay.restore(snapshot)).failed).toEqual([
+        'show or hide scene item 1 (No source was found)',
+      ]);
+    });
+
+    it('blames nothing on a source when OBS goes away partway', async () => {
+      const goesAway = () => {
+        obs.status = IntegrationStatus.DISCONNECTED;
+        return Promise.reject(new Error('OBS is not connected'));
+      };
+      const setInputMuted = obs.setInputMuted.bind(obs);
+
+      obs.setInputMuted = goesAway;
+      expect(await overlay.apply(settings)).toMatchObject({ connected: false, failed: [] });
+
+      obs.status = IntegrationStatus.CONNECTED;
+      obs.setInputMuted = setInputMuted;
+      const { snapshot } = await overlay.apply(settings);
+
+      obs.setInputMuted = goesAway;
+      expect(await overlay.restore(snapshot)).toEqual({ connected: false, failed: [] });
+    });
+
+    it('says when OBS was not connected to begin with', async () => {
+      obs.status = IntegrationStatus.DISCONNECTED;
+
+      expect(await overlay.apply(settings)).toMatchObject({ connected: false, failed: [] });
+    });
   });
 });

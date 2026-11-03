@@ -1,7 +1,12 @@
-import { IntegrationStatus, messageOf } from '@turingmod/shared';
+import { IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
-import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
+import {
+  failureReporter,
+  type IService,
+  type ReportFailure,
+  Subscriptions,
+} from '../core/ServiceLifecycle.js';
 import { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import {
   ObsIntegration,
@@ -49,6 +54,7 @@ export class FacecamEffectRunner implements IService {
   private owed: FacecamRestore[] = [];
   private subscriptions = new Subscriptions();
   private logger: Logger;
+  private report: ReportFailure;
 
   constructor(
     private eventBus: EventBus,
@@ -57,6 +63,7 @@ export class FacecamEffectRunner implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'FacecamEffectRunner' });
+    this.report = failureReporter(eventBus, this.logger, 'Facecam effects');
   }
 
   start(): void {
@@ -180,15 +187,10 @@ export class FacecamEffectRunner implements IService {
       this.logger.warn(`OBS is gone; restoring "${source}" when it reconnects`);
       return;
     }
-    this.logger.error(`Could not restore "${source}" after an effect`, lastError);
     this.report(
-      `Could not put "${source}" back after an effect; check its position and filters in OBS. ` +
-        messageOf(lastError)
+      `Could not put "${source}" back after an effect; check its position and filters in OBS.`,
+      lastError
     );
-  }
-
-  private report(message: string): void {
-    this.eventBus.emitSync('service.error', { service: 'Facecam effects', message });
   }
 
   private async findFacecam(source: string, effect: FacecamEffect): Promise<FacecamTarget[]> {

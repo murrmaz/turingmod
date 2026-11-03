@@ -1,7 +1,12 @@
-import { messageOf, StreamingPlatform } from '@turingmod/shared';
+import { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
-import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
+import {
+  failureReporter,
+  type IService,
+  type ReportFailure,
+  Subscriptions,
+} from '../core/ServiceLifecycle.js';
 import type { RedemptionOutcome } from '../platforms/interfaces/IStreamPlatform.js';
 import { StreamControlService } from '../platforms/StreamControlService.js';
 import { Logger } from '../utils/Logger.js';
@@ -25,6 +30,7 @@ import { RewardSync } from './RewardSync.js';
 export class RewardRouter implements IService {
   private subscriptions = new Subscriptions();
   private logger: Logger;
+  private report: ReportFailure;
 
   constructor(
     private eventBus: EventBus,
@@ -34,6 +40,7 @@ export class RewardRouter implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'RewardRouter' });
+    this.report = failureReporter(eventBus, this.logger, 'Channel point rewards');
   }
 
   start(): void {
@@ -70,10 +77,9 @@ export class RewardRouter implements IService {
     }
     const managed = await this.sync.isManaged(redemption.rewardId);
     if (managed === null) {
-      this.reportUnresolved(
-        redemption,
-        outcome,
-        "TuringMod couldn't read its rewards from Twitch, so it can't tell whether it may"
+      this.report(
+        `${stillQueued(redemption, outcome)} TuringMod couldn't read its rewards from Twitch, so ` +
+          "it can't tell whether it may"
       );
     } else if (managed) {
       await this.resolve(redemption, outcome);
@@ -91,25 +97,16 @@ export class RewardRouter implements IService {
         );
       }
     } catch (error) {
-      this.logger.error(
-        `Failed to mark ${redemption.userDisplayName}'s "${redemption.rewardTitle}" redemption ${outcome}`,
-        error
-      );
-      this.reportUnresolved(redemption, outcome, messageOf(error));
+      this.report(stillQueued(redemption, outcome), error);
     }
   }
+}
 
-  private reportUnresolved(
-    redemption: RewardRedemption,
-    outcome: RedemptionOutcome,
-    why: string
-  ): void {
-    const todo = outcome === 'canceled' ? 'its handler failed, so refund it' : 'approve it';
-    this.eventBus.emitSync('service.error', {
-      service: 'Channel point rewards',
-      message:
-        `${redemption.userDisplayName}'s "${redemption.rewardTitle}" redemption is still in ` +
-        `Twitch's request queue: ${todo} there. ${why}`,
-    });
-  }
+/** What the streamer has to do about a redemption TuringMod couldn't resolve. */
+function stillQueued(redemption: RewardRedemption, outcome: RedemptionOutcome): string {
+  const todo = outcome === 'canceled' ? 'its handler failed, so refund it' : 'approve it';
+  return (
+    `${redemption.userDisplayName}'s "${redemption.rewardTitle}" redemption is still in ` +
+    `Twitch's request queue: ${todo} there.`
+  );
 }

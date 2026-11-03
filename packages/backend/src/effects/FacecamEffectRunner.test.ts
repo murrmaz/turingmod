@@ -350,7 +350,7 @@ describe('FacecamEffectRunner', () => {
     await runner.run(effect(() => Promise.resolve()));
 
     expect(logger.error).toHaveBeenCalledWith(
-      'Could not restore "Facecam" after an effect',
+      'Could not put "Facecam" back after an effect; check its position and filters in OBS.',
       expect.any(Error)
     );
     expect(reported).toEqual([

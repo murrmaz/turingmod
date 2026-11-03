@@ -168,7 +168,7 @@ describe('RewardRouter', () => {
     await eventBus.emit('twitch.channelPoint.redemption', redemption('Bonk', 'unfulfilled'));
 
     expect(logger.error).toHaveBeenCalledWith(
-      'Failed to mark Viewer\'s "Bonk" redemption fulfilled',
+      'Viewer\'s "Bonk" redemption is still in Twitch\'s request queue: approve it there.',
       expect.any(Error)
     );
   });

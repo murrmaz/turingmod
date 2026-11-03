@@ -19,6 +19,10 @@ is running, the stored state restored if not. That covers a break that ends whil
 one cut short by TuringMod crashing (a break doesn't survive a restart; what it owes OBS does).
 A stored state that can't be read is dropped and reported (`service.error`), since OBS may still
 show the break.
+`ObsBreakOverlay` returns what it couldn't do and `BreakService` reports it, by the same rule as
+effects: what fails because OBS has gone is done when OBS connects, and what OBS refuses while
+connected won't go better later, so it's reported once and not retried. A break started while OBS is
+down is reported too, since the streamer is still on air, but a restore waiting for OBS isn't.
 A new break started while a restore is still owed builds on that state, so its "before" is never
 the hidden facecam. `ObsIntegration` reconnects on its own while it is started, backing off to
 30s; only a failure the streamer must fix (wrong password, old obs-websocket) is an ERROR. Chat fan-out goes through `StreamControlService.announce()`, which

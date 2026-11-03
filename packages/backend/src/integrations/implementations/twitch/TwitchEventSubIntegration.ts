@@ -7,7 +7,7 @@ import {
   StreamingPlatform,
 } from '@turingmod/shared';
 import type { HelixEventSubSubscriptionStatus } from '@twurple/api';
-import type { EventSubChannelChatMessageEvent } from '@twurple/eventsub-base';
+import type { EventSubChannelChatMessageEvent, EventSubSubscription } from '@twurple/eventsub-base';
 import { EventSubWsListener } from '@twurple/eventsub-ws';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
@@ -77,6 +77,12 @@ export type TwitchEventSubConfig = z.infer<typeof TwitchEventSubConfigSchema>;
  * - Emitting events to EventBus
  * - Handling chat messages and commands
  *
+ * Twurple's on<Topic>() calls return at once and ask Twitch later, once the socket is open and again
+ * each time it reopens. A refused request is never retried, and nothing throws. So this reports
+ * CONNECTING until Twitch has accepted every topic, then CONNECTED, and ERROR as soon as it refuses
+ * any, naming them: a topic that didn't subscribe is an event that never arrives, which
+ * looks exactly like a quiet stream. The topics that were accepted keep running through that ERROR.
+ *
  * Depends on: TwitchAuthIntegration, TwitchApiIntegration
  */
 @singleton()
@@ -85,6 +91,12 @@ export class TwitchEventSubIntegration extends BaseIntegration {
 
   private eventSubListener: EventSubWsListener | null = null;
   private config: TwitchEventSubConfig = {};
+  /** Every subscription on the current listener: Twurple's id for it, and the topic it's for. */
+  private topics = new Map<string, string>();
+  /** Those Twitch hasn't answered for yet, since the listener started or the socket last dropped. */
+  private pending = new Set<string>();
+  /** Those Twitch refused since then: the topic, and why. */
+  private refused = new Map<string, string>();
 
   constructor(
     private eventBus: EventBus,
@@ -113,7 +125,10 @@ export class TwitchEventSubIntegration extends BaseIntegration {
 
   async start(): Promise<void> {
     this.logger.debug('Starting Twitch EventSub integration');
-    this.setStatus(IntegrationStatus.CONNECTING);
+    this.setStatus(IntegrationStatus.CONNECTING, 'Subscribing to Twitch events');
+    // A retry after ERROR comes here without a stop(), and the old listener would deliver every
+    // event a second time.
+    this.closeListener();
 
     try {
       // Get auth provider and API client from dependencies
@@ -139,16 +154,17 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.logger.info(`Found broadcaster: ${broadcaster.displayName} (${broadcaster.id})`);
 
       // Create EventSub WebSocket listener
-      this.eventSubListener = new EventSubWsListener({
+      const listener = new EventSubWsListener({
         apiClient,
       });
+      this.eventSubListener = listener;
 
       // Fires when Twitch revokes an individual subscription. Most reasons
       // are transport-layer conditions Twurple's own websocket reconnect
       // already handles (websocket_*) or unrelated to auth (moderator_removed,
       // version_removed); only 'authorization_revoked' and 'user_removed'
       // mean the whole OAuth grant is dead and no reconnect will fix it.
-      this.eventSubListener.onRevoke((subscription, status) => {
+      listener.onRevoke((subscription, status) => {
         this.logger.warn(`EventSub subscription revoked: ${subscription.id} (${status})`);
         if (isAuthorizationRevokedStatus(status)) {
           this.setStatus(
@@ -162,17 +178,30 @@ export class TwitchEventSubIntegration extends BaseIntegration {
         }
       });
 
-      this.eventSubListener.onUserSocketReady((_userId, sessionId) => {
+      listener.onUserSocketReady((_userId, sessionId) => {
         this.eventBus.emit('twitch.eventSub.ready', { sessionId });
+      });
+      listener.onSubscriptionCreateSuccess((subscription) => {
+        if (listener === this.eventSubListener) {
+          this.onSubscriptionAccepted(subscription);
+        }
+      });
+      listener.onSubscriptionCreateFailure((subscription, error) => {
+        if (listener === this.eventSubListener) {
+          this.onSubscriptionRefused(subscription, error);
+        }
+      });
+      listener.onUserSocketDisconnect(() => {
+        if (listener === this.eventSubListener) {
+          this.onSocketLost();
+        }
       });
 
       // Start listening
-      await this.eventSubListener.start();
+      listener.start();
 
-      await this.subscribeToEvents(this.config.subscriptions ?? {}, broadcaster.id);
-
-      this.setStatus(IntegrationStatus.CONNECTED);
-      this.logger.info('Twitch EventSub integration started successfully');
+      this.subscribeToEvents(listener, this.config.subscriptions ?? {}, broadcaster.id);
+      this.reportSubscriptions(); // every topic turned off leaves nothing to wait for
     } catch (error) {
       this.logger.error('Failed to start Twitch EventSub integration', error);
       this.setStatus(IntegrationStatus.ERROR, messageOf(error));
@@ -180,157 +209,238 @@ export class TwitchEventSubIntegration extends BaseIntegration {
     }
   }
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
     this.logger.debug('Stopping Twitch EventSub integration');
 
-    if (this.eventSubListener) {
-      await this.eventSubListener.stop();
-      this.eventSubListener = null;
-    }
-
+    this.closeListener();
     this.setStatus(IntegrationStatus.DISCONNECTED);
 
     this.logger.debug('Twitch EventSub integration stopped');
+    return Promise.resolve();
+  }
+
+  /** Cleared before it stops, so what stopping it fires is recognized as no longer current. */
+  private closeListener(): void {
+    const listener = this.eventSubListener;
+    this.eventSubListener = null;
+    this.topics.clear();
+    this.pending.clear();
+    this.refused.clear();
+    listener?.stop();
+  }
+
+  private onSubscriptionAccepted(subscription: EventSubSubscription): void {
+    this.logger.info(`Subscribed to ${this.topics.get(subscription.id)}`);
+    this.pending.delete(subscription.id);
+    this.reportSubscriptions();
+  }
+
+  private onSubscriptionRefused(subscription: EventSubSubscription, error: Error): void {
+    const topic = this.topics.get(subscription.id) ?? subscription.id;
+    this.logger.error(`Could not subscribe to ${topic}`, error);
+    this.pending.delete(subscription.id);
+    this.refused.set(topic, messageOf(error));
+    this.reportSubscriptions();
+  }
+
+  /**
+   * Twitch ends a socket's subscriptions with it, and Twurple asks for all of them again on the next
+   * one, refused topics included. This fires for every failed attempt to reconnect, too.
+   */
+  private onSocketLost(): void {
+    this.pending = new Set(this.topics.keys());
+    this.refused.clear();
+    if (
+      this.status !== IntegrationStatus.CONNECTING &&
+      this.status !== IntegrationStatus.NEEDS_REAUTH
+    ) {
+      this.logger.warn('Lost the EventSub connection; reconnecting');
+      this.setStatus(IntegrationStatus.CONNECTING, 'Lost the connection to Twitch; reconnecting');
+    }
+  }
+
+  /**
+   * A refusal is reported at once, without waiting for the other topics: Twurple's rate limiter holds
+   * the rest of its queue after a failed request or one without rate limit headers, until something
+   * else calls the API, so their answers may be a long time coming.
+   */
+  private reportSubscriptions(): void {
+    if (this.status === IntegrationStatus.NEEDS_REAUTH) {
+      return;
+    }
+    if (this.refused.size > 0) {
+      const description = describeRefusals(this.refused);
+      if (this.status !== IntegrationStatus.ERROR || this.getErrorMessage() !== description) {
+        this.setStatus(IntegrationStatus.ERROR, description);
+      }
+    } else if (this.pending.size === 0 && this.status !== IntegrationStatus.CONNECTED) {
+      this.setStatus(IntegrationStatus.CONNECTED);
+      this.logger.info('Twitch EventSub integration started successfully');
+    }
+  }
+
+  private track(topic: string, subscription: EventSubSubscription): void {
+    this.topics.set(subscription.id, topic);
+    this.pending.add(subscription.id);
   }
 
   /**
    * Subscribe to the default topics, as overridden by the stored config
    */
-  private async subscribeToEvents(
+  private subscribeToEvents(
+    listener: EventSubWsListener,
     overrides: Partial<Record<EventSubTopic, boolean>>,
     broadcasterId: string
-  ): Promise<void> {
-    if (!this.eventSubListener) return;
-
+  ): void {
     const subscriptions = { ...DEFAULT_EVENTSUB_TOPICS, ...overrides };
 
     // Channel Chat Message (for commands and chat)
     if (subscriptions.channelChatMessage) {
-      await this.eventSubListener.onChannelChatMessage(broadcasterId, broadcasterId, (event) => {
-        this.handleChatMessage(event);
-      });
-      this.logger.info('Subscribed to channel.chat.message');
+      this.track(
+        'channel.chat.message',
+        listener.onChannelChatMessage(broadcasterId, broadcasterId, (event) => {
+          this.handleChatMessage(event);
+        })
+      );
     }
 
     // Channel Follow
     if (subscriptions.channelFollow) {
-      await this.eventSubListener.onChannelFollow(broadcasterId, broadcasterId, (event) => {
-        this.eventBus.emit('twitch.follow', {
-          userId: event.userId,
-          userName: event.userName,
-          userDisplayName: event.userDisplayName,
-          followDate: event.followDate,
-        });
-      });
-      this.logger.info('Subscribed to channel.follow');
+      this.track(
+        'channel.follow',
+        listener.onChannelFollow(broadcasterId, broadcasterId, (event) => {
+          this.eventBus.emit('twitch.follow', {
+            userId: event.userId,
+            userName: event.userName,
+            userDisplayName: event.userDisplayName,
+            followDate: event.followDate,
+          });
+        })
+      );
     }
 
     // Channel Subscribe
     if (subscriptions.channelSubscribe) {
-      await this.eventSubListener.onChannelSubscription(broadcasterId, (event) => {
-        this.eventBus.emit('twitch.subscribe', {
-          userId: event.userId,
-          userName: event.userName,
-          userDisplayName: event.userDisplayName,
-          tier: event.tier,
-          isGift: event.isGift,
-        });
-      });
-      this.logger.info('Subscribed to channel.subscribe');
+      this.track(
+        'channel.subscribe',
+        listener.onChannelSubscription(broadcasterId, (event) => {
+          this.eventBus.emit('twitch.subscribe', {
+            userId: event.userId,
+            userName: event.userName,
+            userDisplayName: event.userDisplayName,
+            tier: event.tier,
+            isGift: event.isGift,
+          });
+        })
+      );
     }
 
     // Channel Raid
     if (subscriptions.channelRaid) {
-      await this.eventSubListener.onChannelRaidTo(broadcasterId, (event) => {
-        this.eventBus.emit('twitch.raid', {
-          fromBroadcasterId: event.raidingBroadcasterId,
-          fromBroadcasterName: event.raidingBroadcasterName,
-          fromBroadcasterDisplayName: event.raidingBroadcasterDisplayName,
-          viewers: event.viewers,
-        });
-      });
-      this.logger.info('Subscribed to channel.raid');
+      this.track(
+        'channel.raid',
+        listener.onChannelRaidTo(broadcasterId, (event) => {
+          this.eventBus.emit('twitch.raid', {
+            fromBroadcasterId: event.raidingBroadcasterId,
+            fromBroadcasterName: event.raidingBroadcasterName,
+            fromBroadcasterDisplayName: event.raidingBroadcasterDisplayName,
+            viewers: event.viewers,
+          });
+        })
+      );
     }
 
     // Channel Cheer. Turning it on also needs `bits:read` added to TWITCH_REQUIRED_SCOPES.
     if (subscriptions.channelCheer) {
-      await this.eventSubListener.onChannelCheer(broadcasterId, (event) => {
-        this.eventBus.emit('twitch.cheer', {
-          userId: event.userId,
-          userName: event.userName,
-          userDisplayName: event.userDisplayName,
-          bits: event.bits,
-          message: event.message,
-        });
-      });
-      this.logger.info('Subscribed to channel.cheer');
+      this.track(
+        'channel.cheer',
+        listener.onChannelCheer(broadcasterId, (event) => {
+          this.eventBus.emit('twitch.cheer', {
+            userId: event.userId,
+            userName: event.userName,
+            userDisplayName: event.userDisplayName,
+            bits: event.bits,
+            message: event.message,
+          });
+        })
+      );
     }
 
     // Stream Online
     if (subscriptions.streamOnline) {
-      await this.eventSubListener.onStreamOnline(broadcasterId, (event) => {
-        this.eventBus.emit('twitch.stream.online', {
-          broadcasterId: event.broadcasterId,
-          broadcasterName: event.broadcasterName,
-          broadcasterDisplayName: event.broadcasterDisplayName,
-          startedAt: event.startDate,
-        });
-      });
-      this.logger.info('Subscribed to stream.online');
+      this.track(
+        'stream.online',
+        listener.onStreamOnline(broadcasterId, (event) => {
+          this.eventBus.emit('twitch.stream.online', {
+            broadcasterId: event.broadcasterId,
+            broadcasterName: event.broadcasterName,
+            broadcasterDisplayName: event.broadcasterDisplayName,
+            startedAt: event.startDate,
+          });
+        })
+      );
     }
 
     // Stream Offline
     if (subscriptions.streamOffline) {
-      await this.eventSubListener.onStreamOffline(broadcasterId, (event) => {
-        this.eventBus.emit('twitch.stream.offline', {
-          broadcasterId: event.broadcasterId,
-          broadcasterName: event.broadcasterName,
-          broadcasterDisplayName: event.broadcasterDisplayName,
-        });
-      });
-      this.logger.info('Subscribed to stream.offline');
+      this.track(
+        'stream.offline',
+        listener.onStreamOffline(broadcasterId, (event) => {
+          this.eventBus.emit('twitch.stream.offline', {
+            broadcasterId: event.broadcasterId,
+            broadcasterName: event.broadcasterName,
+            broadcasterDisplayName: event.broadcasterDisplayName,
+          });
+        })
+      );
     }
 
     // Channel Update: a title or category change, from TuringMod or anywhere else (the dashboard).
     if (subscriptions.channelUpdate) {
-      await this.eventSubListener.onChannelUpdate(broadcasterId, () => {
-        this.eventBus.emit('stream.info.changed', { platforms: [StreamingPlatform.TWITCH] });
-      });
-      this.logger.info('Subscribed to channel.update');
+      this.track(
+        'channel.update',
+        listener.onChannelUpdate(broadcasterId, () => {
+          this.eventBus.emit('stream.info.changed', { platforms: [StreamingPlatform.TWITCH] });
+        })
+      );
     }
 
     // Ad Break Begin
     if (subscriptions.adBreakBegin) {
-      await this.eventSubListener.onChannelAdBreakBegin(broadcasterId, (event) => {
-        this.eventBus.emit('twitch.ad.break', {
-          durationSeconds: event.durationSeconds,
-          startedAt: event.startDate,
-          isAutomatic: event.isAutomatic,
-          broadcasterId: event.broadcasterId,
-          broadcasterName: event.broadcasterName,
-          broadcasterDisplayName: event.broadcasterDisplayName,
-        });
-      });
-      this.logger.info('Subscribed to channel.ad_break.begin');
+      this.track(
+        'channel.ad_break.begin',
+        listener.onChannelAdBreakBegin(broadcasterId, (event) => {
+          this.eventBus.emit('twitch.ad.break', {
+            durationSeconds: event.durationSeconds,
+            startedAt: event.startDate,
+            isAutomatic: event.isAutomatic,
+            broadcasterId: event.broadcasterId,
+            broadcasterName: event.broadcasterName,
+            broadcasterDisplayName: event.broadcasterDisplayName,
+          });
+        })
+      );
     }
 
     // Channel Point Redemption
     if (subscriptions.channelPointRedemption) {
-      await this.eventSubListener.onChannelRedemptionAdd(broadcasterId, (event) => {
-        this.eventBus.emit('twitch.channelPoint.redemption', {
-          id: event.id,
-          userId: event.userId,
-          userName: event.userName,
-          userDisplayName: event.userDisplayName,
-          rewardId: event.rewardId,
-          rewardTitle: event.rewardTitle,
-          rewardCost: event.rewardCost,
-          input: event.input,
-          status: event.status,
-          redeemedAt: event.redemptionDate,
-        });
-      });
-      this.logger.info('Subscribed to channel.channel_points_custom_reward_redemption.add');
+      this.track(
+        'channel.channel_points_custom_reward_redemption.add',
+        listener.onChannelRedemptionAdd(broadcasterId, (event) => {
+          this.eventBus.emit('twitch.channelPoint.redemption', {
+            id: event.id,
+            userId: event.userId,
+            userName: event.userName,
+            userDisplayName: event.userDisplayName,
+            rewardId: event.rewardId,
+            rewardTitle: event.rewardTitle,
+            rewardCost: event.rewardCost,
+            input: event.input,
+            status: event.status,
+            redeemedAt: event.redemptionDate,
+          });
+        })
+      );
     }
   }
 
@@ -365,6 +475,16 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       channelName: event.broadcasterName,
     });
   }
+}
+
+/** "topic, topic: why; topic: why", with the topics refused for one reason together. */
+function describeRefusals(refused: ReadonlyMap<string, string>): string {
+  const topicsByReason = new Map<string, string[]>();
+  for (const [topic, reason] of refused) {
+    topicsByReason.set(reason, [...(topicsByReason.get(reason) ?? []), topic]);
+  }
+  const parts = [...topicsByReason].map(([reason, topics]) => `${topics.join(', ')}: ${reason}`);
+  return `Twitch refused these event subscriptions, so those events won't arrive. ${parts.join('; ')}`;
 }
 
 /**

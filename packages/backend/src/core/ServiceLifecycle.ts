@@ -1,5 +1,7 @@
+import { messageOf } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
+import type { EventBus } from './EventBus.js';
 
 /**
  * An app-lifetime feature service (as opposed to an integration). `ServiceLifecycle` starts each
@@ -24,6 +26,32 @@ export class Subscriptions {
       unsubscribe();
     }
   }
+}
+
+/**
+ * Tells the streamer about a failure the service carries on from. `message` says what happened and
+ * what to do about it; a caught `error` is logged with its stack, and its message follows `message`
+ * in the activity log and live feed.
+ */
+export type ReportFailure = (message: string, error?: unknown) => void;
+
+/**
+ * A service's `ReportFailure`, publishing `service.error` under the name the streamer sees for it.
+ * A log line alone reaches only the terminal, so this is what a failure the streamer must know about
+ * goes through.
+ */
+export function failureReporter(
+  eventBus: EventBus,
+  logger: Logger,
+  service: string
+): ReportFailure {
+  return (message, error) => {
+    logger.error(message, error);
+    eventBus.emitSync('service.error', {
+      service,
+      message: error === undefined ? message : `${message} ${messageOf(error)}`,
+    });
+  };
 }
 
 /**

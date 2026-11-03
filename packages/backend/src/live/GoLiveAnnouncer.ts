@@ -1,7 +1,12 @@
-import { IntegrationStatus, messageOf, type StreamingPlatform } from '@turingmod/shared';
+import { IntegrationStatus, type StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
-import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
+import {
+  failureReporter,
+  type IService,
+  type ReportFailure,
+  Subscriptions,
+} from '../core/ServiceLifecycle.js';
 import { GoLivePostRepository } from '../database/repositories/GoLivePostRepository.js';
 import {
   DiscordIntegration,
@@ -62,6 +67,7 @@ interface PlatformDetails {
 export class GoLiveAnnouncer implements IService {
   private subscriptions = new Subscriptions();
   private logger: Logger;
+  private report: ReportFailure;
   /** Serializes the work, so two platforms going live together can't make two posts. */
   private queue: Promise<void> = Promise.resolve();
   private stopped = false;
@@ -83,6 +89,7 @@ export class GoLiveAnnouncer implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'GoLiveAnnouncer' });
+    this.report = failureReporter(eventBus, this.logger, 'Go-live post');
   }
 
   start(): Promise<void> {
@@ -445,13 +452,11 @@ export class GoLiveAnnouncer implements IService {
     try {
       return this.posts.get();
     } catch (error) {
-      this.logger.error('Dropping an unreadable go-live post', error);
-      this.eventBus.emitSync('service.error', {
-        service: 'Go-live post',
-        message:
-          'The stored go-live post could not be read and was dropped, so the next stream starts ' +
-          `a new one; any post still open in Discord stays as it is. ${messageOf(error)}`,
-      });
+      this.report(
+        'The stored go-live post could not be read and was dropped, so the next stream starts ' +
+          'a new one; any post still open in Discord stays as it is.',
+        error
+      );
       this.posts.clear();
       return null;
     }

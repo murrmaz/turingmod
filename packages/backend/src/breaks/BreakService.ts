@@ -1,8 +1,13 @@
-import { IntegrationStatus, messageOf } from '@turingmod/shared';
+import { IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import type { BreakReason } from '../core/events.js';
-import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
+import {
+  failureReporter,
+  type IService,
+  type ReportFailure,
+  Subscriptions,
+} from '../core/ServiceLifecycle.js';
 import { ObsBreakRestoreRepository } from '../database/repositories/ObsBreakRestoreRepository.js';
 import { SettingsRepository } from '../database/repositories/SettingsRepository.js';
 import { ObsIntegration } from '../integrations/implementations/obs/ObsIntegration.js';
@@ -45,6 +50,9 @@ export const MAX_BREAK_SECONDS = 60 * 60;
  * the stored state restored if not. So a break that ends while OBS is down is undone when OBS
  * returns, and one interrupted by TuringMod crashing is undone the next time it starts. A break
  * itself doesn't survive a restart: its timer and chat messages died with the process.
+ *
+ * The streamer is told when a break leaves them on air or doesn't fully put things back. What OBS
+ * refuses while connected won't go better later, so it's reported once and not retried.
  */
 @singleton()
 export class BreakService implements IService {
@@ -58,6 +66,7 @@ export class BreakService implements IService {
   /** Set by `stop()`; a break can't start after it, or it would outlive OBS's connection. */
   private stopped = false;
   private logger: Logger;
+  private report: ReportFailure;
 
   constructor(
     private eventBus: EventBus,
@@ -70,6 +79,7 @@ export class BreakService implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'BreakService' });
+    this.report = failureReporter(eventBus, this.logger, 'Breaks');
   }
 
   start(): void {
@@ -210,20 +220,46 @@ export class BreakService implements IService {
   /** Run `work` after the OBS changes queued before it. Resolves when it's done; never rejects. */
   private queueObs(work: () => Promise<void>): Promise<void> {
     this.obsWork = this.obsWork.then(work).catch((error: unknown) => {
-      this.logger.error('Failed to update OBS for a break', error);
+      this.report('Failed to update OBS for a break; check the facecam and mic in OBS.', error);
     });
     return this.obsWork;
   }
 
   /** Apply the overlay, adding what it changes to what is already owed. */
   private async applyOverlay(): Promise<void> {
-    this.setOwed(await this.overlay.apply(this.settings.obs, this.owed ?? undefined));
+    const { snapshot, connected, failed } = await this.overlay.apply(
+      this.settings.obs,
+      this.owed ?? undefined
+    );
+    this.setOwed(snapshot);
+    if (!connected) {
+      this.report(
+        "OBS isn't connected, so this break hasn't taken you off camera and mic. It will if OBS " +
+          'connects during the break.'
+      );
+    } else if (failed.length > 0) {
+      this.report(
+        `OBS didn't finish starting this break, so viewers may still see or hear you. Could not ` +
+          `${failed.join('; ')}. Check the facecam and mic in OBS.`
+      );
+    }
   }
 
   /** Put back what breaks changed, and forget it once that has reached OBS. */
   private async restoreOverlay(): Promise<void> {
-    if (this.owed && (await this.overlay.restore(this.owed))) {
-      this.setOwed(null);
+    if (!this.owed) {
+      return;
+    }
+    const { connected, failed } = await this.overlay.restore(this.owed);
+    if (!connected) {
+      return;
+    }
+    this.setOwed(null);
+    if (failed.length > 0) {
+      this.report(
+        `OBS didn't put everything back after the break. Could not ${failed.join('; ')}. Check ` +
+          'the facecam and mic in OBS.'
+      );
     }
   }
 
@@ -237,7 +273,11 @@ export class BreakService implements IService {
       }
     } catch (error) {
       // Still restored from memory; only a restart before then would lose it.
-      this.logger.error('Could not store the OBS state to restore after the break', error);
+      this.report(
+        'Could not store the OBS state to restore after the break. If TuringMod restarts before ' +
+          'then, check the facecam and mic in OBS.',
+        error
+      );
     }
   }
 
@@ -255,16 +295,11 @@ export class BreakService implements IService {
       }
       return owed;
     } catch (error) {
-      this.logger.error(
-        'The stored OBS state to restore after a break is unreadable; check the facecam and mic',
+      this.report(
+        'The OBS state to restore after a break could not be read and was dropped; check the ' +
+          'facecam and mic in OBS.',
         error
       );
-      this.eventBus.emitSync('service.error', {
-        service: 'Breaks',
-        message:
-          'The OBS state to restore after a break could not be read and was dropped; check the ' +
-          `facecam and mic in OBS. ${messageOf(error)}`,
-      });
       this.setOwed(null);
       return null;
     }

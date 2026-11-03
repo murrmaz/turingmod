@@ -66,8 +66,9 @@ reverse before integrations, so a service can still reach OBS or Twitch to undo 
 Triggers (chat, redemptions, raids) go last in the list so they stop first: nothing new can start a
 break or an effect while those are being restored. Each service keeps its bus subscriptions in a
 `Subscriptions` and clears them in `stop()`. A failure a service carries on from but the streamer
-must know about is published as `service.error`, which puts it in the activity log and live feed;
-a log line alone reaches only the terminal.
+must know about goes through its `failureReporter()` (`core/ServiceLifecycle.ts`), which logs it and
+publishes `service.error`, putting it in the activity log and live feed; a log line alone reaches
+only the terminal.
 
 **Console requests**: the console calls procedures on the tRPC router (`server/trpc/appRouter.ts`), served at `TRPC_PATH` by `TrpcServer`; each procedure's Zod input schema is checked before it runs, so procedures never check input shape themselves, and a malformed input is a `BAD_REQUEST` naming the bad fields. See Console ↔ Backend Protocol below.
 

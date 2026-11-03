@@ -141,10 +141,7 @@ export class SpotifyAuthIntegration extends StandardOAuthIntegration<
       // else (a 5xx, a 429) is Spotify having a bad moment, and the next call
       // can try again.
       if (response.status === 400 || response.status === 401) {
-        this.setStatus(
-          IntegrationStatus.NEEDS_REAUTH,
-          'Token refresh failed — re-authorization required'
-        );
+        this.markAuthRequired();
       }
       throw new Error(`Token refresh failed: ${error}`);
     }

@@ -64,19 +64,26 @@ const DEFAULT_TOPIC_METHODS = [
 describe('TwitchEventSubIntegration', () => {
   let eventBus: EventBus;
   let integration: TwitchEventSubIntegration;
+  let auth: {
+    getAuthProvider: () => object;
+    getAuthenticatedUserId: () => string;
+    markAuthRequired: ReturnType<typeof vi.fn>;
+  };
   let request: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     twurple.listeners.length = 0;
+    auth = {
+      getAuthProvider: () => ({}),
+      getAuthenticatedUserId: () => '1',
+      markAuthRequired: vi.fn(),
+    };
     eventBus = new EventBus(new Logger({ level: 'silent' }));
     request = vi.fn(async () => ({ id: '1', displayName: 'B' }));
     integration = new TwitchEventSubIntegration(
       eventBus,
       new Logger({ level: 'silent' }),
-      {
-        getAuthProvider: () => ({}),
-        getAuthenticatedUserId: () => '1',
-      } as unknown as TwitchAuthIntegration,
+      auth as unknown as TwitchAuthIntegration,
       { getApiClient: () => ({}), request } as unknown as TwitchApiIntegration
     );
   });
@@ -248,14 +255,22 @@ describe('TwitchEventSubIntegration', () => {
       expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
     });
 
-    it('keeps needing re-authorization when a subscription is accepted afterwards', async () => {
+    it('tells the auth integration when Twitch revokes the grant', async () => {
       await integration.start();
 
       fire('onRevoke', { id: 'onChannelFollow' }, 'authorization_revoked');
-      acceptAll();
-      fire('onUserSocketDisconnect', '1', undefined);
 
-      expect(integration.getStatus()).toBe(IntegrationStatus.NEEDS_REAUTH);
+      expect(auth.markAuthRequired).toHaveBeenCalledWith(
+        'Twitch revoked authorization — re-authorization required'
+      );
+    });
+
+    it('says nothing about the grant when a subscription is revoked for another reason', async () => {
+      await integration.start();
+
+      fire('onRevoke', { id: 'onChannelFollow' }, 'moderator_removed');
+
+      expect(auth.markAuthRequired).not.toHaveBeenCalled();
     });
 
     it('is an error when the broadcaster cannot be looked up', async () => {

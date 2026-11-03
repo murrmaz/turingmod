@@ -1,9 +1,8 @@
-import { IntegrationName, IntegrationStatus } from '@turingmod/shared';
+import { IntegrationName } from '@turingmod/shared';
 import { ApiClient } from '@twurple/api';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import { CachedRefreshFailureError, type RefreshingAuthProvider } from '@twurple/auth';
 import { singleton } from 'tsyringe';
-import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
 import { AuthorizedApiIntegration } from '../../AuthorizedApiIntegration.js';
 import { ClientCache } from '../../ClientCache.js';
@@ -33,11 +32,7 @@ export class TwitchApiIntegration extends AuthorizedApiIntegration<
     () => this.logger.info('Twitch auth provider was replaced; rebuilding API client')
   );
 
-  constructor(
-    private eventBus: EventBus,
-    logger: Logger,
-    authIntegration: TwitchAuthIntegration
-  ) {
+  constructor(logger: Logger, authIntegration: TwitchAuthIntegration) {
     super(logger, 'Twitch', authIntegration);
   }
 
@@ -61,9 +56,8 @@ export class TwitchApiIntegration extends AuthorizedApiIntegration<
 
   /**
    * When Twitch rejects the call because the OAuth grant itself is gone (not
-   * some other API error), marks this integration NEEDS_REAUTH and publishes
-   * `twitch.authorizationRevoked`, the same way TwitchEventSubIntegration
-   * does, rather than reaching into TwitchAuthIntegration directly.
+   * some other API error), tells TwitchAuthIntegration, which holds the grant.
+   * This integration follows through the cascade.
    *
    * Calls that need no user's token fetch an app token, whose failed request names the client
    * secret too and never reaches TwitchAuthIntegration, so the error is redacted here as well.
@@ -71,11 +65,9 @@ export class TwitchApiIntegration extends AuthorizedApiIntegration<
   protected override onRequestFailure<T>(error: unknown): Promise<T> {
     redactTokenRequest(error);
     if (isAuthorizationRevokedError(error)) {
-      this.setStatus(
-        IntegrationStatus.NEEDS_REAUTH,
+      this.auth.markAuthRequired(
         'Twitch rejected an API call as unauthorized — re-authorization required'
       );
-      this.eventBus.emit('twitch.authorizationRevoked', { reason: 'api-call-unauthorized' });
     }
     return Promise.reject(error);
   }

@@ -47,6 +47,9 @@ dependencies being CONNECTED, and beyond that the manager reacts to status chang
     `request()` made unless auth is CONNECTED. Resolving a client on access protects against
     holding the *wrong* object; it does nothing about holding the right object with dead
     credentials — `markAuthRequired()` sets NEEDS_REAUTH *without* discarding the provider/client.
+  - **A dead grant is reported one way: `OAuthIntegration.markAuthRequired()`**, on the integration
+    holding it, whoever found out; the API and real-time layers follow through the cascade.
+    `setStatus()` doesn't accept `NEEDS_REAUTH`, so a layer claiming it for itself doesn't compile.
 - A dependency returning to CONNECTED triggers a `reconcile()` pass that recovers both the stopped
   and the blocked dependents — so completing OAuth brings the whole group back on its own. A
   `BLOCKED` integration is started rather than flipped to CONNECTED, which covers "was running" and
@@ -79,9 +82,8 @@ a level and reversed for shutdown, with a per-integration start timeout
 `AuthorizedApiIntegration<TAuth, TClient>`** (`integrations/AuthorizedApiIntegration.ts`), which
 supplies the auth dependency, the `BLOCK` policy and its CONNECTED gate, `start()`/`stop()`,
 and `request()`. A subclass supplies `resolveClient()`, and overrides `onRequestFailure()` for how
-its provider says a grant is gone: Twitch marks itself NEEDS_REAUTH and publishes
-`twitch.authorizationRevoked`, YouTube marks its auth integration, and Spotify refreshes the token
-and retries once. A new OAuth-backed API is one of these, as would be an API-key service split
+its provider says a grant is gone: Twitch and YouTube call their auth integration's
+`markAuthRequired()`, and Spotify refreshes the token and retries once. A new OAuth-backed API is one of these, as would be an API-key service split
 into a credentials integration and an API integration. An API with no auth integration to depend
 on — a public one, or one whose token is in its own config, like Discord — extends `BaseIntegration`
 directly: none of this applies to it.

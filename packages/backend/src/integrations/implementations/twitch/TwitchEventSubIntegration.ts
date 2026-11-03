@@ -167,14 +167,11 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       listener.onRevoke((subscription, status) => {
         this.logger.warn(`EventSub subscription revoked: ${subscription.id} (${status})`);
         if (isAuthorizationRevokedStatus(status)) {
-          this.setStatus(
-            IntegrationStatus.NEEDS_REAUTH,
+          // Told directly, since a revoked subscription doesn't necessarily mean the next token
+          // refresh will fail on its own. The cascade from it stops this integration.
+          this.authIntegration.markAuthRequired(
             'Twitch revoked authorization — re-authorization required'
           );
-          // Let TwitchAuthIntegration know independently of its own refresh
-          // cycle, since a revoked subscription doesn't necessarily mean the
-          // next token refresh attempt will fail on its own.
-          this.eventBus.emit('twitch.authorizationRevoked', { reason: status });
         }
       });
 
@@ -250,10 +247,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   private onSocketLost(): void {
     this.pending = new Set(this.topics.keys());
     this.refused.clear();
-    if (
-      this.status !== IntegrationStatus.CONNECTING &&
-      this.status !== IntegrationStatus.NEEDS_REAUTH
-    ) {
+    if (this.status !== IntegrationStatus.CONNECTING) {
       this.logger.warn('Lost the EventSub connection; reconnecting');
       this.setStatus(IntegrationStatus.CONNECTING, 'Lost the connection to Twitch; reconnecting');
     }
@@ -265,9 +259,6 @@ export class TwitchEventSubIntegration extends BaseIntegration {
    * else calls the API, so their answers may be a long time coming.
    */
   private reportSubscriptions(): void {
-    if (this.status === IntegrationStatus.NEEDS_REAUTH) {
-      return;
-    }
     if (this.refused.size > 0) {
       const description = describeRefusals(this.refused);
       if (this.status !== IntegrationStatus.ERROR || this.getErrorMessage() !== description) {

@@ -1,4 +1,4 @@
-import { type IntegrationGroup, IntegrationName, IntegrationStatus } from '@turingmod/shared';
+import { type IntegrationGroup, IntegrationName } from '@turingmod/shared';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import type { AccessToken, RefreshingAuthProvider } from '@twurple/auth';
 import {
@@ -8,7 +8,6 @@ import {
 } from '@twurple/auth';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
-import { EventBus } from '../../../core/EventBus.js';
 import { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
 import { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
@@ -95,10 +94,8 @@ export class TwitchAuthIntegration extends StandardOAuthIntegration<
 
   private authProvider: RefreshingAuthProvider | null = null;
   private userId: string | null = null;
-  private unsubscribeAuthorizationRevoked: (() => void) | null = null;
 
   constructor(
-    private eventBus: EventBus,
     logger: Logger,
     stateRepo: IntegrationStateRepository,
     serverConfig: TuringModConfig
@@ -107,22 +104,6 @@ export class TwitchAuthIntegration extends StandardOAuthIntegration<
   }
 
   protected async connect(config: StandardOAuthConfig): Promise<void> {
-    // Other Twitch integrations (e.g. EventSub) can detect that Twitch
-    // revoked our authorization independently of our own refresh cycle.
-    // Listen rather than being told directly, so this integration decides
-    // for itself how to react instead of exposing a setter for its status.
-    // Unsubscribe any listener from a prior start() first: IntegrationManager
-    // doesn't call stop() after a failed start(), so a retry would otherwise
-    // register a duplicate on top of the still-live one.
-    this.unsubscribeAuthorizationRevoked?.();
-    this.unsubscribeAuthorizationRevoked = this.eventBus.on('twitch.authorizationRevoked', () => {
-      this.logger.warn('Authorization revoked (reported by another integration)');
-      this.setStatus(
-        IntegrationStatus.NEEDS_REAUTH,
-        'Twitch revoked authorization — re-authorization required'
-      );
-    });
-
     this.authProvider = new TwurpleRefreshingAuthProvider({
       clientId: config.clientId,
       clientSecret: config.clientSecret,
@@ -172,10 +153,7 @@ export class TwitchAuthIntegration extends StandardOAuthIntegration<
 
     if (this.isReauthRequiredError(error)) {
       this.logger.error('Token refresh failed', error);
-      this.setStatus(
-        IntegrationStatus.NEEDS_REAUTH,
-        'Token refresh failed — re-authorization required'
-      );
+      this.markAuthRequired();
       return;
     }
 
@@ -189,9 +167,6 @@ export class TwitchAuthIntegration extends StandardOAuthIntegration<
   }
 
   protected override disconnect(): void {
-    this.unsubscribeAuthorizationRevoked?.();
-    this.unsubscribeAuthorizationRevoked = null;
-
     this.authProvider = null;
     // Clear the id alongside the provider: leaving it set made getAuthenticatedUserId()
     // report a usable broadcaster after a stop(), while every call behind it would fail.

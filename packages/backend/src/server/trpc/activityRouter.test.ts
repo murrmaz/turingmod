@@ -1,10 +1,10 @@
 import { type ActivityLogEntry, MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
+import type { EventBus } from '../../core/EventBus.js';
 import type {
   ActivityLogQuery,
   ActivityLogRepository,
 } from '../../database/repositories/ActivityLogRepository.js';
-import type { ActivityForwarder } from '../../features/activity/ActivityForwarder.js';
 import { chatMessage } from '../../platforms/testing.js';
 import { createActivityRouter } from './activityRouter.js';
 import { createCallerFactory } from './trpc.js';
@@ -18,8 +18,9 @@ const entry = (id: string): ActivityLogEntry => ({
 
 function setup(stored: ActivityLogEntry[]) {
   const listeners = new Set<(entry: ActivityLogEntry) => void>();
-  const forwarder = {
-    onEntry: (listener: (entry: ActivityLogEntry) => void) => {
+  const eventBus = {
+    on: (event: string, listener: (entry: ActivityLogEntry) => void) => {
+      expect(event).toBe('activity.entry');
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
@@ -27,10 +28,7 @@ function setup(stored: ActivityLogEntry[]) {
   const repo = { findRecent: () => stored };
   const controller = new AbortController();
   const caller = createCallerFactory(
-    createActivityRouter(
-      forwarder as unknown as ActivityForwarder,
-      repo as unknown as ActivityLogRepository
-    )
+    createActivityRouter(eventBus as unknown as EventBus, repo as unknown as ActivityLogRepository)
   )({ consoleOrigin: null }, { signal: controller.signal });
   const emit = (made: ActivityLogEntry) => {
     for (const listener of listeners) {
@@ -85,10 +83,7 @@ describe('activity.history', () => {
       total: 1,
     }));
     const caller = createCallerFactory(
-      createActivityRouter(
-        {} as ActivityForwarder,
-        { findPage } as unknown as ActivityLogRepository
-      )
+      createActivityRouter({} as EventBus, { findPage } as unknown as ActivityLogRepository)
     )({ consoleOrigin: null });
     return { caller, findPage };
   }

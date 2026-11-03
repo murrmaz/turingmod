@@ -136,7 +136,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
    * stop that lands mid-flight can't be undone by a stale continuation reconnecting or arming a
    * second retry loop.
    */
-  private epoch = 0;
+  private generation = 0;
 
   /**
    * Whether the current stream has already retried once after a 401. An access token expires
@@ -256,13 +256,13 @@ export class YouTubeChatIntegration extends BaseIntegration {
       return;
     }
 
-    const epoch = this.epoch;
+    const generation = this.generation;
 
     try {
       const broadcast = await this.apiIntegration.getActiveBroadcast();
 
       // A stop that landed while the lookup was in flight wins; don't resurrect the old attempt.
-      if (this.isStale(epoch)) {
+      if (this.isStale(generation)) {
         return;
       }
       this.lastLookupError = null;
@@ -280,7 +280,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
         return;
       }
     } catch (error) {
-      if (this.isStale(epoch)) {
+      if (this.isStale(generation)) {
         return;
       }
       if (this.handleAuthError(error)) {
@@ -406,10 +406,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
       return;
     }
 
-    if (this.authIntegration.isAuthError(error)) {
-      this.logger.warn('YouTube chat stream failed on a dead token; re-authorization needed');
-      this.authIntegration.markAuthRequired();
-      this.teardown();
+    if (this.handleAuthError(error)) {
       return;
     }
 
@@ -500,9 +497,9 @@ export class YouTubeChatIntegration extends BaseIntegration {
     this.call = null;
   }
 
-  /** True if a teardown happened since `epoch` was captured, i.e. this async work is obsolete. */
-  private isStale(epoch: number): boolean {
-    return !this.running || this.epoch !== epoch;
+  /** True if a teardown happened since `generation` was captured, i.e. this async work is obsolete. */
+  private isStale(generation: number): boolean {
+    return !this.running || this.generation !== generation;
   }
 
   /** Return to idle: no timers, no call, no resolved broadcast. */
@@ -520,7 +517,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
     cancelled?.cancel();
 
     // Invalidate any async work still in flight (a broadcast lookup, a token fetch).
-    this.epoch += 1;
+    this.generation += 1;
 
     this.broadcast = null;
     this.nextPageToken = undefined;

@@ -1,26 +1,30 @@
 import 'reflect-metadata';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { EventBus } from '../../core/EventBus.js';
 import type { DatabaseManager } from '../../database/DatabaseManager.js';
 import { SuggestionRepository } from '../../database/repositories/SuggestionRepository.js';
 import { createTestDatabase } from '../../database/repositories/testDatabase.js';
 import { SuggestionBox } from '../../features/suggestions/SuggestionBox.js';
+import { Logger } from '../../utils/Logger.js';
 import { createSuggestionsRouter } from './suggestionsRouter.js';
 import { createCallerFactory } from './trpc.js';
 
 let db: DatabaseManager;
 let cleanup: () => Promise<void>;
+let eventBus: EventBus;
 let box: SuggestionBox;
 let controller: AbortController;
 
 const caller = () =>
-  createCallerFactory(createSuggestionsRouter(box))(
+  createCallerFactory(createSuggestionsRouter(box, eventBus))(
     { consoleOrigin: null },
     { signal: controller.signal }
   );
 
 beforeEach(async () => {
   ({ db, cleanup } = await createTestDatabase());
-  box = new SuggestionBox(new SuggestionRepository(db));
+  eventBus = new EventBus(new Logger({ level: 'silent' }));
+  box = new SuggestionBox(eventBus, new SuggestionRepository(db));
   controller = new AbortController();
 });
 

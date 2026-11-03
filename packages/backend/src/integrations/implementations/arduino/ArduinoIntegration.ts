@@ -266,13 +266,12 @@ export class ArduinoIntegration extends BaseIntegration {
    * delay that doubles each time.
    */
   private scheduleRetry(error: unknown, lost: boolean): void {
-    const delayMs = this.backoff.retry((generation) => this.connect(generation));
-    const reason = messageOf(error, '');
-    const message =
-      `${lost ? 'Lost the connection to' : "Can't reach"} the Arduino at ${this.config.url}` +
-      `${reason ? ` (${reason})` : ''}; retrying in ${delayMs / 1000}s`;
-    this.logger.debug(message);
-    this.setStatus(IntegrationStatus.CONNECTING, message);
+    this.retryConnection(
+      this.backoff,
+      (generation) => this.connect(generation),
+      `${lost ? 'Lost the connection to' : "Can't reach"} the Arduino at ${this.config.url}`,
+      error
+    );
   }
 
   /** Drop the current socket, if any. Its 'close' is ignored, since the generation has moved on. */

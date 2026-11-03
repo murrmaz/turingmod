@@ -8,21 +8,13 @@ import type { CommandContext, ICommand } from './interfaces/ICommand.js';
 import { toCommandError } from './utils/commandErrors.js';
 
 /**
- * Cooldown tracker
- */
-interface CooldownEntry {
-  userId: string;
-  commandName: string;
-  expiresAt: number;
-}
-
-/**
  * Command executor
  * Handles command execution with permission checks and cooldowns
  */
 @singleton()
 export class CommandExecutor {
-  private cooldowns = new Map<string, CooldownEntry>();
+  /** `platform:user:command` → when its cooldown ends, in epoch ms. */
+  private cooldowns = new Map<string, number>();
   private logger: Logger;
 
   constructor(
@@ -76,10 +68,10 @@ export class CommandExecutor {
     // Check cooldown
     if (this.cooldownApplies(command, context)) {
       const cooldownKey = `${context.platform}:${user.platformUserId}:${commandName}`;
-      const cooldownEntry = this.cooldowns.get(cooldownKey);
+      const expiresAt = this.cooldowns.get(cooldownKey);
 
-      if (cooldownEntry && cooldownEntry.expiresAt > Date.now()) {
-        const remainingSeconds = Math.ceil((cooldownEntry.expiresAt - Date.now()) / 1000);
+      if (expiresAt !== undefined && expiresAt > Date.now()) {
+        const remainingSeconds = Math.ceil((expiresAt - Date.now()) / 1000);
         const result = rejected(
           'COMMAND_ON_COOLDOWN',
           `Command on cooldown. Try again in ${remainingSeconds}s`,
@@ -94,21 +86,16 @@ export class CommandExecutor {
       // would otherwise all pass the check above. It stays set if the command fails or crashes,
       // since retrying a failing call costs the same request.
       this.cleanupCooldowns();
-      this.cooldowns.set(cooldownKey, {
-        userId: user.platformUserId,
-        commandName,
-        expiresAt: Date.now() + command.cooldown * 1000,
-      });
+      this.cooldowns.set(cooldownKey, Date.now() + command.cooldown * 1000);
     }
 
     // Execute command
     try {
       const result = await command.execute(context);
 
-      // Log successful execution
       await this.logExecution(commandName, context, result);
 
-      this.logger.info(`Command executed successfully: ${commandName}`, {
+      this.logger.info(`Command executed: ${commandName}`, {
         user: user.username,
         success: result.success,
       });
@@ -137,25 +124,21 @@ export class CommandExecutor {
     context: CommandContext,
     result: ExecutionResult
   ): Promise<void> {
-    try {
-      const run = {
-        command: commandName,
-        username: context.user.username,
-        userId: context.user.platformUserId,
-        platform: context.platform,
-        args: context.args,
-        message: result.message,
-        isSimulation: context.isSimulation,
-      };
-      await this.eventBus.emit(
-        'command.executed',
-        result.success
-          ? { ...run, success: true }
-          : { ...run, success: false, errorCode: result.error.code, reason: result.error.reason }
-      );
-    } catch (error) {
-      this.logger.error('Failed to log command execution', error);
-    }
+    const run = {
+      command: commandName,
+      username: context.user.username,
+      userId: context.user.platformUserId,
+      platform: context.platform,
+      args: context.args,
+      message: result.message,
+      isSimulation: context.isSimulation,
+    };
+    await this.eventBus.emit(
+      'command.executed',
+      result.success
+        ? { ...run, success: true }
+        : { ...run, success: false, errorCode: result.error.code, reason: result.error.reason }
+    );
   }
 
   /**
@@ -177,8 +160,8 @@ export class CommandExecutor {
    */
   private cleanupCooldowns(): void {
     const now = Date.now();
-    for (const [key, entry] of this.cooldowns.entries()) {
-      if (entry.expiresAt <= now) {
+    for (const [key, expiresAt] of this.cooldowns.entries()) {
+      if (expiresAt <= now) {
         this.cooldowns.delete(key);
       }
     }

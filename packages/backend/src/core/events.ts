@@ -1,4 +1,5 @@
 import type {
+  ActivityLogEntry,
   CommandErrorCode,
   ExecutorErrorCode,
   IntegrationStatus,
@@ -30,6 +31,11 @@ export interface EventMap {
 
   'integration.status': IntegrationStatusEvent;
   'integration.error': IntegrationErrorEvent;
+  /**
+   * The console changed an integration in a way `integration.status` may not show: saving OAuth
+   * credentials, say, or turning off one that had already stopped.
+   */
+  'integration.changed': undefined;
   /** A feature service hit a failure the streamer must know about and carried on. */
   'service.error': ServiceErrorEvent;
   /** An authorization finished, either way (see OAuthFlowService.handleCallback). */
@@ -39,6 +45,17 @@ export interface EventMap {
   'platform.availability': PlatformAvailabilityEvent;
   /** A platform started or stopped broadcasting (see PlatformLiveStatus). */
   'platform.liveState': PlatformLiveStateEvent;
+  /** Any platform's live state changed, a new start time included (see PlatformLiveStatus). */
+  'platform.liveState.changed': undefined;
+
+  /** A suggestion was added or deleted (see SuggestionBox). */
+  'suggestions.changed': undefined;
+
+  /**
+   * An activity log entry was made, chat and live-only events included, which the stored log
+   * leaves out (see ActivityForwarder).
+   */
+  'activity.entry': ActivityLogEntry;
 
   'stream.break.started': StreamBreakEvent;
   'stream.break.ended': StreamBreakEvent;
@@ -63,8 +80,6 @@ export interface EventMap {
   'twitch.eventSub.ready': TwitchEventSubReadyEvent;
   'twitch.ad.break': TwitchAdBreakEvent;
   'twitch.channelPoint.redemption': RewardRedemption;
-  /** Twitch rejected our grant; `TwitchAuthIntegration` moves to NEEDS_REAUTH. */
-
   'youtube.chat.state': YouTubeChatStateEvent;
 
   'obs.scene.changed': OBSEventTypes['CurrentProgramSceneChanged'];

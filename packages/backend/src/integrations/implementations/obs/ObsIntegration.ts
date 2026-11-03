@@ -1,7 +1,6 @@
 import {
   IntegrationName,
   IntegrationStatus,
-  messageOf,
   type ObsConfig,
   ObsConfigSchema,
 } from '@turingmod/shared';
@@ -208,13 +207,12 @@ export class ObsIntegration extends BaseIntegration {
 
   /** Report OBS as unreachable and try again after a delay that doubles each time. */
   private scheduleRetry(error: unknown): void {
-    const delayMs = this.backoff.retry((generation) => this.connect(generation));
-    const reason = messageOf(error, '');
-    const message =
-      `Can't reach OBS at ${this.config.url}${reason ? ` (${reason})` : ''}; ` +
-      `retrying in ${delayMs / 1000}s`;
-    this.logger.debug(message);
-    this.setStatus(IntegrationStatus.CONNECTING, message);
+    this.retryConnection(
+      this.backoff,
+      (generation) => this.connect(generation),
+      `Can't reach OBS at ${this.config.url}`,
+      error
+    );
   }
 
   /** Why a closed connection can't be fixed by trying again, or null if it can. */

@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { type IntegrationGroup, IntegrationStatus, toError } from '@turingmod/shared';
+import { type IntegrationGroup, IntegrationStatus, messageOf, toError } from '@turingmod/shared';
 import { z } from 'zod';
 import type { Logger } from '../utils/Logger.js';
 import {
@@ -8,6 +8,7 @@ import {
   type IntegrationEvents,
 } from './interfaces/IIntegration.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
+import type { ReconnectBackoff } from './ReconnectBackoff.js';
 
 /** The config of an integration that has none. */
 const NO_CONFIG = z.strictObject({});
@@ -141,6 +142,25 @@ export abstract class BaseIntegration implements IIntegration {
       ? errorMessage
       : undefined;
     this.events.emit('status', status);
+  }
+
+  /**
+   * Try `connect` again after the backoff's delay, and show as CONNECTING what went wrong and when
+   * the next attempt is.
+   *
+   * @param problem What's wrong, as the start of a sentence ("Can't reach OBS at ws://…").
+   */
+  protected retryConnection(
+    backoff: ReconnectBackoff,
+    connect: (generation: number) => Promise<void>,
+    problem: string,
+    error: unknown
+  ): void {
+    const delayMs = backoff.retry(connect);
+    const reason = messageOf(error, '');
+    const message = `${problem}${reason ? ` (${reason})` : ''}; retrying in ${delayMs / 1000}s`;
+    this.logger.debug(message);
+    this.setStatus(IntegrationStatus.CONNECTING, message);
   }
 
   /**

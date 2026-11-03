@@ -215,7 +215,7 @@ export class StreamControlService {
       return true;
     });
     if (result.updated.length > 0) {
-      void this.eventBus.emit('stream.info.changed', { platforms: result.updated });
+      this.eventBus.emitSync('stream.info.changed', { platforms: result.updated });
     }
     return result;
   }

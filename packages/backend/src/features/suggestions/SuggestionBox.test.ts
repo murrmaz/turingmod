@@ -1,17 +1,21 @@
 import 'reflect-metadata';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EventBus } from '../../core/EventBus.js';
 import type { DatabaseManager } from '../../database/DatabaseManager.js';
 import { SuggestionRepository } from '../../database/repositories/SuggestionRepository.js';
 import { createTestDatabase } from '../../database/repositories/testDatabase.js';
+import { Logger } from '../../utils/Logger.js';
 import { SuggestionBox } from './SuggestionBox.js';
 
 let db: DatabaseManager;
 let cleanup: () => Promise<void>;
+let eventBus: EventBus;
 let box: SuggestionBox;
 
 beforeEach(async () => {
   ({ db, cleanup } = await createTestDatabase());
-  box = new SuggestionBox(new SuggestionRepository(db));
+  eventBus = new EventBus(new Logger({ level: 'silent' }));
+  box = new SuggestionBox(eventBus, new SuggestionRepository(db));
 });
 
 afterEach(async () => {
@@ -40,19 +44,15 @@ describe('SuggestionBox', () => {
     expect(box.list().map((s) => s.suggestion)).toEqual(['keep']);
   });
 
-  it('tells listeners when a suggestion is added or deleted, and not when nothing was', () => {
+  it('publishes when a suggestion is added or deleted, and not when nothing was', () => {
     const listener = vi.fn();
-    const unsubscribe = box.onChange(listener);
+    eventBus.on('suggestions.changed', listener);
 
     box.add('more bonk', 'viewer1');
     expect(listener).toHaveBeenCalledTimes(1);
     box.delete([box.list()[0]?.id ?? 0]);
     expect(listener).toHaveBeenCalledTimes(2);
     box.delete([999]);
-    expect(listener).toHaveBeenCalledTimes(2);
-
-    unsubscribe();
-    box.add('ignored', null);
     expect(listener).toHaveBeenCalledTimes(2);
   });
 });

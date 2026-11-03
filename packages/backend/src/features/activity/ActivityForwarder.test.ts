@@ -86,12 +86,25 @@ function setup() {
     logger
   );
   const entries: ActivityLogEntry[] = [];
-  forwarder.onEntry((entry) => entries.push(entry));
+  eventBus.on('activity.entry', (entry) => {
+    entries.push(entry);
+  });
   forwarder.start();
   return { eventBus, repo, entries };
 }
 
 describe('ActivityForwarder', () => {
+  it('stores an entry even when something listening to the feed throws', async () => {
+    const { eventBus, repo } = setup();
+    eventBus.on('activity.entry', () => {
+      throw new Error('a broken feed');
+    });
+
+    await eventBus.emit('service.error', { service: 'Effects', message: 'failed' });
+
+    expect(repo.create).toHaveBeenCalledOnce();
+  });
+
   it("makes every event an entry that still fits its schema once it's been through JSON", async () => {
     const { eventBus, entries } = setup();
     const emit = <E extends ActivityEventName>(event: E) =>

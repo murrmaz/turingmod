@@ -1,10 +1,11 @@
 import { EventEmitter } from 'node:events';
 import type { Readable } from 'node:stream';
-import { google, type youtube_v3 } from 'googleapis';
+import type { youtube_v3 } from 'googleapis';
 import { z } from 'zod';
 import { ClientCache } from '../../ClientCache.js';
 import { JsonFrameParser } from './parseJsonFrames.js';
 import type { YouTubeOAuth2Client } from './YouTubeAuthIntegration.js';
+import { createYouTubeClient } from './youtubeClient.js';
 
 /**
  * One chat message, as far as YouTubeChatIntegration reads it. Google's data, so not strict and
@@ -122,9 +123,7 @@ class StreamCall extends EventEmitter implements LiveChatStreamCall {
  * response and deliver messages only once the broadcast ended.
  */
 export class YouTubeChatStream {
-  private readonly clients = new ClientCache((auth: YouTubeOAuth2Client) =>
-    google.youtube({ version: 'v3', auth })
-  );
+  private readonly clients = new ClientCache(createYouTubeClient);
 
   /**
    * Open a server stream of live chat messages.

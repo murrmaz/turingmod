@@ -41,7 +41,7 @@ describe('PlatformLiveStatus', () => {
       new Logger({ level: 'silent' })
     );
     changed = vi.fn<() => void>();
-    service.onChange(changed);
+    eventBus.on('platform.liveState.changed', changed);
     service.start();
   });
 

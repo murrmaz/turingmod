@@ -1,7 +1,7 @@
 import { ACTIVITY_EVENT_NAMES, type ActivityLogEntry, MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
 import { z } from 'zod';
+import type { EventBus } from '../../core/EventBus.js';
 import type { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
-import type { ActivityForwarder } from '../../features/activity/ActivityForwarder.js';
 import { procedure, router } from './trpc.js';
 import { events } from './watch.js';
 
@@ -23,7 +23,7 @@ const HistoryQuerySchema = z.strictObject({
 });
 
 /** The Dashboard's live activity feed, and History's pages of the stored log. */
-export function createActivityRouter(forwarder: ActivityForwarder, repo: ActivityLogRepository) {
+export function createActivityRouter(eventBus: EventBus, repo: ActivityLogRepository) {
   return router({
     /**
      * The most recent stored entries, newest first, then every entry as it's made, chat
@@ -34,7 +34,10 @@ export function createActivityRouter(forwarder: ActivityForwarder, repo: Activit
       // One synchronous step (the repository is synchronous): no entry can be made between
       // reading the seed and subscribing, so none is missed and none arrives twice.
       const entries = repo.findRecent({ limit: SEED_LIMIT });
-      const live = events<ActivityLogEntry>((onEntry) => forwarder.onEntry(onEntry), signal);
+      const live = events<ActivityLogEntry>(
+        (onEntry) => eventBus.on('activity.entry', onEntry),
+        signal
+      );
       try {
         yield { type: 'seed', entries };
         for await (const entry of live) {

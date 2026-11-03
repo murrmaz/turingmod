@@ -45,7 +45,7 @@ export enum DependencyFailurePolicy {
    * than DISCONNECTED that they are waiting on something else.
    *
    * An integration taking this policy must refuse to act while its
-   * dependency isn't connected — see TwitchApiIntegration.request().
+   * dependency isn't connected — see AuthorizedApiIntegration.request().
    * Resolving a client on access protects against holding the *wrong* object;
    * it does nothing about holding the right object with dead credentials.
    */
@@ -125,8 +125,8 @@ export interface IIntegration {
   getAddress(): string | null;
 
   /**
-   * Why the integration is in its current status, for ERROR, NEEDS_REAUTH and BLOCKED; undefined
-   * for any other status.
+   * Why the integration is in its current status, for CONNECTING (when set), ERROR, NEEDS_REAUTH and
+   * BLOCKED; undefined for any other status.
    */
   getErrorMessage(): string | undefined;
 

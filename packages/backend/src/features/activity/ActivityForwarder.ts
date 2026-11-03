@@ -4,7 +4,6 @@ import {
   ActivityCategory,
   type ActivityData,
   type ActivityEventName,
-  type ActivityLogEntry,
   ActivityLogEntrySchema,
 } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
@@ -69,14 +68,13 @@ const TO_ACTIVITY_DATA: {
 };
 
 /**
- * Turns EventBus activity into activity log entries: each goes to the console's live feed
- * (onEntry, which the `activity.feed` subscription listens to) and, for non-chat categories, to
- * the persisted activity_log.
+ * Turns EventBus activity into activity log entries: each is published as `activity.entry`, which
+ * the `activity.feed` subscription listens to for the console's live feed, and, for non-chat
+ * categories, stored in the persisted activity_log.
  */
 @singleton()
 export class ActivityForwarder implements IService {
   private subscriptions = new Subscriptions();
-  private entryListeners = new Set<(entry: ActivityLogEntry) => void>();
   private logger: Logger;
 
   constructor(
@@ -95,15 +93,6 @@ export class ActivityForwarder implements IService {
 
   stop(): void {
     this.subscriptions.clear();
-  }
-
-  /**
-   * Be told of every entry as it's made, chat and live-only events included, which the stored
-   * log leaves out. Returns the unsubscribe function.
-   */
-  onEntry(listener: (entry: ActivityLogEntry) => void): () => void {
-    this.entryListeners.add(listener);
-    return () => this.entryListeners.delete(listener);
   }
 
   private forward<E extends ActivityEventName>(event: E): void {
@@ -131,9 +120,7 @@ export class ActivityForwarder implements IService {
     }
     const entry = parsed.data;
 
-    for (const listener of this.entryListeners) {
-      listener(entry);
-    }
+    this.eventBus.emitSync('activity.entry', entry);
 
     if (ACTIVITY_EVENT_CATEGORIES[event] === ActivityCategory.CHAT || LIVE_ONLY_EVENTS.has(event)) {
       return;

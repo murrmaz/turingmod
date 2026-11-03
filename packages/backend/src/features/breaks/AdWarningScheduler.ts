@@ -169,7 +169,6 @@ export class AdWarningScheduler implements IService {
         from: new Date(nextAdAt).toISOString(),
         to: new Date(current).toISOString(),
       });
-      this.scheduledFor = null;
       this.scheduleWarnings(current);
       return;
     }

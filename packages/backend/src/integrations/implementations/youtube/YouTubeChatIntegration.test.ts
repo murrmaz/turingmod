@@ -478,6 +478,21 @@ describe('YouTubeChatIntegration', () => {
       expect(failures[0]).toMatch(/stopped on an unexpected error.*Connect chat/);
     });
 
+    it('flags re-authorization when a live stream fails on a dead token', async () => {
+      await connect();
+      const failures = reportedFailures();
+
+      auth.isAuthError.mockReturnValue(true);
+      call.emitTransportError('invalid_grant');
+      await flush();
+
+      expect(auth.markAuthRequired).toHaveBeenCalledOnce();
+      expect(integration.getState()).toBe('idle');
+      expect(vi.getTimerCount()).toBe(0);
+      expect(streamMock.stream).toHaveBeenCalledOnce(); // no reconnect on a dead grant
+      expect(failures).toEqual([]); // NEEDS_REAUTH says it; this isn't "chat stopped" as well
+    });
+
     it('flags re-authorization when the broadcast lookup fails on a dead token', async () => {
       auth.isAuthError.mockReturnValue(true);
       api.getActiveBroadcast.mockRejectedValue(new Error('invalid_grant'));

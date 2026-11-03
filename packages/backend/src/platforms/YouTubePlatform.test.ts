@@ -28,6 +28,7 @@ describe('YouTubePlatform', () => {
   let youtube: {
     liveChatMessages: { insert: ReturnType<typeof vi.fn> };
     liveBroadcasts: { list: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+    channels: { list: ReturnType<typeof vi.fn> };
   };
   let chat: { getBroadcast: ReturnType<typeof vi.fn> };
   let ownMessages: { record: ReturnType<typeof vi.fn> };
@@ -42,6 +43,11 @@ describe('YouTubePlatform', () => {
           data: { items: [{ snippet: { scheduledStartTime: '2026-10-14T17:55:00Z' } }] },
         }),
         update: vi.fn().mockResolvedValue({}),
+      },
+      channels: {
+        list: vi.fn().mockResolvedValue({
+          data: { items: [{ id: 'UC_broadcaster', snippet: { title: 'The Channel' } }] },
+        }),
       },
     };
     api = {
@@ -230,5 +236,55 @@ describe('YouTubePlatform', () => {
 
     await expect(platform.getStreamInfo()).resolves.toEqual({ title: 'Renamed' });
     expect(api.getActiveBroadcast).toHaveBeenCalledOnce();
+  });
+
+  describe('getChannelPage', () => {
+    it('links to the live broadcast, with its preview image', async () => {
+      await expect(platform.getChannelPage()).resolves.toEqual({
+        displayName: 'The Channel',
+        url: 'https://www.youtube.com/watch?v=b1',
+        previewImageUrl: 'https://i.ytimg.com/vi/b1/hqdefault_live.jpg',
+      });
+      expect(youtube.channels.list).toHaveBeenCalledWith({ part: ['snippet'], mine: true });
+    });
+
+    it('uses the streamed broadcast without looking it up', async () => {
+      chat.getBroadcast.mockReturnValue(STREAMED);
+
+      const page = await platform.getChannelPage();
+
+      expect(page.url).toBe('https://www.youtube.com/watch?v=streamed-broadcast');
+      expect(api.getActiveBroadcast).not.toHaveBeenCalled();
+    });
+
+    it('links to the channel, with no image, when nothing is live', async () => {
+      api.getActiveBroadcast.mockResolvedValue(null);
+
+      await expect(platform.getChannelPage()).resolves.toEqual({
+        displayName: 'The Channel',
+        url: 'https://www.youtube.com/channel/UC_broadcaster',
+      });
+    });
+
+    it('names the platform when the channel has no title', async () => {
+      youtube.channels.list.mockResolvedValue({ data: { items: [{ id: 'UC_broadcaster' }] } });
+
+      const page = await platform.getChannelPage();
+
+      expect(page.displayName).toBe('YouTube');
+    });
+
+    it('fails when YouTube returns no channel', async () => {
+      youtube.channels.list.mockResolvedValue({ data: { items: [] } });
+
+      await expect(platform.getChannelPage()).rejects.toThrow('Failed to retrieve');
+    });
+
+    it('fails with NotAuthenticatedError, without calling YouTube, while auth is unusable', async () => {
+      authStatus = IntegrationStatus.NEEDS_REAUTH;
+
+      await expect(platform.getChannelPage()).rejects.toThrow(NotAuthenticatedError);
+      expect(api.request).not.toHaveBeenCalled();
+    });
   });
 });

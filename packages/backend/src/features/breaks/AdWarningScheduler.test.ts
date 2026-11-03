@@ -110,6 +110,54 @@ describe('AdWarningScheduler', () => {
     scheduler.stop();
   });
 
+  it('reschedules from the warning itself when the ad moved since the last poll', async () => {
+    const start = Date.now();
+    const { posted, scheduler, setNextAd } = setup();
+    setNextAd(start + 3 * MINUTE); // its 1-minute warning falls before the first 5-minute poll
+    scheduler.start();
+    await vi.advanceTimersByTimeAsync(MINUTE);
+
+    setNextAd(start + 8 * MINUTE); // !snooze, which the warning is the first to read
+    await vi.advanceTimersByTimeAsync(MINUTE); // the original warning time
+    expect(posted).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(MINUTE); // 5 minutes before the new time
+    expect(posted[0]?.twitch).toContain('5m');
+    await vi.advanceTimersByTimeAsync(4 * MINUTE); // 1 minute before the new time
+    expect(posted[1]?.twitch).toContain('1m');
+    expect(posted).toHaveLength(2);
+    scheduler.stop();
+  });
+
+  it('says nothing when the ad is gone by the time its warning is due', async () => {
+    const { posted, scheduler, setNextAd } = setup();
+    setNextAd(Date.now() + 3 * MINUTE);
+    scheduler.start();
+    await vi.advanceTimersByTimeAsync(MINUTE);
+
+    setNextAd(null);
+    await vi.advanceTimersByTimeAsync(2 * MINUTE);
+
+    expect(posted).toHaveLength(0);
+    scheduler.stop();
+  });
+
+  it('loses only the warning whose read failed, keeping the ones after it', async () => {
+    const { getNextAdBreak, posted, scheduler, setNextAd } = setup();
+    setNextAd(Date.now() + 5.5 * MINUTE); // both warnings fall before the first 5-minute poll
+    scheduler.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    getNextAdBreak.mockRejectedValueOnce(new Error('503'));
+    await vi.advanceTimersByTimeAsync(0.5 * MINUTE); // the 5-minute warning
+    expect(posted).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(4 * MINUTE); // the 1-minute warning
+    expect(posted).toHaveLength(1);
+    expect(posted[0]?.twitch).toContain('1m');
+    scheduler.stop();
+  });
+
   it('skips lead times that have already passed', async () => {
     const { posted, scheduler, setNextAd } = setup();
     setNextAd(Date.now() + 2 * MINUTE);

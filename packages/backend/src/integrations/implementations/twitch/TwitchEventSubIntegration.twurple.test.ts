@@ -58,7 +58,10 @@ describe('TwitchEventSubIntegration on the real Twurple listener', () => {
   let helix: Server;
   let refuse: (type: string) => boolean;
   let withRateLimitHeaders: boolean;
+  /** Each subscription request's topic. */
   let subscribeRequests: string[];
+  /** The socket session each of those asked for, in the same order. */
+  let subscribeSessions: string[];
   let integration: TwitchEventSubIntegration;
   let session: number;
 
@@ -66,6 +69,7 @@ describe('TwitchEventSubIntegration on the real Twurple listener', () => {
     refuse = () => false;
     withRateLimitHeaders = true;
     subscribeRequests = [];
+    subscribeSessions = [];
     session = 0;
     helix = createServer((request, response) => {
       let body = '';
@@ -75,6 +79,7 @@ describe('TwitchEventSubIntegration on the real Twurple listener', () => {
       request.on('end', () => {
         const { type, version, condition, transport } = JSON.parse(body);
         subscribeRequests.push(type);
+        subscribeSessions.push(transport.session_id);
         response.setHeader('Content-Type', 'application/json');
         if (withRateLimitHeaders) {
           response.setHeader('Ratelimit-Limit', '800');
@@ -188,7 +193,6 @@ describe('TwitchEventSubIntegration on the real Twurple listener', () => {
     await statusBecomes(IntegrationStatus.ERROR);
 
     refuse = () => false;
-    subscribeRequests = [];
     const statuses: IntegrationStatus[] = [];
     integration.on('status', (status) => statuses.push(status));
     for (const client of sockets.clients) {
@@ -197,7 +201,12 @@ describe('TwitchEventSubIntegration on the real Twurple listener', () => {
 
     await statusBecomes(IntegrationStatus.CONNECTED);
     expect(statuses).toEqual([IntegrationStatus.CONNECTING, IntegrationStatus.CONNECTED]);
-    expect(subscribeRequests).toHaveLength(9);
+    // Counted by session: ERROR comes with the first refusal, so the first socket's other requests
+    // can still be arriving after the drop.
+    await vi.waitFor(
+      () => expect(subscribeSessions.filter((id) => id === `session-${session}`)).toHaveLength(9),
+      { timeout: 5000 }
+    );
   });
 
   it('retries on a fresh listener, with the old socket closed', async () => {
@@ -207,7 +216,7 @@ describe('TwitchEventSubIntegration on the real Twurple listener', () => {
     await integration.start();
     await statusBecomes(IntegrationStatus.CONNECTED);
 
-    await vi.waitFor(() => expect(sockets.clients.size).toBe(1));
+    await vi.waitFor(() => expect(sockets.clients.size).toBe(1), { timeout: 5000 });
   });
 
   it('stays disconnected after stopping', async () => {

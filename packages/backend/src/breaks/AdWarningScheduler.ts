@@ -170,14 +170,7 @@ export class AdWarningScheduler implements IService {
     const time = formatCountdown(current - Date.now());
     const message = this.breakService.getSettings().messages.adWarning;
     try {
-      const result = await this.streamControl.announce((platform) =>
-        renderMessage(message, platform, { time })
-      );
-      for (const failure of result.failures) {
-        this.logger.warn(`Could not post ad warning to ${failure.platform}`, {
-          error: failure.error,
-        });
-      }
+      await this.streamControl.announce((platform) => renderMessage(message, platform, { time }));
     } catch (error) {
       this.logger.error('Could not post ad warning', error);
     }

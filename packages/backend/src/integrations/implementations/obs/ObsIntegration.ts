@@ -5,7 +5,11 @@ import {
   type ObsConfig,
   ObsConfigSchema,
 } from '@turingmod/shared';
-import OBSWebSocket, { type OBSRequestTypes, type OBSResponseTypes } from 'obs-websocket-js';
+import OBSWebSocket, {
+  type OBSRequestTypes,
+  type OBSResponseTypes,
+  OBSWebSocketError,
+} from 'obs-websocket-js';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { EventBus } from '../../../core/EventBus.js';
@@ -68,6 +72,37 @@ export interface ObsSceneItem {
 
 /** obs-websocket RequestStatus.UnknownRequestType: the connected OBS predates the request. */
 const OBS_UNKNOWN_REQUEST_TYPE = 204;
+/** obs-websocket RequestStatus.ResourceNotFound. */
+const OBS_RESOURCE_NOT_FOUND = 600;
+/** obs-websocket RequestStatus.ResourceAlreadyExists. */
+const OBS_RESOURCE_ALREADY_EXISTS = 601;
+
+/**
+ * What's used from obs-websocket's untyped lists. An entry that doesn't fit is dropped rather than
+ * failing the list: one odd item shouldn't stop an effect or a break covering every other scene.
+ */
+const CanvasSchema = z.object({ canvasUuid: z.string(), canvasName: z.string().nullish() });
+const SceneSchema = z.object({ sceneUuid: z.string(), sceneName: z.string() });
+const SceneItemSchema = z.object({
+  sceneItemId: z.number(),
+  sourceName: z.string(),
+  sceneItemEnabled: z.boolean().nullish(),
+  isGroup: z.boolean().nullish(),
+  sourceUuid: z.string().nullish(),
+});
+
+/** Whichever of `items` fit `schema`. */
+function fitting<T>(schema: z.ZodType<T>, items: readonly unknown[]): T[] {
+  return items.flatMap((item) => {
+    const parsed = schema.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
+
+/** Whether OBS answered with this status. */
+function isObsStatus(error: unknown, code: number): boolean {
+  return error instanceof OBSWebSocketError && error.code === code;
+}
 
 /** obs-websocket WebSocketCloseCode values that retrying can't fix. */
 const OBS_CLOSE_AUTHENTICATION_FAILED = 4009;
@@ -93,8 +128,6 @@ export class ObsIntegration extends BaseIntegration {
    * ended an attempt that reports its own failure, so it isn't treated as OBS going away.
    */
   private connected = false;
-  /** Bumped by `start()` and `stop()`, so an attempt or retry that outlives either is dropped. */
-  private generation = 0;
   private readonly backoff = new ReconnectBackoff();
   /** How to fail each request OBS hasn't answered yet, for when the connection closes. */
   private readonly inFlight = new Set<(reason: Error) => void>();
@@ -127,16 +160,15 @@ export class ObsIntegration extends BaseIntegration {
    */
   async start(): Promise<void> {
     this.logger.debug('Starting OBS integration');
-    this.backoff.reset();
+    const generation = this.backoff.begin();
     this.connected = false;
     this.setStatus(IntegrationStatus.CONNECTING);
-    await this.connect(++this.generation);
+    await this.connect(generation);
   }
 
   async stop(): Promise<void> {
     this.logger.debug('Stopping OBS integration');
-    this.generation++;
-    this.backoff.cancel();
+    this.backoff.end();
     this.connected = false;
     await this.obs.disconnect();
 
@@ -152,7 +184,7 @@ export class ObsIntegration extends BaseIntegration {
     try {
       await this.obs.connect(this.config.url, this.config.password);
     } catch (error) {
-      if (generation !== this.generation) {
+      if (!this.backoff.isCurrent(generation)) {
         return; // stopped or restarted meanwhile; that call reports its own state
       }
       const problem = this.unrecoverableReason(error);
@@ -165,7 +197,7 @@ export class ObsIntegration extends BaseIntegration {
       return;
     }
 
-    if (generation !== this.generation) {
+    if (!this.backoff.isCurrent(generation)) {
       return;
     }
     this.connected = true;
@@ -176,11 +208,7 @@ export class ObsIntegration extends BaseIntegration {
 
   /** Report OBS as unreachable and try again after a delay that doubles each time. */
   private scheduleRetry(error: unknown): void {
-    const generation = this.generation;
-    const delayMs = this.backoff.schedule(() => {
-      // A failure here has already been reported as this integration's status.
-      this.connect(generation).catch(() => {});
-    });
+    const delayMs = this.backoff.retry((generation) => this.connect(generation));
     const reason = messageOf(error, '');
     const message =
       `Can't reach OBS at ${this.config.url}${reason ? ` (${reason})` : ''}; ` +
@@ -191,7 +219,7 @@ export class ObsIntegration extends BaseIntegration {
 
   /** Why a closed connection can't be fixed by trying again, or null if it can. */
   private unrecoverableReason(error: unknown): string | null {
-    if (!this.isObsError(error)) {
+    if (!(error instanceof OBSWebSocketError)) {
       return null;
     }
     switch (error.code) {
@@ -222,13 +250,12 @@ export class ObsIntegration extends BaseIntegration {
     this.ensureConnected();
     try {
       const { canvases } = await this.call('GetCanvasList');
-      return canvases.flatMap((canvas) =>
-        typeof canvas.canvasUuid === 'string'
-          ? [{ canvasUuid: canvas.canvasUuid, canvasName: String(canvas.canvasName ?? '') }]
-          : []
-      );
+      return fitting(CanvasSchema, canvases).map(({ canvasUuid, canvasName }) => ({
+        canvasUuid,
+        canvasName: canvasName ?? '',
+      }));
     } catch (error: unknown) {
-      if (this.isObsError(error) && error.code === OBS_UNKNOWN_REQUEST_TYPE) {
+      if (isObsStatus(error, OBS_UNKNOWN_REQUEST_TYPE)) {
         return [];
       }
       throw error;
@@ -245,11 +272,7 @@ export class ObsIntegration extends BaseIntegration {
       'GetSceneList',
       canvasUuid === undefined ? {} : { canvasUuid }
     );
-    return scenes.flatMap((scene) =>
-      typeof scene.sceneUuid === 'string' && typeof scene.sceneName === 'string'
-        ? [{ sceneName: scene.sceneName, sceneUuid: scene.sceneUuid }]
-        : []
-    );
+    return fitting(SceneSchema, scenes);
   }
 
   /**
@@ -380,8 +403,7 @@ export class ObsIntegration extends BaseIntegration {
       }
       await this.call('CreateSourceFilter', request);
     } catch (error: unknown) {
-      // OBS error code 601 = resource already exists
-      if (this.isObsError(error) && error.code === 601) {
+      if (isObsStatus(error, OBS_RESOURCE_ALREADY_EXISTS)) {
         return;
       }
       throw error;
@@ -396,8 +418,7 @@ export class ObsIntegration extends BaseIntegration {
     try {
       await this.call('RemoveSourceFilter', { sourceName, filterName });
     } catch (error: unknown) {
-      // OBS error code 600 = resource not found
-      if (this.isObsError(error) && error.code === 600) {
+      if (isObsStatus(error, OBS_RESOURCE_NOT_FOUND)) {
         return;
       }
       throw error;
@@ -456,34 +477,25 @@ export class ObsIntegration extends BaseIntegration {
     }
   }
 
-  private isObsError(error: unknown): error is { code: number; message: string } {
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      typeof (error as { code: unknown }).code === 'number'
-    );
-  }
-
   private subscribeToObsEvents(): void {
     this.obs.on('CurrentProgramSceneChanged', (data) => {
       this.logger.debug('Scene changed', { sceneName: data.sceneName });
-      this.eventBus.emit('obs.scene.changed', data);
+      this.eventBus.emitSync('obs.scene.changed', data);
     });
 
     this.obs.on('StreamStateChanged', (data) => {
       this.logger.debug('Stream state changed', { outputState: data.outputState });
-      this.eventBus.emit('obs.stream.stateChanged', data);
+      this.eventBus.emitSync('obs.stream.stateChanged', data);
     });
 
     this.obs.on('RecordStateChanged', (data) => {
       this.logger.debug('Record state changed', { outputState: data.outputState });
-      this.eventBus.emit('obs.record.stateChanged', data);
+      this.eventBus.emitSync('obs.record.stateChanged', data);
     });
 
     this.obs.on('SceneItemEnableStateChanged', (data) => {
       this.logger.debug('Scene item state changed', data);
-      this.eventBus.emit('obs.sceneItem.stateChanged', data);
+      this.eventBus.emitSync('obs.sceneItem.stateChanged', data);
     });
 
     // Only a connection that was up is handled here: a failed attempt is handled by connect(),
@@ -518,19 +530,10 @@ export class ObsIntegration extends BaseIntegration {
 function toSceneItems(
   sceneItems: OBSResponseTypes['GetSceneItemList']['sceneItems']
 ): ObsSceneItem[] {
-  return sceneItems.flatMap((item) =>
-    typeof item.sceneItemId === 'number' && typeof item.sourceName === 'string'
-      ? [
-          {
-            sceneItemId: item.sceneItemId,
-            sourceName: item.sourceName,
-            sceneItemEnabled: item.sceneItemEnabled === true,
-            groupUuid:
-              item.isGroup === true && typeof item.sourceUuid === 'string'
-                ? item.sourceUuid
-                : undefined,
-          },
-        ]
-      : []
-  );
+  return fitting(SceneItemSchema, sceneItems).map((item) => ({
+    sceneItemId: item.sceneItemId,
+    sourceName: item.sourceName,
+    sceneItemEnabled: item.sceneItemEnabled === true,
+    groupUuid: item.isGroup === true ? (item.sourceUuid ?? undefined) : undefined,
+  }));
 }

@@ -35,6 +35,8 @@ the message id does: every façade sends through `OwnChatMessages.record()`, whi
 the platform returns, and the gate drops those messages before anything sees them. Ingest can
 deliver a message before the send call returns, so a broadcaster message arriving mid-send waits
 for in-flight sends to settle before it is judged; other people's messages pass straight through.
+Twitch returns no id for an announcement, so `recordText()` remembers its wording and the gate drops
+the first broadcaster message with exactly those words.
 
 **Outgoing chat can never start with a command**, a second layer that also protects other bots in
 the channel. Every `IStreamPlatform` passes outgoing chat and announcements through

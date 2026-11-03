@@ -517,7 +517,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
       return;
     }
     this.state = state;
-    this.eventBus.emit('youtube.chat.state', { state });
+    this.eventBus.emitSync('youtube.chat.state', { state });
   }
 
   /**
@@ -542,7 +542,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
 
     // OwnChatMessages republishes this as `chat.message`, minus TuringMod's own messages.
     // Commands are parsed out by ChatRouter, after moderation.
-    this.eventBus.emit('chat.received', {
+    this.eventBus.emitSync('chat.received', {
       platform: StreamingPlatform.YOUTUBE,
       platformUserId,
       username,

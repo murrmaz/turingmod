@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import type { IStreamPlatform, LiveBroadcast } from '../platforms/interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
+import { StreamControlService } from '../platforms/StreamControlService.js';
 import { Logger } from '../utils/Logger.js';
 import type { ObsStreamState } from './ObsStreamState.js';
 import { PlatformLiveStatus } from './PlatformLiveStatus.js';
@@ -35,7 +36,7 @@ describe('PlatformLiveStatus', () => {
     const obsStream = { isStreaming: () => obsStreaming } as unknown as ObsStreamState;
     service = new PlatformLiveStatus(
       eventBus,
-      registry,
+      new StreamControlService(registry, eventBus, new Logger({ level: 'silent' })),
       obsStream,
       new Logger({ level: 'silent' })
     );
@@ -52,6 +53,14 @@ describe('PlatformLiveStatus', () => {
       { platform: StreamingPlatform.TWITCH, live: false, startedAt: null },
       { platform: StreamingPlatform.YOUTUBE, live: false, startedAt: null },
     ]);
+  });
+
+  it("doesn't spend a request on a platform that can't answer", async () => {
+    twitch.getUnavailableReason.mockReturnValue('Not connected');
+
+    await service.refresh(StreamingPlatform.TWITCH);
+
+    expect(twitch.getLiveBroadcast).not.toHaveBeenCalled();
   });
 
   it('asks a platform when it becomes available, and announces the answer', async () => {

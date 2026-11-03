@@ -56,28 +56,7 @@ export class EventBus {
    * and never rejects `emit()` or stops the others.
    */
   async emit<K extends EventName>(event: K, data: EventMap[K]): Promise<void> {
-    const handlers = this.handlers.get(event);
-    if (!handlers || handlers.size === 0) {
-      return;
-    }
-
-    const promises: Promise<void>[] = [];
-    for (const handler of handlers) {
-      try {
-        const result = handler(data);
-        if (result instanceof Promise) {
-          promises.push(
-            result.catch((error) => {
-              this.logger.error(`Error in asynchronous event handler for ${event}:`, error);
-            })
-          );
-        }
-      } catch (error) {
-        this.logger.error(`Error in synchronous event handler for ${event}:`, error);
-      }
-    }
-
-    await Promise.all(promises);
+    await Promise.all(this.callHandlers(event, data));
   }
 
   /**
@@ -88,23 +67,27 @@ export class EventBus {
    * index.ts's `unhandledRejection` handler, which exits the process.
    */
   emitSync<K extends EventName>(event: K, data: EventMap[K]): void {
-    const handlers = this.handlers.get(event);
-    if (!handlers || handlers.size === 0) {
-      return;
-    }
+    void this.callHandlers(event, data);
+  }
 
-    for (const handler of handlers) {
+  /** Call every subscriber, logging any failure. Returns what's left of the async ones; none rejects. */
+  private callHandlers<K extends EventName>(event: K, data: EventMap[K]): Promise<void>[] {
+    const pending: Promise<void>[] = [];
+    for (const handler of this.handlers.get(event) ?? []) {
       try {
         const result = handler(data);
         if (result instanceof Promise) {
-          result.catch((error) => {
-            this.logger.error(`Error in asynchronous event handler for ${event}:`, error);
-          });
+          pending.push(
+            result.catch((error) => {
+              this.logger.error(`Error in asynchronous event handler for ${event}:`, error);
+            })
+          );
         }
       } catch (error) {
         this.logger.error(`Error in synchronous event handler for ${event}:`, error);
       }
     }
+    return pending;
   }
 
   /** How many handlers are subscribed to an event; tests use it to check for leaked subscriptions. */

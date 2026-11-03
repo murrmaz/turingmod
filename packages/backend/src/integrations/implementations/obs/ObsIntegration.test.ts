@@ -56,7 +56,11 @@ class FakeOBSWebSocket extends EventEmitter {
   }
 }
 
-vi.mock('obs-websocket-js', () => ({ default: FakeOBSWebSocket }));
+vi.mock('obs-websocket-js', () => ({
+  default: FakeOBSWebSocket,
+  // biome-ignore lint/style/useNamingConvention: mirrors the exported class name.
+  OBSWebSocketError: FakeObsError,
+}));
 
 const { ObsIntegration } = await import('./ObsIntegration.js');
 
@@ -249,6 +253,132 @@ describe('ObsIntegration', () => {
       await integration.stop();
 
       await expect(request).rejects.toThrow('The connection to OBS closed before it answered');
+    });
+  });
+
+  describe('requests', () => {
+    beforeEach(async () => {
+      await integration.start();
+    });
+
+    it('lists canvases, dropping any without an id', async () => {
+      socket.call.mockResolvedValue({
+        canvases: [
+          { canvasUuid: 'c1', canvasName: 'Main' },
+          { canvasUuid: 'c2' },
+          { canvasName: 'x' },
+        ],
+      });
+
+      expect(await integration.getCanvases()).toEqual([
+        { canvasUuid: 'c1', canvasName: 'Main' },
+        { canvasUuid: 'c2', canvasName: '' },
+      ]);
+    });
+
+    it('has no canvases on an OBS that predates them, and rethrows anything else', async () => {
+      socket.call.mockRejectedValueOnce(new FakeObsError(204, 'unknown request'));
+      expect(await integration.getCanvases()).toEqual([]);
+
+      socket.call.mockRejectedValueOnce(new FakeObsError(500, 'broken'));
+      await expect(integration.getCanvases()).rejects.toThrow('broken');
+    });
+
+    it('lists scenes, on the canvas asked for, dropping any without an id or name', async () => {
+      socket.call.mockResolvedValue({
+        scenes: [{ sceneUuid: 's1', sceneName: 'Live' }, { sceneUuid: 's2' }, 'odd'],
+      });
+
+      expect(await integration.getScenes('c1')).toEqual([{ sceneUuid: 's1', sceneName: 'Live' }]);
+      expect(socket.call).toHaveBeenLastCalledWith('GetSceneList', { canvasUuid: 'c1' });
+    });
+
+    it('lists scene items, reading null as OBS sends it for what is not a group', async () => {
+      socket.call.mockResolvedValue({
+        sceneItems: [
+          {
+            sceneItemId: 1,
+            sourceName: 'Cam',
+            sceneItemEnabled: true,
+            isGroup: null,
+            sourceUuid: 'a',
+          },
+          {
+            sceneItemId: 2,
+            sourceName: 'Group',
+            sceneItemEnabled: false,
+            isGroup: true,
+            sourceUuid: 'g',
+          },
+          { sourceName: 'no id' },
+        ],
+      });
+
+      expect(await integration.getSceneItems('s1')).toEqual([
+        { sceneItemId: 1, sourceName: 'Cam', sceneItemEnabled: true, groupUuid: undefined },
+        { sceneItemId: 2, sourceName: 'Group', sceneItemEnabled: false, groupUuid: 'g' },
+      ]);
+    });
+
+    it('reads a group through its own list', async () => {
+      socket.call.mockResolvedValue({ sceneItems: [] });
+
+      await integration.getGroupItems('g');
+
+      expect(socket.call).toHaveBeenLastCalledWith('GetGroupSceneItemList', { sceneUuid: 'g' });
+    });
+
+    it('refuses a scene item transform that is not the shape effects animate', async () => {
+      socket.call.mockResolvedValue({ sceneItemTransform: { positionX: 'left' } });
+
+      await expect(integration.getSceneItemTransform('s1', 1)).rejects.toThrow(
+        'Unexpected scene item transform from OBS'
+      );
+    });
+
+    it('sets a mute absolutely, never as a toggle', async () => {
+      socket.call.mockResolvedValue({});
+
+      await integration.setInputMuted('Mic', true);
+
+      expect(socket.call).toHaveBeenLastCalledWith('SetInputMute', {
+        inputName: 'Mic',
+        inputMuted: true,
+      });
+    });
+
+    it('adds a filter that already exists without complaint, and rethrows anything else', async () => {
+      socket.call.mockRejectedValueOnce(new FakeObsError(601, 'exists'));
+      await expect(
+        integration.addFilter('Cam', 'tint', 'color_filter_v2')
+      ).resolves.toBeUndefined();
+
+      socket.call.mockRejectedValueOnce(new FakeObsError(600, 'no such source'));
+      await expect(integration.addFilter('Cam', 'tint', 'color_filter_v2')).rejects.toThrow(
+        'no such source'
+      );
+    });
+
+    it('removes a filter already gone without complaint, and rethrows anything else', async () => {
+      socket.call.mockRejectedValueOnce(new FakeObsError(600, 'not found'));
+      await expect(integration.removeFilter('Cam', 'tint')).resolves.toBeUndefined();
+
+      socket.call.mockRejectedValueOnce(new FakeObsError(601, 'odd'));
+      await expect(integration.removeFilter('Cam', 'tint')).rejects.toThrow('odd');
+    });
+
+    it('treats an error that is not OBS answering as a failure, whatever its code', async () => {
+      socket.call.mockRejectedValueOnce(Object.assign(new Error('socket'), { code: 600 }));
+
+      await expect(integration.removeFilter('Cam', 'tint')).rejects.toThrow('socket');
+    });
+
+    it('refuses every request while not connected', async () => {
+      await integration.stop();
+
+      await expect(integration.getCurrentSceneUuid()).rejects.toThrow('OBS is not connected');
+      await expect(integration.getScenes()).rejects.toThrow('OBS is not connected');
+      await expect(integration.isStreaming()).rejects.toThrow('OBS is not connected');
     });
   });
 });

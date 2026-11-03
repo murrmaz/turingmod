@@ -77,4 +77,62 @@ describe('ReconnectBackoff', () => {
     backoff.reset();
     expect(backoff.attempts).toBe(0);
   });
+
+  describe('generations', () => {
+    it('a start leaves attempts from before it out of date', () => {
+      const first = backoff.begin();
+      expect(backoff.isCurrent(first)).toBe(true);
+
+      const second = backoff.begin();
+
+      expect(backoff.isCurrent(first)).toBe(false);
+      expect(backoff.isCurrent(second)).toBe(true);
+    });
+
+    it('a start begins again at the shortest delay', () => {
+      backoff.begin();
+      delays(3);
+
+      backoff.begin();
+
+      expect(delays(1)).toEqual([2_000]);
+    });
+
+    it('a stop leaves the attempt in progress out of date and drops the one pending', async () => {
+      const generation = backoff.begin();
+      const connect = vi.fn(() => Promise.resolve());
+      backoff.retry(connect);
+
+      backoff.end();
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(backoff.isCurrent(generation)).toBe(false);
+      expect(connect).not.toHaveBeenCalled();
+    });
+
+    it('a retry runs in the current generation and swallows its rejection', async () => {
+      const unhandled = vi.fn();
+      process.on('unhandledRejection', unhandled);
+      try {
+        const generation = backoff.begin();
+        // Not a vi.fn(): it handles what it returns, which would hide an unhandled rejection.
+        const attempts: number[] = [];
+        const connect = (attempt: number) => {
+          attempts.push(attempt);
+          return Promise.reject(new Error('already reported'));
+        };
+
+        expect(backoff.retry(connect)).toBe(2_000);
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(attempts).toEqual([generation]);
+
+        // Give Node a turn to report an unhandled rejection, if there were one.
+        vi.useRealTimers();
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(unhandled).not.toHaveBeenCalled();
+      } finally {
+        process.off('unhandledRejection', unhandled);
+      }
+    });
+  });
 });

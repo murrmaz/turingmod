@@ -165,7 +165,7 @@ broadcaster's token state doesn't belong.
 change and publishes only transitions, so a feature like `RewardSync` ("Twitch is back, sync
 rewards") never needs to know which integration name decides a platform's availability.
 
-Deep dives into these subsystems live in `CLAUDE.md` files beside their code and load when you work there: `live/` (going live, Discord post), `breaks/`, `rewards/` (channel points, raids), `effects/` (facecam), `sounds/`, `chat/` (pipeline, own-message gate, moderation), `database/` (data inspector), plus `integrations/` and `platforms/`.
+Deep dives into these subsystems live in `CLAUDE.md` files beside their code and load when you work there: `live/` (going live, Discord post), `breaks/`, `rewards/` (channel points, raids), `effects/` (facecam), `sounds/`, `chat/` (pipeline, own-message gate, moderation), `database/` (data inspector), `activity/` (the activity log), plus `integrations/` and `platforms/`.
 
 ### Frontend State
 
@@ -228,7 +228,8 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
   Don't hand-write type guards or cast parsed JSON. Schemas for data TuringMod owns are strict
   (`z.strictObject`: an unknown key is an error) and fail rather than fall back; a field may be
   optional or have a default, but a value that is present must be valid. (Activity log payloads
-  are the one exception, since the capped log ages old rows out: see Activity Log.) Schemas for a third
+  are the one exception, since the capped log ages old rows out: see
+  `packages/backend/src/activity/CLAUDE.md`.) Schemas for a third
   party's responses use `z.object`, requiring only the fields we use. Use `.exactOptional()` for
   optional fields, to match `exactOptionalPropertyTypes`.
 - **Errors**: throw only `Error`s, with a message (Biome's `useThrowOnlyError` and `useErrorMessage`
@@ -272,6 +273,6 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 - **Behaviour lives in code, not the database.** Commands and reward handlers are TypeScript classes; a table may hold a feature's own data (a banned-word list, a counter), never its logic.
 - **Commands reach platforms through `StreamControlService`**, never through a platform's integrations directly, and never check auth themselves (see Platform Provider Layer). An integration that isn't a platform (Spotify, sound) is used directly, through its `request()` or the feature class over it.
 - **A new platform capability** is a `PlatformCapability` value, an object type in `CapabilityApis`, its `CAPABILITY_OF_API` entry, and the façades' implementations; the compiler holds those together. Don't add a pass-through to `StreamControlService` — callers use `require()`.
-- **Every outgoing chat message goes through `toSafeChatText()` and `OwnChatMessages.record()`** inside the platform façade — a new `IStreamPlatform` (or a new send method) must apply both, so the bot can never post a command or act on what it posted (see Chat Pipeline).
+- **Every outgoing chat message goes through `toSafeChatText()` and `OwnChatMessages.record()`** (`recordText()` for a platform call that returns no id) inside the platform façade — a new `IStreamPlatform` (or a new send method) must apply both, so the bot can never post a command or act on what it posted (see Chat Pipeline).
 - **API-backed read commands need a cooldown.** `ICommand.cooldown` is per-viewer seconds; `CommandExecutor` exempts moderators and above, so a shared read/write command (`!game`, `!tags`, `!cw`) can be throttled for viewers without blocking a moderator's write.
 - **New integrations** extend `BaseIntegration`, get decorated `@singleton()`, go in a folder under `integrations/implementations/` (auto-discovered by `discoverIntegrations()`: no registration line; abstract base classes stay in `integrations/`, since `abstract` is erased and one found there stops startup), return their group's object from `getGroup()` if they belong to one (see `integrations/CLAUDE.md`), and need a procedure in the tRPC router (`server/trpc/`) if the console controls them. An API that calls on behalf of a separate auth integration extends `AuthorizedApiIntegration` instead (a public API, or one with its token in its own config, stays on `BaseIntegration`). OAuth-capable integrations extend `OAuthIntegration` instead, and need an entry in the frontend's `oauth-integration-registry.tsx` + a config in `oauth-providers.tsx`.

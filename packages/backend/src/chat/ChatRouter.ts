@@ -5,7 +5,7 @@ import type { CommandContext } from '../commands/interfaces/ICommand.js';
 import { parseCommand } from '../commands/parseCommand.js';
 import { EventBus } from '../core/EventBus.js';
 import { type IService, Subscriptions } from '../core/ServiceLifecycle.js';
-import { PlatformRegistry } from '../platforms/PlatformRegistry.js';
+import { StreamControlService } from '../platforms/StreamControlService.js';
 import { Logger } from '../utils/Logger.js';
 import type { ChatMessageEvent } from './chatMessage.js';
 import { ChatModerator } from './moderation/ChatModerator.js';
@@ -26,7 +26,7 @@ export class ChatRouter implements IService {
   constructor(
     private eventBus: EventBus,
     private commandExecutor: CommandExecutor,
-    private platformRegistry: PlatformRegistry,
+    private streamControl: StreamControlService,
     private moderator: ChatModerator,
     logger: Logger
   ) {
@@ -87,14 +87,8 @@ export class ChatRouter implements IService {
       return;
     }
 
-    const platform = this.platformRegistry.get(event.platform);
-    if (!platform) {
-      this.logger.warn(`No platform registered for reply routing: ${event.platform}`);
-      return;
-    }
-
     try {
-      await platform.sendChatMessage(result.message);
+      await this.streamControl.sendChatMessage(event.platform, result.message);
     } catch (error) {
       this.logger.error('Failed to send command reply to chat', error, {
         platform: event.platform,

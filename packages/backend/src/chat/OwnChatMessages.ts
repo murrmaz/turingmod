@@ -19,6 +19,11 @@ import type { ChatMessageEvent } from './chatMessage.js';
  * Ingest can deliver a message before the send call that posted it returns, so a broadcaster
  * message arriving while a send is in flight waits for it to settle before being judged. Other
  * people's messages can't be ours and pass straight through.
+ *
+ * A platform call that returns no id (Twitch's announcements) goes through `recordText()` instead,
+ * and its echo is recognized by its exact wording, once. It's remembered before the call is made,
+ * so an echo can't arrive first. If the platform never echoes it, the streamer typing those exact
+ * words within the retention time has that one message ignored, which is the price of having no id.
  */
 @singleton()
 export class OwnChatMessages implements IService {
@@ -28,6 +33,8 @@ export class OwnChatMessages implements IService {
 
   /** `platform:messageId` → when it was sent. */
   private sent = new Map<string, number>();
+  /** `platform:text` → when it was sent, for messages the platform gave no id for. */
+  private sentTexts = new Map<string, number>();
   private inFlight = new Map<StreamingPlatform, Set<Promise<unknown>>>();
   private logger: Logger;
 
@@ -78,6 +85,23 @@ export class OwnChatMessages implements IService {
     }
   }
 
+  /** Run a send the platform returns no id for, and remember its text instead. */
+  async recordText(
+    platform: StreamingPlatform,
+    text: string,
+    send: () => Promise<void>
+  ): Promise<void> {
+    const key = `${platform}:${text}`;
+    this.prune();
+    this.sentTexts.set(key, Date.now());
+    try {
+      await send();
+    } catch (error) {
+      this.sentTexts.delete(key);
+      throw error;
+    }
+  }
+
   /** Whether TuringMod posted this message. */
   async isOwn(event: ChatMessageEvent): Promise<boolean> {
     if (event.permissionLevel !== PermissionLevel.BROADCASTER || !event.messageId) {
@@ -87,16 +111,21 @@ export class OwnChatMessages implements IService {
     if (sends && sends.size > 0) {
       await Promise.allSettled([...sends]);
     }
-    return this.sent.has(`${event.platform}:${event.messageId}`);
+    if (this.sent.has(`${event.platform}:${event.messageId}`)) {
+      return true;
+    }
+    return this.sentTexts.delete(`${event.platform}:${event.message}`);
   }
 
   private prune(): void {
     const cutoff = Date.now() - OwnChatMessages.RETENTION_MS;
-    for (const [key, sentAt] of this.sent) {
-      if (sentAt >= cutoff) {
-        break; // insertion order is send order
+    for (const remembered of [this.sent, this.sentTexts]) {
+      for (const [key, sentAt] of remembered) {
+        if (sentAt >= cutoff) {
+          break; // insertion order is send order
+        }
+        remembered.delete(key);
       }
-      this.sent.delete(key);
     }
   }
 }

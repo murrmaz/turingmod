@@ -207,6 +207,23 @@ describe('StreamControlService.announce', () => {
       { platform: StreamingPlatform.TWITCH, error: 'rate limited' },
     ]);
   });
+
+  it('logs a platform that cannot say whether it is live, since announce() callers rely on that', async () => {
+    const platform = new FakePlatform(StreamingPlatform.TWITCH, null, true);
+    vi.spyOn(platform, 'isLive').mockRejectedValue(new Error('Helix timed out'));
+    registry.register(platform as unknown as IStreamPlatform);
+    const service = makeService(registry, logger);
+
+    const result = await service.announce(() => 'hello');
+
+    expect(result.failures).toEqual([
+      { platform: StreamingPlatform.TWITCH, error: 'Helix timed out' },
+    ]);
+    expect(logger.error).toHaveBeenCalledWith(
+      'Could not ask whether twitch is live',
+      expect.any(Error)
+    );
+  });
 });
 
 describe('unavailableReason wiring', () => {

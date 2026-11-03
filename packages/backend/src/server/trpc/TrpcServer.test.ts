@@ -1,5 +1,4 @@
 import 'reflect-metadata';
-import type { AddressInfo } from 'node:net';
 import { type IntegrationInfo, IntegrationStatus, TRPC_PATH } from '@turingmod/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket, type WebSocketServer } from 'ws';
@@ -54,12 +53,11 @@ describe('TrpcServer', () => {
     const http = new HttpServer(0, '127.0.0.1', '/nonexistent', oauthFlow, logger);
     trpc.start();
     http.routeUpgrades(TRPC_PATH, trpc);
-    await http.start();
+    const port = await http.start();
     stop = async () => {
       await trpc.stop();
       await http.stop();
     };
-    const { port } = http.getServer().address() as AddressInfo;
     return { manager, base: `ws://127.0.0.1:${port}` };
   }
 

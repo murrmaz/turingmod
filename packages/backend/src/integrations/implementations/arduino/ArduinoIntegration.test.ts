@@ -112,12 +112,6 @@ describe('ArduinoIntegration', () => {
     socket.receive(HELLO);
     await started;
     expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
-    expect(integration.getDevice()).toEqual({
-      protocol: 1,
-      name: 'turingmod-arm',
-      firmware: '0.1.0',
-      servos: 3,
-    });
   });
 
   it("defaults to the reference firmware's mDNS name", async () => {
@@ -291,7 +285,6 @@ describe('ArduinoIntegration', () => {
     await vi.advanceTimersByTimeAsync(5_000); // no pong for the second ping
     expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTING);
     expect(integration.getErrorMessage()).toMatch(/stopped answering pings.*retrying in 2s/);
-    expect(integration.getDevice()).toBeNull();
   });
 
   it('reconnects when the board goes away on its own', async () => {

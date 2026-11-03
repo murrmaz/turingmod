@@ -2,7 +2,6 @@ import 'reflect-metadata';
 import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MirrorResult, StreamControlService } from '../../platforms/StreamControlService.js';
-import type { Logger } from '../../utils/Logger.js';
 import { commandContext, errorCodeOf } from '../testing.js';
 import { TitleCommand } from './TitleCommand.js';
 
@@ -10,18 +9,8 @@ const setTitle = vi.fn<(title: string) => Promise<MirrorResult>>();
 
 const streamControl = { setTitle } as unknown as StreamControlService;
 
-const logger = {
-  error: vi.fn(),
-  warn: vi.fn(),
-  info: vi.fn(),
-  debug: vi.fn(),
-  child: vi.fn(),
-} as unknown as Logger;
-(logger.child as ReturnType<typeof vi.fn>).mockReturnValue(logger);
-
 const contextFor = (...words: string[]) =>
   commandContext(['!title', ...words].join(' '), {
-    id: 'u1',
     platformUserId: '1',
     username: 'mod',
     permissionLevel: PermissionLevel.MODERATOR,
@@ -32,7 +21,7 @@ describe('TitleCommand', () => {
 
   beforeEach(() => {
     setTitle.mockReset();
-    command = new TitleCommand(streamControl, logger);
+    command = new TitleCommand(streamControl);
   });
 
   it('is moderator-only, so the executor gates it with no inner permission check', () => {

@@ -155,8 +155,8 @@ and their capability sets are built, and how to add a capability, is in
 **Commands never check authentication.** The façade decides, and only reports a problem once nothing
 can recover it automatically — an expired access token is refreshed transparently by the provider, so
 `NotAuthenticatedError` means a human must redo OAuth. Two paths handle it differently:
-`requireUserId()` throws `NotAuthenticatedError`, which `toCommandError()`
-(`commands/utils/commandErrors.ts`) maps to a `NOT_AUTHENTICATED` result; mirrored *writes* instead
+`requireUserId()` throws `NotAuthenticatedError`, which `CommandExecutor` maps, with
+`toCommandError()` (`commands/utils/commandErrors.ts`), to a `NOT_AUTHENTICATED` result; mirrored *writes* instead
 call `getUnavailableReason()` and log a warning, because a mirror replies in public chat where the
 broadcaster's token state doesn't belong.
 
@@ -267,7 +267,7 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
   returning a fresh object per call makes them rebuild on every access.
 - **Integration lifecycle** — `IntegrationManager` calls `initialize(config)` before `start()`: at load, and again only when the config is replaced. An integration with a config declares a Zod schema for it and parses it in `initialize()` with `parseConfig()`. Saving its own config (OAuth tokens) goes through `IntegrationStateRepository.saveConfig()`, which never changes `enabled`.
 - **New feature services** implement `IService` and get one `services.add(...)` line in `setup.ts`, placed by what they depend on at shutdown — never start or stop them anywhere else.
-- **New commands** go in `packages/backend/src/commands/implementations/` and implement `ICommand`. They're auto-discovered by `loadCommands()`.
+- **New commands** go in `packages/backend/src/commands/implementations/` and implement `ICommand`. They're auto-discovered by `loadCommands()`. A command that calls something outside itself doesn't catch the failure: it names what chat hears in `failureMessage` and lets the call throw, and `CommandExecutor` logs and reports it (lint rejects `toCommandError` in a command).
 - **New channel point reward handlers** go in `packages/backend/src/rewards/implementations/` and implement `IRewardHandler`, matched by exact `rewardTitle`. They're auto-discovered by `loadRewardHandlers()`.
 - **Behaviour lives in code, not the database.** Commands and reward handlers are TypeScript classes; a table may hold a feature's own data (a banned-word list, a counter), never its logic.
 - **Commands reach platforms through `StreamControlService`**, never through a platform's integrations directly, and never check auth themselves (see Platform Provider Layer). An integration that isn't a platform (Spotify, sound) is used directly, through its `request()` or the feature class over it.

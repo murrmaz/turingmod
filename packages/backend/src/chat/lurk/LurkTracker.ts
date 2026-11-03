@@ -84,6 +84,14 @@ export class LurkTracker implements IService {
   }
 }
 
+/** The key of whoever ran a command. */
+export function lurkerKeyOf(context: {
+  platform: StreamingPlatform;
+  user: { platformUserId: string };
+}): LurkerKey {
+  return { platform: context.platform, platformUserId: context.user.platformUserId };
+}
+
 function keyOf(user: LurkerKey): string {
   return `${user.platform}:${user.platformUserId}`;
 }

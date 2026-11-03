@@ -60,8 +60,6 @@ export class ChatRouter implements IService {
 
     const context: CommandContext = {
       user: {
-        id: event.platformUserId,
-        platform: event.platform,
         platformUserId: event.platformUserId,
         username: event.username,
         permissionLevel: event.permissionLevel,

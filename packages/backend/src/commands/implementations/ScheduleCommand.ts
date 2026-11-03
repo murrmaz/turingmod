@@ -3,9 +3,7 @@ import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { formatScheduleDate } from '../../utils/FormatHelpers.js';
-import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
-import { toCommandError } from '../utils/commandErrors.js';
 import { ok } from '../utils/results.js';
 
 /**
@@ -21,34 +19,23 @@ export class ScheduleCommand implements ICommand {
   /** Per-viewer, to keep a Helix-backed read off the rate limit. The schedule changes rarely, and this is the largest payload of these reads. */
   readonly cooldown = 60;
   readonly requiredCapabilities = [PlatformCapability.SCHEDULE];
+  readonly failureMessage = 'Failed to retrieve stream schedule';
 
-  private logger: Logger;
-
-  constructor(
-    private streamControl: StreamControlService,
-    logger: Logger
-  ) {
-    this.logger = logger.child({ command: 'schedule' });
-  }
+  constructor(private streamControl: StreamControlService) {}
 
   async execute(context: CommandContext): Promise<CommandResult> {
-    try {
-      const segments = await this.streamControl.require(context.platform, 'schedule').getSchedule();
-      const nextSegment = segments[0];
+    const segments = await this.streamControl.require(context.platform, 'schedule').getSchedule();
+    const nextSegment = segments[0];
 
-      if (!nextSegment) {
-        return ok('No upcoming scheduled streams');
-      }
-
-      const formattedDate = formatScheduleDate(nextSegment.startDate);
-      const title = nextSegment.title ? ` - ${nextSegment.title}` : '';
-      const category = nextSegment.category ? ` (${nextSegment.category})` : '';
-
-      return ok(`Next stream: ${formattedDate}${title}${category}`);
-    } catch (error) {
-      this.logger.error('Error in schedule command', error);
-      return toCommandError(error, 'Failed to retrieve stream schedule');
+    if (!nextSegment) {
+      return ok('No upcoming scheduled streams');
     }
+
+    const formattedDate = formatScheduleDate(nextSegment.startDate);
+    const title = nextSegment.title ? ` - ${nextSegment.title}` : '';
+    const category = nextSegment.category ? ` (${nextSegment.category})` : '';
+
+    return ok(`Next stream: ${formattedDate}${title}${category}`);
   }
 }
 

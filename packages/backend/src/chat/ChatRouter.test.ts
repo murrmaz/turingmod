@@ -53,8 +53,6 @@ describe('ChatRouter', () => {
 
     expect(executor.execute).toHaveBeenCalledWith({
       user: {
-        id: 'viewer-id',
-        platform: StreamingPlatform.TWITCH,
         platformUserId: 'viewer-id',
         username: 'Viewer',
         permissionLevel: PermissionLevel.VIEWER,

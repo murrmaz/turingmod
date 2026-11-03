@@ -3,9 +3,7 @@ import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { formatElapsed } from '../../utils/FormatHelpers.js';
-import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
-import { toCommandError } from '../utils/commandErrors.js';
 import { ok } from '../utils/results.js';
 
 /**
@@ -21,32 +19,21 @@ export class AccountageCommand implements ICommand {
   /** Per-viewer, to keep a Helix-backed read off the rate limit. */
   readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.ACCOUNT_AGE];
+  readonly failureMessage = 'Failed to look up the account';
 
-  private logger: Logger;
-
-  constructor(
-    private streamControl: StreamControlService,
-    logger: Logger
-  ) {
-    this.logger = logger.child({ command: 'accountage' });
-  }
+  constructor(private streamControl: StreamControlService) {}
 
   async execute(context: CommandContext): Promise<CommandResult> {
     const { user } = context;
-    try {
-      const createdAt = await this.streamControl
-        .require(context.platform, 'accountAge')
-        .getAccountCreatedAt(user.platformUserId);
-      if (!createdAt) {
-        return ok(`@${user.username}, I couldn't find your account`);
-      }
-      return ok(
-        `@${user.username}, your account is ${formatElapsed(Date.now() - createdAt.getTime())} old`
-      );
-    } catch (error) {
-      this.logger.error('Error in accountage command', error);
-      return toCommandError(error, 'Failed to look up the account');
+    const createdAt = await this.streamControl
+      .require(context.platform, 'accountAge')
+      .getAccountCreatedAt(user.platformUserId);
+    if (!createdAt) {
+      return ok(`@${user.username}, I couldn't find your account`);
     }
+    return ok(
+      `@${user.username}, your account is ${formatElapsed(Date.now() - createdAt.getTime())} old`
+    );
   }
 }
 

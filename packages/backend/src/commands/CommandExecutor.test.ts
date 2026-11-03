@@ -1,8 +1,9 @@
 import 'reflect-metadata';
 import type { CommandResult, PlatformCapability } from '@turingmod/shared';
-import { PermissionLevel } from '@turingmod/shared';
+import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EventBus } from '../core/EventBus.js';
+import { InvalidStreamInfoError, NotAuthenticatedError } from '../platforms/errors.js';
 import type { Logger } from '../utils/Logger.js';
 import type { CommandAvailability } from './CommandAvailability.js';
 import { CommandExecutor } from './CommandExecutor.js';
@@ -36,8 +37,7 @@ const makeLogger = () => {
 
 const contextFor = (permissionLevel: PermissionLevel) =>
   commandContext('!game', {
-    id: `user-${permissionLevel}`,
-    platformUserId: '1',
+    platformUserId: `user-${permissionLevel}`,
     username: 'someone',
     permissionLevel,
   });
@@ -105,6 +105,79 @@ describe('CommandExecutor cooldowns', () => {
     expect(eventBus.emit).toHaveBeenLastCalledWith(
       'command.executed',
       expect.objectContaining({ errorCode: 'EXECUTION_ERROR', reason: 'Helix timed out' })
+    );
+  });
+
+  describe('a command that names what chat hears when it fails', () => {
+    beforeEach(() => {
+      command = { ...command, failureMessage: 'Failed to read the game' };
+    });
+
+    it('reports a failed call in those words, keeping the error out of chat', async () => {
+      vi.mocked(command.execute).mockRejectedValueOnce(new Error('Helix timed out'));
+
+      const result = await executor.execute(contextFor(PermissionLevel.VIEWER));
+
+      expect(result.message).toBe('Failed to read the game');
+      expect(eventBus.emit).toHaveBeenLastCalledWith(
+        'command.executed',
+        expect.objectContaining({ errorCode: 'API_ERROR', reason: 'Helix timed out' })
+      );
+    });
+
+    it('reports a lost authorization as that, saying how to fix it', async () => {
+      vi.mocked(command.execute).mockRejectedValueOnce(
+        new NotAuthenticatedError(StreamingPlatform.TWITCH, true, 'Authorization expired')
+      );
+
+      const result = await executor.execute(contextFor(PermissionLevel.VIEWER));
+
+      expect(result).toMatchObject({
+        message: 'Authorization expired',
+        error: { code: 'NOT_AUTHENTICATED', reason: 'Re-authorize the platform to continue' },
+      });
+    });
+
+    it('repeats a value the platform has no such thing as, which is written for the asker', async () => {
+      vi.mocked(command.execute).mockRejectedValueOnce(
+        new InvalidStreamInfoError('Game not found: Nope')
+      );
+
+      const result = await executor.execute(contextFor(PermissionLevel.VIEWER));
+
+      expect(result).toMatchObject({
+        message: 'Game not found: Nope',
+        error: { code: 'INVALID_INPUT' },
+      });
+    });
+  });
+
+  it('keeps one cooldown per viewer per platform', async () => {
+    const twitch = contextFor(PermissionLevel.VIEWER);
+    const youtube = { ...twitch, platform: StreamingPlatform.YOUTUBE };
+
+    await executor.execute(twitch);
+    const elsewhere = await executor.execute(youtube);
+
+    expect(elsewhere.success).toBe(true);
+  });
+
+  it("doesn't let one viewer's cooldown throttle another", async () => {
+    const first = contextFor(PermissionLevel.VIEWER);
+    const second = { ...first, user: { ...first.user, platformUserId: 'someone-else' } };
+
+    await executor.execute(first);
+    const result = await executor.execute(second);
+
+    expect(result.success).toBe(true);
+  });
+
+  it('records the platform user who ran it', async () => {
+    await executor.execute(contextFor(PermissionLevel.VIEWER));
+
+    expect(eventBus.emit).toHaveBeenLastCalledWith(
+      'command.executed',
+      expect.objectContaining({ userId: 'user-viewer' })
     );
   });
 

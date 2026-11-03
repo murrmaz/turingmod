@@ -5,6 +5,7 @@ import { EventBus } from '../core/EventBus.js';
 import { Logger } from '../utils/Logger.js';
 import { CommandAvailability } from './CommandAvailability.js';
 import type { CommandContext, ICommand } from './interfaces/ICommand.js';
+import { toCommandError } from './utils/commandErrors.js';
 
 /**
  * Cooldown tracker
@@ -74,7 +75,7 @@ export class CommandExecutor {
 
     // Check cooldown
     if (this.cooldownApplies(command, context)) {
-      const cooldownKey = `${user.id}:${commandName}`;
+      const cooldownKey = `${context.platform}:${user.platformUserId}:${commandName}`;
       const cooldownEntry = this.cooldowns.get(cooldownKey);
 
       if (cooldownEntry && cooldownEntry.expiresAt > Date.now()) {
@@ -94,7 +95,7 @@ export class CommandExecutor {
       // since retrying a failing call costs the same request.
       this.cleanupCooldowns();
       this.cooldowns.set(cooldownKey, {
-        userId: user.id,
+        userId: user.platformUserId,
         commandName,
         expiresAt: Date.now() + command.cooldown * 1000,
       });
@@ -118,7 +119,10 @@ export class CommandExecutor {
         user: user.username,
       });
 
-      const result = rejected('EXECUTION_ERROR', 'Command execution failed', messageOf(error));
+      const result =
+        command.failureMessage === undefined
+          ? rejected('EXECUTION_ERROR', 'Command execution failed', messageOf(error))
+          : toCommandError(error, command.failureMessage);
 
       await this.logExecution(commandName, context, result);
       return result;
@@ -137,7 +141,7 @@ export class CommandExecutor {
       const run = {
         command: commandName,
         username: context.user.username,
-        userId: context.user.id,
+        userId: context.user.platformUserId,
         platform: context.platform,
         args: context.args,
         message: result.message,

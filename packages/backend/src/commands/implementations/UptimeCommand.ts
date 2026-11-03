@@ -3,9 +3,7 @@ import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { formatDuration } from '../../utils/FormatHelpers.js';
-import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
-import { toCommandError } from '../utils/commandErrors.js';
 import { ok } from '../utils/results.js';
 
 /**
@@ -21,31 +19,20 @@ export class UptimeCommand implements ICommand {
   /** Per-viewer, to keep a Helix-backed read off the rate limit. A Helix call for a number nobody needs twice in half a minute. */
   readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.UPTIME];
+  readonly failureMessage = 'Failed to retrieve stream uptime';
 
-  private logger: Logger;
-
-  constructor(
-    private streamControl: StreamControlService,
-    logger: Logger
-  ) {
-    this.logger = logger.child({ command: 'uptime' });
-  }
+  constructor(private streamControl: StreamControlService) {}
 
   async execute(context: CommandContext): Promise<CommandResult> {
-    try {
-      const uptime = await this.streamControl.getUptime(context.platform);
+    const uptime = await this.streamControl.getUptime(context.platform);
 
-      if (uptime === null) {
-        return ok('Stream is offline');
-      }
-
-      const formattedUptime = formatDuration(uptime);
-
-      return ok(`Stream has been live for ${formattedUptime}`);
-    } catch (error) {
-      this.logger.error('Error in uptime command', error);
-      return toCommandError(error, 'Failed to retrieve stream uptime');
+    if (uptime === null) {
+      return ok('Stream is offline');
     }
+
+    const formattedUptime = formatDuration(uptime);
+
+    return ok(`Stream has been live for ${formattedUptime}`);
   }
 }
 

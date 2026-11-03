@@ -4,7 +4,8 @@ import { InvalidStreamInfoError, NotAuthenticatedError } from '../../platforms/e
 import { fail } from './results.js';
 
 /**
- * Map a thrown error into a failed CommandResult.
+ * Map what a command threw into a failed CommandResult. CommandExecutor calls this for a command
+ * with a `failureMessage`; commands themselves just let it throw.
  *
  * Commands don't check whether a platform is authenticated — the platform façade decides that
  * and raises NotAuthenticatedError only once no automatic recovery is left. This translates that

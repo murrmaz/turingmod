@@ -2,13 +2,11 @@ import 'reflect-metadata';
 import { PermissionLevel } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BreakService } from '../../breaks/BreakService.js';
-import { Logger } from '../../utils/Logger.js';
 import { commandContext } from '../testing.js';
 import { BreakCommand } from './BreakCommand.js';
 
 const context = (...words: string[]) =>
   commandContext(['!break', ...words].join(' '), {
-    id: 'mod-1',
     platformUserId: 'mod-1',
     username: 'a_mod',
     permissionLevel: PermissionLevel.MODERATOR,
@@ -26,10 +24,7 @@ describe('BreakCommand', () => {
       startBreak: vi.fn(() => Promise.resolve({ extended: false, endsAt: Date.now() + 300_000 })),
       endBreak: vi.fn(() => Promise.resolve(true)),
     };
-    command = new BreakCommand(
-      breakService as unknown as BreakService,
-      new Logger({ level: 'silent' })
-    );
+    command = new BreakCommand(breakService as unknown as BreakService);
   });
 
   it.each([

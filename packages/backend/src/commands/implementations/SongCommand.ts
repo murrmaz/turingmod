@@ -3,9 +3,7 @@ import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, type PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { SpotifyApiIntegration } from '../../integrations/implementations/spotify/SpotifyApiIntegration.js';
-import { Logger } from '../../utils/Logger.js';
 import type { CommandContext, ICommand } from '../interfaces/ICommand.js';
-import { toCommandError } from '../utils/commandErrors.js';
 import { ok } from '../utils/results.js';
 
 /**
@@ -23,27 +21,16 @@ export class SongCommand implements ICommand {
   readonly cooldown = 30;
   // Spotify is the streamer's, not a platform's, so this works wherever chat does.
   readonly requiredCapabilities: PlatformCapability[] = [];
+  readonly failureMessage = "Couldn't check Spotify right now";
 
-  private logger: Logger;
-
-  constructor(
-    private spotify: SpotifyApiIntegration,
-    logger: Logger
-  ) {
-    this.logger = logger.child({ command: 'song' });
-  }
+  constructor(private spotify: SpotifyApiIntegration) {}
 
   async execute(_context: CommandContext): Promise<CommandResult> {
-    try {
-      // Without 'episode', Spotify reports a playing podcast as nothing at all.
-      const playback: PlaybackState | null = await this.spotify.request((sdk) =>
-        sdk.player.getCurrentlyPlayingTrack(undefined, 'episode')
-      );
-      return ok(describePlayback(playback));
-    } catch (error) {
-      this.logger.error('Error in song command', error);
-      return toCommandError(error, "Couldn't check Spotify right now");
-    }
+    // Without 'episode', Spotify reports a playing podcast as nothing at all.
+    const playback: PlaybackState | null = await this.spotify.request((sdk) =>
+      sdk.player.getCurrentlyPlayingTrack(undefined, 'episode')
+    );
+    return ok(describePlayback(playback));
   }
 }
 

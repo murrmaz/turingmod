@@ -20,6 +20,7 @@ export default class FollowageCommand implements ICommand {
   readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.FOLLOW_INFO];
   readonly failureMessage = 'Failed to look up the follow date';
+  readonly usesPlatformUserId = true;
 
   constructor(private streamControl: StreamControlService) {}
 

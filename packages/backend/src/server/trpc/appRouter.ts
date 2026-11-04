@@ -10,6 +10,7 @@ import { SuggestionBox } from '../../features/suggestions/SuggestionBox.js';
 import { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
+import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 import { createActivityRouter } from './activityRouter.js';
 import { createCommandsRouter } from './commandsRouter.js';
@@ -40,6 +41,7 @@ export function createAppRouter(container: DependencyContainer) {
       container.resolve(CommandExecutor),
       container.resolve(CommandRegistry),
       container.resolve(CommandAvailability),
+      container.resolve(StreamControlService),
       container.resolve(Logger)
     ),
     data: createDataRouter(container.resolve(DataInspector)),

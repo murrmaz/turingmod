@@ -20,6 +20,7 @@ export const CAPABILITY_OF_API = {
   clips: PlatformCapability.CLIPS,
   followInfo: PlatformCapability.FOLLOW_INFO,
   accountAge: PlatformCapability.ACCOUNT_AGE,
+  userLookup: PlatformCapability.USER_LOOKUP,
   markers: PlatformCapability.MARKERS,
   vods: PlatformCapability.VODS,
   announcements: PlatformCapability.ANNOUNCEMENTS,

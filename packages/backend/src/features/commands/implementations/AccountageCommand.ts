@@ -20,6 +20,7 @@ export default class AccountageCommand implements ICommand {
   readonly cooldown = 30;
   readonly requiredCapabilities = [PlatformCapability.ACCOUNT_AGE];
   readonly failureMessage = 'Failed to look up the account';
+  readonly usesPlatformUserId = true;
 
   constructor(private streamControl: StreamControlService) {}
 

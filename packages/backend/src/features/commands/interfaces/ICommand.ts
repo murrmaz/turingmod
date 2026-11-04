@@ -56,6 +56,12 @@ export interface ICommand {
   readonly failureMessage?: string;
 
   /**
+   * Whether it gives the platform `user.platformUserId`. Chat always has a real id; the simulator
+   * has only a typed username, and looks up the real id for the commands that set this.
+   */
+  readonly usesPlatformUserId?: boolean;
+
+  /**
    * Execute the command. Let a failed call throw rather than catching it: the executor logs it and
    * reports it, including a lost authorization (see toCommandError()).
    * @param context - Execution context

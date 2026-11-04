@@ -36,6 +36,7 @@ export enum PlatformCapability {
   CONTENT_LABELS = 'content_labels', // Twitch only
   FOLLOW_INFO = 'follow_info', // Twitch only (follow age lookups)
   ACCOUNT_AGE = 'account_age', // Twitch only (when a viewer's account was created)
+  USER_LOOKUP = 'user_lookup', // Twitch only (a user's id from their login name)
   BROADCASTER_ABOUT = 'broadcaster_about', // Twitch only (channel bio/description lookups)
   SHOUTOUT = 'shoutout', // Twitch only (native /shoutout)
   CHANNEL_POINTS = 'channel_points', // Twitch only (custom rewards and their redemptions)

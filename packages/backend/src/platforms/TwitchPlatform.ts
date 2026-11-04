@@ -31,6 +31,7 @@ import type {
   ScheduleSegment,
   ShoutoutApi,
   StreamInfo,
+  UserLookupApi,
   VodsApi,
 } from './interfaces/IStreamPlatform.js';
 import { OwnChatMessages } from './OwnChatMessages.js';
@@ -292,10 +293,7 @@ export class TwitchPlatform implements IStreamPlatform {
   readonly shoutout: ShoutoutApi = {
     shoutout: async (channelName) => {
       const userId = this.requireUserId();
-      // A login is only letters, digits and underscores; Twitch needn't be asked about anything else.
-      const target = /^\w+$/.test(channelName)
-        ? await this.api.request((c) => c.users.getUserByName(channelName))
-        : null;
+      const target = await this.userByLogin(channelName);
       if (!target) {
         throw new InvalidStreamInfoError(`Twitch channel not found: ${channelName}`);
       }
@@ -407,6 +405,14 @@ export class TwitchPlatform implements IStreamPlatform {
     },
   };
 
+  readonly userLookup: UserLookupApi = {
+    findUserId: async (username) => {
+      this.requireUserId();
+      const user = await this.userByLogin(username);
+      return user?.id ?? null;
+    },
+  };
+
   readonly markers: MarkersApi = {
     createStreamMarker: async (description) => {
       const userId = this.requireUserId();
@@ -446,6 +452,11 @@ export class TwitchPlatform implements IStreamPlatform {
       );
     },
   };
+
+  /** A login is only letters, digits and underscores; Twitch needn't be asked about anything else. */
+  private async userByLogin(login: string) {
+    return /^\w+$/.test(login) ? await this.api.request((c) => c.users.getUserByName(login)) : null;
+  }
 
   /** The broadcaster's current stream, or null when offline. */
   private liveStream(userId: string) {

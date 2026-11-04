@@ -81,11 +81,11 @@ describe('GoLiveAnnouncer', () => {
     return eventBus.emit('platform.liveState', { ...state, cause: 'reported' });
   };
 
-  /** Let the timers run, then wait for the work they queued. */
-  const advance = async (ms: number) => {
-    await vi.advanceTimersByTimeAsync(ms);
-    await eventBus.emit('stream.info.changed', { platforms: [] });
-  };
+  /**
+   * Let the timers run. Between timers this yields to the real event loop, which finishes the work
+   * they queued, so nothing else needs to happen to bring a post up to date.
+   */
+  const advance = (ms: number) => vi.advanceTimersByTimeAsync(ms);
 
   const lastEdit = () => discord.editMessage.mock.calls.at(-1)?.[2];
 
@@ -303,11 +303,11 @@ describe('GoLiveAnnouncer', () => {
     it('measures a crashed stream up to the last heartbeat', async () => {
       await setLive(TWITCH, true);
       await advance(30 * MINUTE);
-      // A crash: no stop(), so nothing is recorded beyond the heartbeat. The old instance gets a
-      // bus of its own, so it plays no further part.
-      eventBus = new EventBus(new Logger({ level: 'silent' }));
-      announcer = createAnnouncer();
+      // Like a crash, nothing is recorded beyond the heartbeat: stop() records only while live.
       states.set(TWITCH, { platform: TWITCH, live: false, startedAt: null });
+      await announcer.stop();
+      vi.setSystemTime(Date.now() + 5 * MINUTE);
+      announcer = createAnnouncer();
       await announcer.start();
       await advance(GO_LIVE_GRACE_MS);
 
@@ -393,7 +393,7 @@ describe('GoLiveAnnouncer', () => {
     await setLive(TWITCH, true);
     expect(posts.get()).toBeNull();
 
-    await advance(MINUTE); // fails again on the heartbeat, then works
+    await advance(2 * MINUTE); // fails again on the first heartbeat, then works on the second
 
     expect(discord.postMessage).toHaveBeenCalledTimes(3);
     expect(posts.get()).not.toBeNull();
@@ -424,6 +424,111 @@ describe('GoLiveAnnouncer', () => {
 
     expect(discord.postMessage).toHaveBeenCalledTimes(2);
     expect(posts.get()).not.toBeNull();
+  });
+
+  describe('an edit that fails', () => {
+    const titleChanges = (title: string) => {
+      twitch.getStreamInfo.mockResolvedValue({ title, game: 'Celeste' });
+      return eventBus.emit('stream.info.changed', { platforms: [TWITCH] });
+    };
+
+    it('is retried on the next heartbeat, with nothing else happening', async () => {
+      await setLive(TWITCH, true);
+      discord.editMessage.mockRejectedValueOnce(new Error('Discord answered 503'));
+      await titleChanges('Any% attempts');
+      expect(discord.editMessage).toHaveBeenCalledTimes(1);
+
+      await advance(MINUTE);
+
+      expect(discord.editMessage).toHaveBeenCalledTimes(2);
+      expect(lastEdit()?.embeds[0]?.title).toBe('Any% attempts');
+    });
+
+    it('reports an outage once, however many heartbeats it lasts', async () => {
+      const reported = vi.fn();
+      eventBus.on('service.error', reported);
+      await setLive(TWITCH, true);
+      discord.editMessage.mockRejectedValue(new Error('Discord answered 503'));
+      await titleChanges('Any% attempts');
+
+      await advance(2 * MINUTE);
+
+      expect(discord.editMessage).toHaveBeenCalledTimes(3);
+      expect(reported).toHaveBeenCalledOnce();
+    });
+
+    it('reports a new outage after the post has caught up', async () => {
+      const reported = vi.fn();
+      eventBus.on('service.error', reported);
+      await setLive(TWITCH, true);
+      discord.editMessage.mockRejectedValueOnce(new Error('Discord answered 503'));
+      await titleChanges('Any% attempts');
+      await advance(MINUTE);
+
+      discord.editMessage.mockRejectedValueOnce(new Error('Discord answered 503'));
+      await titleChanges('Glitchless');
+
+      expect(reported).toHaveBeenCalledTimes(2);
+    });
+
+    it('is retried when it was the preview refresh that failed', async () => {
+      await setLive(TWITCH, true);
+      discord.editMessage.mockRejectedValueOnce(new Error('Discord answered 503'));
+
+      await advance(PREVIEW_REFRESH_MS + MINUTE);
+
+      expect(discord.editMessage).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('leaves the post alone on a heartbeat when nothing has changed', async () => {
+    await setLive(TWITCH, true);
+    await advance(PREVIEW_REFRESH_MS);
+    const edits = discord.editMessage.mock.calls.length;
+
+    await advance(10 * MINUTE);
+
+    expect(discord.editMessage).toHaveBeenCalledTimes(edits);
+    expect(twitch.getChannelPage).toHaveBeenCalledTimes(1);
+    expect(twitch.getStreamInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not take waking from a long sleep for a new stream', async () => {
+    await setLive(TWITCH, true);
+    // A platform that never said when its broadcast began is judged by the time alone.
+    states.set(TWITCH, { platform: TWITCH, live: true, startedAt: null });
+    vi.setSystemTime(Date.now() + 3 * GO_LIVE_GRACE_MS);
+
+    await advance(MINUTE);
+
+    expect(discord.postMessage).toHaveBeenCalledTimes(1);
+    expect(discord.editMessage.mock.calls.every(([, , m]) => !m.content.includes('was live'))).toBe(
+      true
+    );
+  });
+
+  describe('a title that could not be read', () => {
+    beforeEach(() => {
+      twitch.getStreamInfo.mockRejectedValueOnce(new Error('Twitch answered 503'));
+    });
+
+    it('is read again on the next heartbeat, and the post edited with it', async () => {
+      await setLive(TWITCH, true);
+      expect(discord.postMessage.mock.calls[0]?.[1].embeds[0]?.title).not.toBe('Speedruns');
+
+      await advance(MINUTE);
+
+      expect(lastEdit()?.embeds[0]?.title).toBe('Speedruns');
+      expect(posts.get()?.stream.title).toBe('Speedruns');
+    });
+
+    it('does not look the channel page up again', async () => {
+      await setLive(TWITCH, true);
+      await advance(MINUTE);
+
+      expect(twitch.getStreamInfo).toHaveBeenCalledTimes(2);
+      expect(twitch.getChannelPage).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('drops an unreadable stored post, says so, and still posts for the stream', async () => {

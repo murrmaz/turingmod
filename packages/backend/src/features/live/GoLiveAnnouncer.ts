@@ -59,9 +59,9 @@ interface PlatformDetails {
  * it up again rather than pinging everyone twice. Every minute while live it records that the
  * stream was still going: after a crash, that is when the stream was last seen.
  *
- * A post that couldn't be made (Discord not running yet, or down) is tried again when Discord
- * connects and on each heartbeat. A post someone deleted is left deleted for the rest of the
- * stream: posting it again would ping everyone again.
+ * A post that couldn't be made or edited (Discord not running yet, or down) is tried again when
+ * Discord connects and on each heartbeat. A post someone deleted is left deleted for the rest of
+ * the stream: posting it again would ping everyone again.
  */
 @singleton()
 export class GoLiveAnnouncer implements IService {
@@ -241,6 +241,8 @@ export class GoLiveAnnouncer implements IService {
         this.posts.save({ ...post, messageId: null });
         return;
       }
+      // What Discord shows is no longer known, so anything that syncs edits it again.
+      this.lastShown = null;
       throw error;
     }
     this.posts.save(updated);
@@ -255,13 +257,13 @@ export class GoLiveAnnouncer implements IService {
     }
   }
 
-  /** Each minute while live: record it, or retry a post that couldn't be made. */
+  /**
+   * Each minute while live: record it, then retry whatever hasn't reached Discord. Recorded first,
+   * so waking from a long sleep can't look like a new stream to `sync()`.
+   */
   private async tick(): Promise<void> {
-    if (this.storedPost()) {
-      this.recordStillLive();
-    } else {
-      await this.sync();
-    }
+    this.recordStillLive();
+    await this.sync();
   }
 
   private recordStillLive(): void {
@@ -419,14 +421,17 @@ export class GoLiveAnnouncer implements IService {
     };
   }
 
-  /** A live platform's page and stream info, looked up once and then remembered. */
+  /**
+   * A live platform's page and stream info, looked up once and then remembered. A title that
+   * couldn't be read is asked for again next time, while the post makes do without it.
+   */
   private async describe(platform: StreamingPlatform): Promise<PlatformDetails | null> {
     const known = this.details.get(platform);
-    if (known) {
+    if (known?.info) {
       return known;
     }
     try {
-      const page = await this.controls.getChannelPage(platform);
+      const page = known?.page ?? (await this.controls.getChannelPage(platform));
       const info = await this.controls.getStreamInfo(platform).catch((error: unknown) => {
         this.logger.warn('Could not read the stream title', { platform, error });
         return null;

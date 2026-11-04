@@ -137,12 +137,66 @@ describe('HttpServer static files', () => {
     expect(await get('/')).toEqual({ status: 200, body: '<p>console</p>' });
   });
 
+  it('serves the console for a client-side route, as an OAuth return URL is', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/integrations?selected=spotify-auth`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('text/html');
+    expect(await response.text()).toBe('<p>console</p>');
+  });
+
+  it('finds a file past its query string, with the type a browser requires of a script', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/app.js?v=1`);
+
+    expect(response.headers.get('content-type')).toBe('application/javascript');
+    expect(await response.text()).toBe('console.log(1);');
+  });
+
+  it("serves a folder's own index, or not found when it has none", async () => {
+    await mkdir(join(root, 'dist', 'with-index'));
+    await writeFile(join(root, 'dist', 'with-index', 'index.html'), '<p>inner</p>');
+    await mkdir(join(root, 'dist', 'without-index'));
+
+    expect(await get('/with-index')).toEqual({ status: 200, body: '<p>inner</p>' });
+    expect((await get('/without-index')).status).toBe(404);
+  });
+
+  it('says not found when the build has no index.html to fall back on', async () => {
+    await rm(join(root, 'dist', 'index.html'));
+
+    expect((await get('/integrations')).status).toBe(404);
+  });
+
+  it('answers the health check ahead of the static files', async () => {
+    const { status, body } = await get('/health');
+
+    expect(status).toBe(200);
+    expect(JSON.parse(body)).toMatchObject({ status: 'ok' });
+  });
+
   it('refuses a path into a sibling folder whose name starts with the same characters', async () => {
     expect((await get('/../dist-old/secret.txt')).status).toBe(403);
   });
 
   it('refuses a path out of the build', async () => {
     expect((await get('/../secret.txt')).status).toBe(403);
+  });
+});
+
+describe('HttpServer without a frontend build', () => {
+  it('says so, as in development, and still answers the health check', async () => {
+    const oauthFlow = { getCallbackRoutes: () => [] } as unknown as OAuthFlowService;
+    const server = new HttpServer(0, '127.0.0.1', '/nonexistent', oauthFlow, logger);
+    const port = await server.start();
+
+    try {
+      const page = await fetch(`http://127.0.0.1:${port}/integrations`);
+      expect(page.status).toBe(404);
+      expect(await page.text()).toContain('Frontend not built');
+      expect((await fetch(`http://127.0.0.1:${port}/health`)).status).toBe(200);
+    } finally {
+      await server.stop();
+    }
   });
 });
 

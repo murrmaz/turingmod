@@ -10,16 +10,18 @@ import { InvalidStreamInfoError } from '../../../platforms/errors.js';
 import type { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { fakeRequire } from '../../../platforms/testing.js';
 import { Logger } from '../../../utils/Logger.js';
+import type { ClipCollector } from '../../chat/clips/ClipCollector.js';
 import type { ChatModerator } from '../../chat/moderation/ChatModerator.js';
 import { raidShoutoutMessage } from '../../raids/RaidShoutout.js';
 import type { SoundLibrary } from '../../sounds/SoundLibrary.js';
 import { SuggestionBox } from '../../suggestions/SuggestionBox.js';
-import { commandContext, runCommand } from '../testing.js';
+import { commandContext, errorCodeOf, runCommand } from '../testing.js';
 import { AdCommand } from './AdCommand.js';
 import { BonkCommand } from './BonkCommand.js';
 import { ContentWarningCommand } from './ContentWarningCommand.js';
 import { DelvodCommand } from './DelvodCommand.js';
 import { DiedCommand } from './DiedCommand.js';
+import { EndcollectCommand } from './EndcollectCommand.js';
 import { FollowageCommand } from './FollowageCommand.js';
 import { QuietCommand } from './QuietCommand.js';
 import { RdeathsCommand } from './RdeathsCommand.js';
@@ -136,6 +138,94 @@ describe('reading with a trailing space', () => {
     await command.execute(commandContext('!cw ', moderator));
 
     expect(setContentLabels).not.toHaveBeenCalled();
+  });
+});
+
+describe('!tags', () => {
+  const moderator = { permissionLevel: PermissionLevel.MODERATOR };
+  const updatedOnTwitch = () =>
+    Promise.resolve({ updated: [StreamingPlatform.TWITCH], failures: [], skipped: [] });
+  const withSetTags = (setTags: () => unknown) =>
+    new TagsCommand({ setTags } as unknown as StreamControlService);
+
+  it('refuses a viewer changing them, without touching the platform', async () => {
+    const setTags = vi.fn();
+
+    const result = await withSetTags(setTags).execute(commandContext('!tags Speedrun'));
+
+    expect(errorCodeOf(result)).toBe('ACTION_NOT_PERMITTED');
+    expect(setTags).not.toHaveBeenCalled();
+  });
+
+  it('replaces them for a moderator, ignoring spaces and empty entries', async () => {
+    const setTags = vi.fn(updatedOnTwitch);
+
+    const result = await withSetTags(setTags).execute(
+      commandContext('!tags  Speedrun, English ,,Celeste', moderator)
+    );
+
+    expect(setTags).toHaveBeenCalledWith(['Speedrun', 'English', 'Celeste']);
+    expect(result.message).toBe('Tags updated on Twitch: [Speedrun, English, Celeste]');
+  });
+
+  it('passes on a tag the platform refuses, with the reason', async () => {
+    const reason = 'Tags can only contain letters and numbers';
+    const setTags = () =>
+      Promise.resolve({
+        updated: [],
+        failures: [{ platform: StreamingPlatform.TWITCH, error: reason, invalidValue: true }],
+        skipped: [],
+      });
+
+    const result = await withSetTags(setTags).execute(commandContext('!tags no spaces', moderator));
+
+    expect(errorCodeOf(result)).toBe('INVALID_INPUT');
+    expect(result.message).toBe(reason);
+  });
+
+  it('says when there are none to show', async () => {
+    const streamControl = {
+      getStreamInfo: () => Promise.resolve({ title: 't' }),
+    } as unknown as StreamControlService;
+
+    const result = await new TagsCommand(streamControl).execute(commandContext('!tags'));
+
+    expect(result.message).toBe('Tags: None');
+  });
+});
+
+describe('!endcollect', () => {
+  const moderator = { permissionLevel: PermissionLevel.MODERATOR };
+  const withEnd = (end: ClipCollector['end']) =>
+    new EndcollectCommand({ end } as unknown as ClipCollector);
+
+  it("says how many clips it wrote, keeping the path on the streamer's machine", async () => {
+    const command = withEnd(() => Promise.resolve({ path: '/home/pope/clips.html', count: 3 }));
+
+    const result = await command.execute(commandContext('!endcollect', moderator));
+
+    expect(result.message).toBe('All collected clips are written to file! (3)');
+    expect(result.message).not.toContain('/home/pope');
+  });
+
+  it('says when collection is not on', async () => {
+    const result = await withEnd(() => Promise.resolve(null)).execute(
+      commandContext('!endcollect', moderator)
+    );
+
+    expect(result.message).toBe('Clip collection is not on');
+  });
+
+  it('tells chat when the page could not be written', async () => {
+    const command = withEnd(() => Promise.reject(new Error('ENOSPC: no space left on device')));
+
+    const result = await runCommand(command, commandContext('!endcollect', moderator));
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { code: 'API_ERROR' },
+      message: 'Failed to write the collected clips',
+    });
   });
 });
 

@@ -535,6 +535,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
       return;
     }
     this.state = state;
+    this.logger.info('YouTube chat state changed', { state });
     this.eventBus.emitSync('youtube.chat.state', { state });
   }
 

@@ -13,6 +13,18 @@ function sourceFiles(): string[] {
 
 /** Reads the source, since setup.ts resolves through decorator metadata tests don't have. */
 describe('setup', () => {
+  it('reads every settings group at startup, so one that does not fit stops it there', () => {
+    const declared = sourceFiles().flatMap((source) =>
+      [...source.matchAll(/\bconst\s+(\w+)\s*:\s*SettingsDefinition</g)].map(([, name]) => name)
+    );
+    const listed = readFileSync(`${SRC}setup.ts`, 'utf8').match(
+      /ALL_SETTINGS\b[^=]*=\s*\[([^\]]*)\]/
+    );
+
+    expect(declared).toContain('BREAK_SETTINGS'); // the pattern still finds them
+    expect(listed?.[1]?.match(/\w+/g)?.sort()).toEqual(declared.sort());
+  });
+
   it('starts every class that implements IService, since nothing else would', () => {
     const declared = sourceFiles().flatMap((source) =>
       [...source.matchAll(/\bclass\s+(\w+)[^{]*?\bimplements\b[^{]*?\bIService\b/g)].map(

@@ -4,7 +4,8 @@ import { createContext, useContext, useMemo } from 'react';
 import { LiveLogProvider } from '@/context/live-log-context';
 import type { RouterOutputs } from '@/context/trpc-context';
 import { useServerQuery } from '@/hooks/useServerQuery';
-import { type SubscriptionStatus, useSubscription } from '@/hooks/useSubscription';
+import { useSubscription } from '@/hooks/useSubscription';
+import type { LoadStatus } from '@/lib/loadStatus';
 
 /** One row of `commands.list`, as the backend returns it. */
 export type CommandInfo = RouterOutputs['commands']['list'][number];
@@ -15,11 +16,18 @@ export interface IntegrationsContextValue {
   /** Show the integrations as a mutation left them, ahead of the subscription's copy. */
   showIntegrations: (integrations: IntegrationInfo[]) => void;
   /** Whether that list has arrived and is being kept current. */
-  status: SubscriptionStatus;
+  status: LoadStatus;
+}
+
+export interface CommandsContextValue {
+  /** Every command; read whenever the connection comes up, since they don't change while it's up. */
+  commands: CommandInfo[];
+  /** Whether that table has arrived. */
+  status: LoadStatus;
 }
 
 const IntegrationsContext = createContext<IntegrationsContextValue | null>(null);
-const CommandsContext = createContext<CommandInfo[] | null>(null);
+const CommandsContext = createContext<CommandsContextValue | null>(null);
 
 const NO_INTEGRATIONS: IntegrationInfo[] = [];
 const NO_COMMANDS: CommandInfo[] = [];
@@ -38,11 +46,12 @@ function IntegrationsProvider({ children }: { children: ReactNode }) {
 }
 
 function CommandsProvider({ children }: { children: ReactNode }) {
-  const { data: commands } = useServerQuery(
+  const { data: commands, status } = useServerQuery(
     (trpc, input, opts) => trpc.commands.list.query(input, opts),
-    { input: {}, initial: NO_COMMANDS, errorTitle: "Couldn't load commands" }
+    { input: {}, initial: NO_COMMANDS, errorTitle: "Couldn't load commands", retry: true }
   );
-  return <CommandsContext.Provider value={commands}>{children}</CommandsContext.Provider>;
+  const value = useMemo(() => ({ commands, status }), [commands, status]);
+  return <CommandsContext.Provider value={value}>{children}</CommandsContext.Provider>;
 }
 
 /**
@@ -69,7 +78,7 @@ export function useIntegrationState(): IntegrationsContextValue {
 }
 
 /** The command table; see AppStateProvider. */
-export function useCommandList(): CommandInfo[] {
+export function useCommandList(): CommandsContextValue {
   const context = useContext(CommandsContext);
   if (!context) {
     throw new Error('useCommandList must be used within AppStateProvider');

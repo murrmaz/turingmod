@@ -6,8 +6,8 @@ import { activityColumns } from '@/components/activity/activity-columns';
 import { EventSheet } from '@/components/activity/event-sheet';
 import { FeedCategoryTabs } from '@/components/activity/feed-category-tabs';
 import { DataTable } from '@/components/data-table/data-table';
+import { LoadFailure } from '@/components/load-failure';
 import { SearchInput } from '@/components/search-input';
-import { SubscriptionFailure } from '@/components/subscription-failure';
 import { Button } from '@/components/ui/button';
 import { links } from '@/constants/pages';
 import type { LiveFeedRow } from '@/context/live-log-context';
@@ -91,7 +91,7 @@ function LiveActivity() {
             {feed.paused ? 'Resume' : 'Pause'}
           </Button>
         </div>
-        <SubscriptionFailure status={feed.status} />
+        <LoadFailure status={feed.status} />
       </header>
 
       <div className="relative flex min-h-0 flex-1 flex-col border-t">

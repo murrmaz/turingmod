@@ -2,8 +2,9 @@ import type { ActivityLogEntry } from '@turingmod/shared';
 import type { ReactNode } from 'react';
 import { createContext, useContext, useMemo } from 'react';
 import type { RouterOutputs } from '@/context/trpc-context';
-import { type SubscriptionStatus, useSubscription } from '@/hooks/useSubscription';
+import { useSubscription } from '@/hooks/useSubscription';
 import { type FeedRow, toFeedRow } from '@/lib/activityFormat';
+import type { LoadStatus } from '@/lib/loadStatus';
 
 /**
  * How many rows the feed keeps of each kind. Apart, since chat arrives far faster than anything
@@ -26,7 +27,7 @@ export interface LiveFeedRow extends FeedRow {
 export interface LiveLog {
   /** Every row kept, latest received first. */
   rows: LiveFeedRow[];
-  status: SubscriptionStatus;
+  status: LoadStatus;
 }
 
 const LiveLogContext = createContext<LiveLog | null>(null);

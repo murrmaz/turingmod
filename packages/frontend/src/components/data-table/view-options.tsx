@@ -11,7 +11,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { ConsoleFeatures } from '@/lib/tableFeatures';
 
-/** Column visibility menu. Columns without a string header are left out of it. */
+/**
+ * Column visibility menu. A column goes by its `meta.label`, or its header if that's plain text, or
+ * else its id, which is right for the Data page, whose columns are named by theirs.
+ */
 export function DataTableViewOptions<TData extends RowData>({
   table,
   label = 'View',
@@ -39,7 +42,8 @@ export function DataTableViewOptions<TData extends RowData>({
               checked={column.getIsVisible()}
               onCheckedChange={(value) => column.toggleVisibility(value)}
             >
-              {typeof column.columnDef.header === 'string' ? column.columnDef.header : column.id}
+              {column.columnDef.meta?.label ??
+                (typeof column.columnDef.header === 'string' ? column.columnDef.header : column.id)}
             </DropdownMenuCheckboxItem>
           ))}
       </DropdownMenuContent>

@@ -67,11 +67,13 @@ export function describeEnabled(integration: IntegrationInfo): string {
  */
 export function orderByDependencies(integrations: IntegrationInfo[]): IntegrationInfo[] {
   const names = new Set(integrations.map((integration) => integration.name));
-  const depth = (integration: IntegrationInfo, seen = new Set<string>()): number => {
-    if (seen.has(integration.name)) {
+  // `path` is the chain followed to get here, only to stop at a cycle: a dependency reached twice by
+  // different chains must count both times, or a longer chain can be cut short.
+  const depth = (integration: IntegrationInfo, path: readonly string[] = []): number => {
+    if (path.includes(integration.name)) {
       return 0;
     }
-    seen.add(integration.name);
+    const next = [...path, integration.name];
     const deps = (integration.metadata?.dependencies ?? []).filter((dep) => names.has(dep));
     return deps.length === 0
       ? 0
@@ -79,7 +81,7 @@ export function orderByDependencies(integrations: IntegrationInfo[]): Integratio
           Math.max(
             ...deps.map((dep) => {
               const found = integrations.find((candidate) => candidate.name === dep);
-              return found ? depth(found, seen) : 0;
+              return found ? depth(found, next) : 0;
             })
           );
   };

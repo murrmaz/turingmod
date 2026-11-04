@@ -88,7 +88,8 @@ function TableInspector({ info }: { info: DataTableInfo }) {
         </Badge>
         <span className="ml-auto text-sm text-muted-foreground">
           {plural(total, 'row')}
-          {total !== info.rowCount && ` of ${info.rowCount.toLocaleString()}`}
+          {/* The table's size is as of when the list was read, so it can be behind the rows. */}
+          {inspected.filtered && ` of ${Math.max(total, info.rowCount).toLocaleString()}`}
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-2">

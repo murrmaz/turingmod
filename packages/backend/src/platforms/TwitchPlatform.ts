@@ -292,9 +292,12 @@ export class TwitchPlatform implements IStreamPlatform {
   readonly shoutout: ShoutoutApi = {
     shoutout: async (channelName) => {
       const userId = this.requireUserId();
-      const target = await this.api.request((c) => c.users.getUserByName(channelName));
+      // A login is only letters, digits and underscores; Twitch needn't be asked about anything else.
+      const target = /^\w+$/.test(channelName)
+        ? await this.api.request((c) => c.users.getUserByName(channelName))
+        : null;
       if (!target) {
-        throw new Error(`Twitch user not found: ${channelName}`);
+        throw new InvalidStreamInfoError(`Twitch channel not found: ${channelName}`);
       }
       const refused = this.shoutoutCooldowns.check(target.id);
       if (refused) {

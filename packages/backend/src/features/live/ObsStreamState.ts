@@ -1,7 +1,12 @@
 import { IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
-import { type IService, Subscriptions } from '../../core/ServiceLifecycle.js';
+import {
+  failureReporter,
+  type IService,
+  type ReportFailure,
+  Subscriptions,
+} from '../../core/ServiceLifecycle.js';
 import { ObsIntegration } from '../../integrations/implementations/obs/ObsIntegration.js';
 import { Logger } from '../../utils/Logger.js';
 
@@ -27,6 +32,7 @@ export class ObsStreamState implements IService {
   private subscriptions = new Subscriptions();
   private streaming = false;
   private logger: Logger;
+  private report: ReportFailure;
 
   constructor(
     private eventBus: EventBus,
@@ -34,6 +40,7 @@ export class ObsStreamState implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'ObsStreamState' });
+    this.report = failureReporter(eventBus, this.logger, 'OBS stream state');
   }
 
   start(): void {
@@ -60,12 +67,23 @@ export class ObsStreamState implements IService {
     return this.streaming;
   }
 
-  /** Ask OBS directly, for a transition missed while it wasn't connected. */
+  /**
+   * Ask OBS directly, for a transition missed while it wasn't connected. If OBS has gone again by
+   * the time this fails there's nothing to tell: it's asked again when it reconnects.
+   */
   private async refresh(): Promise<void> {
     try {
       await this.update(await this.obs.isStreaming());
     } catch (error) {
-      this.logger.warn('Could not ask OBS whether it is streaming', { error });
+      if (this.obs.getStatus() === IntegrationStatus.CONNECTED) {
+        this.report(
+          'Could not ask OBS whether it is streaming, so YouTube chat may not connect by itself. ' +
+            'If you are live, connect it from the console.',
+          error
+        );
+      } else {
+        this.logger.debug('OBS went away before saying whether it is streaming', { error });
+      }
     }
   }
 

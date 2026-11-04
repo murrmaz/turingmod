@@ -6,7 +6,7 @@ import type { DatabaseManager } from '../../../database/DatabaseManager.js';
 import { COUNTERS, CounterRepository } from '../../../database/repositories/CounterRepository.js';
 import { SuggestionRepository } from '../../../database/repositories/SuggestionRepository.js';
 import { createTestDatabase } from '../../../database/repositories/testDatabase.js';
-import { InvalidStreamInfoError } from '../../../platforms/errors.js';
+import { InvalidStreamInfoError, NotAuthenticatedError } from '../../../platforms/errors.js';
 import type { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { fakeRequire } from '../../../platforms/testing.js';
 import { Logger } from '../../../utils/Logger.js';
@@ -84,27 +84,74 @@ describe('counter commands', () => {
 });
 
 describe('!so', () => {
-  it('posts the shoutout message even when the native shoutout fails', async () => {
-    const shoutout = vi.fn(() => Promise.reject(new Error('not live')));
-    const command = new SoCommand(fakeStreamControl({ shoutout: { shoutout } }), logger);
+  const moderator = { permissionLevel: PermissionLevel.MODERATOR };
+  const eventBus = new EventBus(logger);
+  const soCommand = (shoutout: () => Promise<{ sent: boolean }>) =>
+    new SoCommand(eventBus, fakeStreamControl({ shoutout: { shoutout } }), logger);
 
-    const result = await command.execute(commandContext('!so @coolraider'));
+  it('posts the shoutout message when the native one fails, and tells the streamer', async () => {
+    const reported = vi.fn();
+    const unsubscribe = eventBus.on('service.error', reported);
+    const shoutout = vi.fn(() => Promise.reject(new Error('not live')));
+
+    const result = await soCommand(shoutout).execute(commandContext('!so @coolraider'));
+    unsubscribe();
 
     expect(shoutout).toHaveBeenCalledWith('coolraider');
     expect(result.message).toBe(raidShoutoutMessage('coolraider'));
+    expect(reported).toHaveBeenCalledWith({
+      service: 'Shoutouts',
+      message: expect.stringMatching(/native shoutout for coolraider.*not live/),
+    });
+  });
+
+  it('only logs a shoutout Twitch declines for its rate limit', async () => {
+    const reported = vi.fn();
+    const unsubscribe = eventBus.on('service.error', reported);
+
+    const result = await soCommand(() => Promise.resolve({ sent: false })).execute(
+      commandContext('!so coolraider')
+    );
+    unsubscribe();
+
+    expect(result.message).toBe(raidShoutoutMessage('coolraider'));
+    expect(reported).not.toHaveBeenCalled();
+  });
+
+  it('tells chat a channel does not exist, rather than sending people to it', async () => {
+    const command = soCommand(() =>
+      Promise.reject(new InvalidStreamInfoError('Twitch channel not found: nobody'))
+    );
+
+    const result = await runCommand(command, commandContext('!so nobody', moderator));
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { code: 'INVALID_INPUT' },
+      message: 'Twitch channel not found: nobody',
+    });
+  });
+
+  it('reports a lapsed login as that, with no message for chat to follow', async () => {
+    const command = soCommand(() =>
+      Promise.reject(new NotAuthenticatedError(StreamingPlatform.TWITCH, true, 'Log in again'))
+    );
+
+    const result = await runCommand(command, commandContext('!so coolraider', moderator));
+
+    expect(errorCodeOf(result)).toBe('NOT_AUTHENTICATED');
   });
 
   it('asks for a channel', async () => {
-    const command = new SoCommand({} as StreamControlService, logger);
+    const command = new SoCommand(eventBus, {} as StreamControlService, logger);
 
     expect((await command.execute(commandContext('!so'))).message).toBe('Usage: !so <channel>');
   });
 
   it('finds the channel past extra spaces', async () => {
     const shoutout = vi.fn(() => Promise.resolve({ sent: true }));
-    const command = new SoCommand(fakeStreamControl({ shoutout: { shoutout } }), logger);
 
-    await command.execute(commandContext('!so  @coolraider'));
+    await soCommand(shoutout).execute(commandContext('!so  @coolraider'));
 
     expect(shoutout).toHaveBeenCalledWith('coolraider');
   });

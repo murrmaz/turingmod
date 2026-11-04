@@ -10,7 +10,12 @@ const logger = new Logger({ level: 'silent' });
 
 describe('ObsStreamState', () => {
   let eventBus: EventBus;
-  let obs: { name: string; isStreaming: ReturnType<typeof vi.fn<() => Promise<boolean>>> };
+  let obs: {
+    name: string;
+    status: IntegrationStatus;
+    getStatus: () => IntegrationStatus;
+    isStreaming: ReturnType<typeof vi.fn<() => Promise<boolean>>>;
+  };
   let state: ObsStreamState;
   let published: boolean[];
 
@@ -21,7 +26,12 @@ describe('ObsStreamState', () => {
 
   beforeEach(() => {
     eventBus = new EventBus(logger);
-    obs = { name: 'obs', isStreaming: vi.fn(() => Promise.resolve(false)) };
+    obs = {
+      name: 'obs',
+      status: IntegrationStatus.CONNECTED,
+      getStatus: () => obs.status,
+      isStreaming: vi.fn(() => Promise.resolve(false)),
+    };
     state = new ObsStreamState(eventBus, obs as unknown as ObsIntegration, logger);
     state.start();
     published = [];
@@ -103,5 +113,31 @@ describe('ObsStreamState', () => {
     await outputState('OBS_WEBSOCKET_OUTPUT_STARTED');
 
     expect(state.isStreaming()).toBe(false);
+  });
+
+  it('tells the streamer when connected OBS cannot say whether it is streaming', async () => {
+    const reported = vi.fn();
+    eventBus.on('service.error', reported);
+    obs.isStreaming.mockRejectedValue(new Error('OBS answered 500'));
+
+    await obsConnected();
+
+    expect(reported).toHaveBeenCalledWith({
+      service: 'OBS stream state',
+      message: expect.stringMatching(/YouTube chat may not connect.*OBS answered 500/),
+    });
+  });
+
+  it("stays quiet when OBS went away while being asked, since it's asked again on connecting", async () => {
+    const reported = vi.fn();
+    eventBus.on('service.error', reported);
+    obs.isStreaming.mockImplementation(() => {
+      obs.status = IntegrationStatus.CONNECTING;
+      return Promise.reject(new Error('Not connected'));
+    });
+
+    await obsConnected();
+
+    expect(reported).not.toHaveBeenCalled();
   });
 });

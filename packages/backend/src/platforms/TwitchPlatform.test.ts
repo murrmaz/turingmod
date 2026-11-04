@@ -507,10 +507,18 @@ describe('TwitchPlatform', () => {
     const { platform, twitch } = setup();
     twitch.users.getUserByName.mockResolvedValue(null);
 
-    await expect(platform.shoutout.shoutout('nobody')).rejects.toThrow(
-      'Twitch user not found: nobody'
-    );
+    const failed = platform.shoutout.shoutout('nobody');
+
+    await expect(failed).rejects.toThrow(InvalidStreamInfoError);
+    await expect(failed).rejects.toThrow('Twitch channel not found: nobody');
     expect(twitch.chat.shoutoutUser).not.toHaveBeenCalled();
+  });
+
+  it('fails a shoutout for a name that cannot be a login, without asking Twitch', async () => {
+    const { platform, twitch } = setup();
+
+    await expect(platform.shoutout.shoutout('not/a/login')).rejects.toThrow(InvalidStreamInfoError);
+    expect(twitch.users.getUserByName).not.toHaveBeenCalled();
   });
 
   describe('channel points', () => {

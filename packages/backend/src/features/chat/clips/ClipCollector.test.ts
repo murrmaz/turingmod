@@ -122,6 +122,31 @@ describe('ClipCollector', () => {
     expect(await readFile(result.path, 'utf8')).toContain('Clip &lt;First&gt;');
   });
 
+  it('tells the streamer once when clips cannot be looked up, and again after it recovers', async () => {
+    const reported = vi.fn();
+    eventBus.on('service.error', reported);
+    collector.begin();
+    getClip.mockRejectedValueOnce(new Error('Twitch answered 503'));
+    getClip.mockRejectedValueOnce(new Error('Twitch answered 503'));
+
+    await eventBus.emit('chat.message', chatMessage('https://clips.twitch.tv/First'));
+    await eventBus.emit('chat.message', chatMessage('https://clips.twitch.tv/Second'));
+    expect(reported).toHaveBeenCalledOnce();
+    expect(reported).toHaveBeenCalledWith({
+      service: 'Clip collection',
+      message: expect.stringMatching(/clip First.*Twitch answered 503/),
+    });
+
+    await eventBus.emit('chat.message', chatMessage('https://clips.twitch.tv/First'));
+    getClip.mockRejectedValueOnce(new Error('Twitch answered 503'));
+    await eventBus.emit('chat.message', chatMessage('https://clips.twitch.tv/Third'));
+    expect(reported).toHaveBeenCalledTimes(2);
+
+    const result = await collector.end();
+    if (result) written.push(result.path);
+    expect(result?.count).toBe(1); // linked again, so First is kept
+  });
+
   it('only collects from Twitch chat', async () => {
     collector.begin();
 

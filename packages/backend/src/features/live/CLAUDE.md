@@ -8,7 +8,7 @@ subscription is per channel and it announces going live itself (`twitch.stream.o
 signal is split in two so a future per-broadcast platform reuses it. `ObsStreamState` knows
 whether OBS is streaming and publishes `stream.output.changed`, with no knowledge of platforms; it
 asks OBS directly whenever OBS connects, since a transition missed while disconnected (TuringMod
-starting mid-stream) produces no event. Each platform that needs it reacts in its own service:
+starting mid-stream) produces no event, and tells the streamer if connected OBS can't answer. Each platform that needs it reacts in its own service:
 `YouTubeChatAutoConnect` connects chat on that event, and also when YouTube chat itself comes up
 while OBS is already streaming (after a restart, or a login recovering mid-stream). OBS streaming
 doesn't mean every platform is live, so a platform treats the signal as a reason to look for its
@@ -23,6 +23,8 @@ YouTube chat went idle) is asked again after 1, 2, 4, 8, 16 and 32 minutes, unti
 or OBS starts sending. After that it's logged and left: it's what the platform reports, and a
 broadcast with auto-stop off really does stay live. Twitch is also asked each time EventSub's socket
 opens (`twitch.eventSub.ready`), since Twitch doesn't resend what it sent while the socket was down.
+A read that fails leaves the last state standing and is reported (`service.error`), once per platform
+per outage.
 
 **The Discord go-live post** (`GoLiveAnnouncer`) follows `platform.liveState`, not OBS: one post
 pinging `@everyone` when the first platform goes live, edited as other platforms join and leave

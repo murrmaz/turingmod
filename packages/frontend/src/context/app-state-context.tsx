@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { createContext, useContext, useMemo } from 'react';
 import type { RouterOutputs } from '@/context/trpc-context';
 import { useServerQuery } from '@/hooks/useServerQuery';
-import { useSubscription } from '@/hooks/useSubscription';
+import { type SubscriptionStatus, useSubscription } from '@/hooks/useSubscription';
 
 /** One row of `commands.list`, as the backend returns it. */
 export type CommandInfo = RouterOutputs['commands']['list'][number];
@@ -13,6 +13,8 @@ export interface IntegrationsContextValue {
   integrations: IntegrationInfo[];
   /** Show the integrations as a mutation left them, ahead of the subscription's copy. */
   showIntegrations: (integrations: IntegrationInfo[]) => void;
+  /** Whether that list has arrived and is being kept current. */
+  status: SubscriptionStatus;
 }
 
 const IntegrationsContext = createContext<IntegrationsContextValue | null>(null);
@@ -22,14 +24,14 @@ const NO_INTEGRATIONS: IntegrationInfo[] = [];
 const NO_COMMANDS: CommandInfo[] = [];
 
 function IntegrationsProvider({ children }: { children: ReactNode }) {
-  const [integrations, showIntegrations] = useSubscription(
+  const [integrations, showIntegrations, status] = useSubscription(
     (trpc, on) => trpc.integrations.watch.subscribe(undefined, on),
     NO_INTEGRATIONS,
     "Couldn't load integrations"
   );
   const value = useMemo(
-    () => ({ integrations, showIntegrations }),
-    [integrations, showIntegrations]
+    () => ({ integrations, showIntegrations, status }),
+    [integrations, showIntegrations, status]
   );
   return <IntegrationsContext.Provider value={value}>{children}</IntegrationsContext.Provider>;
 }

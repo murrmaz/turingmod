@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   type IntegrationInfo,
@@ -258,5 +258,19 @@ describe('Integrations page actions', () => {
     expect(screen.getByLabelText('Server password')).toHaveAccessibleDescription(
       /Leave empty only if authentication is off/
     );
+  });
+
+  it('says so when reading the integrations fails, and shows them once a retry does', async () => {
+    const watch = new FakeSubscription<IntegrationInfo[]>();
+    renderConsole(<IntegrationsPage />, { procedures: { integrations: { watch } } });
+
+    watch.fail(new Error('Database is locked'));
+    expect(screen.getByRole('alert')).toHaveTextContent('Database is locked');
+
+    await waitFor(() => expect(watch.subscriberCount).toBe(1), { timeout: 3000 });
+    watch.emit([integration(OBS)]);
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^obs/ })).toBeInTheDocument();
   });
 });

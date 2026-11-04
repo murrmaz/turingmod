@@ -7,6 +7,7 @@ import { EventSheet } from '@/components/activity/event-sheet';
 import { FeedCategoryTabs } from '@/components/activity/feed-category-tabs';
 import { DataTable } from '@/components/data-table/data-table';
 import { SearchInput } from '@/components/search-input';
+import { SubscriptionFailure } from '@/components/subscription-failure';
 import { Button } from '@/components/ui/button';
 import { links } from '@/constants/pages';
 import { useFocusShortcut } from '@/hooks/useFocusShortcut';
@@ -38,7 +39,7 @@ export function DashboardPage() {
 function LiveActivity() {
   const navigate = useNavigate();
   const feed = useLiveFeed();
-  const streamStart = streamStartedAt(usePlatformLiveState());
+  const streamStart = streamStartedAt(usePlatformLiveState().platforms);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'time', desc: true }]);
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -90,6 +91,7 @@ function LiveActivity() {
             {feed.paused ? 'Resume' : 'Pause'}
           </Button>
         </div>
+        <SubscriptionFailure status={feed.status} />
       </header>
 
       <div className="relative flex min-h-0 flex-1 flex-col border-t">
@@ -107,7 +109,7 @@ function LiveActivity() {
           table={table}
           divider={dayDivider}
           virtualize
-          loading={feed.loading}
+          loading={feed.status.state !== 'live'}
           scrollRef={feed.scrollRef}
           onScroll={feed.onScroll}
           onRowClick={(row) => setSelectedId(row.id)}

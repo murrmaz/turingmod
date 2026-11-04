@@ -7,6 +7,7 @@ import { DataTablePagination } from '@/components/data-table/pagination';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { SearchInput } from '@/components/search-input';
+import { SubscriptionFailure } from '@/components/subscription-failure';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useClientTable } from '@/hooks/useClientTable';
@@ -16,7 +17,7 @@ import { formatDateTime } from '@/lib/time';
 import { type Suggestion, useSuggestions } from './useSuggestions';
 
 export function SuggestionsPage() {
-  const { suggestions, remove } = useSuggestions();
+  const { suggestions, status, remove } = useSuggestions();
 
   const columns = useMemo<ColumnDef<ConsoleFeatures, Suggestion>[]>(
     () => [
@@ -142,10 +143,12 @@ export function SuggestionsPage() {
           </>
         )}
       </div>
+      <SubscriptionFailure status={status} />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
         <DataTable
           table={table}
           rowHeight={45}
+          loading={status.state !== 'live'}
           onRowClick={(suggestion) => table.getRow(String(suggestion.id)).toggleSelected()}
           rowClassName={(suggestion) =>
             table.state.rowSelection[String(suggestion.id)] ? 'bg-muted hover:bg-muted' : undefined

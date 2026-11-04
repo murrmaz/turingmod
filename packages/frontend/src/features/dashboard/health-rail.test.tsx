@@ -117,4 +117,13 @@ describe('HealthRail', () => {
       '/integrations?selected=obs'
     );
   });
+
+  it('says so when reading the integrations fails, rather than showing none up', () => {
+    const watch = new FakeSubscription<IntegrationInfo[]>();
+    renderConsole(<HealthRail />, { procedures: { integrations: { watch } } });
+
+    watch.fail(new Error('Database is locked'));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Database is locked');
+  });
 });

@@ -22,6 +22,11 @@ export class FakeSubscription<T> {
     };
   };
 
+  /** How many are subscribed now, e.g. to see that one came back after a failure. */
+  get subscriberCount(): number {
+    return this.subscribers.size;
+  }
+
   /** Send a value to every subscriber, rendering what it changes. */
   emit(value: T): void {
     act(() => {
@@ -31,10 +36,15 @@ export class FakeSubscription<T> {
     });
   }
 
-  /** Fail the subscription, as a backend error or a lost stream does. */
+  /**
+   * Fail the subscription, as a backend error does, which ends it: nothing more reaches whoever
+   * was subscribed unless they subscribe again.
+   */
   fail(error: unknown): void {
+    const failed = [...this.subscribers];
+    this.subscribers.clear();
     act(() => {
-      for (const subscriber of this.subscribers) {
+      for (const subscriber of failed) {
         subscriber.onError(error);
       }
     });

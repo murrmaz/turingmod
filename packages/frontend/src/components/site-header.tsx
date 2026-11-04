@@ -25,7 +25,9 @@ import { cn } from '@/lib/utils';
 export function SiteHeader({ onOpenPalette }: { onOpenPalette: () => void }) {
   const { pathname } = useLocation();
   const title = pageAt(pathname)?.label ?? 'TuringMod';
-  const platforms = usePlatformLiveState();
+  const { platforms, status } = usePlatformLiveState();
+  const isConnected = useConnection().connectionState === 'connected';
+  const known = isConnected && status.state === 'live';
   const now = useNow();
   const stateOf = (platform: StreamingPlatform): PlatformLiveState =>
     platforms.find((state) => state.platform === platform) ?? {
@@ -50,20 +52,26 @@ export function SiteHeader({ onOpenPalette }: { onOpenPalette: () => void }) {
           <span className="flex-1 text-left font-normal">Search or run a command…</span>
           <kbd className="rounded border bg-muted px-1.5 font-mono text-caption">⌘K</kbd>
         </Button>
-        <PlatformBadge state={stateOf(StreamingPlatform.TWITCH)} now={now} />
-        <YouTubeBadge state={stateOf(StreamingPlatform.YOUTUBE)} now={now} />
+        <PlatformBadge state={stateOf(StreamingPlatform.TWITCH)} known={known} now={now} />
+        <YouTubeBadge state={stateOf(StreamingPlatform.YOUTUBE)} known={known} now={now} />
       </div>
     </header>
   );
 }
 
+interface BadgeProps {
+  state: PlatformLiveState;
+  /** False while the console is disconnected, or the live state hasn't arrived or has failed. */
+  known: boolean;
+  now: number;
+}
+
 /**
- * A platform's name and whether it's live. While the console is disconnected that isn't known, so
- * it says so rather than showing the last state with an uptime still counting.
+ * A platform's name and whether it's live. When that isn't known it says so, rather than calling
+ * the platform offline or showing the last state with an uptime still counting.
  */
-function BadgeBody({ state, now }: { state: PlatformLiveState; now: number }) {
-  const isConnected = useConnection().connectionState === 'connected';
-  if (!isConnected) {
+function BadgeBody({ state, known, now }: BadgeProps) {
+  if (!known) {
     return (
       <>
         <StatusDot tone="idle" />
@@ -89,10 +97,10 @@ function BadgeBody({ state, now }: { state: PlatformLiveState; now: number }) {
 const BADGE_CLASS =
   'inline-flex h-8 items-center gap-2 rounded-md border px-2.5 text-xs whitespace-nowrap';
 
-function PlatformBadge({ state, now }: { state: PlatformLiveState; now: number }) {
+function PlatformBadge(props: BadgeProps) {
   return (
     <div className={BADGE_CLASS}>
-      <BadgeBody state={state} now={now} />
+      <BadgeBody {...props} />
     </div>
   );
 }
@@ -113,26 +121,31 @@ const CHAT_STATE_TONE = {
  * YouTube's badge also holds the manual chat control: OBS connects chat on its own when it starts
  * streaming, and this is for when it isn't in the picture.
  */
-function YouTubeBadge({ state, now }: { state: PlatformLiveState; now: number }) {
+function YouTubeBadge(props: BadgeProps) {
   const chat = useYouTubeChat();
   const isConnected = useConnection().connectionState === 'connected';
+  const chatKnown = isConnected && chat.status.state === 'live';
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className={cn(BADGE_CLASS, 'hover:bg-accent')}>
-        <BadgeBody state={state} now={now} />
+        <BadgeBody {...props} />
         <ChevronDown className="size-3.5 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel className="flex items-center gap-2 font-normal text-muted-foreground">
           <StatusDot
-            tone={isConnected ? CHAT_STATE_TONE[chat.state] : 'idle'}
-            pulse={isConnected && chat.state === 'resolving'}
+            tone={chatKnown ? CHAT_STATE_TONE[chat.state] : 'idle'}
+            pulse={chatKnown && chat.state === 'resolving'}
           />
-          {isConnected ? CHAT_STATE_TEXT[chat.state] : 'Not connected to TuringMod'}
+          {chatKnown
+            ? CHAT_STATE_TEXT[chat.state]
+            : isConnected
+              ? 'Chat state unknown'
+              : 'Not connected to TuringMod'}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          disabled={!isConnected || chat.pending || chat.state !== 'idle'}
+          disabled={!chatKnown || chat.pending || chat.state !== 'idle'}
           onSelect={() =>
             void chat
               .goLive()
@@ -142,7 +155,7 @@ function YouTubeBadge({ state, now }: { state: PlatformLiveState; now: number })
           Connect chat
         </DropdownMenuItem>
         <DropdownMenuItem
-          disabled={!isConnected || chat.pending || chat.state === 'idle'}
+          disabled={!chatKnown || chat.pending || chat.state === 'idle'}
           onSelect={() =>
             void chat
               .goOffline()

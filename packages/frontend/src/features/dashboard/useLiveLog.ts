@@ -16,13 +16,7 @@ export interface LiveFeedRow extends FeedRow {
   receivedAt: number | null;
 }
 
-interface LiveLog {
-  rows: LiveFeedRow[];
-  /** Until the first seed arrives. */
-  loading: boolean;
-}
-
-const NOT_LOADED: LiveLog = { rows: [], loading: true };
+const NO_ROWS: LiveFeedRow[] = [];
 
 // Rows are numbered as they're made, inside state updates. React may run an update twice in
 // development, which skips numbers; only their order matters.
@@ -51,27 +45,23 @@ function withSeed(previous: LiveFeedRow[], entries: ActivityLogEntry[]): LiveFee
 }
 
 /** The feed after one event from `activity.feed`. */
-function applyFeedEvent(current: LiveLog, event: FeedEvent): LiveLog {
-  if (event.type === 'seed') {
-    return { rows: withSeed(current.rows, event.entries), loading: false };
-  }
-  return {
-    ...current,
-    rows: [toLiveRow(event.entry, true), ...current.rows].slice(0, MAX_ENTRIES),
-  };
+function applyFeedEvent(rows: LiveFeedRow[], event: FeedEvent): LiveFeedRow[] {
+  return event.type === 'seed'
+    ? withSeed(rows, event.entries)
+    : [toLiveRow(event.entry, true), ...rows].slice(0, MAX_ENTRIES);
 }
 
 /**
- * Live activity feed for the Dashboard, latest received first. Seeded on every subscribe, so on mount and
- * on every reconnect, from the stored activity log, then prepended to with each entry as it's made
+ * Live activity feed for the Dashboard, latest received first. Seeded on every subscribe, so on mount,
+ * on every reconnect and after a failure, from the stored activity log, then prepended to with each entry as it's made
  * (which, unlike the stored log, include chat).
  */
-export function useLiveLog(): LiveLog {
-  const [log] = useSubscription(
+export function useLiveLog() {
+  const [rows, , status] = useSubscription(
     (trpc, on) => trpc.activity.feed.subscribe(undefined, on),
-    NOT_LOADED,
+    NO_ROWS,
     "Couldn't load recent activity",
     applyFeedEvent
   );
-  return log;
+  return { rows, status };
 }

@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   type ActivityLogEntry,
@@ -221,5 +221,46 @@ describe('Live activity', () => {
     ]);
 
     expect(screen.getByText(/Newest first · 1 event this stream$/)).toBeInTheDocument();
+  });
+
+  describe('when the feed fails', () => {
+    function failed(stored: ActivityLogEntry[] = []) {
+      const feed = new FakeSubscription<FeedEvent>();
+      renderConsole(<DashboardPage />, {
+        procedures: {
+          activity: { feed },
+          liveState: { watch: new FakeSubscription<PlatformLiveState[]>() },
+        },
+      });
+      if (stored.length > 0) {
+        feed.emit({ type: 'seed', entries: stored });
+      }
+      feed.fail(new Error('Database is locked'));
+      return feed;
+    }
+
+    it('says so in place, rather than as if there were no activity', () => {
+      failed();
+
+      expect(screen.getByRole('alert')).toHaveTextContent('Database is locked');
+      expect(screen.queryByText(/No activity yet/)).not.toBeInTheDocument();
+    });
+
+    it('keeps showing the rows it has', () => {
+      failed([command('kept')]);
+
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(shownCommands()).toEqual(['!kept']);
+    });
+
+    it('clears once a retry delivers the log', async () => {
+      const feed = failed();
+
+      await waitFor(() => expect(feed.subscriberCount).toBe(1), { timeout: 3000 });
+      feed.emit({ type: 'seed', entries: [command('back')] });
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(shownCommands()).toEqual(['!back']);
+    });
   });
 });

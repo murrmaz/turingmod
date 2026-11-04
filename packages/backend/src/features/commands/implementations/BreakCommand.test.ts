@@ -3,7 +3,7 @@ import { PermissionLevel } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BreakService } from '../../breaks/BreakService.js';
 import { commandContext } from '../testing.js';
-import { BreakCommand } from './BreakCommand.js';
+import BreakCommand from './BreakCommand.js';
 
 const context = (...words: string[]) =>
   commandContext(['!break', ...words].join(' '), {

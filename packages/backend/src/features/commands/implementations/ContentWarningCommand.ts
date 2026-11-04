@@ -12,7 +12,7 @@ import { ok } from '../utils/results.js';
  * came from. Setting replaces the whole set; `!cw none` clears it.
  */
 @injectable()
-export class ContentWarningCommand implements ICommand {
+export default class ContentWarningCommand implements ICommand {
   readonly name = 'cw';
   readonly description = 'Show or set content classification labels';
   readonly usage = '!cw [label1,label2,... | none]';
@@ -61,5 +61,3 @@ export class ContentWarningCommand implements ICommand {
     return ok(`Content Labels: [${labels.join(', ')}]`);
   }
 }
-
-export default ContentWarningCommand;

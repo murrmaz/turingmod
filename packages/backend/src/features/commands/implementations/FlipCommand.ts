@@ -9,7 +9,7 @@ import { ok } from '../utils/results.js';
  * Flips a coin.
  */
 @injectable()
-export class FlipCommand implements ICommand {
+export default class FlipCommand implements ICommand {
   readonly name = 'flip';
   readonly description = 'Flip a coin';
   readonly usage = '!flip';
@@ -22,5 +22,3 @@ export class FlipCommand implements ICommand {
     return Promise.resolve(ok(`@${context.user.username}: ${side}`));
   }
 }
-
-export default FlipCommand;

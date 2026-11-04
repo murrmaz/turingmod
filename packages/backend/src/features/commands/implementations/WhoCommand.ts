@@ -10,7 +10,7 @@ import { ok } from '../utils/results.js';
  * Shows the broadcaster's bio/description on the platform the command came from.
  */
 @injectable()
-export class WhoCommand implements ICommand {
+export default class WhoCommand implements ICommand {
   readonly name = 'who';
   readonly description = 'Show the broadcaster bio/description';
   readonly usage = '!who';
@@ -34,5 +34,3 @@ export class WhoCommand implements ICommand {
     return ok(`About: ${description}`);
   }
 }
-
-export default WhoCommand;

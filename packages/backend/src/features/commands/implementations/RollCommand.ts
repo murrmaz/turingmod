@@ -24,7 +24,7 @@ export function parseRoll(input: string): { count: number; sides: number; minimu
  * is raised to, as in the original bot.
  */
 @injectable()
-export class RollCommand implements ICommand {
+export default class RollCommand implements ICommand {
   readonly name = 'roll';
   readonly description = 'Roll dice';
   readonly usage = '!roll [count]d<sides>[r<minimum>]';
@@ -70,5 +70,3 @@ export class RollCommand implements ICommand {
     );
   }
 }
-
-export default RollCommand;

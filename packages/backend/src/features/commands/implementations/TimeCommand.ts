@@ -23,7 +23,7 @@ export function streamerTime(now = new Date(), timeZone?: string): string {
  * The streamer's local time.
  */
 @injectable()
-export class TimeCommand implements ICommand {
+export default class TimeCommand implements ICommand {
   readonly name = 'time';
   readonly description = "Show the streamer's local time";
   readonly usage = '!time';
@@ -37,5 +37,3 @@ export class TimeCommand implements ICommand {
     );
   }
 }
-
-export default TimeCommand;

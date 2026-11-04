@@ -11,7 +11,7 @@ import { ok } from '../utils/results.js';
  * is on the streamer's machine, so it goes to the terminal's log, not chat.
  */
 @injectable()
-export class EndcollectCommand implements ICommand {
+export default class EndcollectCommand implements ICommand {
   readonly name = 'endcollect';
   readonly description = 'Stop collecting clip links and write them to file';
   readonly usage = '!endcollect';
@@ -30,5 +30,3 @@ export class EndcollectCommand implements ICommand {
     return ok(`All collected clips are written to file! (${result.count})`);
   }
 }
-
-export default EndcollectCommand;

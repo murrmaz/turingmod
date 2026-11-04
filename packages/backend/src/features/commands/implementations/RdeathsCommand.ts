@@ -10,7 +10,7 @@ import { ok } from '../utils/results.js';
  * Resets the death counter, e.g. for a new game.
  */
 @injectable()
-export class RdeathsCommand implements ICommand {
+export default class RdeathsCommand implements ICommand {
   readonly name = 'rdeaths';
   readonly description = 'Reset the death counter to zero';
   readonly usage = '!rdeaths';
@@ -25,5 +25,3 @@ export class RdeathsCommand implements ICommand {
     return Promise.resolve(ok(`@${context.user.username}: Death count reset back to zero`));
   }
 }
-
-export default RdeathsCommand;

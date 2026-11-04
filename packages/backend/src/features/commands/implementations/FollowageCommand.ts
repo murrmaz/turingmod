@@ -11,7 +11,7 @@ import { ok } from '../utils/results.js';
  * How long the asking viewer has followed the channel.
  */
 @injectable()
-export class FollowageCommand implements ICommand {
+export default class FollowageCommand implements ICommand {
   readonly name = 'followage';
   readonly description = 'Show how long you have followed the channel';
   readonly usage = '!followage';
@@ -40,5 +40,3 @@ export class FollowageCommand implements ICommand {
     );
   }
 }
-
-export default FollowageCommand;

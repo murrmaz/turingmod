@@ -20,7 +20,7 @@ import { fail, ok } from '../utils/results.js';
  * shoutouts, so one it declines for that is only logged.
  */
 @injectable()
-export class SoCommand implements ICommand {
+export default class SoCommand implements ICommand {
   readonly name = 'so';
   readonly description = 'Shout out another channel';
   readonly usage = '!so <channel>';
@@ -70,5 +70,3 @@ export class SoCommand implements ICommand {
     return ok(raidShoutoutMessage(channel));
   }
 }
-
-export default SoCommand;

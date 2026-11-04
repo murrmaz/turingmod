@@ -12,7 +12,7 @@ const MAX_SUGGESTION_LENGTH = 300;
  * Records a viewer's suggestion for the bot.
  */
 @injectable()
-export class SgCommand implements ICommand {
+export default class SgCommand implements ICommand {
   readonly name = 'sg';
   readonly description = 'Suggest something for the bot';
   readonly usage = '!sg <suggestion>';
@@ -49,5 +49,3 @@ export class SgCommand implements ICommand {
     return Promise.resolve(ok(`@${user}, your suggestion has been written down. Thank you!`));
   }
 }
-
-export default SgCommand;

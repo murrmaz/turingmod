@@ -10,7 +10,7 @@ import { ok } from '../utils/results.js';
  * Silences whatever sound is playing. Replies with nothing, as the original did.
  */
 @injectable()
-export class SkipCommand implements ICommand {
+export default class SkipCommand implements ICommand {
   readonly name = 'skip';
   readonly description = 'Stop any sound that is playing';
   readonly usage = '!skip';
@@ -25,5 +25,3 @@ export class SkipCommand implements ICommand {
     return Promise.resolve(ok(''));
   }
 }
-
-export default SkipCommand;

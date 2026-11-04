@@ -10,7 +10,7 @@ import { ok } from '../utils/results.js';
  * Ends a lurk, saying how long the viewer was gone. (Chatting again does the same.)
  */
 @injectable()
-export class UnlurkCommand implements ICommand {
+export default class UnlurkCommand implements ICommand {
   readonly name = 'unlurk';
   readonly description = 'Stop lurking';
   readonly usage = '!unlurk';
@@ -32,5 +32,3 @@ export class UnlurkCommand implements ICommand {
     );
   }
 }
-
-export default UnlurkCommand;

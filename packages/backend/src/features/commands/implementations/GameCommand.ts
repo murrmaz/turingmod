@@ -13,7 +13,7 @@ import { mirrorReply, ok } from '../utils/results.js';
  * lives inside TwitchPlatform.
  */
 @injectable()
-export class GameCommand implements ICommand {
+export default class GameCommand implements ICommand {
   readonly name = 'game';
   readonly description = 'Show or set the stream game/category';
   readonly usage = '!game [game name]';
@@ -57,5 +57,3 @@ export class GameCommand implements ICommand {
     return ok(`Current Game: ${info.game}`);
   }
 }
-
-export default GameCommand;

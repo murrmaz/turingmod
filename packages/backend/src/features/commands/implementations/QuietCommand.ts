@@ -10,7 +10,7 @@ import { ok } from '../utils/results.js';
  * Toggles quiet mode, in which messages @-mentioning the streamer are deleted.
  */
 @injectable()
-export class QuietCommand implements ICommand {
+export default class QuietCommand implements ICommand {
   readonly name = 'quiet';
   readonly description = 'Toggle quiet mode (no @-ing the streamer)';
   readonly usage = '!quiet';
@@ -34,5 +34,3 @@ export class QuietCommand implements ICommand {
     );
   }
 }
-
-export default QuietCommand;

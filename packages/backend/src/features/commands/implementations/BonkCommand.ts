@@ -11,10 +11,10 @@ export const BONK_REVOLT_CHANCE = 0.1;
 
 /**
  * !bonk command
- * Bonks a user (playful command for demonstration)
+ * Bonks a user, playing the bonk sound and keeping a running total for each.
  */
 @injectable()
-export class BonkCommand implements ICommand {
+export default class BonkCommand implements ICommand {
   readonly name = 'bonk';
   readonly description = 'Bonk a user (playful command)';
   readonly usage = '!bonk @username';
@@ -53,5 +53,3 @@ export class BonkCommand implements ICommand {
     return Promise.resolve(ok(message));
   }
 }
-
-export default BonkCommand;

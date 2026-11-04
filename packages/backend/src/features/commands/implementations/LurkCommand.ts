@@ -10,7 +10,7 @@ import { ok } from '../utils/results.js';
  * Marks the viewer as lurking, with an optional reason they'll be reminded of on their return.
  */
 @injectable()
-export class LurkCommand implements ICommand {
+export default class LurkCommand implements ICommand {
   readonly name = 'lurk';
   readonly description = 'Let chat know you are lurking';
   readonly usage = '!lurk [what you are off to do]';
@@ -32,5 +32,3 @@ export class LurkCommand implements ICommand {
     );
   }
 }
-
-export default LurkCommand;

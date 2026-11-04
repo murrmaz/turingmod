@@ -12,7 +12,7 @@ import { ok } from '../utils/results.js';
  * each warning, so they follow the snooze on their own.
  */
 @injectable()
-export class SnoozeCommand implements ICommand {
+export default class SnoozeCommand implements ICommand {
   readonly name = 'snooze';
   readonly description = 'Snooze the next ad break';
   readonly usage = '!snooze';
@@ -35,5 +35,3 @@ export class SnoozeCommand implements ICommand {
     return ok(`@${user}: Ads snoozed! There are ${result.snoozesLeft} left.${next}`);
   }
 }
-
-export default SnoozeCommand;

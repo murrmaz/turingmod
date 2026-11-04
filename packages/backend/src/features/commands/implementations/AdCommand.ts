@@ -11,7 +11,7 @@ import { ok } from '../utils/results.js';
  * Shows time until the next ad break on the platform the command came from.
  */
 @injectable()
-export class AdCommand implements ICommand {
+export default class AdCommand implements ICommand {
   readonly name = 'ad';
   readonly description = 'Show time until next ad break';
   readonly usage = '!ad';
@@ -43,5 +43,3 @@ export class AdCommand implements ICommand {
     return ok(`Next ad in ${formatCountdown(timeUntilAd)}`);
   }
 }
-
-export default AdCommand;

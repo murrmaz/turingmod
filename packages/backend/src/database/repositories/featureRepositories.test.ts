@@ -59,19 +59,86 @@ describe('CounterRepository', () => {
 });
 
 describe('IntervalMessageRepository', () => {
-  it('keeps the rotation in the order messages were added', () => {
+  const texts = (repo: IntervalMessageRepository) => repo.list().map((m) => m.message);
+  const idOf = (repo: IntervalMessageRepository, text: string) =>
+    repo.list().find((m) => m.message === text)?.id ?? 0;
+
+  it('lists messages in the order they were added, enabled and never posted', () => {
     const repo = new IntervalMessageRepository(db);
-    repo.add('socials', 'Follow on socials', 'mod');
-    repo.add('discord', 'Join the Discord', null);
+    repo.add('Follow on socials');
+    repo.add('Join the Discord');
 
-    expect(repo.add('socials', 'duplicate', null)).toBe(false);
-    expect(repo.update('socials', 'Follow everywhere')).toBe(true);
-    expect(repo.list()).toEqual([
-      { name: 'socials', message: 'Follow everywhere', createdBy: 'mod' },
-      { name: 'discord', message: 'Join the Discord', createdBy: null },
+    expect(repo.list()).toMatchObject([
+      { message: 'Follow on socials', enabled: true, lastPostedAt: null },
+      { message: 'Join the Discord', enabled: true, lastPostedAt: null },
     ]);
+  });
 
-    expect(repo.remove('socials')).toBe(true);
-    expect(repo.list().map((m) => m.name)).toEqual(['discord']);
+  it('changes a message by id, keeping its place', () => {
+    const repo = new IntervalMessageRepository(db);
+    repo.add('a');
+    repo.add('b');
+    const a = idOf(repo, 'a');
+
+    expect(repo.updateText(a, 'a2')).toBe(true);
+    expect(repo.setEnabled(a, false)).toBe(true);
+    expect(repo.markPosted(a, 1234)).toBe(true);
+
+    expect(repo.list()).toMatchObject([
+      { message: 'a2', enabled: false, lastPostedAt: 1234 },
+      { message: 'b', enabled: true },
+    ]);
+  });
+
+  it('reports a write to a message that is gone', () => {
+    const repo = new IntervalMessageRepository(db);
+
+    expect(repo.updateText(99, 'x')).toBe(false);
+    expect(repo.setEnabled(99, false)).toBe(false);
+    expect(repo.move(99, 'up')).toBe(false);
+    expect(repo.markPosted(99, 1)).toBe(false);
+    expect(repo.remove([99])).toBe(0);
+  });
+
+  it('moves a message past its neighbour, across gaps left by deleted ones', () => {
+    const repo = new IntervalMessageRepository(db);
+    for (const text of ['a', 'b', 'c']) repo.add(text);
+    repo.remove([idOf(repo, 'b')]);
+
+    expect(repo.move(idOf(repo, 'c'), 'up')).toBe(true);
+    expect(texts(repo)).toEqual(['c', 'a']);
+
+    expect(repo.move(idOf(repo, 'c'), 'down')).toBe(true);
+    expect(texts(repo)).toEqual(['a', 'c']);
+  });
+
+  it('leaves a message already at the end it is moved towards', () => {
+    const repo = new IntervalMessageRepository(db);
+    repo.add('a');
+    repo.add('b');
+
+    expect(repo.move(idOf(repo, 'a'), 'up')).toBe(true);
+    expect(repo.move(idOf(repo, 'b'), 'down')).toBe(true);
+
+    expect(texts(repo)).toEqual(['a', 'b']);
+  });
+
+  it('adds after the last message, even once earlier ones have moved or gone', () => {
+    const repo = new IntervalMessageRepository(db);
+    repo.add('a');
+    repo.add('b');
+    repo.move(idOf(repo, 'b'), 'up');
+    repo.remove([idOf(repo, 'a')]);
+    repo.add('c');
+
+    expect(texts(repo)).toEqual(['b', 'c']);
+  });
+
+  it('removes several messages, skipping ones already gone', () => {
+    const repo = new IntervalMessageRepository(db);
+    for (const text of ['a', 'b', 'c']) repo.add(text);
+
+    expect(repo.remove([idOf(repo, 'a'), idOf(repo, 'c'), 99])).toBe(2);
+    expect(texts(repo)).toEqual(['b']);
   });
 });

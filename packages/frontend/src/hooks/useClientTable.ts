@@ -16,13 +16,16 @@ export interface ClientTableOptions<Row extends RowData> {
   columns: ColumnDef<ConsoleFeatures, Row>[];
   getRowId: (row: Row) => string;
   initialSort: SortingState;
-  /** Whether a row matches the filter box; `needle` is what's typed, trimmed and lowercased. */
-  matches: (row: Row, needle: string) => boolean;
+  /**
+   * Whether a row matches the filter box; `needle` is what's typed, trimmed and lowercased. Leave
+   * it out for a table with no filter box.
+   */
+  matches?: (row: Row, needle: string) => boolean;
 }
 
 /**
  * A table whose rows are all in the console, sorted, filtered and paged here rather than on the
- * server: the Commands and Suggestions pages. A page reads and changes the sort, column filters and
+ * server: the Commands, Suggestions and Interval Messages pages. A page reads and changes the sort, column filters and
  * selection through `table`. `pagination` goes straight to DataTablePagination.
  *
  * Sorting or filtering differently goes back to the first page, but new rows don't: a list that
@@ -53,7 +56,8 @@ export function useClientTable<Row extends RowData>({
     onColumnFiltersChange: setColumnFilters,
     onPaginationChange: (updater) => setPageIndex(functionalUpdate(updater, pagination).pageIndex),
     autoResetPageIndex: false,
-    globalFilterFn: (row, _id, value: string) => matches(row.original, value.trim().toLowerCase()),
+    globalFilterFn: (row, _id, value: string) =>
+      matches?.(row.original, value.trim().toLowerCase()) ?? true,
   });
 
   const lastPage = Math.max(0, table.getPageCount() - 1);

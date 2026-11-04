@@ -1,3 +1,4 @@
+import { ANNOUNCEMENT_INTERVAL_MS } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import {
@@ -5,32 +6,28 @@ import {
   type RepeatingFailures,
   repeatingFailures,
 } from '../../../core/ServiceLifecycle.js';
-import { IntervalMessageRepository } from '../../../database/repositories/IntervalMessageRepository.js';
 import {
   reportAnnouncement,
   StreamControlService,
 } from '../../../platforms/StreamControlService.js';
 import { Logger } from '../../../utils/Logger.js';
-
-/** How often an interval message is posted, as in the original bot. */
-export const ANNOUNCEMENT_INTERVAL_MS = 30 * 60 * 1000;
+import { IntervalMessages, nextInRotation } from './IntervalMessages.js';
 
 /**
- * Posts the interval messages to chat one at a time, every half hour, cycling through them in
- * the order they were added — as highlighted announcements where the platform has them (Twitch),
- * as the original bot did. Messages go to every platform that's live; while none is, nothing
- * is posted and the rotation doesn't advance, so the next stream picks up where it left off.
+ * Posts the interval messages to chat one at a time, every half hour, cycling through the enabled
+ * ones in rotation order — as highlighted announcements where the platform has them (Twitch), as
+ * the original bot did. Messages go to every platform that's live; while none is, nothing is
+ * posted and the rotation doesn't advance, so the next stream picks up where it left off.
  */
 @singleton()
 export class IntervalAnnouncer implements IService {
   private timer: NodeJS.Timeout | null = null;
-  private next = 0;
   private logger: Logger;
   private failures: RepeatingFailures;
 
   constructor(
     eventBus: EventBus,
-    private messages: IntervalMessageRepository,
+    private messages: IntervalMessages,
     private streamControl: StreamControlService,
     logger: Logger
   ) {
@@ -51,22 +48,34 @@ export class IntervalAnnouncer implements IService {
   /** Post the next message in the rotation. Resolves true if it reached at least one platform. */
   async announceNext(): Promise<boolean> {
     try {
-      const messages = this.messages.list();
+      const entry = nextInRotation(this.messages.rotation().messages);
       this.failures.recovered('read');
-      const index = messages.length === 0 ? 0 : this.next % messages.length;
-      const entry = messages[index];
       if (!entry) return false;
 
-      const { message } = entry;
+      const { id, message } = entry;
       const result = await this.streamControl.announce(() => message, { highlight: true });
       reportAnnouncement(result, this.failures, 'an interval message');
       if (result.updated.length === 0) return false;
 
-      this.next = index + 1;
+      this.recordPosted(id);
       return true;
     } catch (error) {
       this.failures.failed('read', 'Could not post an interval message.', error);
       return false;
+    }
+  }
+
+  /** The message did go out, so failing to record that isn't a failure to post it. */
+  private recordPosted(id: number): void {
+    try {
+      this.messages.markPosted(id);
+      this.failures.recovered('record');
+    } catch (error) {
+      this.failures.failed(
+        'record',
+        'An interval message was posted but not recorded, so it may be posted again next time.',
+        error
+      );
     }
   }
 }

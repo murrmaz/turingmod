@@ -1,10 +1,4 @@
-/**
- * Leading characters stripped from outgoing chat: whitespace and invisible format characters
- * (zero-width spaces, joiners, tag characters), which chat services may drop on delivery, and
- * the `!` and `/` command prefixes. `.` is left alone: its legacy IRC commands don't run for
- * messages sent through the platform APIs, and stripping it would mangle a leading ellipsis.
- */
-const LEADING_COMMAND_PREFIX = /^[\s\p{Cf}!/]+/u;
+import { LEADING_COMMAND_PREFIX } from '@turingmod/shared';
 
 /** What ends a message cut to fit its platform's limit. */
 const CUT_OFF = '…';

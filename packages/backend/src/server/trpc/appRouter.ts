@@ -2,6 +2,7 @@ import type { DependencyContainer } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
 import { DataInspector } from '../../database/DataInspector.js';
 import { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
+import { IntervalMessages } from '../../features/chat/announcements/IntervalMessages.js';
 import { CommandAvailability } from '../../features/commands/CommandAvailability.js';
 import { CommandExecutor } from '../../features/commands/CommandExecutor.js';
 import { CommandRegistry } from '../../features/commands/CommandRegistry.js';
@@ -16,6 +17,7 @@ import { createActivityRouter } from './activityRouter.js';
 import { createCommandsRouter } from './commandsRouter.js';
 import { createDataRouter } from './dataRouter.js';
 import { createIntegrationsRouter } from './integrationsRouter.js';
+import { createIntervalMessagesRouter } from './intervalMessagesRouter.js';
 import { createLiveStateRouter } from './liveStateRouter.js';
 import { createOAuthRouter } from './oauthRouter.js';
 import { createSuggestionsRouter } from './suggestionsRouter.js';
@@ -56,6 +58,10 @@ export function createAppRouter(container: DependencyContainer) {
     ),
     suggestions: createSuggestionsRouter(
       container.resolve(SuggestionBox),
+      container.resolve(EventBus)
+    ),
+    intervalMessages: createIntervalMessagesRouter(
+      container.resolve(IntervalMessages),
       container.resolve(EventBus)
     ),
     youtubeChat: createYouTubeChatRouter(

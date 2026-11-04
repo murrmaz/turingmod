@@ -2,9 +2,9 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { DataCell, DataColumnInfo, DataTableInfo } from '@turingmod/shared';
 import { DataTableColumnHeader } from '@/components/data-table/column-header';
 import { DotBadge } from '@/components/status';
+import { activityEventTone } from '@/lib/activityFormat';
 import type { ConsoleFeatures } from '@/lib/tableFeatures';
 import { formatDateTime } from '@/lib/time';
-import { activityEventTone } from '@/lib/tone';
 import type { InspectedRow } from './useInspectedTable';
 
 /**

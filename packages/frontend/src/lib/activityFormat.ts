@@ -1,5 +1,5 @@
 import type { ActivityEventName, ActivityLogEntry } from '@turingmod/shared';
-import { StreamingPlatform } from '@turingmod/shared';
+import { ACTIVITY_EVENT_CATEGORIES, ActivityCategory, StreamingPlatform } from '@turingmod/shared';
 import { isBroken } from './integrationStatus';
 import { dayOf, formatDateTime, formatDay } from './time';
 
@@ -47,28 +47,65 @@ export const FEED_CATEGORY_LABELS: Record<FeedCategory, string> = {
 const STARTED_JUST_NOW_MS = 5 * 60_000;
 
 /**
- * The stored events in each category, for filtering the stored log by category on the server.
- * Chat isn't stored. Kept in step with `toFeedRow` by a test.
+ * Which category each event belongs to. The one place that says so: a row's category, History's tabs
+ * and the Data page's colours all come from here, and a new event is a compile error until it's
+ * listed.
+ */
+const EVENT_CATEGORIES: Record<ActivityEventName, FeedCategory> = {
+  'chat.message': 'chat',
+  'command.executed': 'command',
+  'twitch.channelPoint.redemption': 'reward',
+  'twitch.follow': 'viewer',
+  'twitch.subscribe': 'viewer',
+  'twitch.raid': 'viewer',
+  'twitch.cheer': 'viewer',
+  'platform.liveState': 'system',
+  'twitch.ad.break': 'system',
+  'stream.break.started': 'system',
+  'stream.break.ended': 'system',
+  'obs.scene.changed': 'system',
+  'obs.stream.stateChanged': 'system',
+  'obs.record.stateChanged': 'system',
+  'obs.sceneItem.stateChanged': 'system',
+  'arduino.message': 'system',
+  'integration.status': 'system',
+  'platform.availability': 'system',
+  'integration.error': 'system',
+  'service.error': 'system',
+};
+
+const ACTIVITY_EVENTS = Object.keys(EVENT_CATEGORIES) as ActivityEventName[];
+
+function eventsIn(category: FeedCategory): ActivityEventName[] {
+  return ACTIVITY_EVENTS.filter((event) => EVENT_CATEGORIES[event] === category);
+}
+
+/**
+ * The events in each category History can filter by, for reading the stored log on the server.
+ * Chat isn't stored, so it has no tab. Other live-only events are listed too, and just match nothing.
  */
 export const FEED_CATEGORY_EVENTS: Record<Exclude<FeedCategory, 'chat'>, ActivityEventName[]> = {
-  command: ['command.executed'],
-  reward: ['twitch.channelPoint.redemption'],
-  viewer: ['twitch.follow', 'twitch.subscribe', 'twitch.raid', 'twitch.cheer'],
-  system: [
-    'platform.liveState',
-    'twitch.ad.break',
-    'stream.break.started',
-    'stream.break.ended',
-    'obs.scene.changed',
-    'obs.stream.stateChanged',
-    'obs.record.stateChanged',
-    'obs.sceneItem.stateChanged',
-    'integration.status',
-    'platform.availability',
-    'integration.error',
-    'service.error',
-  ],
+  command: eventsIn('command'),
+  reward: eventsIn('reward'),
+  viewer: eventsIn('viewer'),
+  system: eventsIn('system'),
 };
+
+/**
+ * The colour of an event's name where the stored log shows it raw (the Data page), matching its
+ * rows in the feed: its category's, or red for an event that only ever reports a failure. A row
+ * can also turn red for what its payload says, which the name alone can't tell. Undefined for a
+ * value that's no recorded event.
+ */
+export function activityEventTone(value: string): FeedTone | undefined {
+  const event = ACTIVITY_EVENTS.find((candidate) => candidate === value);
+  if (event === undefined) {
+    return undefined;
+  }
+  return ACTIVITY_EVENT_CATEGORIES[event] === ActivityCategory.ERROR
+    ? 'error'
+    : EVENT_CATEGORIES[event];
+}
 
 function join(...parts: (string | null | false)[]): string {
   return parts.filter((part): part is string => Boolean(part)).join(' · ');
@@ -101,16 +138,16 @@ function deviceFields(data: Record<string, unknown>): string {
   );
 }
 
-type Described = Omit<FeedRow, 'id' | 'timestamp' | 'entry'>;
+type Described = Omit<FeedRow, 'id' | 'timestamp' | 'entry' | 'category'>;
 
 function system(label: string, title: string, detail = '', tone: FeedTone = 'system'): Described {
-  return { category: 'system', tone, label, title, detail, user: '', platform: null };
+  return { tone, label, title, detail, user: '', platform: null };
 }
 
 /**
- * How each recorded event reads. Every name in ACTIVITY_EVENT_CATEGORIES needs a case, which the
- * compiler enforces (the switch must return on every path), and checking `event` gives `data` the
- * fields of that event's payload.
+ * How each recorded event reads, its category aside. Every name in ACTIVITY_EVENT_CATEGORIES needs
+ * a case, which the compiler enforces (the switch must return on every path), and checking `event`
+ * gives `data` the fields of that event's payload.
  */
 function describe({ event, data, timestamp }: ActivityLogEntry): Described {
   const twitch = StreamingPlatform.TWITCH;
@@ -118,7 +155,6 @@ function describe({ event, data, timestamp }: ActivityLogEntry): Described {
   switch (event) {
     case 'chat.message':
       return {
-        category: 'chat',
         tone: 'chat',
         label: 'Chat',
         title: data.message,
@@ -129,7 +165,6 @@ function describe({ event, data, timestamp }: ActivityLogEntry): Described {
 
     case 'command.executed':
       return {
-        category: 'command',
         tone: data.success ? 'command' : 'error',
         label: 'Command',
         title: [`!${data.command}`, ...data.args].join(' '),
@@ -143,7 +178,6 @@ function describe({ event, data, timestamp }: ActivityLogEntry): Described {
 
     case 'twitch.channelPoint.redemption':
       return {
-        category: 'reward',
         tone: 'reward',
         label: 'Reward',
         title: data.rewardTitle,
@@ -154,7 +188,6 @@ function describe({ event, data, timestamp }: ActivityLogEntry): Described {
 
     case 'twitch.follow':
       return {
-        category: 'viewer',
         tone: 'viewer',
         label: 'Follow',
         title: 'Follow',
@@ -166,7 +199,6 @@ function describe({ event, data, timestamp }: ActivityLogEntry): Described {
     case 'twitch.subscribe': {
       const tier = Number(data.tier);
       return {
-        category: 'viewer',
         tone: 'viewer',
         label: 'Sub',
         title: data.isGift ? 'Gifted sub' : 'Subscription',
@@ -178,7 +210,6 @@ function describe({ event, data, timestamp }: ActivityLogEntry): Described {
 
     case 'twitch.raid':
       return {
-        category: 'viewer',
         tone: 'viewer',
         label: 'Raid',
         title: 'Raid',
@@ -189,7 +220,6 @@ function describe({ event, data, timestamp }: ActivityLogEntry): Described {
 
     case 'twitch.cheer':
       return {
-        category: 'viewer',
         tone: 'viewer',
         label: 'Cheer',
         title: `${data.bits.toLocaleString()} bits`,
@@ -279,6 +309,7 @@ export function toFeedRow(entry: ActivityLogEntry): FeedRow {
   return {
     id: entry.id,
     timestamp: entry.timestamp,
+    category: EVENT_CATEGORIES[entry.event],
     entry,
     ...describe(entry),
   };

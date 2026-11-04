@@ -1,7 +1,13 @@
-import { StreamingPlatform } from '@turingmod/shared';
+import { ACTIVITY_EVENT_NAMES, StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
 import { activityEntry as entry } from '@/testing/activity';
-import { dayDivider, FEED_CATEGORY_EVENTS, matchesFeedQuery, toFeedRow } from './activityFormat';
+import {
+  activityEventTone,
+  dayDivider,
+  FEED_CATEGORY_EVENTS,
+  matchesFeedQuery,
+  toFeedRow,
+} from './activityFormat';
 
 const command = (data: Record<string, unknown>) =>
   entry('command.executed', {
@@ -172,11 +178,33 @@ describe('day dividers', () => {
 });
 
 describe('FEED_CATEGORY_EVENTS', () => {
-  it('lists each event under the category toFeedRow gives it', () => {
+  it('lists every event under the category its rows have, but chat, which has no tab', () => {
+    const listed = Object.values(FEED_CATEGORY_EVENTS).flat();
+
+    expect([...listed, 'chat.message'].sort()).toEqual([...ACTIVITY_EVENT_NAMES].sort());
     for (const [category, events] of Object.entries(FEED_CATEGORY_EVENTS)) {
       for (const event of events) {
         expect(toFeedRow(entry(event)).category).toBe(category);
       }
     }
+  });
+});
+
+describe('activityEventTone', () => {
+  it('colours a name as the feed colours its rows, unless a row failed', () => {
+    for (const event of ACTIVITY_EVENT_NAMES) {
+      const row = toFeedRow(entry(event));
+      expect([row.tone, row.category]).toContain(activityEventTone(event));
+    }
+  });
+
+  it('gives a redemption its own colour, and an event reporting a failure red', () => {
+    expect(activityEventTone('twitch.channelPoint.redemption')).toBe('reward');
+    expect(activityEventTone('platform.liveState')).toBe('system');
+    expect(activityEventTone('integration.error')).toBe('error');
+  });
+
+  it('gives no colour to what is no recorded event', () => {
+    expect(activityEventTone('not.an.event')).toBeUndefined();
   });
 });

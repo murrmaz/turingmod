@@ -8,8 +8,9 @@ turns each into a checked `ActivityLogEntry`. Every entry reaches the live feed;
 by `ActivityLogRepository`.
 
 **A new event in the log** is an entry in `ActivityLogEntrySchema`, its category, a line in
-`TO_ACTIVITY_DATA` saying what it records, and a case in the console's `activityFormat.ts`; the
-compiler asks for the last three once the first exists. An `EventMap` payload that drifts from its
+`TO_ACTIVITY_DATA` saying what it records, and in the console's `activityFormat.ts` a line in
+`EVENT_CATEGORIES` and a case in `describe()`; the compiler asks for all of those once the first
+exists. An `EventMap` payload that drifts from its
 entry doesn't compile either. A field only `EventMap` has isn't recorded, since parsing the entry
 drops it.
 

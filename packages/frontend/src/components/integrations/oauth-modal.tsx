@@ -1,4 +1,4 @@
-import { messageOf } from '@turingmod/shared';
+import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import { CircleAlert, Info, Loader2, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useIntegrationState } from '@/context/app-state-context';
 import { useTrpc } from '@/context/trpc-context';
 import type { OAuthProviderConfig } from './oauth-providers';
 
@@ -46,8 +47,11 @@ function openPopup(url: string, name: string): Window | null {
  * An attempt asks the backend for the provider's authorization URL and opens it in a popup. The
  * provider redirects to the backend's own callback (whose URI the backend derives), where the
  * backend exchanges the code itself and announces how it went (`oauth.results`); this only waits
- * for that, subscribed before it asks for the URL so a result can't come first. The flow doesn't depend on this dialog: closing it, or the console, mid sign-in still
- * connects the integration.
+ * for that, subscribed before it asks for the URL so a result can't come first. The flow doesn't
+ * depend on this dialog: closing it, or the console, mid sign-in still connects the integration.
+ *
+ * A result is only announced once, so one sent while the connection was down is never heard. The
+ * integration connecting says the same, and that's state, which arrives on reconnecting.
  */
 export function OAuthModal({
   provider,
@@ -79,8 +83,30 @@ export function OAuthModal({
   // The latest callback, for the subscription below, which is made once per client.
   const succeed = useEffectEvent(() => onSuccess());
 
+  const status = useIntegrationState().integrations.find(
+    (integration) => integration.name === integrationName
+  )?.status;
+  // Connecting, not being connected: an API integration's Reconnect signs in through an auth
+  // integration that may already say it's connected, and that hasn't signed in yet. Nor is the list
+  // arriving a change.
+  const lastStatus = useRef(status);
+  useEffect(() => {
+    const previous = lastStatus.current;
+    lastStatus.current = status;
+    if (
+      status === IntegrationStatus.CONNECTED &&
+      previous !== undefined &&
+      previous !== IntegrationStatus.CONNECTED
+    ) {
+      closePopup();
+      succeed();
+    }
+  }, [status, closePopup]);
+
   // Declared before the effect that asks for the URL, so React subscribes first and the
-  // subscription goes out on the socket ahead of the request.
+  // subscription goes out on the socket ahead of the request. Per attempt, since a failure ends a
+  // subscription, and Try again has to hear how it goes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: attempt subscribes anew on Try again
   useEffect(() => {
     const subscription = trpc.oauth.results.subscribe(undefined, {
       onData: (result) => {
@@ -97,7 +123,11 @@ export function OAuthModal({
       onError: (error) => fail(messageOf(error)),
     });
     return () => subscription.unsubscribe();
-  }, [trpc, integrationName, fail, closePopup]);
+  }, [trpc, integrationName, fail, closePopup, attempt]);
+
+  // The client of the moment, without being a reason to start over: Retry now replaces it, and that
+  // mustn't close a popup someone is signing in through.
+  const askForUrl = useEffectEvent(() => trpc.oauth.authorizationUrl.mutate({ integrationName }));
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: attempt starts a new attempt on Try again
   useEffect(() => {
@@ -106,8 +136,7 @@ export function OAuthModal({
     setStep('loading');
     setErrorMessage('');
 
-    trpc.oauth.authorizationUrl
-      .mutate({ integrationName })
+    askForUrl()
       .then((authUrl) => {
         if (cancelled) {
           return;
@@ -147,7 +176,7 @@ export function OAuthModal({
       window.clearInterval(watcher);
       closePopup();
     };
-  }, [trpc, integrationName, popupWindowName, fail, closePopup, attempt]);
+  }, [popupWindowName, fail, closePopup, attempt]);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onDismiss()}>

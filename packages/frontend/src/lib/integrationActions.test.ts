@@ -1,6 +1,11 @@
 import { type IntegrationInfo, IntegrationName, IntegrationStatus } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
-import { apiIntegration, integration, oauthIntegration } from '@/testing/integrations';
+import {
+  apiIntegration,
+  integration,
+  oauthIntegration,
+  signedInIntegration,
+} from '@/testing/integrations';
 import { integrationActions, missingDependencies, repairAction } from './integrationActions';
 
 const { TWITCH_AUTH, TWITCH_API, TWITCH_EVENTSUB, SOUND } = IntegrationName;
@@ -29,6 +34,43 @@ describe('integrationActions', () => {
         'authorize Reconnect → twitch-auth',
         'stop Stop → twitch-auth',
       ]);
+    });
+
+    describe('with a sign-in saved', () => {
+      it('is started on it after being stopped, or signed in again', () => {
+        expect(offered(signedInIntegration(TWITCH_AUTH))).toEqual([
+          'start Start → twitch-auth',
+          'authorize Sign in again → twitch-auth',
+        ]);
+      });
+
+      it('is retried on it after failing, signed in again, or stopped', () => {
+        const auth = signedInIntegration(TWITCH_AUTH, { status: ERROR, enabled: true });
+
+        expect(offered(auth)).toEqual([
+          'start Retry → twitch-auth',
+          'authorize Sign in again → twitch-auth',
+          'stop Stop → twitch-auth',
+        ]);
+      });
+
+      it("offers the dashboard's one repair as the retry", () => {
+        const auth = signedInIntegration(TWITCH_AUTH, { status: ERROR, enabled: true });
+
+        expect(repairAction(auth, [auth])).toMatchObject({ kind: 'start', label: 'Retry' });
+      });
+
+      it('is left alone while it connects', () => {
+        const auth = signedInIntegration(TWITCH_AUTH, { status: CONNECTING, enabled: true });
+
+        expect(offered(auth)).toEqual(['stop Stop → twitch-auth']);
+      });
+
+      it('is reconnected, not retried, once its grant is lost', () => {
+        const auth = signedInIntegration(TWITCH_AUTH, { status: NEEDS_REAUTH, enabled: true });
+
+        expect(repairAction(auth, [auth])).toMatchObject({ kind: 'authorize', label: 'Reconnect' });
+      });
     });
 
     it('can only be stopped while signed in', () => {

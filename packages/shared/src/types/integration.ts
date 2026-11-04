@@ -89,6 +89,11 @@ export interface IntegrationInfo {
      * setup dialog rather than the provider's authorization page.
      */
     configured: boolean;
+    /**
+     * Whether a sign-in's tokens are saved, which needn't mean they still work. If they are,
+     * starting it connects with them; if not, connecting means signing in first.
+     */
+    authorized: boolean;
   };
 
   /**

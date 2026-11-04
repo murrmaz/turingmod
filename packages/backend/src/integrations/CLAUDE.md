@@ -135,6 +135,13 @@ messages are parsed with `z.object`/`z.looseObject` like a third party's respons
 
 ## OAuth
 
+**The console restarts an OAuth integration from its saved tokens.** `IntegrationInfo.oauth.authorized`
+(`isAuthorized()`) says a sign-in is saved, which needn't mean it still works: the console then
+offers Start or Retry, with Sign in again beside them, since only some providers report a dead grant
+as `NEEDS_REAUTH`. Without one it offers Authorize. Replacing the client credentials stays available
+in every state, and replaces the whole config, tokens included, so bad credentials never need the
+database edited.
+
 OAuth-capable integrations (`TwitchAuthIntegration`, `SpotifyAuthIntegration`, `YouTubeAuthIntegration`) extend `OAuthIntegration<TConfig>` (`integrations/OAuthIntegration.ts`), which implements `IOAuthIntegration` (`integrations/interfaces/IOAuthIntegration.ts`) and returns itself from the `get oauth()` getter (`null` on `BaseIntegration` by default). That getter is the single source of truth for OAuth capability — `OAuthFlowService` derives callback routing and the frontend's OAuth affordance from it instead of checking integration names.
 
 `OAuthIntegration` owns what doesn't vary by provider. A subclass declares `requiredScopes`, `callbackPath`, `redirectHost` and `configSchema`, and implements `getAuthorizationUrl()`, `exchangeCode()`, `hasTokens()` and `connect()` (build its client); the base's `start()` runs the shared checks first — no token yet stays DISCONNECTED, and a stored `grantedScopes` missing a required scope is NEEDS_REAUTH rather than a failure on the first call that needs it. Refresh is deliberately left to each subclass, because each SDK does it differently (Twurple refreshes proactively, the googleapis client on demand). **A failed refresh is NEEDS_REAUTH only when the provider refused it.** No network, a 5xx or a rate limit leaves the grant as good as it was: the integration stays CONNECTED, so the cascade doesn't stop chat, and the next call that needs a token tries again. Twurple refuses a user after any failed refresh until they're added again, so `TwitchAuthIntegration` adds them again on the same provider, and reports the failure (`reportFailure()`) so it still shows in the activity log. **Twurple's errors for token requests hold the client secret and refresh token**, in a URL it keeps in the message, the stack and a field of the error, so `redactTokenRequest()` cleans the error object itself wherever one enters (a refresh failure, `connect()`, and `TwitchApiIntegration.onRequestFailure()`, which covers app tokens). gaxios redacts its own for YouTube. Spotify's SDK can't be trusted

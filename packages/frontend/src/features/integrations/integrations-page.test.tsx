@@ -9,7 +9,12 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { links } from '@/constants/pages';
 import { deferred, FakeSubscription } from '@/testing/fakeTrpc';
-import { apiIntegration, integration, oauthIntegration } from '@/testing/integrations';
+import {
+  apiIntegration,
+  integration,
+  oauthIntegration,
+  signedInIntegration,
+} from '@/testing/integrations';
 import { renderConsole } from '@/testing/render-console';
 import { IntegrationsPage } from './integrations-page';
 
@@ -49,7 +54,7 @@ function setup(integrations: IntegrationInfo[], selected: IntegrationName) {
   return { user: userEvent.setup(), watch, start, stop, configure, authorizationUrl };
 }
 
-const ACTIONS = ['Authorize', 'Reconnect', 'Start', 'Retry', 'Stop', 'Set up'];
+const ACTIONS = ['Authorize', 'Reconnect', 'Sign in again', 'Start', 'Retry', 'Stop', 'Set up'];
 
 /** The detail panel's action buttons, in order. */
 function actions(): string[] {
@@ -272,5 +277,77 @@ describe('Integrations page actions', () => {
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^obs/ })).toBeInTheDocument();
+  });
+
+  it('restarts a stopped OAuth integration on its saved sign-in, opening no sign-in dialog', async () => {
+    const auth = signedInIntegration(TWITCH_AUTH);
+    const { user, start, authorizationUrl } = setup([auth], TWITCH_AUTH);
+
+    await user.click(action('Start'));
+
+    expect(start).toHaveBeenCalledWith({ integrationName: TWITCH_AUTH });
+    expect(authorizationUrl).not.toHaveBeenCalled();
+  });
+
+  it('signs in again on request, when starting on the saved sign-in is no help', async () => {
+    const auth = signedInIntegration(TWITCH_AUTH, { status: ERROR, enabled: true });
+    const { user, start, authorizationUrl } = setup([auth], TWITCH_AUTH);
+
+    await user.click(action('Sign in again'));
+
+    expect(authorizationUrl).toHaveBeenCalledWith({ integrationName: TWITCH_AUTH });
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  describe('replacing bad client credentials', () => {
+    it.each<[string, IntegrationInfo]>([
+      ['stopped', signedInIntegration(TWITCH_AUTH)],
+      ['failed', signedInIntegration(TWITCH_AUTH, { status: ERROR, enabled: true })],
+      [
+        'needing to sign in again',
+        signedInIntegration(TWITCH_AUTH, { status: NEEDS_REAUTH, enabled: true }),
+      ],
+      ['connected', signedInIntegration(TWITCH_AUTH, { status: CONNECTED, enabled: true })],
+      ['never signed in', oauthIntegration(TWITCH_AUTH)],
+    ])('can be done while %s', async (_state, auth) => {
+      const { user } = setup([auth], TWITCH_AUTH);
+
+      await user.click(action('Change'));
+
+      expect(screen.getByLabelText('Client Secret')).toBeInTheDocument();
+    });
+
+    it('saves them, then signs in with them', async () => {
+      const auth = signedInIntegration(TWITCH_AUTH, { status: ERROR, enabled: true });
+      const { user, configure, authorizationUrl } = setup([auth], TWITCH_AUTH);
+
+      await user.click(action('Change'));
+      await user.type(screen.getByLabelText('Client ID'), 'new-id');
+      await user.type(screen.getByLabelText('Client Secret'), 'new-secret');
+      await user.click(screen.getByRole('button', { name: 'Save & continue' }));
+
+      await waitFor(() =>
+        expect(configure).toHaveBeenCalledWith({
+          integrationName: TWITCH_AUTH,
+          config: { clientId: 'new-id', clientSecret: 'new-secret' },
+        })
+      );
+      await waitFor(() =>
+        expect(authorizationUrl).toHaveBeenCalledWith({ integrationName: TWITCH_AUTH })
+      );
+    });
+
+    it('asks for them when what was stored could not be read', async () => {
+      const auth = oauthIntegration(
+        TWITCH_AUTH,
+        { status: ERROR, errorMessage: 'clientSecret: Required' },
+        false
+      );
+      const { user } = setup([auth], TWITCH_AUTH);
+
+      await user.click(action('Authorize'));
+
+      expect(screen.getByLabelText('Client Secret')).toBeInTheDocument();
+    });
   });
 });

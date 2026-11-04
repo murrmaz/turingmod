@@ -614,6 +614,7 @@ export class IntegrationManager {
               callbackPath: integration.oauth.getCallbackPath(),
               redirectUri: integration.oauth.getRedirectUri(),
               configured: integration.oauth.isConfigured(),
+              authorized: integration.oauth.isAuthorized(),
             },
           }
         : {}),

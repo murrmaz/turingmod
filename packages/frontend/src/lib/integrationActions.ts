@@ -17,8 +17,8 @@ export interface IntegrationAction {
 
 /**
  * Everything the console offers for an integration, in order: what would get it running or fix
- * it (repairAction), then Stop. The Integrations page offers them all; the dashboard's Needs
- * attention card offers only the repair.
+ * it (repairAction), signing in again if that's starting it on saved tokens, then Stop. The
+ * Integrations page offers them all; the dashboard's Needs attention card offers only the repair.
  */
 export function integrationActions(
   integration: IntegrationInfo,
@@ -26,6 +26,11 @@ export function integrationActions(
 ): IntegrationAction[] {
   const repair = repairAction(integration, all);
   const actions = repair ? [repair] : [];
+  // Starting can't help if the saved tokens are what's wrong, and not every provider's failure says
+  // so, so there's always a way to get new ones.
+  if (repair?.kind === 'start' && integration.oauth) {
+    actions.push({ kind: 'authorize', label: 'Sign in again', target: integration });
+  }
   // Stop applies to anything running or waiting to run, such as one blocked on a dependency.
   if (integration.status === CONNECTED || integration.enabled) {
     actions.push({ kind: 'stop', label: 'Stop', target: integration });
@@ -34,24 +39,22 @@ export function integrationActions(
 }
 
 /**
- * What gets an integration running, or running again: signing in, for an OAuth integration;
- * signing in again through the auth integration it depends on, for an API integration that lost
- * its grant; otherwise starting it (Retry, after a failure). Null while it runs or waits on a
+ * What gets an integration running, or running again: signing in, for an OAuth integration with no
+ * tokens saved or whose grant is dead; signing in again through the auth integration it depends on,
+ * for an API integration that lost its grant; otherwise starting it (Retry, after a failure), which
+ * for an OAuth integration connects with its saved tokens. Null while it runs or waits on a
  * dependency, when only Stop applies.
  */
 export function repairAction(
   integration: IntegrationInfo,
   all: IntegrationInfo[]
 ): IntegrationAction | null {
-  const { status } = integration;
-  if (integration.oauth) {
-    return status === CONNECTED
-      ? null
-      : {
-          kind: 'authorize',
-          label: status === NEEDS_REAUTH ? 'Reconnect' : 'Authorize',
-          target: integration,
-        };
+  const { status, oauth } = integration;
+  if (oauth && status === NEEDS_REAUTH) {
+    return { kind: 'authorize', label: 'Reconnect', target: integration };
+  }
+  if (oauth && !oauth.authorized && status !== CONNECTED) {
+    return { kind: 'authorize', label: 'Authorize', target: integration };
   }
   if (status === NEEDS_REAUTH) {
     const auth = signsInThrough(integration, all);

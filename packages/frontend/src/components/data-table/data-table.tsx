@@ -6,7 +6,7 @@ import {
   type Table as TanStackTable,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { type ReactNode, type Ref, useEffect, useRef } from 'react';
+import { type ReactNode, type Ref, useEffect, useMemo, useRef } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { ConsoleFeatures } from '@/lib/tableFeatures';
@@ -74,13 +74,19 @@ export function DataTable<TData extends RowData>({
   const rows = table.getRowModel().rows;
   const columns = table.getVisibleLeafColumns();
 
-  const lines = rows.flatMap((row, index): Line<TData>[] => {
-    const content = divider?.(row.original, rows[index - 1]?.original);
-    const line: Line<TData> = { kind: 'row', key: row.id, row };
-    return content == null
-      ? [line]
-      : [{ kind: 'divider', key: `divider:${row.id}`, content }, line];
-  });
+  // Memoized: scrolling a virtualized table renders it on every step, and a long list's dividers
+  // are too much work to repeat for that.
+  const lines = useMemo(
+    () =>
+      rows.flatMap((row, index): Line<TData>[] => {
+        const content = divider?.(row.original, rows[index - 1]?.original);
+        const line: Line<TData> = { kind: 'row', key: row.id, row };
+        return content == null
+          ? [line]
+          : [{ kind: 'divider', key: `divider:${row.id}`, content }, line];
+      }),
+    [rows, divider]
+  );
 
   const virtualizer = useVirtualizer({
     count: virtualize ? lines.length : 0,

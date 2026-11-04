@@ -10,6 +10,7 @@ import { SearchInput } from '@/components/search-input';
 import { SubscriptionFailure } from '@/components/subscription-failure';
 import { Button } from '@/components/ui/button';
 import { links } from '@/constants/pages';
+import type { LiveFeedRow } from '@/context/live-log-context';
 import { useFocusShortcut } from '@/hooks/useFocusShortcut';
 import { usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import { dayDivider, type FeedCategory } from '@/lib/activityFormat';
@@ -18,7 +19,6 @@ import { plural } from '@/lib/plural';
 import { consoleFeatures } from '@/lib/tableFeatures';
 import { HealthRail } from './health-rail';
 import { useLiveFeed } from './useLiveFeed';
-import type { LiveFeedRow } from './useLiveLog';
 
 /** The feed's tabs after All, in order. All leaves chat out: it would bury everything else mid-stream. */
 const CATEGORIES: readonly FeedCategory[] = ['command', 'reward', 'viewer', 'system', 'chat'];

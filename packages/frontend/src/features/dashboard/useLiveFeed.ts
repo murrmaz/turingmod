@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLiveLog } from '@/context/live-log-context';
 import { matchesFeedQuery } from '@/lib/activityFormat';
 import { type FeedTab, showsUnder } from '@/lib/liveFeed';
-import { useLiveLog } from './useLiveLog';
 
 /** Scrolled further from the top than this, the feed holds still. */
 const SCROLLED_AWAY_PX = 8;

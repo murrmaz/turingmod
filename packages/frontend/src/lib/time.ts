@@ -8,16 +8,16 @@ export function formatClock(timestamp: number): string {
   });
 }
 
-/** `YYYY-MM-DD HH:MM:SS` in local time. */
-export function formatDateTime(timestamp: number): string {
-  const date = new Date(timestamp);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${formatClock(timestamp)}`;
-}
-
 /** The day a timestamp falls on, in local time, as `YYYY-MM-DD`: equal for any two on one day. */
 export function dayOf(timestamp: number): string {
-  return formatDateTime(timestamp).slice(0, 10);
+  const date = new Date(timestamp);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** `YYYY-MM-DD HH:MM:SS` in local time. */
+export function formatDateTime(timestamp: number): string {
+  return `${dayOf(timestamp)} ${formatClock(timestamp)}`;
 }
 
 /** The day a timestamp falls on, as the activity tables' dividers name it. */

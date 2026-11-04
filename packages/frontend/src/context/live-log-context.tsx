@@ -1,9 +1,16 @@
 import type { ActivityLogEntry } from '@turingmod/shared';
+import type { ReactNode } from 'react';
+import { createContext, useContext, useMemo } from 'react';
 import type { RouterOutputs } from '@/context/trpc-context';
-import { useSubscription } from '@/hooks/useSubscription';
+import { type SubscriptionStatus, useSubscription } from '@/hooks/useSubscription';
 import { type FeedRow, toFeedRow } from '@/lib/activityFormat';
 
-const MAX_ENTRIES = 1000;
+/**
+ * How many rows the feed keeps of each kind. Apart, since chat arrives far faster than anything
+ * else: under one limit, a busy chat would push out every command, reward and status change.
+ */
+const MAX_CHAT_ROWS = 1000;
+const MAX_EVENT_ROWS = 1000;
 
 /** What `activity.feed` sends: the stored log to start from, then each entry as it's made. */
 type FeedEvent = RouterOutputs['activity']['feed'] extends AsyncIterable<infer E> ? E : never;
@@ -16,6 +23,13 @@ export interface LiveFeedRow extends FeedRow {
   receivedAt: number | null;
 }
 
+export interface LiveLog {
+  /** Every row kept, latest received first. */
+  rows: LiveFeedRow[];
+  status: SubscriptionStatus;
+}
+
+const LiveLogContext = createContext<LiveLog | null>(null);
 const NO_ROWS: LiveFeedRow[] = [];
 
 // Rows are numbered as they're made, inside state updates. React may run an update twice in
@@ -25,6 +39,20 @@ let nextSeq = 0;
 function toLiveRow(entry: ActivityLogEntry, live: boolean): LiveFeedRow {
   nextSeq += 1;
   return { ...toFeedRow(entry), seq: nextSeq, receivedAt: live ? Date.now() : null };
+}
+
+/** The newest rows of each kind, given rows latest received first. */
+function withinLimits(rows: LiveFeedRow[]): LiveFeedRow[] {
+  let chat = 0;
+  let events = 0;
+  return rows.filter((row) => {
+    if (row.category === 'chat') {
+      chat += 1;
+      return chat <= MAX_CHAT_ROWS;
+    }
+    events += 1;
+    return events <= MAX_EVENT_ROWS;
+  });
 }
 
 /**
@@ -41,27 +69,38 @@ function withSeed(previous: LiveFeedRow[], entries: ActivityLogEntry[]): LiveFee
     .map((entry) => had.get(entry.id) ?? toLiveRow(entry, false));
   const known = new Set(seeded.map((row) => row.id));
   const live = previous.filter((row) => row.receivedAt !== null && !known.has(row.id));
-  return [...live, ...seeded].sort((a, b) => b.seq - a.seq).slice(0, MAX_ENTRIES);
+  return withinLimits([...live, ...seeded].sort((a, b) => b.seq - a.seq));
 }
 
 /** The feed after one event from `activity.feed`. */
 function applyFeedEvent(rows: LiveFeedRow[], event: FeedEvent): LiveFeedRow[] {
   return event.type === 'seed'
     ? withSeed(rows, event.entries)
-    : [toLiveRow(event.entry, true), ...rows].slice(0, MAX_ENTRIES);
+    : withinLimits([toLiveRow(event.entry, true), ...rows]);
 }
 
 /**
- * Live activity feed for the Dashboard, latest received first. Seeded on every subscribe, so on mount,
- * on every reconnect and after a failure, from the stored activity log, then prepended to with each entry as it's made
- * (which, unlike the stored log, include chat).
+ * The live activity feed, collected whichever page is open: chat and other live-only events aren't
+ * stored, so a feed that only listened while the Dashboard was open would lose them. Seeded from
+ * the stored activity log on every subscribe (on opening the console, on every reconnect and after
+ * a failure), then prepended to with each entry as it's made.
  */
-export function useLiveLog() {
+export function LiveLogProvider({ children }: { children: ReactNode }) {
   const [rows, , status] = useSubscription(
     (trpc, on) => trpc.activity.feed.subscribe(undefined, on),
     NO_ROWS,
     "Couldn't load recent activity",
     applyFeedEvent
   );
-  return { rows, status };
+  const value = useMemo(() => ({ rows, status }), [rows, status]);
+  return <LiveLogContext.Provider value={value}>{children}</LiveLogContext.Provider>;
+}
+
+/** The live activity feed; see LiveLogProvider. */
+export function useLiveLog(): LiveLog {
+  const context = useContext(LiveLogContext);
+  if (!context) {
+    throw new Error('useLiveLog must be used within LiveLogProvider');
+  }
+  return context;
 }

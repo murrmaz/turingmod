@@ -165,6 +165,22 @@ describe('DataInspector', () => {
     );
   });
 
+  it('has a policy for every table, which is where a new one says what in it is secret', () => {
+    const inDatabase = db
+      .query<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+      )
+      .map(({ name }) => name);
+
+    expect(inDatabase).toContain('activity_log'); // the query still finds them
+    expect(
+      inspector
+        .listTables()
+        .map(({ name }) => name)
+        .sort()
+    ).toEqual(inDatabase.sort());
+  });
+
   it('refuses tables and columns it does not know', () => {
     expect(() => inspector.queryRows({ table: 'sqlite_master', page: 0, pageSize: 10 })).toThrow(
       'Unknown table'

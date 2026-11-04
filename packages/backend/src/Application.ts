@@ -1,12 +1,11 @@
 import { TRPC_PATH } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
-import { DatabaseManager } from '../database/DatabaseManager.js';
-import { IntegrationManager } from '../integrations/IntegrationManager.js';
-import { HttpServer } from '../server/HttpServer.js';
-import { TrpcServer } from '../server/trpc/TrpcServer.js';
-import { Logger } from '../utils/Logger.js';
-import { EventBus } from './EventBus.js';
-import { ServiceLifecycle } from './ServiceLifecycle.js';
+import { ServiceLifecycle } from './core/ServiceLifecycle.js';
+import { DatabaseManager } from './database/DatabaseManager.js';
+import { IntegrationManager } from './integrations/IntegrationManager.js';
+import { HttpServer } from './server/HttpServer.js';
+import { TrpcServer } from './server/trpc/TrpcServer.js';
+import { Logger } from './utils/Logger.js';
 
 /**
  * Main application class
@@ -21,7 +20,6 @@ export class Application {
     private httpServer: HttpServer,
     private trpcServer: TrpcServer,
     private integrationManager: IntegrationManager,
-    private eventBus: EventBus,
     private services: ServiceLifecycle,
     logger: Logger
   ) {
@@ -50,33 +48,19 @@ export class Application {
   async start(): Promise<void> {
     this.logger.info('Starting TuringMod...');
 
-    // 1. Subscribe to what's logged here before anything can emit it
-    this.setupEventHandlers();
-
-    // 2. Start the console's endpoint, then the HTTP server that hands it its upgrades
+    // 1. Start the console's endpoint, then the HTTP server that hands it its upgrades
     this.trpcServer.start();
     this.httpServer.routeUpgrades(TRPC_PATH, this.trpcServer);
     await this.httpServer.start();
 
-    // 3. Start feature services, before integrations so they see what connecting changes
+    // 2. Start feature services, before integrations so they see what connecting changes
     await this.services.startAll();
 
-    // 4. Start enabled integrations
+    // 3. Start enabled integrations
     this.logger.info('Starting enabled integrations');
     await this.integrationManager.startEnabledIntegrations();
 
     this.logger.info('TuringMod started successfully! 🚀');
-  }
-
-  /**
-   * Set up global event handlers. Everything the console shows reaches it through the tRPC
-   * router's subscriptions (server/trpc/), not from here.
-   */
-  private setupEventHandlers(): void {
-    // Logged only: the console follows YouTube chat's state through `youtubeChat.watch`.
-    this.eventBus.on('youtube.chat.state', (data) => {
-      this.logger.info('YouTube chat state changed', data);
-    });
   }
 
   /**

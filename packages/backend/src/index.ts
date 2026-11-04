@@ -2,7 +2,7 @@
 import './utils/loadEnv.js';
 import 'reflect-metadata';
 import { container } from 'tsyringe';
-import { Application } from './core/Application.js';
+import { Application } from './Application.js';
 import { initializeComponents, initializeDatabase, registerRootFactories } from './setup.js';
 import { ConfigurationError } from './utils/Config.js';
 import { Logger } from './utils/Logger.js';

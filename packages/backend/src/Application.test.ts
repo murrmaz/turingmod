@@ -1,14 +1,13 @@
 import 'reflect-metadata';
 import { TRPC_PATH } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
-import type { DatabaseManager } from '../database/DatabaseManager.js';
-import type { IntegrationManager } from '../integrations/IntegrationManager.js';
-import type { HttpServer } from '../server/HttpServer.js';
-import type { TrpcServer } from '../server/trpc/TrpcServer.js';
-import { Logger } from '../utils/Logger.js';
 import { Application } from './Application.js';
-import { EventBus } from './EventBus.js';
-import type { ServiceLifecycle } from './ServiceLifecycle.js';
+import type { ServiceLifecycle } from './core/ServiceLifecycle.js';
+import type { DatabaseManager } from './database/DatabaseManager.js';
+import type { IntegrationManager } from './integrations/IntegrationManager.js';
+import type { HttpServer } from './server/HttpServer.js';
+import type { TrpcServer } from './server/trpc/TrpcServer.js';
+import { Logger } from './utils/Logger.js';
 
 /** An application whose parts record when each step begins and ends, in `steps`. */
 function recordingApp() {
@@ -40,7 +39,6 @@ function recordingApp() {
       startEnabledIntegrations: step('integrations start'),
       stopAll: step('integrations stop'),
     } as unknown as IntegrationManager,
-    new EventBus(logger),
     {
       startAll: step('services start'),
       stopAll: step('services stop'),

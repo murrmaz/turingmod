@@ -143,6 +143,10 @@
                   {
                     "group": ["**/features/**"],
                     "message": "Foundation code can't depend on a feature: move what they share down to this layer, or publish an event"
+                  },
+                  {
+                    "group": ["**/server/**"],
+                    "message": "server/ sits above the foundation: it may import this layer, never the reverse. What wires them together goes beside setup.ts"
                   }
                 ]
               }

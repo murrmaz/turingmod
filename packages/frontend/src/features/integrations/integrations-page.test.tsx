@@ -350,4 +350,13 @@ describe('Integrations page actions', () => {
       expect(screen.getByLabelText('Client Secret')).toBeInTheDocument();
     });
   });
+
+  it('copies the redirect URI to register with the provider', async () => {
+    const auth = oauthIntegration(TWITCH_AUTH);
+    const { user } = setup([auth], TWITCH_AUTH);
+
+    await user.click(action('Copy redirect URI'));
+
+    await expect(navigator.clipboard.readText()).resolves.toBe(auth.oauth?.redirectUri);
+  });
 });

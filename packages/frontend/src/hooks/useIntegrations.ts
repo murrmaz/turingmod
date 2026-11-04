@@ -3,12 +3,12 @@ import { useIntegrationState } from '@/context/app-state-context';
 import { useTrpc } from '@/context/trpc-context';
 
 /**
- * The integrations, and starting, stopping and configuring them.
+ * Starting, stopping and configuring integrations. To read them, use useIntegrationState().
  * Each action resolves once the state it left is showing, so a view can stop its spinner then.
  */
 export function useIntegrations() {
   const trpc = useTrpc();
-  const { integrations, showIntegrations } = useIntegrationState();
+  const { showIntegrations } = useIntegrationState();
 
   const startIntegration = useCallback(
     async (integrationName: string): Promise<void> => {
@@ -32,7 +32,6 @@ export function useIntegrations() {
   );
 
   return {
-    integrations,
     startIntegration,
     stopIntegration,
     configureIntegration,

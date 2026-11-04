@@ -26,6 +26,7 @@ import {
   describeIntegration,
   hasProblem,
   integrationChains,
+  isBroken,
   standaloneIntegrations,
 } from '@/lib/integrationStatus';
 import { cn } from '@/lib/utils';
@@ -140,7 +141,7 @@ function IntegrationNode({
       onClick={onSelect}
       className={cn(
         'flex min-w-0 flex-1 basis-0 flex-col gap-1 rounded-xl border bg-card px-4 py-3.5 text-left transition-colors hover:bg-accent/40',
-        display.needsAttention && 'border-destructive/50',
+        isBroken(integration.status) && 'border-destructive/50',
         selected && 'ring-2 ring-ring'
       )}
     >

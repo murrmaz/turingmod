@@ -40,6 +40,8 @@ export interface DataTableProps<TData extends RowData> {
   dividerHeight?: number;
   loading?: boolean;
   empty: ReactNode;
+  /** Fill the page's height inside a border: for a table that is a page's main content. */
+  framed?: boolean;
   /** The scrolling element, for callers that follow or restore its position. */
   scrollRef?: Ref<HTMLDivElement>;
   onScroll?: (element: HTMLDivElement) => void;
@@ -68,6 +70,7 @@ export function DataTable<TData extends RowData>({
   dividerHeight = 30,
   loading = false,
   empty,
+  framed = false,
   scrollRef,
   onScroll,
   className,
@@ -131,7 +134,7 @@ export function DataTable<TData extends RowData>({
     }
   };
 
-  return (
+  const scroller = (
     <div
       ref={setRef}
       onScroll={(event) => onScroll?.(event.currentTarget)}
@@ -243,5 +246,10 @@ export function DataTable<TData extends RowData>({
         </TableBody>
       </table>
     </div>
+  );
+  return framed ? (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">{scroller}</div>
+  ) : (
+    scroller
   );
 }

@@ -1,3 +1,4 @@
+import { IntegrationName } from '@turingmod/shared';
 import 'reflect-metadata';
 import { IntegrationStatus } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,7 +20,7 @@ class FakeOAuth extends StandardOAuthIntegration<
   StandardOAuthConfig,
   z.infer<typeof TokenResponseSchema>
 > {
-  readonly name = 'fake-auth';
+  readonly name = IntegrationName.TWITCH_AUTH;
   protected readonly requiredScopes = ['read', 'write'];
   protected readonly callbackPath = '/callback/fake';
   protected readonly redirectHost = '127.0.0.1';
@@ -102,7 +103,7 @@ describe('StandardOAuthIntegration', () => {
     expect(body.get('code')).toBe('code-1');
     expect(body.get('redirect_uri')).toBe('http://127.0.0.1:8080/callback/fake');
     expect(saveConfig).toHaveBeenCalledWith(
-      'fake-auth',
+      IntegrationName.TWITCH_AUTH,
       expect.objectContaining({ accessToken: 'token' })
     );
   });

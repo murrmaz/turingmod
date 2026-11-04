@@ -6,34 +6,30 @@ import type { Tone } from './tone';
 export interface IntegrationDisplay {
   label: string;
   tone: Tone;
-  /** Broken in a way the streamer has to fix: shown under "Needs attention". */
-  needsAttention: boolean;
 }
 
-/** Whether a status means something is broken that the streamer has to fix. */
+/** Whether a status means something is broken that the streamer has to fix: "Needs attention". */
 export function isBroken(status: IntegrationStatus): boolean {
   return status === IntegrationStatus.ERROR || status === IntegrationStatus.NEEDS_REAUTH;
 }
 
 /** How a status reads. A new status is a compile error here until it has a case. */
 export function describeIntegration(integration: IntegrationInfo): IntegrationDisplay {
-  const needsAttention = isBroken(integration.status);
   switch (integration.status) {
     case IntegrationStatus.CONNECTED:
-      return { label: 'connected', tone: 'ok', needsAttention };
+      return { label: 'connected', tone: 'ok' };
     case IntegrationStatus.CONNECTING:
-      return { label: 'connecting', tone: 'pending', needsAttention };
+      return { label: 'connecting', tone: 'pending' };
     case IntegrationStatus.ERROR:
-      return { label: 'error', tone: 'error', needsAttention };
+      return { label: 'error', tone: 'error' };
     case IntegrationStatus.NEEDS_REAUTH:
-      return { label: 'needs reauth', tone: 'error', needsAttention };
+      return { label: 'needs reauth', tone: 'error' };
     case IntegrationStatus.BLOCKED:
-      return { label: 'blocked', tone: 'idle', needsAttention };
+      return { label: 'blocked', tone: 'idle' };
     case IntegrationStatus.DISCONNECTED:
       return {
         label: integration.enabled ? 'disconnected' : 'disabled',
         tone: 'idle',
-        needsAttention,
       };
   }
 }

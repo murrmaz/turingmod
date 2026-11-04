@@ -3,15 +3,46 @@ import {
   ACTIVITY_EVENT_NAMES,
   type DataCell,
   type DataColumnInfo,
-  type DataRowsPage,
-  type DataRowsQuery,
   type DataTableInfo,
+  MAX_DATA_PAGE_SIZE,
 } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
+import { z } from 'zod';
 import type { IService } from '../core/ServiceLifecycle.js';
 import { TuringModConfig } from '../utils/Config.js';
 import { ENCRYPTION_SALT_SETTINGS_KEY } from '../utils/Encryption.js';
 import { containsPattern, LIKE_ESCAPE } from './likePattern.js';
+
+/** One page of a table's rows. */
+export interface DataRowsPage {
+  rows: Record<string, DataCell>[];
+  /** Rows matching the filters, across all pages */
+  total: number;
+}
+
+/**
+ * A page of one table to read. Table and column names are checked against the tables the backend
+ * allows inspecting; values are only ever bound as parameters.
+ */
+export const DataRowsQuerySchema = z.strictObject({
+  table: z.string().min(1),
+  /** Zero-based page number */
+  page: z.int().nonnegative(),
+  pageSize: z.int().positive().max(MAX_DATA_PAGE_SIZE),
+  sort: z
+    .strictObject({
+      column: z.string().min(1),
+      direction: z.enum(['asc', 'desc']),
+    })
+    .exactOptional(),
+  /** Keep rows whose column equals one of the listed values, per column */
+  filters: z.record(z.string(), z.array(z.string()).min(1)).exactOptional(),
+  /** Text matched anywhere in the table's unmasked text columns */
+  search: z.string().exactOptional(),
+  /** Only rows at or after this epoch-ms time, on the table's timestamp column */
+  since: z.number().exactOptional(),
+});
+export type DataRowsQuery = z.infer<typeof DataRowsQuerySchema>;
 
 /** What the inspector may show of one table, beyond the columns SQLite reports. */
 interface TablePolicy {

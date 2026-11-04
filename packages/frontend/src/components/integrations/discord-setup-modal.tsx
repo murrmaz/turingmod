@@ -1,9 +1,9 @@
 import { DiscordConfigSchema, DiscordSnowflakeSchema, IntegrationName } from '@turingmod/shared';
-import { ExternalLink, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { FormField } from '@/components/form-field';
 import { Input } from '@/components/ui/input';
 import { type ConfigSetupModalProps, IntegrationConfigDialog } from './integration-config-dialog';
+import { SecurityNote, SetupLink, SetupSteps } from './setup-parts';
 
 /**
  * Discord setup: the bot's token and the channel go-live notifications are posted in. Saving
@@ -27,11 +27,10 @@ export function DiscordSetupModal({ onDismiss, onSaved }: ConfigSetupModalProps)
       config={parsed.success ? parsed.data : null}
       failureMessage="Failed to save the Discord settings"
       footnote={
-        <p className="flex gap-2 text-xs text-muted-foreground">
-          <ShieldCheck className="size-4 shrink-0" />
+        <SecurityNote>
           The token is encrypted with AES-256-GCM and stored on this computer, and only ever sent to
           Discord's official API.
-        </p>
+        </SecurityNote>
       }
       onDismiss={onDismiss}
       onSaved={onSaved}
@@ -39,18 +38,12 @@ export function DiscordSetupModal({ onDismiss, onSaved }: ConfigSetupModalProps)
     >
       <section className="flex flex-col gap-2">
         <h3 className="font-medium">1. Create the bot</h3>
-        <ol className="ml-5 list-decimal space-y-1.5 text-muted-foreground marker:text-subtle-foreground [&_strong]:text-foreground">
+        <SetupSteps>
           <li>
             Go to{' '}
-            <a
-              href="https://discord.com/developers/applications"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-foreground underline underline-offset-4"
-            >
+            <SetupLink href="https://discord.com/developers/applications">
               discord.com/developers/applications
-              <ExternalLink className="size-3" />
-            </a>{' '}
+            </SetupLink>{' '}
             and click <strong>New Application</strong> (name it TuringMod, or anything)
           </li>
           <li>
@@ -63,19 +56,19 @@ export function DiscordSetupModal({ onDismiss, onSaved }: ConfigSetupModalProps)
             <strong>Embed Links</strong> and <strong>Mention Everyone</strong>, then open the
             generated URL and add the bot to the server
           </li>
-        </ol>
+        </SetupSteps>
       </section>
 
       <section className="flex flex-col gap-2">
         <h3 className="font-medium">2. Find the channel</h3>
-        <ol className="ml-5 list-decimal space-y-1.5 text-muted-foreground marker:text-subtle-foreground [&_strong]:text-foreground">
+        <SetupSteps>
           <li>
             In Discord, turn on <strong>Developer Mode</strong> (User Settings → Advanced)
           </li>
           <li>
             Right-click the notifications channel and click <strong>Copy Channel ID</strong>
           </li>
-        </ol>
+        </SetupSteps>
       </section>
 
       <section className="flex flex-col gap-3">

@@ -37,6 +37,16 @@ export enum IntegrationName {
 }
 
 /**
+ * The integrations that sign in through OAuth. `OAuthIntegration` requires one of these as its name,
+ * and the console's provider registry requires an entry for each, so a new provider can't be
+ * missing from either.
+ */
+export type OAuthIntegrationName =
+  | IntegrationName.TWITCH_AUTH
+  | IntegrationName.YOUTUBE_AUTH
+  | IntegrationName.SPOTIFY_AUTH;
+
+/**
  * Related integrations shown together in the console, such as Twitch's auth/api/eventsub chain.
  * Each group is declared once, beside its integrations, and its members return that object.
  */
@@ -97,7 +107,7 @@ export interface IntegrationInfo {
   };
 
   /**
-   * Where it connects, for an integration whose address is a setting (the Arduino's), so its
+   * Where it connects, for an integration whose address is a setting (the Arduino's, OBS's), so its
    * setup dialog can show the one in use. Absent for the others.
    */
   address?: string;

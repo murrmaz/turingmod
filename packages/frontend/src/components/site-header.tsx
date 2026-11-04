@@ -1,5 +1,6 @@
 import { type PlatformLiveState, platformDisplayName, StreamingPlatform } from '@turingmod/shared';
 import { ChevronDown, Search } from 'lucide-react';
+import type { ComponentType } from 'react';
 import { useLocation } from 'react-router-dom';
 import { StatusDot } from '@/components/status';
 import { Button } from '@/components/ui/button';
@@ -52,8 +53,10 @@ export function SiteHeader({ onOpenPalette }: { onOpenPalette: () => void }) {
           <span className="flex-1 text-left font-normal">Search or run a command…</span>
           <kbd className="rounded border bg-muted px-1.5 font-mono text-caption">⌘K</kbd>
         </Button>
-        <PlatformBadge state={stateOf(StreamingPlatform.TWITCH)} known={known} now={now} />
-        <YouTubeBadge state={stateOf(StreamingPlatform.YOUTUBE)} known={known} now={now} />
+        {Object.values(StreamingPlatform).map((platform) => {
+          const Badge = PLATFORM_BADGES[platform];
+          return <Badge key={platform} state={stateOf(platform)} known={known} now={now} />;
+        })}
       </div>
     </header>
   );
@@ -170,3 +173,9 @@ function YouTubeBadge(props: BadgeProps) {
     </DropdownMenu>
   );
 }
+
+/** Each platform's badge, so a new platform doesn't compile until it has one. */
+const PLATFORM_BADGES: Record<StreamingPlatform, ComponentType<BadgeProps>> = {
+  [StreamingPlatform.TWITCH]: PlatformBadge,
+  [StreamingPlatform.YOUTUBE]: YouTubeBadge,
+};

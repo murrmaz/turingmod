@@ -1,4 +1,9 @@
-import { IntegrationStatus, messageOf, OAuthClientCredentialsSchema } from '@turingmod/shared';
+import {
+  IntegrationStatus,
+  messageOf,
+  OAuthClientCredentialsSchema,
+  type OAuthIntegrationName,
+} from '@turingmod/shared';
 import { z } from 'zod';
 import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import type { TuringModConfig } from '../utils/Config.js';
@@ -42,6 +47,7 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
   extends BaseIntegration
   implements IOAuthIntegration
 {
+  abstract override readonly name: OAuthIntegrationName;
   /** The scopes this integration needs. Always what's requested, and what a grant is checked against. */
   protected abstract readonly requiredScopes: readonly string[];
   /** The HTTP path the provider redirects back to, e.g. '/callback/twitch'. */

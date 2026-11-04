@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/sheet';
 import { PERMISSION_LABELS } from '@/constants/permissions';
 import { SimulatorContext, type SimulatorRequest } from '@/context/simulatorContext';
-import { useCommands } from '@/hooks/useCommands';
+import { useTrpc } from '@/context/trpc-context';
 
 /** What a simulation came back with, as the sheet and its toast show it. */
 interface Outcome {
@@ -74,7 +74,7 @@ function toOutcome(result: ExecutionResult): Outcome {
  * for real, side effects included, as if a viewer had typed them.
  */
 export function SimulatorProvider({ children }: { children: ReactNode }) {
-  const { simulateCommand } = useCommands();
+  const trpc = useTrpc();
   const [isOpen, setIsOpenState] = useState(false);
   // Read when a run finishes, to decide whether its result needs a toast.
   const isOpenRef = useRef(false);
@@ -108,11 +108,11 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     setOutcome(null);
     let next: Outcome;
     try {
-      const result = await simulateCommand(
-        commandText.trim(),
-        { username: username.trim() || 'TestUser', permissionLevel },
-        platform
-      );
+      const result = await trpc.commands.simulate.mutate({
+        commandText: commandText.trim(),
+        simulatedUser: { username: username.trim() || 'TestUser', permissionLevel },
+        platform,
+      });
       next = toOutcome(result);
     } catch (error) {
       next = { success: false, title: 'Simulation failed', message: messageOf(error) };

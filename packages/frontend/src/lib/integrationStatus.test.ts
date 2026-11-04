@@ -42,18 +42,14 @@ const names = (list: IntegrationInfo[]) => list.map((i) => i.name);
 
 describe('describeIntegration', () => {
   it.each([
-    [IntegrationStatus.CONNECTED, 'connected', 'ok', false],
-    [IntegrationStatus.CONNECTING, 'connecting', 'pending', false],
-    [IntegrationStatus.ERROR, 'error', 'error', true],
-    [IntegrationStatus.NEEDS_REAUTH, 'needs reauth', 'error', true],
-    [IntegrationStatus.BLOCKED, 'blocked', 'idle', false],
-    [IntegrationStatus.DISCONNECTED, 'disabled', 'idle', false],
-  ])('reads %s as %s', (status, label, tone, needsAttention) => {
-    expect(describeIntegration({ ...integration('obs'), status })).toEqual({
-      label,
-      tone,
-      needsAttention,
-    });
+    [IntegrationStatus.CONNECTED, 'connected', 'ok'],
+    [IntegrationStatus.CONNECTING, 'connecting', 'pending'],
+    [IntegrationStatus.ERROR, 'error', 'error'],
+    [IntegrationStatus.NEEDS_REAUTH, 'needs reauth', 'error'],
+    [IntegrationStatus.BLOCKED, 'blocked', 'idle'],
+    [IntegrationStatus.DISCONNECTED, 'disabled', 'idle'],
+  ])('reads %s as %s', (status, label, tone) => {
+    expect(describeIntegration({ ...integration('obs'), status })).toEqual({ label, tone });
   });
 
   it('says disconnected rather than disabled for one that is meant to be running', () => {

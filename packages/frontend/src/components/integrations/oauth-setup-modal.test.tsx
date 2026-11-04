@@ -6,7 +6,7 @@ import { FakeSubscription } from '@/testing/fakeTrpc';
 import { oauthIntegration } from '@/testing/integrations';
 import { renderConsole } from '@/testing/render-console';
 import { SPOTIFY_OAUTH_PROVIDER, TWITCH_OAUTH_PROVIDER } from './oauth-providers';
-import { SetupModal } from './setup-modal';
+import { OAuthSetupModal } from './oauth-setup-modal';
 
 const twitch = IntegrationName.TWITCH_AUTH;
 
@@ -17,7 +17,7 @@ function setup(provider = TWITCH_OAUTH_PROVIDER) {
   );
   const onDismiss = vi.fn();
   const onSaved = vi.fn();
-  renderConsole(<SetupModal provider={provider} onDismiss={onDismiss} onSaved={onSaved} />, {
+  renderConsole(<OAuthSetupModal provider={provider} onDismiss={onDismiss} onSaved={onSaved} />, {
     procedures: { integrations: { watch, configure: { mutate: configure } } },
   });
   return { user: userEvent.setup(), watch, configure, onSaved };
@@ -25,7 +25,7 @@ function setup(provider = TWITCH_OAUTH_PROVIDER) {
 
 const save = () => screen.getByRole('button', { name: 'Save & continue' });
 
-describe('SetupModal', () => {
+describe('OAuthSetupModal', () => {
   it("shows the redirect URI the backend reports, once it's connected", () => {
     const { watch } = setup();
     expect(screen.getByText('unavailable until the backend is connected')).toBeInTheDocument();

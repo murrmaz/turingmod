@@ -9,7 +9,7 @@ import { links } from '@/constants/pages';
 import { useIntegrationState } from '@/context/app-state-context';
 import { useIntegrationActions } from '@/hooks/useIntegrationActions';
 import { type IntegrationAction, repairAction } from '@/lib/integrationActions';
-import { describeIntegration, inDisplayOrder } from '@/lib/integrationStatus';
+import { describeIntegration, inDisplayOrder, isBroken } from '@/lib/integrationStatus';
 
 /**
  * The dashboard's right-hand column: quiet while everything is healthy, a red card per broken
@@ -19,7 +19,7 @@ export function HealthRail() {
   const { integrations, status } = useIntegrationState();
   const actions = useIntegrationActions();
   const navigate = useNavigate();
-  const broken = integrations.filter((i) => describeIntegration(i).needsAttention);
+  const broken = integrations.filter((i) => isBroken(i.status));
   const up = integrations.filter((i) => i.status === IntegrationStatus.CONNECTED).length;
 
   return (

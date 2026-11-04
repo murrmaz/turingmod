@@ -1,5 +1,5 @@
 import { IntegrationStatus, messageOf } from '@turingmod/shared';
-import { CircleAlert, Info, Loader2, ShieldCheck } from 'lucide-react';
+import { CircleAlert, Info, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import {
 import { useIntegrationState } from '@/context/app-state-context';
 import { useTrpc } from '@/context/trpc-context';
 import type { OAuthProviderConfig } from './oauth-providers';
+import { SecurityNote } from './setup-parts';
 
 export interface OAuthModalProps {
   /** The integration this modal is authorizing */
@@ -230,11 +231,10 @@ export function OAuthModal({
             </Alert>
           )}
 
-          <p className="flex gap-2 text-xs text-muted-foreground">
-            <ShieldCheck className="size-4 shrink-0" />
+          <SecurityNote>
             TuringMod only runs on this computer. Your tokens are encrypted in the local database
             and only ever sent to {provider.displayName}'s official API.
-          </p>
+          </SecurityNote>
         </div>
 
         <DialogFooter>

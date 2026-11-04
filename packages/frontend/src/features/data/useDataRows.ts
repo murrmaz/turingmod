@@ -1,16 +1,17 @@
-import type { DataRowsPage, DataRowsQuery } from '@turingmod/shared';
-import { useServerQuery } from '@/hooks/useServerQuery';
+import type { RouterInputs, RouterOutputs } from '@/context/trpc-context';
+import { useServerPage } from '@/hooks/useServerPage';
+
+/** Which page of a table to read, and how. */
+export type DataRowsQuery = RouterInputs['data']['queryRows'];
+export type DataRowsPage = RouterOutputs['data']['queryRows'];
 
 const NO_ROWS: DataRowsPage = { rows: [], total: 0 };
 
-/**
- * One page of a table, read through the backend's read-only data inspector, again whenever the
- * query changes. A failed read shows no rows, with the error for the view to show in their place.
- */
+/** One page of a table, read through the backend's read-only data inspector. */
 export function useDataRows(query: DataRowsQuery) {
-  const { data, loading, error } = useServerQuery(
-    (trpc, input, opts) => trpc.data.queryRows.query(input, opts),
-    { input: query, initial: NO_ROWS }
+  return useServerPage(
+    (trpc, input: DataRowsQuery, opts) => trpc.data.queryRows.query(input, opts),
+    query,
+    NO_ROWS
   );
-  return { ...(error === null ? data : NO_ROWS), loading, error };
 }

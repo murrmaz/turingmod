@@ -8,7 +8,7 @@ export function integration(
   return { name, status: IntegrationStatus.DISCONNECTED, enabled: false, ...overrides };
 }
 
-/** An OAuth sign-in integration, with or without its client credentials entered. */
+/** An OAuth sign-in integration not signed in, with or without its client credentials entered. */
 export function oauthIntegration(
   name: IntegrationName,
   overrides: Partial<IntegrationInfo> = {},
@@ -16,9 +16,27 @@ export function oauthIntegration(
 ): IntegrationInfo {
   const path = `/callback/${name.replace(/-auth$/, '')}`;
   return integration(name, {
-    oauth: { callbackPath: path, redirectUri: `http://localhost:8080${path}`, configured },
+    oauth: {
+      callbackPath: path,
+      redirectUri: `http://localhost:8080${path}`,
+      configured,
+      authorized: false,
+    },
     ...overrides,
   });
+}
+
+/** An OAuth sign-in integration with a sign-in's tokens saved. */
+export function signedInIntegration(
+  name: IntegrationName,
+  overrides: Partial<IntegrationInfo> = {}
+): IntegrationInfo {
+  const base = oauthIntegration(name);
+  return {
+    ...base,
+    oauth: { ...(base.oauth as NonNullable<IntegrationInfo['oauth']>), authorized: true },
+    ...overrides,
+  };
 }
 
 /** An API integration that signs in through `auth`. */

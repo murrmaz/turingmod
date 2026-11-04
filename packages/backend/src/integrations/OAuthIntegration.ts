@@ -143,6 +143,10 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
     return this.config !== null;
   }
 
+  isAuthorized(): boolean {
+    return this.config !== null && this.hasTokens(this.config);
+  }
+
   getCallbackPath(): string {
     return this.callbackPath;
   }

@@ -15,6 +15,12 @@ export interface IOAuthIntegration extends IIntegration {
   isConfigured(): boolean;
 
   /**
+   * Whether a sign-in's tokens are saved, so that starting it has something to connect with. They
+   * may have stopped working: that's for starting it to find out.
+   */
+  isAuthorized(): boolean;
+
+  /**
    * Generate the provider's authorization URL from the configured client
    * credentials, requesting the integration's required scopes. `state`
    * is an opaque, server-generated, single-use value that must be echoed

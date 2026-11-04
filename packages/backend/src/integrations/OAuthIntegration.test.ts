@@ -78,6 +78,19 @@ describe('OAuthIntegration', () => {
     expect(integration.isConfigured()).toBe(false);
   });
 
+  it('is authorized only while a sign-in is saved, which new credentials replace', async () => {
+    const integration = new TestOAuthIntegration();
+    expect(integration.isAuthorized()).toBe(false);
+
+    await integration.initialize(GRANT);
+    expect(integration.isAuthorized()).toBe(true);
+
+    // Saving credentials from the console replaces the whole config, tokens included.
+    await integration.initialize(CREDENTIALS);
+    expect(integration.isAuthorized()).toBe(false);
+    expect(integration.isConfigured()).toBe(true);
+  });
+
   it('derives its redirect URI from the server port and the provider host', () => {
     expect(new TestOAuthIntegration().getRedirectUri()).toBe('http://127.0.0.1:9123/callback/test');
   });

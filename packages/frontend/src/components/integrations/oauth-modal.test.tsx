@@ -1,10 +1,12 @@
-import { screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { IntegrationName } from '@turingmod/shared';
+import { type IntegrationInfo, IntegrationName, IntegrationStatus } from '@turingmod/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AppStateProvider } from '@/context/app-state-context';
 import type { RouterOutputs } from '@/context/trpc-context';
-import { deferred, FakeSubscription } from '@/testing/fakeTrpc';
-import { renderConsole } from '@/testing/render-console';
+import { deferred, FakeSubscription, type Procedures } from '@/testing/fakeTrpc';
+import { signedInIntegration } from '@/testing/integrations';
+import { renderConsole, switchableConnection } from '@/testing/render-console';
 import { OAuthModal } from './oauth-modal';
 import { TWITCH_OAUTH_PROVIDER } from './oauth-providers';
 
@@ -235,5 +237,114 @@ describe('OAuthModal', () => {
     await url.promise;
 
     expect(open).not.toHaveBeenCalled();
+  });
+
+  describe('following the integration', () => {
+    const { CONNECTED, CONNECTING, DISCONNECTED } = IntegrationStatus;
+
+    async function following(status: IntegrationStatus) {
+      const watch = new FakeSubscription<IntegrationInfo[]>();
+      const popup = fakePopup();
+      vi.spyOn(window, 'open').mockReturnValue(popup as unknown as Window);
+      const onSuccess = vi.fn();
+      renderConsole(
+        <OAuthModal
+          provider={TWITCH_OAUTH_PROVIDER}
+          onDismiss={() => {}}
+          onSuccess={onSuccess}
+          onChangeCredentials={() => {}}
+        />,
+        {
+          procedures: {
+            integrations: { watch },
+            oauth: {
+              authorizationUrl: { mutate: async () => URL },
+              results: new FakeSubscription(),
+            },
+          },
+        }
+      );
+      watch.emit([signedInIntegration(twitch, { status })]);
+      await screen.findByText('Waiting for authorization');
+      return { watch, popup, onSuccess };
+    }
+
+    it('succeeds when it connects, for a result missed while the connection was down', async () => {
+      const { watch, popup, onSuccess } = await following(DISCONNECTED);
+
+      watch.emit([signedInIntegration(twitch, { status: CONNECTING })]);
+      expect(onSuccess).not.toHaveBeenCalled();
+      watch.emit([signedInIntegration(twitch, { status: CONNECTED })]);
+
+      expect(onSuccess).toHaveBeenCalledTimes(1);
+      expect(popup.close).toHaveBeenCalled();
+    });
+
+    it('still succeeds after calling it cancelled, once the integration turns out connected', async () => {
+      const { watch, popup, onSuccess } = await following(DISCONNECTED);
+
+      popup.closed = true;
+      await screen.findByText('Authorization cancelled', {}, { timeout: 2000 });
+      watch.emit([signedInIntegration(twitch, { status: CONNECTED })]);
+
+      expect(onSuccess).toHaveBeenCalledTimes(1);
+    });
+
+    it("doesn't take one already connected for a finished sign-in", async () => {
+      const { watch, popup, onSuccess } = await following(CONNECTED);
+
+      watch.emit([signedInIntegration(twitch, { status: CONNECTED })]);
+
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(popup.close).not.toHaveBeenCalled();
+    });
+  });
+
+  it('keeps the popup open, and asks for no new URL, when Retry now replaces the client', async () => {
+    const popup = fakePopup();
+    vi.spyOn(window, 'open').mockReturnValue(popup as unknown as Window);
+    const authorizationUrl = vi.fn(async (_input: { integrationName: string }) => URL);
+    const procedures = (): Procedures => ({
+      integrations: { watch: new FakeSubscription() },
+      commands: { list: { query: () => new Promise(() => {}) } },
+      activity: { feed: new FakeSubscription() },
+      oauth: { authorizationUrl: { mutate: authorizationUrl }, results: new FakeSubscription() },
+    });
+    const { wrapper: Connection, switchClient } = switchableConnection(procedures());
+    // A new element each time, or React wouldn't render it again to see the new client.
+    const ui = () => (
+      <Connection>
+        <AppStateProvider>
+          <OAuthModal
+            provider={TWITCH_OAUTH_PROVIDER}
+            onDismiss={() => {}}
+            onSuccess={() => {}}
+            onChangeCredentials={() => {}}
+          />
+        </AppStateProvider>
+      </Connection>
+    );
+    const { rerender } = render(ui());
+    await screen.findByText('Waiting for authorization');
+
+    switchClient(procedures());
+    rerender(ui());
+
+    expect(popup.close).not.toHaveBeenCalled();
+    expect(authorizationUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it('hears the result of Try again after the subscription to results failed', async () => {
+    const { results, user, onSuccess, subscribe } = await waiting();
+    results.fail(new Error('Stream lost'));
+    await screen.findByText('Stream lost');
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await screen.findByText('Waiting for authorization');
+    expect(subscribe).toHaveBeenCalledTimes(2);
+
+    results.emit({ integrationName: twitch, success: true });
+
+    expect(onSuccess).toHaveBeenCalledTimes(1);
   });
 });

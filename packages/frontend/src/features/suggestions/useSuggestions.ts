@@ -23,7 +23,7 @@ const NONE: Suggestion[] = [];
  */
 export function useSuggestions() {
   const trpc = useTrpc();
-  const [all, show] = useSubscription(
+  const [all, show, status] = useSubscription(
     (client, on) => client.suggestions.watch.subscribe(undefined, on),
     NONE,
     "Couldn't read suggestions"
@@ -101,5 +101,5 @@ export function useSuggestions() {
   );
 
   const suggestions = useMemo(() => all.filter((s) => !hidden.has(s.id)), [all, hidden]);
-  return { suggestions, remove };
+  return { suggestions, status, remove };
 }

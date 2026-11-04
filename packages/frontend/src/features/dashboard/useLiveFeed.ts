@@ -13,7 +13,7 @@ const SCROLLED_AWAY_PX = 8;
  * or jump back to the latest. `all` is every row received, for counting.
  */
 export function useLiveFeed() {
-  const { rows, loading } = useLiveLog();
+  const { rows, status } = useLiveLog();
   const [tab, setTab] = useState<FeedTab>('all');
   const [query, setQuery] = useState('');
   const [paused, setPaused] = useState(false);
@@ -54,7 +54,7 @@ export function useLiveFeed() {
     all: rows,
     visible,
     pending: matching.length - visible.length,
-    loading,
+    status,
     tab,
     setTab,
     query,

@@ -225,4 +225,37 @@ describe('Suggestions', () => {
     await user.clear(filter());
     expect(shown()).toEqual(['idea one']);
   });
+
+  describe('before and without its list', () => {
+    function waiting() {
+      const watch = new FakeSubscription<Suggestion[]>();
+      renderConsole(<SuggestionsPage />, { procedures: { suggestions: { watch } } });
+      return watch;
+    }
+
+    const NoSuggestions = 'No suggestions yet. Viewers can add one with !sg.';
+
+    it("doesn't say there are none before the list has arrived", () => {
+      waiting();
+
+      expect(screen.queryByText(NoSuggestions)).not.toBeInTheDocument();
+    });
+
+    it("says so when reading them fails, and doesn't say there are none", () => {
+      waiting().fail(new Error('Database is locked'));
+
+      expect(screen.getByRole('alert')).toHaveTextContent('Database is locked');
+      expect(screen.queryByText(NoSuggestions)).not.toBeInTheDocument();
+    });
+
+    it('keeps showing the ones it has when a later read fails', () => {
+      const watch = waiting();
+      watch.emit([suggestion(1, 'idea one')]);
+
+      watch.fail(new Error('Database is locked'));
+
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(shown()).toEqual(['idea one']);
+    });
+  });
 });

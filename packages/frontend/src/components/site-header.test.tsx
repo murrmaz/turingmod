@@ -102,8 +102,27 @@ describe('SiteHeader', () => {
   });
 
   describe('live badges', () => {
-    it('reads offline for a platform the backend has said nothing about', () => {
+    it('says unknown until the backend has said', () => {
       setup();
+
+      expect(twitchBadge()).toHaveTextContent('Unknown');
+      expect(youTubeBadge()).toHaveTextContent('Unknown');
+    });
+
+    it('says unknown rather than the last state once reading it has failed', () => {
+      const { liveState } = setup();
+      liveState.emit([live(StreamingPlatform.TWITCH, null)]);
+
+      liveState.fail(new Error('Database is locked'));
+
+      expect(twitchBadge()).toHaveTextContent('Unknown');
+      expect(twitchBadge()).not.toHaveTextContent('Live');
+    });
+
+    it('reads offline for a platform the backend left out of its answer', () => {
+      const { liveState } = setup();
+
+      liveState.emit([]);
 
       expect(twitchBadge()).toHaveTextContent('Offline');
       expect(youTubeBadge()).toHaveTextContent('Offline');
@@ -194,9 +213,31 @@ describe('SiteHeader', () => {
       }
     );
 
+    it('offers nothing until the state of chat has arrived', async () => {
+      setup();
+
+      const { menu, connect, disconnect } = await openChatMenu(userEvent.setup());
+
+      expect(menu.getByText('Chat state unknown')).toBeInTheDocument();
+      expect(connect).toHaveAttribute('aria-disabled', 'true');
+      expect(disconnect).toHaveAttribute('aria-disabled', 'true');
+    });
+
+    it('offers nothing once reading the state of chat has failed', async () => {
+      const { chat } = setup();
+      chat.emit('idle');
+
+      chat.fail(new Error('Database is locked'));
+      const { menu, connect } = await openChatMenu(userEvent.setup());
+
+      expect(menu.getByText('Chat state unknown')).toBeInTheDocument();
+      expect(connect).toHaveAttribute('aria-disabled', 'true');
+    });
+
     it('connects chat, and shows the state that answers with', async () => {
       const goLive = vi.fn(async (): Promise<YouTubeChatState> => 'resolving');
-      setup({ goLive });
+      const { chat } = setup({ goLive });
+      chat.emit('idle');
       const user = userEvent.setup();
 
       await user.click((await openChatMenu(user)).connect);
@@ -221,7 +262,8 @@ describe('SiteHeader', () => {
 
     it('offers nothing while a request is waiting for its answer', async () => {
       const answer = deferred<YouTubeChatState>();
-      setup({ goLive: () => answer.promise });
+      const { chat } = setup({ goLive: () => answer.promise });
+      chat.emit('idle');
       const user = userEvent.setup();
 
       await user.click((await openChatMenu(user)).connect);
@@ -251,9 +293,10 @@ describe('SiteHeader', () => {
     });
 
     it('says so when connecting fails, and offers it again', async () => {
-      setup({
+      const { chat } = setup({
         goLive: () => Promise.reject(new Error('Quota exceeded')),
       });
+      chat.emit('idle');
       const user = userEvent.setup();
 
       await user.click((await openChatMenu(user)).connect);

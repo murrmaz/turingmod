@@ -7,6 +7,7 @@ import { CONFIG_SETUP_REGISTRY } from '@/components/integrations/config-integrat
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { StatusDot, TONE_TEXT } from '@/components/status';
+import { SubscriptionFailure } from '@/components/subscription-failure';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -36,7 +37,7 @@ const ACTION_ICONS: Record<IntegrationAction['kind'], LucideIcon> = {
 };
 
 export function IntegrationsPage() {
-  const { integrations } = useIntegrationState();
+  const { integrations, status } = useIntegrationState();
   const actions = useIntegrationActions();
   const [params, setParams] = useSearchParams();
   const selectedName = params.get(URL_PARAMS.selectedIntegration);
@@ -66,7 +67,9 @@ export function IntegrationsPage() {
         description="Each chain starts in order: a link only connects once the one before it has."
       />
 
-      {integrations.length === 0 && (
+      <SubscriptionFailure status={status} className="max-w-4xl" />
+
+      {integrations.length === 0 && status.state !== 'live' && (
         <div className="grid max-w-3xl grid-cols-3 gap-9">
           {Array.from({ length: 6 }, (_, index) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: placeholders have no identity

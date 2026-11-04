@@ -132,7 +132,10 @@ definition.
 - **State** the console shows is a subscription built with `watchable()`, which sends the current
   value on subscribing and again after each change, reading it once per change however many
   consoles watch; tRPC resubscribes after a reconnect, so there's no separate read, and every
-  console receives every change. The console reads it with `useSubscription()`.
+  console receives every change. The console reads it with `useSubscription()`, which also
+  resubscribes after a backend error (that ends a subscription for good, reconnecting included)
+  and returns a status; a view shows a failure with `SubscriptionFailure`, and doesn't show one, or
+  data that hasn't arrived, as if there were nothing to show.
 - **Mutations** answer with the state they left, which the console that asked shows at once
   (`useSubscription()`'s setter), so a spinner never stops on stale state; other consoles get it
   through the subscription.

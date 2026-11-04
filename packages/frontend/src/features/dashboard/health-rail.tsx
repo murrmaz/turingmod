@@ -3,6 +3,7 @@ import { IntegrationStatus } from '@turingmod/shared';
 import { CircleAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { StatusDot } from '@/components/status';
+import { SubscriptionFailure } from '@/components/subscription-failure';
 import { Button } from '@/components/ui/button';
 import { links } from '@/constants/pages';
 import { useIntegrationState } from '@/context/app-state-context';
@@ -15,7 +16,7 @@ import { describeIntegration, inDisplayOrder } from '@/lib/integrationStatus';
  * integration when something isn't.
  */
 export function HealthRail() {
-  const { integrations } = useIntegrationState();
+  const { integrations, status } = useIntegrationState();
   const actions = useIntegrationActions();
   const navigate = useNavigate();
   const broken = integrations.filter((i) => describeIntegration(i).needsAttention);
@@ -23,6 +24,7 @@ export function HealthRail() {
 
   return (
     <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto">
+      <SubscriptionFailure status={status} />
       {broken.map((integration) => (
         <NeedsAttention
           key={integration.name}

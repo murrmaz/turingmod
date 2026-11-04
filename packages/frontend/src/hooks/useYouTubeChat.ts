@@ -18,7 +18,7 @@ const NOT_CONNECTED: YouTubeChatState = 'idle';
 export function useYouTubeChat() {
   const trpc = useTrpc();
   const [pending, setPending] = useState(false);
-  const [state, showState] = useSubscription(
+  const [state, showState, status] = useSubscription(
     (client, on) => client.youtubeChat.watch.subscribe(undefined, on),
     NOT_CONNECTED,
     "Couldn't read the YouTube chat state"
@@ -43,5 +43,5 @@ export function useYouTubeChat() {
     [send, trpc]
   );
 
-  return { state, pending, goLive, goOffline };
+  return { state, status, pending, goLive, goOffline };
 }

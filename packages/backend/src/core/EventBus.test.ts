@@ -10,6 +10,19 @@ const makeLogger = () => {
 };
 
 describe('EventBus', () => {
+  it("doesn't drop a later subscriber when an unsubscribe is called twice", async () => {
+    const bus = new EventBus(makeLogger());
+    const unsubscribe = bus.on('youtube.chat.state', () => {});
+    unsubscribe();
+    const later = vi.fn();
+    bus.on('youtube.chat.state', later);
+
+    unsubscribe();
+    await bus.emit('youtube.chat.state', { state: 'idle' });
+
+    expect(later).toHaveBeenCalledOnce();
+  });
+
   it('logs an async handler rejection from emitSync instead of leaving it unhandled', async () => {
     const logger = makeLogger();
     const bus = new EventBus(logger);

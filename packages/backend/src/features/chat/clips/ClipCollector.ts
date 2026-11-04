@@ -60,7 +60,8 @@ export class ClipCollector implements IService {
 
   /**
    * Stop collecting and write what was collected to an HTML page in the data directory. Resolves
-   * to the page's path and the number of clips, or null if collection wasn't on.
+   * to the page's path and the number of clips, or null if collection wasn't on. A page that can't
+   * be written rejects and leaves collection on, so the clips are kept and this can be tried again.
    */
   async end(now = new Date()): Promise<{ path: string; count: number } | null> {
     const clips = this.collecting;
@@ -68,9 +69,14 @@ export class ClipCollector implements IService {
     this.collecting = null;
 
     const directory = join(DATA_DIRECTORY, 'clips');
-    await mkdir(directory, { recursive: true });
     const path = join(directory, `clips-${now.toISOString().replace(/[:.]/g, '-')}.html`);
-    await writeFile(path, renderClipPage([...clips.values()], now));
+    try {
+      await mkdir(directory, { recursive: true });
+      await writeFile(path, renderClipPage([...clips.values()], now));
+    } catch (error) {
+      this.collecting ??= clips;
+      throw error;
+    }
     this.logger.info(`Clip collection ended: ${clips.size} clip(s) written to ${path}`);
     return { path, count: clips.size };
   }

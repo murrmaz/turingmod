@@ -163,6 +163,26 @@ describe('OwnChatMessages', () => {
       expect(await own.isOwn(announcement)).toBe(false);
     });
 
+    it('forgets it after the retention time, even if nothing else has been sent', async () => {
+      vi.useFakeTimers();
+      const { own } = setup();
+      await own.recordText(StreamingPlatform.TWITCH, 'Follow me', () => Promise.resolve());
+      vi.advanceTimersByTime(OwnChatMessages.RETENTION_MS + 1);
+
+      expect(await own.isOwn(announcement)).toBe(false);
+    });
+
+    it('counts the retention time from the latest time it was sent', async () => {
+      vi.useFakeTimers();
+      const { own } = setup();
+      await own.recordText(StreamingPlatform.TWITCH, 'Follow me', () => Promise.resolve());
+      vi.advanceTimersByTime(OwnChatMessages.RETENTION_MS);
+      await own.recordText(StreamingPlatform.TWITCH, 'Follow me', () => Promise.resolve());
+      vi.advanceTimersByTime(OwnChatMessages.RETENTION_MS);
+
+      expect(await own.isOwn(announcement)).toBe(true);
+    });
+
     it('forgets it after the retention time', async () => {
       vi.useFakeTimers();
       const { own } = setup();

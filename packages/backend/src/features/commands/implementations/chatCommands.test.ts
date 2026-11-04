@@ -224,7 +224,7 @@ describe('!endcollect', () => {
     expect(result).toMatchObject({
       success: false,
       error: { code: 'API_ERROR' },
-      message: 'Failed to write the collected clips',
+      message: 'Failed to write the collected clips. Still collecting, so try again',
     });
   });
 });

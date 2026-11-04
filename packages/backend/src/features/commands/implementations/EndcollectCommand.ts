@@ -18,7 +18,7 @@ export class EndcollectCommand implements ICommand {
   readonly permissions = [PermissionLevel.MODERATOR];
   readonly cooldown = 0;
   readonly requiredCapabilities = [PlatformCapability.CLIPS];
-  readonly failureMessage = 'Failed to write the collected clips';
+  readonly failureMessage = 'Failed to write the collected clips. Still collecting, so try again';
 
   constructor(private clips: ClipCollector) {}
 

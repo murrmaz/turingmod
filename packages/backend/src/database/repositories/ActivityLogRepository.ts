@@ -52,7 +52,8 @@ interface ActivityLogRow {
  */
 @singleton()
 export class ActivityLogRepository {
-  private insertsSincePrune = 0;
+  /** Starts one short, so the first insert prunes: runs shorter than PRUNE_EVERY still add up. */
+  private insertsSincePrune = PRUNE_EVERY - 1;
   private logger: Logger;
 
   constructor(

@@ -1,11 +1,13 @@
-import { SimulatedUserSchema, StreamingPlatform } from '@turingmod/shared';
+import { platformDisplayName, SimulatedUserSchema, StreamingPlatform } from '@turingmod/shared';
 import { z } from 'zod';
 import type { CommandAvailability } from '../../features/commands/CommandAvailability.js';
 import type { CommandExecutor } from '../../features/commands/CommandExecutor.js';
 import type { CommandRegistry } from '../../features/commands/CommandRegistry.js';
 import type { CommandContext, ICommand } from '../../features/commands/interfaces/ICommand.js';
 import { parseCommand } from '../../features/commands/parseCommand.js';
+import { toCommandError } from '../../features/commands/utils/commandErrors.js';
 import { fail } from '../../features/commands/utils/results.js';
+import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import type { Logger } from '../../utils/Logger.js';
 import { procedure, router } from './trpc.js';
 
@@ -14,6 +16,7 @@ export function createCommandsRouter(
   commandExecutor: CommandExecutor,
   commandRegistry: CommandRegistry,
   commandAvailability: CommandAvailability,
+  streamControl: StreamControlService,
   logger: Logger
 ) {
   const log = logger.child({ component: 'CommandsRouter' });
@@ -42,7 +45,9 @@ export function createCommandsRouter(
 
     /**
      * Run a command typed into the simulator, side effects included, parsed exactly as it would
-     * be from chat: anything chat wouldn't run as a command is answered as not being one.
+     * be from chat: anything chat wouldn't run as a command is answered as not being one. A command
+     * that gives the platform the viewer's id runs as the real user with the simulated username;
+     * any other gets a placeholder id, so it runs for a made-up name or a disconnected platform.
      */
     simulate: procedure
       .input(
@@ -53,7 +58,7 @@ export function createCommandsRouter(
           platform: z.enum(StreamingPlatform),
         })
       )
-      .mutation(({ input: { commandText, simulatedUser, platform } }) => {
+      .mutation(async ({ input: { commandText, simulatedUser, platform } }) => {
         log.info('Simulating command', {
           commandText,
           user: simulatedUser.username,
@@ -69,12 +74,28 @@ export function createCommandsRouter(
           );
         }
 
-        const userId = simulatedUser.userId || `sim-${Date.now()}`;
+        let userId = simulatedUser.userId ?? `sim-${Date.now()}`;
+        const { username } = simulatedUser;
+        const needsRealId = commandAvailability.find(parsed.command, platform)?.usesPlatformUserId;
+        if (needsRealId && !simulatedUser.userId) {
+          try {
+            const found = await streamControl.require(platform, 'userLookup').findUserId(username);
+            if (!found) {
+              const message = `No ${platformDisplayName(platform)} user named ${username}`;
+              return fail('INVALID_INPUT', message, message);
+            }
+            userId = found;
+          } catch (error) {
+            log.error('Failed to look up the simulated user', error, { user: username });
+            return toCommandError(error, `Failed to look up ${username}`);
+          }
+        }
+
         const context: CommandContext = {
           ...parsed,
           user: {
             platformUserId: userId,
-            username: simulatedUser.username,
+            username,
             permissionLevel: simulatedUser.permissionLevel,
           },
           platform,

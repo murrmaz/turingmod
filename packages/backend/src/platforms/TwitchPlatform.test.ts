@@ -138,6 +138,20 @@ describe('TwitchPlatform', () => {
     expect(await platform.accountAge.getAccountCreatedAt('viewer')).toBe(creationDate);
   });
 
+  it("finds a user's id by login name", async () => {
+    twitch.users.getUserByName.mockResolvedValueOnce({ id: '12345' });
+    twitch.users.getUserByName.mockResolvedValueOnce(null);
+
+    expect(await platform.userLookup.findUserId('the_murms')).toBe('12345');
+    expect(twitch.users.getUserByName).toHaveBeenCalledWith('the_murms');
+    expect(await platform.userLookup.findUserId('nobody')).toBeNull();
+  });
+
+  it('finds nobody for a name that cannot be a login, without asking Twitch', async () => {
+    expect(await platform.userLookup.findUserId('not/a/login')).toBeNull();
+    expect(twitch.users.getUserByName).not.toHaveBeenCalled();
+  });
+
   describe('createStreamMarker', () => {
     it('marks the live broadcast', async () => {
       twitch.streams.getStreamByUserId.mockResolvedValue({});

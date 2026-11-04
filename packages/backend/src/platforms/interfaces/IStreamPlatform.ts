@@ -206,6 +206,12 @@ export interface AccountAgeApi {
   getAccountCreatedAt(userId: string): Promise<Date | null>;
 }
 
+/** PlatformCapability.USER_LOOKUP */
+export interface UserLookupApi {
+  /** A user's id on the platform, by login name, or null if there's no such user. */
+  findUserId(username: string): Promise<string | null>;
+}
+
 /** PlatformCapability.MARKERS */
 export interface MarkersApi {
   /** Mark the current point of the live broadcast. Throws while offline. */
@@ -239,6 +245,7 @@ export interface CapabilityApis {
   clips: ClipsApi;
   followInfo: FollowInfoApi;
   accountAge: AccountAgeApi;
+  userLookup: UserLookupApi;
   markers: MarkersApi;
   vods: VodsApi;
   announcements: AnnouncementsApi;

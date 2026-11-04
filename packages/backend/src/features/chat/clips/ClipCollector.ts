@@ -4,7 +4,12 @@ import { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import type { ChatMessageEvent } from '../../../core/events.js';
-import { type IService, Subscriptions } from '../../../core/ServiceLifecycle.js';
+import {
+  failureReporter,
+  type IService,
+  RepeatingFailures,
+  Subscriptions,
+} from '../../../core/ServiceLifecycle.js';
 import type { ClipInfo } from '../../../platforms/interfaces/IStreamPlatform.js';
 import { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { escapeHtml } from '../../../utils/escapeHtml.js';
@@ -30,6 +35,8 @@ export class ClipCollector implements IService {
   private subscriptions = new Subscriptions();
   private collecting: Map<string, ClipInfo> | null = null;
   private logger: Logger;
+  /** One per clip linked, so a Twitch outage is reported once. */
+  private lookupFailures: RepeatingFailures;
 
   constructor(
     private eventBus: EventBus,
@@ -37,6 +44,10 @@ export class ClipCollector implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'ClipCollector' });
+    this.lookupFailures = new RepeatingFailures(
+      failureReporter(eventBus, this.logger, 'Clip collection'),
+      this.logger
+    );
   }
 
   /** Listen to chat. Collection itself starts with `begin()`. */
@@ -94,8 +105,13 @@ export class ClipCollector implements IService {
           .getClip(id);
         // Collection may have ended while the lookup was in flight.
         if (clip && this.collecting === clips) clips.set(id, clip);
+        this.lookupFailures.recovered('lookup');
       } catch (error) {
-        this.logger.warn(`Could not look up clip ${id}`, error);
+        this.lookupFailures.failed(
+          'lookup',
+          `Could not look up clip ${id}, so it is missing from the collection unless linked again.`,
+          error
+        );
       }
     }
   }

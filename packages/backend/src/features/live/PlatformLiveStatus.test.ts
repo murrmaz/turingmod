@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/EventBus.js';
+import type { ServiceErrorEvent } from '../../core/events.js';
 import type { IStreamPlatform, LiveBroadcast } from '../../platforms/interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
@@ -425,6 +426,56 @@ describe('PlatformLiveStatus', () => {
       await eventSubReady();
 
       expect(twitchState()?.live).toBe(true);
+    });
+  });
+
+  describe('a read that fails', () => {
+    let reported: ReturnType<typeof vi.fn<(failure: ServiceErrorEvent) => void>>;
+
+    beforeEach(() => {
+      reported = vi.fn();
+      eventBus.on('service.error', reported);
+    });
+
+    it('tells the streamer once per platform, until it works again', async () => {
+      twitch.getLiveBroadcast.mockRejectedValue(new Error('Twitch answered 503'));
+      youtube.getLiveBroadcast.mockRejectedValue(new Error('YouTube answered 503'));
+
+      await service.refresh(StreamingPlatform.TWITCH);
+      await service.refresh(StreamingPlatform.TWITCH);
+      await service.refresh(StreamingPlatform.YOUTUBE);
+
+      expect(reported).toHaveBeenCalledTimes(2);
+      expect(reported).toHaveBeenCalledWith({
+        service: 'Live status',
+        message: expect.stringMatching(/whether Twitch is live.*Twitch answered 503/),
+      });
+
+      twitch.getLiveBroadcast.mockResolvedValueOnce(null);
+      await service.refresh(StreamingPlatform.TWITCH);
+      await service.refresh(StreamingPlatform.TWITCH);
+
+      expect(reported).toHaveBeenCalledTimes(3);
+    });
+
+    it('says nothing when a newer signal already replaced the answer', async () => {
+      let fail: (error: Error) => void = () => {};
+      twitch.getLiveBroadcast.mockReturnValueOnce(
+        new Promise((_, reject) => {
+          fail = reject;
+        })
+      );
+      const reading = service.refresh(StreamingPlatform.TWITCH);
+
+      await eventBus.emit('twitch.stream.offline', {
+        broadcasterId: '1',
+        broadcasterName: 'pope',
+        broadcasterDisplayName: 'Pope',
+      });
+      fail(new Error('Twitch answered 503'));
+      await reading;
+
+      expect(reported).not.toHaveBeenCalled();
     });
   });
 });

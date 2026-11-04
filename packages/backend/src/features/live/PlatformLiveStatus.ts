@@ -1,8 +1,13 @@
-import { type PlatformLiveState, StreamingPlatform } from '@turingmod/shared';
+import { type PlatformLiveState, platformDisplayName, StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
 import type { PlatformLiveStateEvent } from '../../core/events.js';
-import { type IService, Subscriptions } from '../../core/ServiceLifecycle.js';
+import {
+  failureReporter,
+  type IService,
+  RepeatingFailures,
+  Subscriptions,
+} from '../../core/ServiceLifecycle.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 import { ObsStreamState } from './ObsStreamState.js';
@@ -39,6 +44,8 @@ export class PlatformLiveStatus implements IService {
   /** Set from the first wait until the asking is over, including while an answer is awaited. */
   private recheckTimer: NodeJS.Timeout | null = null;
   private logger: Logger;
+  /** By platform, since a recheck asks again while its outage lasts. */
+  private failures: RepeatingFailures;
 
   constructor(
     private eventBus: EventBus,
@@ -47,6 +54,10 @@ export class PlatformLiveStatus implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'PlatformLiveStatus' });
+    this.failures = new RepeatingFailures(
+      failureReporter(eventBus, this.logger, 'Live status'),
+      this.logger
+    );
   }
 
   start(): void {
@@ -119,16 +130,24 @@ export class PlatformLiveStatus implements IService {
       if (this.generations.get(platform) !== generation) {
         return;
       }
+      this.failures.recovered(platform);
       this.set({
         platform,
         live: broadcast !== null,
         startedAt: broadcast?.startedAt?.getTime() ?? null,
       });
     } catch (error) {
-      this.logger.warn('Could not read whether a platform is live', {
+      // A newer answer, or the platform becoming unavailable, already replaced this one.
+      if (this.generations.get(platform) !== generation) {
+        this.logger.debug('A superseded read of whether a platform is live failed', { error });
+        return;
+      }
+      this.failures.failed(
         platform,
-        error,
-      });
+        `Could not read whether ${platformDisplayName(platform)} is live, so the header and the ` +
+          'go-live post may be out of date until it next reports a change.',
+        error
+      );
     }
   }
 

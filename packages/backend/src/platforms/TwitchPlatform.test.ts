@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
+import { HttpStatusCodeError } from '@twurple/api-call';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
@@ -482,6 +483,24 @@ describe('TwitchPlatform', () => {
       { startDate, title: 'Runs', category: 'Celeste' },
       { startDate },
     ]);
+  });
+
+  it('reads no schedule as empty, since Twitch answers 404 for one never created', async () => {
+    const { platform, twitch } = setup();
+    twitch.schedule.getSchedule.mockRejectedValue(
+      new HttpStatusCodeError(404, 'Not Found', 'https://x', 'GET', '', true)
+    );
+
+    expect(await platform.schedule.getSchedule()).toEqual([]);
+  });
+
+  it('fails on any other error reading the schedule', async () => {
+    const { platform, twitch } = setup();
+    twitch.schedule.getSchedule.mockRejectedValue(
+      new HttpStatusCodeError(500, 'Server Error', 'https://x', 'GET', '', true)
+    );
+
+    await expect(platform.schedule.getSchedule()).rejects.toThrow('500');
   });
 
   it('fails a shoutout for someone who does not exist', async () => {

@@ -94,6 +94,8 @@ export class OwnChatMessages implements IService {
   ): Promise<void> {
     const key = `${platform}:${text}`;
     this.prune();
+    // Deleted first, so a repeat moves to the end and the map stays in send order.
+    this.sentTexts.delete(key);
     this.sentTexts.set(key, Date.now());
     try {
       await send();
@@ -115,11 +117,18 @@ export class OwnChatMessages implements IService {
     if (this.sent.has(`${event.platform}:${event.messageId}`)) {
       return true;
     }
-    return this.sentTexts.delete(`${event.platform}:${event.message}`);
+    const key = `${event.platform}:${event.message}`;
+    const sentAt = this.sentTexts.get(key);
+    this.sentTexts.delete(key);
+    return sentAt !== undefined && sentAt >= this.retentionCutoff();
+  }
+
+  private retentionCutoff(): number {
+    return Date.now() - OwnChatMessages.RETENTION_MS;
   }
 
   private prune(): void {
-    const cutoff = Date.now() - OwnChatMessages.RETENTION_MS;
+    const cutoff = this.retentionCutoff();
     for (const remembered of [this.sent, this.sentTexts]) {
       for (const [key, sentAt] of remembered) {
         if (sentAt >= cutoff) {

@@ -4,6 +4,7 @@ import type {
   HelixCustomReward,
   HelixUpdateCustomRewardData,
 } from '@twurple/api';
+import { HttpStatusCodeError } from '@twurple/api-call';
 import { singleton } from 'tsyringe';
 import { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
@@ -221,8 +222,16 @@ export class TwitchPlatform implements IStreamPlatform {
   readonly schedule: ScheduleApi = {
     getSchedule: async () => {
       const userId = this.requireUserId();
-      const schedule = await this.api.request((c) => c.schedule.getSchedule(userId));
-      const segments = schedule?.data?.segments ?? [];
+      const schedule = await this.api
+        .request((c) => c.schedule.getSchedule(userId))
+        .catch((error: unknown) => {
+          // How Twitch answers for a broadcaster who has never created a schedule.
+          if (error instanceof HttpStatusCodeError && error.statusCode === 404) {
+            return null;
+          }
+          throw error;
+        });
+      const segments = schedule?.data.segments ?? [];
 
       return segments.map((segment) => {
         const mapped: ScheduleSegment = { startDate: segment.startDate };

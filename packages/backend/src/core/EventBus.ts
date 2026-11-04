@@ -41,7 +41,8 @@ export class EventBus {
     // Return unsubscribe function
     return () => {
       handlers.delete(handler as StoredHandler);
-      if (handlers.size === 0) {
+      // A repeated call may find a newer set here, holding other subscribers.
+      if (handlers.size === 0 && this.handlers.get(event) === handlers) {
         this.handlers.delete(event);
       }
     };

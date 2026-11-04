@@ -117,7 +117,7 @@ describe('ActivityLogRepository', () => {
 
   it('keeps the newest 5,000 entries', () => {
     db.transaction(() => {
-      for (let i = 0; i < 5_100; i++) {
+      for (let i = 0; i < 5_101; i++) {
         addFollow(i);
       }
     });
@@ -125,7 +125,27 @@ describe('ActivityLogRepository', () => {
     const [row] = db.query<{ count: number; oldest: number }>(
       'SELECT COUNT(*) AS count, MIN(timestamp) AS oldest FROM activity_log'
     );
-    expect(row).toEqual({ count: 5_000, oldest: 100 });
+    expect(row).toEqual({ count: 5_000, oldest: 101 });
+  });
+
+  it('holds to the cap across restarts too short to reach the next prune', () => {
+    db.transaction(() => {
+      for (let i = 0; i < 5_000; i++) {
+        addFollow(i);
+      }
+    });
+
+    for (let run = 0; run < 3; run++) {
+      repo = new ActivityLogRepository(db, new Logger({ level: 'silent' }));
+      db.transaction(() => {
+        for (let i = 0; i < 99; i++) {
+          addFollow(10_000 + run * 100 + i);
+        }
+      });
+    }
+
+    const [row] = db.query<{ count: number }>('SELECT COUNT(*) AS count FROM activity_log');
+    expect(row?.count).toBeLessThan(5_100);
   });
 
   it('leaves out and logs a stored event the log does not record', () => {

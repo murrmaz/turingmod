@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { readFile, rm } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../core/EventBus.js';
@@ -8,6 +8,11 @@ import type { StreamControlService } from '../../../platforms/StreamControlServi
 import { chatMessage, fakeRequire } from '../../../platforms/testing.js';
 import { Logger } from '../../../utils/Logger.js';
 import { ClipCollector, clipIdsIn, renderClipPage } from './ClipCollector.js';
+
+vi.mock('node:fs/promises', async (original) => {
+  const actual = await original<typeof import('node:fs/promises')>();
+  return { ...actual, writeFile: vi.fn(actual.writeFile) };
+});
 
 const clip = (id: string): ClipInfo => ({
   id,
@@ -99,6 +104,22 @@ describe('ClipCollector', () => {
     expect(page).toContain('Clip &lt;First&gt;');
     expect(page.indexOf('First')).toBeLessThan(page.indexOf('Second'));
     expect(await collector.end()).toBeNull();
+  });
+
+  it('keeps collecting and keeps the clips when the page cannot be written', async () => {
+    collector.begin();
+    await eventBus.emit('chat.message', chatMessage('https://clips.twitch.tv/First'));
+    vi.mocked(writeFile).mockRejectedValueOnce(new Error('ENOSPC: no space left on device'));
+
+    await expect(collector.end()).rejects.toThrow('ENOSPC');
+
+    expect(collector.begin()).toBe(false);
+    await eventBus.emit('chat.message', chatMessage('https://clips.twitch.tv/Second'));
+    const result = await collector.end();
+    if (!result) throw new Error('collection should still have been on');
+    written.push(result.path);
+    expect(result.count).toBe(2);
+    expect(await readFile(result.path, 'utf8')).toContain('Clip &lt;First&gt;');
   });
 
   it('only collects from Twitch chat', async () => {

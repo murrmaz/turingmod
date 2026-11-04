@@ -62,8 +62,6 @@ export function TrpcProvider({ children }: { children: ReactNode }) {
         if (state === 'pending') {
           everConnected.current = true;
           setConnectionState('connected');
-        } else if (state === 'idle') {
-          setConnectionState('closed');
         } else {
           setConnectionState(error || everConnected.current ? 'reconnecting' : 'connecting');
         }

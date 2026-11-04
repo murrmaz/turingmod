@@ -1,6 +1,9 @@
 import { TRPCError } from '@trpc/server';
-import { DataRowsQuerySchema } from '@turingmod/shared';
-import { type DataInspector, DataRefusedError } from '../../database/DataInspector.js';
+import {
+  type DataInspector,
+  DataRefusedError,
+  DataRowsQuerySchema,
+} from '../../database/DataInspector.js';
 import { procedure, router } from './trpc.js';
 
 /**

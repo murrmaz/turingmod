@@ -6,8 +6,8 @@ import {
   platformDisplayName,
   StreamingPlatform,
 } from '@turingmod/shared';
-import { Ellipsis } from 'lucide-react';
 import { useMemo } from 'react';
+import { actionsColumn, RowActionsMenu } from '@/components/data-table/actions-column';
 import { DataTableColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTableFacetedFilter } from '@/components/data-table/faceted-filter';
@@ -18,13 +18,7 @@ import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { SearchInput } from '@/components/search-input';
 import { DotBadge } from '@/components/status';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { PERMISSION_LABELS } from '@/constants/permissions';
 
 import { type CommandInfo, useCommandList } from '@/context/app-state-context';
@@ -118,36 +112,16 @@ export function CommandsPage() {
           </span>
         ),
       },
-      {
-        id: 'actions',
-        size: 52,
-        enableSorting: false,
-        enableHiding: false,
-        meta: { cellClassName: 'overflow-visible px-2 text-right' },
-        cell: ({ row }) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground"
-                aria-label="Command actions"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <Ellipsis />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
-              <DropdownMenuItem onSelect={() => simulator.open({ command: row.original.name })}>
-                Simulate…
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void copyToClipboard(row.original.usage, 'usage')}>
-                Copy usage
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ),
-      },
+      actionsColumn(({ row }) => (
+        <RowActionsMenu label="Command actions">
+          <DropdownMenuItem onSelect={() => simulator.open({ command: row.original.name })}>
+            Simulate…
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void copyToClipboard(row.original.usage, 'usage')}>
+            Copy usage
+          </DropdownMenuItem>
+        </RowActionsMenu>
+      )),
     ],
     [simulator]
   );
@@ -204,15 +178,14 @@ export function CommandsPage() {
         <DataTableViewOptions table={table} />
       </div>
       <LoadFailure status={status} />
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
-        <DataTable
-          table={table}
-          rowHeight={45}
-          loading={status.state !== 'live'}
-          onRowClick={(command) => simulator.open({ command: command.name })}
-          empty={commands.length === 0 ? 'There are no commands.' : 'No commands match.'}
-        />
-      </div>
+      <DataTable
+        framed
+        table={table}
+        rowHeight={45}
+        loading={status.state !== 'live'}
+        onRowClick={(command) => simulator.open({ command: command.name })}
+        empty={commands.length === 0 ? 'There are no commands.' : 'No commands match.'}
+      />
       <DataTablePagination
         {...pagination}
         summary={`${shown} of ${plural(commands.length, 'command')}`}

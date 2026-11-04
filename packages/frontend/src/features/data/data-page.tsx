@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { links, URL_PARAMS } from '@/constants/pages';
 import { useDataTables } from '@/hooks/useDataTables';
 import { plural } from '@/lib/plural';
-import { consoleFeatures } from '@/lib/tableFeatures';
+import { consoleFeatures, PAGED_BY_SERVER } from '@/lib/tableFeatures';
 import { inspectorColumns } from './columns';
 import { RowPanel } from './row-panel';
 import { useInspectedTable } from './useInspectedTable';
@@ -65,9 +65,7 @@ function TableInspector({ info }: { info: DataTableInfo }) {
     state: { sorting: inspected.sorting, columnVisibility: visibility },
     onSortingChange: inspected.setSorting,
     onColumnVisibilityChange: setVisibility,
-    manualSorting: true,
-    manualFiltering: true,
-    manualPagination: true,
+    ...PAGED_BY_SERVER,
     enableMultiSort: false,
     getRowId: (row) => row.rowKey,
   });
@@ -126,15 +124,14 @@ function TableInspector({ info }: { info: DataTableInfo }) {
         </Button>
         <DataTableViewOptions table={table} label="Columns" />
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
-        <DataTable
-          table={table}
-          loading={inspected.loading}
-          onRowClick={(row) => inspected.select(row.rowKey)}
-          selectedRowId={inspected.selectedKey}
-          empty={inspected.error ?? 'No rows.'}
-        />
-      </div>
+      <DataTable
+        framed
+        table={table}
+        loading={inspected.loading}
+        onRowClick={(row) => inspected.select(row.rowKey)}
+        selectedRowId={inspected.selectedKey}
+        empty={inspected.error ?? 'No rows.'}
+      />
       <DataTablePagination {...inspected.pagination} />
     </PageLayout>
   );

@@ -11,7 +11,7 @@ import { PageLayout } from '@/components/page-layout';
 import { SearchInput } from '@/components/search-input';
 import { dayDivider, type FeedCategory, type FeedRow } from '@/lib/activityFormat';
 import { plural } from '@/lib/plural';
-import { consoleFeatures } from '@/lib/tableFeatures';
+import { consoleFeatures, PAGED_BY_SERVER } from '@/lib/tableFeatures';
 import { useHistoryView } from './useHistoryView';
 
 const CATEGORIES = ['command', 'reward', 'viewer', 'system'] as const satisfies FeedCategory[];
@@ -33,9 +33,7 @@ export function HistoryPage() {
     data: view.rows,
     columns,
     getRowId: (row) => row.id,
-    manualSorting: true,
-    manualFiltering: true,
-    manualPagination: true,
+    ...PAGED_BY_SERVER,
     enableSorting: false,
   });
 
@@ -59,16 +57,15 @@ export function HistoryPage() {
         />
         <DateRangeSelect value={view.range} onChange={view.setRange} />
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
-        <DataTable
-          table={table}
-          divider={dayDivider}
-          loading={view.loading}
-          onRowClick={(row) => select(row.id)}
-          selectedRowId={view.selectedId}
-          empty={view.error ?? 'No activity recorded for this filter.'}
-        />
-      </div>
+      <DataTable
+        framed
+        table={table}
+        divider={dayDivider}
+        loading={view.loading}
+        onRowClick={(row) => select(row.id)}
+        selectedRowId={view.selectedId}
+        empty={view.error ?? 'No activity recorded for this filter.'}
+      />
       <DataTablePagination {...view.pagination} summary={plural(view.total, 'event')} />
       <EventSheet
         rows={view.rows}

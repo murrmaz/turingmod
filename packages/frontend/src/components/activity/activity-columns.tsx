@@ -1,15 +1,9 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import { platformDisplayName } from '@turingmod/shared';
-import { Ellipsis } from 'lucide-react';
+import { actionsColumn, RowActionsMenu } from '@/components/data-table/actions-column';
 import { DataTableColumnHeader } from '@/components/data-table/column-header';
 import { DotBadge } from '@/components/status';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import type { FeedRow } from '@/lib/activityFormat';
 import { copyToClipboard } from '@/lib/clipboard';
 import type { ConsoleFeatures } from '@/lib/tableFeatures';
@@ -90,44 +84,22 @@ export function activityColumns<T extends FeedRow>(
         </span>
       ),
     },
-    {
-      id: 'actions',
-      size: 48,
-      enableSorting: false,
-      enableHiding: false,
-      meta: { cellClassName: 'overflow-visible px-2 text-right' },
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 text-muted-foreground"
-              aria-label="Row actions"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <Ellipsis />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
-            <DropdownMenuItem onSelect={() => actions.onInspect(row.original)}>
-              Inspect
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() =>
-                void copyToClipboard(JSON.stringify(row.original.entry, null, 2), 'JSON')
-              }
-            >
-              Copy JSON
-            </DropdownMenuItem>
-            {row.original.user && (
-              <DropdownMenuItem onSelect={() => actions.onViewUser(row.original.user)}>
-                View {row.original.user}’s history
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    },
+    actionsColumn(({ row }) => (
+      <RowActionsMenu label="Row actions">
+        <DropdownMenuItem onSelect={() => actions.onInspect(row.original)}>
+          Inspect
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => void copyToClipboard(JSON.stringify(row.original.entry, null, 2), 'JSON')}
+        >
+          Copy JSON
+        </DropdownMenuItem>
+        {row.original.user && (
+          <DropdownMenuItem onSelect={() => actions.onViewUser(row.original.user)}>
+            View {row.original.user}’s history
+          </DropdownMenuItem>
+        )}
+      </RowActionsMenu>
+    )),
   ];
 }

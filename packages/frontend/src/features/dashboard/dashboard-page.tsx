@@ -1,6 +1,6 @@
 import { type SortingState, useTable } from '@tanstack/react-table';
 import { ArrowUp, Pause, Play } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { activityColumns } from '@/components/activity/activity-columns';
 import { EventSheet } from '@/components/activity/event-sheet';
@@ -11,7 +11,6 @@ import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
 import { links } from '@/constants/pages';
 import type { LiveFeedRow } from '@/context/live-log-context';
-import { useFocusShortcut } from '@/hooks/useFocusShortcut';
 import { usePlatformLiveState } from '@/hooks/usePlatformLiveState';
 import { dayDivider, type FeedCategory } from '@/lib/activityFormat';
 import { countEvents, streamStartedAt } from '@/lib/liveFeed';
@@ -42,8 +41,6 @@ function LiveActivity() {
   const streamStart = streamStartedAt(usePlatformLiveState().platforms);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'time', desc: true }]);
-  const searchRef = useRef<HTMLInputElement | null>(null);
-  useFocusShortcut(searchRef);
 
   const viewUser = useCallback((user: string) => navigate(links.historyOf(user)), [navigate]);
   const columns = useMemo(
@@ -73,14 +70,14 @@ function LiveActivity() {
         <div className="flex items-baseline gap-3 whitespace-nowrap">
           <h2 className="text-base font-semibold">Live activity</h2>
           <span className="truncate text-body text-muted-foreground">
-            Newest first · {plural(countEvents(feed.all, streamStart), 'event')}
+            {sorting[0]?.desc === false ? 'Oldest first' : 'Newest first'} ·{' '}
+            {plural(countEvents(feed.all, streamStart), 'event')}
             {streamStart === null ? '' : ' this stream'}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <FeedCategoryTabs categories={CATEGORIES} value={feed.tab} onChange={feed.setTab} />
           <SearchInput
-            ref={searchRef}
             value={feed.query}
             onChange={(event) => feed.setQuery(event.target.value)}
             placeholder="Filter events…"

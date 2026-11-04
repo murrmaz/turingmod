@@ -1,13 +1,14 @@
 import { OAuthClientCredentialsSchema } from '@turingmod/shared';
-import { ExternalLink, Info, ShieldCheck } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { useState } from 'react';
 import { FormField } from '@/components/form-field';
 import { Input } from '@/components/ui/input';
 import { useIntegrationState } from '@/context/app-state-context';
 import { IntegrationConfigDialog } from './integration-config-dialog';
 import type { OAuthProviderConfig } from './oauth-providers';
+import { SecurityNote, SetupLink, SetupSteps } from './setup-parts';
 
-export interface SetupModalProps {
+export interface OAuthSetupModalProps {
   /** The integration this modal configures */
   provider: OAuthProviderConfig;
   onDismiss: () => void;
@@ -19,7 +20,7 @@ export interface SetupModalProps {
  * OAuth Integration Setup Modal
  * Allows user to configure an OAuth-capable integration's Client ID and Client Secret
  */
-export function SetupModal({ provider, onDismiss, onSaved }: SetupModalProps) {
+export function OAuthSetupModal({ provider, onDismiss, onSaved }: OAuthSetupModalProps) {
   const { integrations } = useIntegrationState();
   // Reported by the backend, which derives it from its own port and the one loopback host each
   // provider accepts for plain HTTP; never built or sent back by the console.
@@ -51,11 +52,10 @@ export function SetupModal({ provider, onDismiss, onSaved }: SetupModalProps) {
               {provider.displayName}, so you'll authorize again with the new ones.
             </p>
           )}
-          <p className="flex gap-2 text-xs text-muted-foreground">
-            <ShieldCheck className="size-4 shrink-0" />
+          <SecurityNote>
             Credentials are encrypted with AES-256-GCM and stored on this computer, and only ever
             sent to {provider.displayName}'s official API.
-          </p>
+          </SecurityNote>
         </>
       }
       onDismiss={onDismiss}
@@ -64,21 +64,13 @@ export function SetupModal({ provider, onDismiss, onSaved }: SetupModalProps) {
     >
       <section className="flex flex-col gap-2">
         <h3 className="font-medium">1. Register an application</h3>
-        <ol className="ml-5 list-decimal space-y-1.5 text-muted-foreground marker:text-subtle-foreground">
+        <SetupSteps>
           <li>
             Go to{' '}
-            <a
-              href={provider.registrationUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-foreground underline underline-offset-4"
-            >
-              {provider.registrationLinkText}
-              <ExternalLink className="size-3" />
-            </a>
+            <SetupLink href={provider.registrationUrl}>{provider.registrationLinkText}</SetupLink>
           </li>
           <li>
-            Click <strong className="text-foreground">“{provider.createButtonLabel}”</strong>
+            Click <strong>“{provider.createButtonLabel}”</strong>
           </li>
           <li>
             Fill in:
@@ -92,14 +84,12 @@ export function SetupModal({ provider, onDismiss, onSaved }: SetupModalProps) {
             </dl>
           </li>
           <li>
-            Click <strong className="text-foreground">“{provider.saveButtonLabel}”</strong>
+            Click <strong>“{provider.saveButtonLabel}”</strong>
           </li>
           {provider.finalSteps.map((step) => (
-            <li key={step.id} className="[&_strong]:text-foreground">
-              {step.content}
-            </li>
+            <li key={step.id}>{step.content}</li>
           ))}
-        </ol>
+        </SetupSteps>
       </section>
 
       <section className="flex flex-col gap-3">

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useIntegrationState } from '@/context/app-state-context';
-import { describeIntegration } from '@/lib/integrationStatus';
+import { describeIntegration, isBroken } from '@/lib/integrationStatus';
 
 /** Toasts an integration going into error or needing reauthorization. Renders nothing. */
 export function IntegrationToasts() {
@@ -9,9 +9,7 @@ export function IntegrationToasts() {
   const broken = useRef<Set<string> | null>(null);
 
   useEffect(() => {
-    const now = new Set(
-      integrations.filter((i) => describeIntegration(i).needsAttention).map((i) => i.name)
-    );
+    const now = new Set(integrations.filter((i) => isBroken(i.status)).map((i) => i.name));
     // The first list is how things already were when the console opened, not a change.
     if (broken.current !== null) {
       for (const integration of integrations) {

@@ -44,3 +44,10 @@ export const consoleFeatures = tableFeatures({
 });
 
 export type ConsoleFeatures = typeof consoleFeatures;
+
+/** A table whose rows the backend has already sorted, filtered and cut to one page. */
+export const PAGED_BY_SERVER = {
+  manualSorting: true,
+  manualFiltering: true,
+  manualPagination: true,
+} as const;

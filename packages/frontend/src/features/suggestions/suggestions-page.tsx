@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import { Trash2 } from 'lucide-react';
 import { useMemo } from 'react';
+import { actionsColumn } from '@/components/data-table/actions-column';
 import { DataTableColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTablePagination } from '@/components/data-table/pagination';
@@ -75,28 +76,21 @@ export function SuggestionsPage() {
           </span>
         ),
       },
-      {
-        id: 'actions',
-        size: 52,
-        enableSorting: false,
-        enableHiding: false,
-        meta: { cellClassName: 'overflow-visible px-2 text-right' },
-        cell: ({ row }) => (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7 text-muted-foreground hover:text-destructive"
-            aria-label="Delete suggestion"
-            title="Delete"
-            onClick={(event) => {
-              event.stopPropagation();
-              remove([row.original.id]);
-            }}
-          >
-            <Trash2 />
-          </Button>
-        ),
-      },
+      actionsColumn(({ row }) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 text-muted-foreground hover:text-destructive"
+          aria-label="Delete suggestion"
+          title="Delete"
+          onClick={(event) => {
+            event.stopPropagation();
+            remove([row.original.id]);
+          }}
+        >
+          <Trash2 />
+        </Button>
+      )),
     ],
     [remove]
   );
@@ -144,22 +138,21 @@ export function SuggestionsPage() {
         )}
       </div>
       <LoadFailure status={status} />
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
-        <DataTable
-          table={table}
-          rowHeight={45}
-          loading={status.state !== 'live'}
-          onRowClick={(suggestion) => table.getRow(String(suggestion.id)).toggleSelected()}
-          rowClassName={(suggestion) =>
-            table.state.rowSelection[String(suggestion.id)] ? 'bg-muted hover:bg-muted' : undefined
-          }
-          empty={
-            suggestions.length === 0
-              ? 'No suggestions yet. Viewers can add one with !sg.'
-              : 'No suggestions match.'
-          }
-        />
-      </div>
+      <DataTable
+        framed
+        table={table}
+        rowHeight={45}
+        loading={status.state !== 'live'}
+        onRowClick={(suggestion) => table.getRow(String(suggestion.id)).toggleSelected()}
+        rowClassName={(suggestion) =>
+          table.state.rowSelection[String(suggestion.id)] ? 'bg-muted hover:bg-muted' : undefined
+        }
+        empty={
+          suggestions.length === 0
+            ? 'No suggestions yet. Viewers can add one with !sg.'
+            : 'No suggestions match.'
+        }
+      />
       <DataTablePagination
         {...pagination}
         summary={`${shown} of ${plural(suggestions.length, 'suggestion')}`}

@@ -5,7 +5,7 @@ import { TrpcProvider, useConnection } from './trpc-context';
 
 interface FakeSocket {
   close: () => Promise<void>;
-  report: (state: 'pending' | 'connecting' | 'idle', error?: Error) => void;
+  report: (state: 'pending' | 'connecting', error?: Error) => void;
 }
 
 const sockets = vi.hoisted<FakeSocket[]>(() => []);

@@ -30,7 +30,7 @@ import {
 import { useIntegrationState } from '@/context/app-state-context';
 import { useConnection } from '@/context/trpc-context';
 import { useDataTables } from '@/hooks/useDataTables';
-import { describeIntegration } from '@/lib/integrationStatus';
+import { isBroken } from '@/lib/integrationStatus';
 
 export function AppSidebar() {
   const { pathname } = useLocation();
@@ -39,7 +39,7 @@ export function AppSidebar() {
   const current = pageAt(pathname);
   // A count beside a page's name, when it has something that needs looking at.
   const badges: Partial<Record<PageId, number>> = {
-    integrations: integrations.filter((i) => describeIntegration(i).needsAttention).length,
+    integrations: integrations.filter((i) => isBroken(i.status)).length,
   };
 
   return (

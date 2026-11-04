@@ -1,10 +1,10 @@
 import type { SortingState } from '@tanstack/react-table';
-import type { DataCell, DataRowsQuery, DataTableInfo } from '@turingmod/shared';
+import type { DataCell, DataTableInfo } from '@turingmod/shared';
 import { useCallback, useMemo, useState } from 'react';
 import { useDateRange } from '@/hooks/useDateRange';
 import { useDebounced } from '@/hooks/useDebounced';
 import { usePagedView } from '@/hooks/usePagedView';
-import { useDataRows } from './useDataRows';
+import { type DataRowsQuery, useDataRows } from './useDataRows';
 
 /**
  * A row of the page shown, keyed by what it holds, since a table need not have an id column. Its

@@ -1,12 +1,13 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { DataCell, DataRowsPage, DataRowsQuery, DataTableInfo } from '@turingmod/shared';
+import type { DataCell, DataTableInfo } from '@turingmod/shared';
 import { MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
 import { Link, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { links, PAGES, routePattern } from '@/constants/pages';
 import { renderConsole } from '@/testing/render-console';
 import { DataPage } from './data-page';
+import type { DataRowsPage, DataRowsQuery } from './useDataRows';
 import { MAX_EXPORT_ROWS } from './useTableExport';
 
 const toast = vi.hoisted(() =>

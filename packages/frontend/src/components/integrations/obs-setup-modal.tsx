@@ -1,9 +1,9 @@
 import { IntegrationName, OBS_DEFAULT_URL, ObsConfigSchema } from '@turingmod/shared';
-import { ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { FormField } from '@/components/form-field';
 import { Input } from '@/components/ui/input';
 import { type ConfigSetupModalProps, IntegrationConfigDialog } from './integration-config-dialog';
+import { SecurityNote } from './setup-parts';
 
 /**
  * OBS setup: obs-websocket's address and password. It opens on the address in use; the password
@@ -26,10 +26,10 @@ export function ObsSetupModal({ integration, onDismiss, onSaved }: ConfigSetupMo
       config={parsed.success ? parsed.data : null}
       failureMessage="Failed to save the OBS settings"
       footnote={
-        <p className="flex gap-2 text-xs text-muted-foreground">
-          <ShieldCheck className="size-4 shrink-0" />
-          The password is encrypted and stored on this computer, and only ever sent to OBS.
-        </p>
+        <SecurityNote>
+          The password is encrypted with AES-256-GCM and stored on this computer, and only ever sent
+          to OBS.
+        </SecurityNote>
       }
       onDismiss={onDismiss}
       onSaved={onSaved}

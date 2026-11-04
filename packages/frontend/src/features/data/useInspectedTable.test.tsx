@@ -1,7 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { DataCell, DataRowsPage, DataTableInfo } from '@turingmod/shared';
+import type { DataCell, DataTableInfo } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { switchableConnection } from '@/testing/render-console';
+import type { DataRowsPage } from './useDataRows';
 import { useInspectedTable } from './useInspectedTable';
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));

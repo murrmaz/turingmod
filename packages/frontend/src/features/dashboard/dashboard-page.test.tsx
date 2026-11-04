@@ -385,4 +385,49 @@ describe('Live activity', () => {
       expect(subscribe).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe("a row's menu", () => {
+    const openMenu = async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.click(screen.getByRole('button', { name: 'Row actions' }));
+      return screen.findByRole('menu');
+    };
+
+    it('inspects the row', async () => {
+      const { user } = setup([command('bonk')]);
+
+      await user.click(within(await openMenu(user)).getByRole('menuitem', { name: 'Inspect' }));
+
+      expect(await screen.findByRole('dialog', { name: '!bonk' })).toBeInTheDocument();
+    });
+
+    it("copies the row's JSON, without opening the row", async () => {
+      const { user } = setup([command('bonk')]);
+
+      await user.click(within(await openMenu(user)).getByRole('menuitem', { name: 'Copy JSON' }));
+
+      await expect(navigator.clipboard.readText()).resolves.toContain('"command-bonk"');
+      expect(screen.queryByRole('dialog', { name: '!bonk' })).not.toBeInTheDocument();
+    });
+
+    it("opens History on the row's viewer", async () => {
+      const { user } = setup([command('bonk')]);
+
+      await user.click(
+        within(await openMenu(user)).getByRole('menuitem', { name: 'View viewer’s history' })
+      );
+
+      expect(
+        screen.getByRole('status', { name: 'Current location', hidden: true })
+      ).toHaveTextContent('/history?q=viewer');
+    });
+  });
+
+  it('says which way the feed is sorted', async () => {
+    const { user } = setup([command('bonk')]);
+    expect(screen.getByText(/^Newest first/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Time' }));
+
+    expect(screen.getByText(/^Oldest first/)).toBeInTheDocument();
+  });
 });

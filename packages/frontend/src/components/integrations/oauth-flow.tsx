@@ -5,7 +5,7 @@ import { reportActionError } from '@/lib/reportError';
 import { OAUTH_INTEGRATION_REGISTRY } from './oauth-integration-registry';
 import { OAuthModal } from './oauth-modal';
 import type { OAuthProviderConfig } from './oauth-providers';
-import { SetupModal } from './setup-modal';
+import { OAuthSetupModal } from './oauth-setup-modal';
 
 /** Where an authorization stands: entering the app's credentials first, or signing in. */
 interface Flow {
@@ -45,7 +45,7 @@ export function OAuthFlowProvider({ children }: { children: ReactNode }) {
     <OAuthFlowContext.Provider value={value}>
       {children}
       {flow?.step === 'setup' && (
-        <SetupModal provider={flow.provider} onDismiss={close} onSaved={credentialsSaved} />
+        <OAuthSetupModal provider={flow.provider} onDismiss={close} onSaved={credentialsSaved} />
       )}
       {flow?.step === 'authorize' && (
         <OAuthModal

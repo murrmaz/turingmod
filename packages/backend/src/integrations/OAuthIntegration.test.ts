@@ -1,3 +1,4 @@
+import { IntegrationName } from '@turingmod/shared';
 import 'reflect-metadata';
 import { IntegrationStatus } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
@@ -14,7 +15,7 @@ type TestConfig = z.infer<typeof TestConfigSchema>;
 
 /** A provider whose connect() and re-auth classification the test controls. */
 class TestOAuthIntegration extends OAuthIntegration<TestConfig> {
-  readonly name = 'test-auth';
+  readonly name = IntegrationName.TWITCH_AUTH;
   protected readonly requiredScopes = ['read', 'write'];
   protected readonly callbackPath = '/callback/test';
   protected readonly redirectHost = '127.0.0.1';
@@ -168,7 +169,7 @@ describe('OAuthIntegration', () => {
     expect(() => integration.refreshed({ accessToken: 'new-token' })).not.toThrow();
 
     expect(saveConfig).toHaveBeenCalledWith(
-      'test-auth',
+      IntegrationName.TWITCH_AUTH,
       expect.objectContaining({ accessToken: 'new-token' })
     );
     await integration.start();

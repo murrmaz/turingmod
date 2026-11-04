@@ -7,7 +7,7 @@
  * Where the connection stands. `connecting` is only the first attempt; once a connection has
  * failed or dropped, it's `reconnecting` until one opens again.
  */
-export type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'closed';
+export type ConnectionState = 'connecting' | 'connected' | 'reconnecting';
 
 /** The first retry waits this long, doubling each time it fails, up to RECONNECT_MAX_MS. */
 const RECONNECT_BASE_MS = 1000;

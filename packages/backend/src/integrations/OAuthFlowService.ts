@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { messageOf } from '@turingmod/shared';
+import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
 import { IntegrationManager } from './IntegrationManager.js';
@@ -91,8 +91,10 @@ export class OAuthFlowService {
   /**
    * Complete an authorization from the provider's redirect to its callback route: check the
    * `state`, then exchange the code (enabling and starting the integration) or take the
-   * provider's error. Every outcome but an invalid `state` is announced as `oauth.completed`,
-   * which reaches every open console, before this returns.
+   * provider's error. It succeeded only if the integration ended up connected: `start()` doesn't
+   * throw for a grant it can't use, such as one the streamer narrowed on the consent screen. Every
+   * outcome but an invalid `state` is announced as `oauth.completed`, which reaches every open
+   * console, before this returns.
    */
   async handleCallback(
     integrationName: string,
@@ -120,6 +122,10 @@ export class OAuthFlowService {
       await integration.exchangeCode(params.code);
       // Authorizing an integration is the streamer asking for it to run.
       await this.integrationManager.enableIntegration(integrationName);
+      if (integration.getStatus() !== IntegrationStatus.CONNECTED) {
+        const reason = integration.getErrorMessage() ?? 'The integration did not connect';
+        return await this.fail(integrationName, reason, consoleOrigin);
+      }
     } catch (error) {
       return this.fail(integrationName, messageOf(error), consoleOrigin);
     }

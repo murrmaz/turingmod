@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { IntegrationStatus } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EventBus } from '../core/EventBus.js';
 import type { IntegrationManager } from './IntegrationManager.js';
@@ -13,6 +14,8 @@ function oauthIntegration(name: string, callbackPath: string): IOAuthIntegration
     isConfigured: () => true,
     getAuthorizationUrl: (state: string) => state,
     exchangeCode: vi.fn().mockResolvedValue(undefined),
+    getStatus: vi.fn().mockReturnValue(IntegrationStatus.CONNECTED),
+    getErrorMessage: vi.fn().mockReturnValue(undefined),
     getCallbackPath: () => callbackPath,
     getRedirectUri: () => `http://localhost:8080${callbackPath}`,
   } as unknown as IOAuthIntegration & { oauth: IOAuthIntegration };
@@ -90,6 +93,39 @@ describe('OAuthFlowService', () => {
       integrationName: 'twitch-auth',
       success: false,
       errorMessage: 'invalid client',
+    });
+  });
+
+  it('reports a grant the integration could not use, with its reason', async () => {
+    vi.mocked(twitch.getStatus).mockReturnValue(IntegrationStatus.NEEDS_REAUTH);
+    vi.mocked(twitch.getErrorMessage).mockReturnValue(
+      'Re-authorization required for new permissions: chat:read'
+    );
+    const state = flow.getAuthorizationUrl('twitch-auth', Console);
+
+    const outcome = await callback('twitch-auth', state);
+
+    expect(outcome).toEqual({
+      result: 'failed',
+      message: 'Re-authorization required for new permissions: chat:read',
+      consoleOrigin: Console,
+    });
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit).toHaveBeenCalledWith('oauth.completed', {
+      integrationName: 'twitch-auth',
+      success: false,
+      errorMessage: 'Re-authorization required for new permissions: chat:read',
+    });
+  });
+
+  it('reports an integration left unconnected without saying why', async () => {
+    vi.mocked(twitch.getStatus).mockReturnValue(IntegrationStatus.DISCONNECTED);
+    const state = flow.getAuthorizationUrl('twitch-auth', null);
+
+    expect(await callback('twitch-auth', state)).toEqual({
+      result: 'failed',
+      message: 'The integration did not connect',
+      consoleOrigin: null,
     });
   });
 

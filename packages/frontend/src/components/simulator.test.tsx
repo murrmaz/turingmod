@@ -9,11 +9,17 @@ import { renderConsole } from '@/testing/render-console';
 const toast = vi.hoisted(() => Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }));
 vi.mock('sonner', () => ({ toast }));
 
-function OpenButton({ request = { command: 'bonk' } }: { request?: SimulatorRequest }) {
+function OpenButton({
+  request = { command: 'bonk' },
+  label = 'Open',
+}: {
+  request?: SimulatorRequest;
+  label?: string;
+}) {
   const simulator = useSimulator();
   return (
     <button type="button" onClick={() => simulator.open(request)}>
-      Open
+      {label}
     </button>
   );
 }
@@ -91,6 +97,23 @@ describe('SimulatorProvider', () => {
     await user.type(screen.getByLabelText('Command'), 'abc');
 
     expect(renders).toBe(before);
+  });
+
+  it('goes back to a viewer when the next opening asks for no level', async () => {
+    const user = userEvent.setup();
+    renderConsole(
+      <>
+        <OpenButton request={{ permissionLevel: PermissionLevel.BROADCASTER }} />
+        <OpenButton request={{ command: 'bonk' }} label="Open as anyone" />
+      </>
+    );
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Open as anyone' }));
+
+    expect(screen.getByLabelText('Permission level')).toHaveTextContent('Viewer');
   });
 
   it('opens at the permission level asked for', async () => {

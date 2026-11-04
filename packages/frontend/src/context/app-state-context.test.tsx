@@ -20,7 +20,7 @@ const renders = { commands: 0, integrations: 0 };
 
 function CommandCount() {
   renders.commands++;
-  return <output aria-label="Commands">{useCommandList().length}</output>;
+  return <output aria-label="Commands">{useCommandList().commands.length}</output>;
 }
 
 function IntegrationCount() {

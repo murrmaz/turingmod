@@ -179,6 +179,24 @@ describe('Live activity', () => {
     expect(shownCommands()).toEqual(['!bonk']);
   });
 
+  it('leaves the arrow keys alone once the open entry has left the feed', async () => {
+    const { user, arrive } = setup([command('old')]);
+    await user.click(screen.getByText('!old'));
+    expect(screen.getByRole('dialog', { name: '!old' })).toBeInTheDocument();
+
+    act(() => {
+      for (let index = 0; index < 1000; index++) {
+        arrive(command(`new${index}`));
+      }
+    });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    const pressed = new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true });
+    act(() => void window.dispatchEvent(pressed));
+
+    expect(pressed.defaultPrevented).toBe(false);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it('steps through the rows it shows with ↑ and ↓ while an entry is open', async () => {
     const { user } = setup([command('first'), command('second'), command('third')]);
 

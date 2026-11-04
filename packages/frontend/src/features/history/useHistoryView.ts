@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { URL_PARAMS } from '@/constants/pages';
+import { useDateRange } from '@/hooks/useDateRange';
 import { useDebounced } from '@/hooks/useDebounced';
 import { usePagedView } from '@/hooks/usePagedView';
 import { FEED_CATEGORY_EVENTS, toFeedRow } from '@/lib/activityFormat';
-import { type DateRange, rangeStart } from '@/lib/dateRange';
 import { useActivityHistory } from './useActivityHistory';
 
 /** A category the stored log has (every one but chat, which isn't stored), or all of them. */
@@ -18,7 +18,7 @@ export type HistoryCategory = keyof typeof FEED_CATEGORY_EVENTS | 'all';
 export function useHistoryView() {
   const [params, setParams] = useSearchParams();
   const [category, setCategory] = useState<HistoryCategory>('all');
-  const [range, setRange] = useState<DateRange>('all');
+  const { range, since, setRange } = useDateRange();
   const query = params.get(URL_PARAMS.historySearch) ?? '';
   const { page, goTo, pageSize, selected, select, pagination } = usePagedView({
     category,
@@ -26,7 +26,6 @@ export function useHistoryView() {
     query: query.trim(),
   });
 
-  const since = rangeStart(range);
   const { entries, total, loading, error } = useActivityHistory({
     page,
     pageSize,
@@ -78,7 +77,7 @@ export function useHistoryView() {
     setRange,
     search,
     setSearch,
-    pagination: pagination(total),
+    pagination: pagination(total, error !== null),
     selectedId: selected,
     select,
     viewUser,

@@ -70,11 +70,38 @@ describe('Commands', () => {
     await waitFor(() => expect(screen.getByText('Page 1 of 2')).toBeInTheDocument());
   });
 
-  it('says none have loaded until the backend answers', () => {
+  it("doesn't say there are none until the backend answers", () => {
     renderConsole(<CommandsPage />);
 
-    expect(screen.getByText('No commands loaded yet.')).toBeInTheDocument();
+    expect(screen.queryByText('There are no commands.')).not.toBeInTheDocument();
     expect(screen.getByText('0 of 0 commands')).toBeInTheDocument();
+  });
+
+  it('says so when reading the commands fails, and shows them once a retry does', async () => {
+    const query = vi
+      .fn<() => Promise<CommandInfo[]>>()
+      .mockRejectedValueOnce(new Error('Database is locked'))
+      .mockResolvedValue([command('bonk')]);
+    renderConsole(<CommandsPage />, { procedures: { commands: { list: { query } } } });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Database is locked');
+    expect(screen.queryByText('There are no commands.')).not.toBeInTheDocument();
+
+    expect(await screen.findByText('!bonk', {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('names every column in the columns menu', async () => {
+    const { user } = await setup([command('bonk')]);
+
+    await user.click(screen.getByRole('button', { name: 'View' }));
+
+    expect(screen.getAllByRole('menuitemcheckbox').map((item) => item.textContent)).toEqual([
+      'Description',
+      'Permission',
+      'Cooldown',
+      'Platforms',
+    ]);
   });
 
   it('shows who can use each command, its cooldown and where it works', async () => {

@@ -27,7 +27,7 @@ export function CommandPalette({
   onOpenChange: (open: boolean) => void;
 }) {
   const navigate = useNavigate();
-  const commands = useCommandList();
+  const { commands } = useCommandList();
   const simulator = useSimulator();
 
   useEffect(() => {

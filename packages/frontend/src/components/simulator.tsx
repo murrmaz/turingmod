@@ -94,9 +94,9 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
       if (request.command !== undefined) {
         setCommandText(`!${request.command} `);
       }
-      if (request.permissionLevel !== undefined) {
-        setPermissionLevel(request.permissionLevel);
-      }
+      // Not left at what the last opening asked for: a side effect is real, so running as a
+      // broadcaster has to be asked for each time.
+      setPermissionLevel(request.permissionLevel ?? PermissionLevel.VIEWER);
       setOutcome(null);
       setIsOpen(true);
     },

@@ -45,9 +45,12 @@ export function EventSheet({
   const row = rows[index] ?? null;
   const above = rows[index - 1]?.id;
   const below = rows[index + 1]?.id;
+  // Not whether something is selected: a row that has left the list is still selected, and the sheet
+  // has closed by then.
+  const open = row !== null;
 
   useEffect(() => {
-    if (selectedId === null) {
+    if (!open) {
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
@@ -61,12 +64,12 @@ export function EventSheet({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedId, above, below, onSelect]);
+  }, [open, above, below, onSelect]);
 
   const fields = row ? Object.entries(row.entry.data) : [];
 
   return (
-    <Sheet open={row !== null} onOpenChange={(open) => !open && onSelect(null)}>
+    <Sheet open={open} onOpenChange={(open) => !open && onSelect(null)}>
       <SheetContent className="w-sheet gap-5 p-6 sm:max-w-sheet">
         {row && (
           <>

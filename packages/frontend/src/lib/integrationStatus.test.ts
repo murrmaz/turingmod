@@ -8,6 +8,7 @@ import {
   inDisplayOrder,
   integrationChains,
   isBroken,
+  orderByDependencies,
 } from './integrationStatus';
 
 const twitch = { id: 'twitch', label: 'Twitch' };
@@ -117,6 +118,28 @@ describe('integrationChains', () => {
       ['spotify-auth', 'spotify-api'],
       ['twitch-auth', 'twitch-api', 'twitch-eventsub'],
     ]);
+  });
+});
+
+describe('orderByDependencies', () => {
+  it('puts each after what it depends on, however many chains lead there', () => {
+    const order = orderByDependencies([
+      integration('a-last', undefined, ['y-middle', 'x-next']),
+      integration('x-next', undefined, ['y-middle']),
+      integration('y-middle', undefined, ['z-first']),
+      integration('z-first'),
+    ]);
+
+    expect(order.map((item) => item.name)).toEqual(['z-first', 'y-middle', 'x-next', 'a-last']);
+  });
+
+  it('survives a cycle', () => {
+    const order = orderByDependencies([
+      integration('a', undefined, ['b']),
+      integration('b', undefined, ['a']),
+    ]);
+
+    expect(order).toHaveLength(2);
   });
 });
 

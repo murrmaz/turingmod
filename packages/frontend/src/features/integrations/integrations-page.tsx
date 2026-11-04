@@ -4,10 +4,10 @@ import { Fragment, type ReactNode, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DetailPanel } from '@/components/detail-panel';
 import { CONFIG_SETUP_REGISTRY } from '@/components/integrations/config-integration-registry';
+import { LoadFailure } from '@/components/load-failure';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { StatusDot, TONE_TEXT } from '@/components/status';
-import { SubscriptionFailure } from '@/components/subscription-failure';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -67,7 +67,7 @@ export function IntegrationsPage() {
         description="Each chain starts in order: a link only connects once the one before it has."
       />
 
-      <SubscriptionFailure status={status} className="max-w-4xl" />
+      <LoadFailure status={status} className="max-w-4xl" />
 
       {integrations.length === 0 && status.state !== 'live' && (
         <div className="grid max-w-3xl grid-cols-3 gap-9">

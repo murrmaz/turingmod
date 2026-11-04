@@ -292,4 +292,42 @@ describe('Data page', () => {
     await user.click(screen.getByRole('button', { name: 'Previous page' }));
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
   });
+
+  it("doesn't count a table as narrowed because it has grown since the list was read", async () => {
+    setup(async (query) => pageOf(query, 5));
+
+    expect(await screen.findByText('5 rows')).toBeInTheDocument();
+  });
+
+  it('goes to the last page there is when the rows no longer reach this one', async () => {
+    let total = 120;
+    const { user, lastQuery } = setup(async (query) => pageOf(query, total));
+    await user.click(await screen.findByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ page: 1 }));
+    total = 40;
+
+    await user.click(await screen.findByRole('button', { name: 'Next page' }));
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ page: 0 }));
+    expect(await screen.findByText('Page 1 of 1')).toBeInTheDocument();
+  });
+
+  it("doesn't read again or move the rows for a click after the time range was picked", async () => {
+    const { user, queryRows } = setup(async (query) => pageOf(query, 3));
+    await screen.findByText('row-1');
+    await user.click(outsideTable('combobox', 'Time range'));
+    await user.click(await screen.findByRole('option', { name: 'Last 7 days' }));
+    await waitFor(() => expect(queryRows.mock.lastCall?.[0].since).toBeDefined());
+    const reads = queryRows.mock.calls.length;
+
+    const realNow = Date.now();
+    const later = vi.spyOn(Date, 'now').mockReturnValue(realNow + 5 * 60_000);
+    await user.click(await screen.findByText('row-2'));
+    later.mockRestore();
+
+    expect(queryRows).toHaveBeenCalledTimes(reads);
+    expect(within(screen.getByRole('complementary')).getAllByText('row-2').length).toBeGreaterThan(
+      0
+    );
+  });
 });

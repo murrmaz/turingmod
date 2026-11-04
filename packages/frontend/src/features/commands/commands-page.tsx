@@ -13,6 +13,7 @@ import { DataTable } from '@/components/data-table/data-table';
 import { DataTableFacetedFilter } from '@/components/data-table/faceted-filter';
 import { DataTablePagination } from '@/components/data-table/pagination';
 import { DataTableViewOptions } from '@/components/data-table/view-options';
+import { LoadFailure } from '@/components/load-failure';
 import { PageHeader } from '@/components/page-header';
 import { PageLayout } from '@/components/page-layout';
 import { SearchInput } from '@/components/search-input';
@@ -52,7 +53,7 @@ function lowestPermission(command: CommandInfo): PermissionLevel {
 }
 
 export function CommandsPage() {
-  const commands = useCommandList();
+  const { commands, status } = useCommandList();
   const simulator = useSimulator();
 
   const columns = useMemo<ColumnDef<ConsoleFeatures, CommandInfo>[]>(
@@ -84,6 +85,7 @@ export function CommandsPage() {
         header: ({ column }) => <DataTableColumnHeader column={column} title="Permission" />,
         accessorFn: (command) => PERMISSION_HIERARCHY.indexOf(lowestPermission(command)),
         size: 150,
+        meta: { label: 'Permission' },
         filterFn: (row, _id, value: string[]) => value.includes(lowestPermission(row.original)),
         cell: ({ row }) => {
           const level = lowestPermission(row.original);
@@ -95,6 +97,7 @@ export function CommandsPage() {
         accessorKey: 'cooldown',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Cooldown" />,
         size: 110,
+        meta: { label: 'Cooldown' },
         cell: ({ row }) => (
           <span className="font-mono text-data text-muted-foreground">
             {row.original.cooldown > 0 ? `${row.original.cooldown}s` : '—'}
@@ -200,12 +203,14 @@ export function CommandsPage() {
         />
         <DataTableViewOptions table={table} />
       </div>
+      <LoadFailure status={status} />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
         <DataTable
           table={table}
           rowHeight={45}
+          loading={status.state !== 'live'}
           onRowClick={(command) => simulator.open({ command: command.name })}
-          empty={commands.length === 0 ? 'No commands loaded yet.' : 'No commands match.'}
+          empty={commands.length === 0 ? 'There are no commands.' : 'No commands match.'}
         />
       </div>
       <DataTablePagination

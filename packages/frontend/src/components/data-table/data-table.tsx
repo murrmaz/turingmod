@@ -19,6 +19,8 @@ declare module '@tanstack/react-table' {
     /** Classes for this column's cells (not its header). */
     cellClassName?: string;
     headerClassName?: string;
+    /** The column's name in the columns menu, for a header that isn't plain text. */
+    label?: string;
   }
 }
 

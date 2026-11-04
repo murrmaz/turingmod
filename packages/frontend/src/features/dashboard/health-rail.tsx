@@ -2,8 +2,8 @@ import type { IntegrationInfo } from '@turingmod/shared';
 import { IntegrationStatus } from '@turingmod/shared';
 import { CircleAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { LoadFailure } from '@/components/load-failure';
 import { StatusDot } from '@/components/status';
-import { SubscriptionFailure } from '@/components/subscription-failure';
 import { Button } from '@/components/ui/button';
 import { links } from '@/constants/pages';
 import { useIntegrationState } from '@/context/app-state-context';
@@ -24,7 +24,7 @@ export function HealthRail() {
 
   return (
     <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto">
-      <SubscriptionFailure status={status} />
+      <LoadFailure status={status} />
       {broken.map((integration) => (
         <NeedsAttention
           key={integration.name}

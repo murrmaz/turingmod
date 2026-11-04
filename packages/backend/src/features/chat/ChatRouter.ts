@@ -3,9 +3,9 @@ import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
 import type { ChatMessageEvent } from '../../core/events.js';
 import {
-  failureReporter,
   type IService,
-  RepeatingFailures,
+  type RepeatingFailures,
+  repeatingFailures,
   Subscriptions,
 } from '../../core/ServiceLifecycle.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
@@ -37,10 +37,7 @@ export class ChatRouter implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'ChatRouter' });
-    this.replyFailures = new RepeatingFailures(
-      failureReporter(eventBus, this.logger, 'Chat'),
-      this.logger
-    );
+    this.replyFailures = repeatingFailures(eventBus, this.logger, 'Chat');
   }
 
   /** Subscribe to `chat.message` and route replies. */

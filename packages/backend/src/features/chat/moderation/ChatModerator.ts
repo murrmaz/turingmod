@@ -2,7 +2,7 @@ import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import type { ChatMessageEvent } from '../../../core/events.js';
-import { failureReporter, RepeatingFailures } from '../../../core/ServiceLifecycle.js';
+import { type RepeatingFailures, repeatingFailures } from '../../../core/ServiceLifecycle.js';
 import { BannedWordRepository } from '../../../database/repositories/BannedWordRepository.js';
 import { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { Logger } from '../../../utils/Logger.js';
@@ -38,10 +38,7 @@ export class ChatModerator {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'ChatModerator' });
-    this.failures = new RepeatingFailures(
-      failureReporter(eventBus, this.logger, 'Chat moderation'),
-      this.logger
-    );
+    this.failures = repeatingFailures(eventBus, this.logger, 'Chat moderation');
   }
 
   isQuietMode(): boolean {

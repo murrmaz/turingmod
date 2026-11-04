@@ -1,3 +1,4 @@
+import { messageOf } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { Logger } from '../../utils/Logger.js';
 import { DatabaseManager } from '../DatabaseManager.js';
@@ -66,7 +67,7 @@ export class MigrationRunner {
   /**
    * Run migrations
    */
-  runMigrations(migrations: Migration[]): void {
+  runMigrations(migrations: readonly Migration[]): void {
     this.logger.info('Running database migrations');
 
     // Ensure migrations table exists
@@ -76,7 +77,7 @@ export class MigrationRunner {
     const appliedVersions = new Set(this.getAppliedVersions());
 
     // Sort migrations by version
-    const sortedMigrations = migrations.sort((a, b) => a.version - b.version);
+    const sortedMigrations = [...migrations].sort((a, b) => a.version - b.version);
 
     // Apply pending migrations
     for (const migration of sortedMigrations) {
@@ -104,7 +105,10 @@ export class MigrationRunner {
         this.logger.error(`Migration ${migration.version} failed`, error, {
           name: migration.name,
         });
-        throw new Error(`Migration ${migration.version} (${migration.name}) failed: ${error}`);
+        throw new Error(
+          `Migration ${migration.version} (${migration.name}) failed: ${messageOf(error)}`,
+          { cause: error }
+        );
       }
     }
 

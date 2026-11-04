@@ -4,6 +4,7 @@ import { EventBus } from '../../core/EventBus.js';
 import {
   failureReporter,
   type IService,
+  onConnected,
   type ReportFailure,
   Subscriptions,
 } from '../../core/ServiceLifecycle.js';
@@ -50,11 +51,7 @@ export class ObsStreamState implements IService {
           return this.update(outputState === OBS_OUTPUT_STARTED);
         }
       }),
-      this.eventBus.on('integration.status', ({ name, status }) => {
-        if (name === this.obs.name && status === IntegrationStatus.CONNECTED) {
-          return this.refresh();
-        }
-      })
+      onConnected(this.eventBus, this.obs, () => this.refresh())
     );
   }
 

@@ -1,9 +1,10 @@
-import { IntegrationStatus, type StreamingPlatform } from '@turingmod/shared';
+import type { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
 import {
   failureReporter,
   type IService,
+  onConnected,
   RepeatingFailures,
   type ReportFailure,
   Subscriptions,
@@ -113,11 +114,7 @@ export class GoLiveAnnouncer implements IService {
       }),
       // A platform reconnecting may be the evidence an open post was waiting for.
       this.eventBus.on('platform.availability', sync),
-      this.eventBus.on('integration.status', ({ name, status }) =>
-        name === this.discord.name && status === IntegrationStatus.CONNECTED
-          ? sync()
-          : Promise.resolve()
-      )
+      onConnected(this.eventBus, this.discord, sync)
     );
     // Nothing is live yet, so this only schedules the end of a post left from before a restart.
     return sync();

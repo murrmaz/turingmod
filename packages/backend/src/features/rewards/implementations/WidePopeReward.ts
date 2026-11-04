@@ -1,17 +1,12 @@
 import { injectable } from 'tsyringe';
-import { FacecamEffectRunner } from '../../effects/FacecamEffectRunner.js';
 import { stretch } from '../../effects/facecam/facecamEffects.js';
-import type { IRewardHandler, RewardDefinition } from '../interfaces/IRewardHandler.js';
+import { FacecamEffectReward } from '../FacecamEffectReward.js';
+import type { RewardDefinition } from '../interfaces/IRewardHandler.js';
 
 /** Stretches the facecam sideways for ten seconds. */
 @injectable()
-export default class WidePopeReward implements IRewardHandler {
+export default class WidePopeReward extends FacecamEffectReward {
   readonly rewardTitle = 'Wide Pope';
   readonly reward: RewardDefinition = { cost: 500, pauseDuringBreaks: true };
-
-  constructor(private effects: FacecamEffectRunner) {}
-
-  handle(): Promise<void> {
-    return this.effects.run(stretch('wide'));
-  }
+  protected readonly effect = stretch('wide');
 }

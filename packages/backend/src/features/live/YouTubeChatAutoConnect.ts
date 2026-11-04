@@ -1,7 +1,7 @@
 import { IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
-import { type IService, Subscriptions } from '../../core/ServiceLifecycle.js';
+import { type IService, onConnected, Subscriptions } from '../../core/ServiceLifecycle.js';
 import { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
 import { ObsStreamState } from './ObsStreamState.js';
 
@@ -40,12 +40,8 @@ export class YouTubeChatAutoConnect implements IService {
           this.chat.disconnectChat('OBS');
         }
       }),
-      this.eventBus.on('integration.status', ({ name, status }) => {
-        if (
-          name === this.chat.name &&
-          status === IntegrationStatus.CONNECTED &&
-          this.obsStream.isStreaming()
-        ) {
+      onConnected(this.eventBus, this.chat, () => {
+        if (this.obsStream.isStreaming()) {
           this.chat.connectChat('OBS');
         }
       })

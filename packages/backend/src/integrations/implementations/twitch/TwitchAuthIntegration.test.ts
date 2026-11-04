@@ -245,7 +245,8 @@ describe('TwitchAuthIntegration', () => {
       expect(integration.getStatus()).toBe(IntegrationStatus.ERROR);
       // Checked, so the assertions below can't pass on a failure that never named them.
       expect(integration.getErrorMessage()).toContain('client_secret=<redacted>');
-      expect(written.join('')).toContain('Failed to connect');
+      expect(written.join('')).toContain('Failed to start integration: twitch-auth');
+      expect(written.join('')).toContain('client_secret=<redacted>');
       expectNoCredentials(`${integration.getErrorMessage()} ${error.message} ${error.stack}`);
       expectNoCredentials(written.join(''));
     });

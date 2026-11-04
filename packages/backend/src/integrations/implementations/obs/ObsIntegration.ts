@@ -13,6 +13,7 @@ import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { EventBus } from '../../../core/EventBus.js';
 import { Logger } from '../../../utils/Logger.js';
+import { parseOrThrow } from '../../../utils/parseOrThrow.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 import { ReconnectBackoff } from '../../ReconnectBackoff.js';
 
@@ -314,13 +315,11 @@ export class ObsIntegration extends BaseIntegration {
       sceneUuid,
       sceneItemId,
     });
-    const parsed = SceneItemTransformSchema.safeParse(sceneItemTransform);
-    if (!parsed.success) {
-      throw new Error(
-        `Unexpected scene item transform from OBS:\n${z.prettifyError(parsed.error)}`
-      );
-    }
-    return parsed.data;
+    return parseOrThrow(
+      SceneItemTransformSchema,
+      sceneItemTransform,
+      'Unexpected scene item transform from OBS'
+    );
   }
 
   /** Set (merge) transform properties on a scene item. */

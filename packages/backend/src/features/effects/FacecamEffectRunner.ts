@@ -4,6 +4,7 @@ import { EventBus } from '../../core/EventBus.js';
 import {
   failureReporter,
   type IService,
+  onConnected,
   type ReportFailure,
   Subscriptions,
 } from '../../core/ServiceLifecycle.js';
@@ -67,13 +68,7 @@ export class FacecamEffectRunner implements IService {
   }
 
   start(): void {
-    this.subscriptions.add(
-      this.eventBus.on('integration.status', ({ name, status }) => {
-        if (name === this.obs.name && status === IntegrationStatus.CONNECTED) {
-          return this.restoreOwed();
-        }
-      })
-    );
+    this.subscriptions.add(onConnected(this.eventBus, this.obs, () => this.restoreOwed()));
   }
 
   /**

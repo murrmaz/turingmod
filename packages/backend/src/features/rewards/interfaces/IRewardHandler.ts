@@ -1,7 +1,5 @@
 import type { RewardRedemption } from '../../../core/events.js';
 
-export type { RewardRedemption };
-
 /**
  * How a handler's reward is set up on Twitch. RewardSync creates the reward from this when it's
  * missing and corrects it when it drifts, so the definition lives beside the code that acts on

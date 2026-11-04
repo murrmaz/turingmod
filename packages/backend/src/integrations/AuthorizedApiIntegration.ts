@@ -61,7 +61,6 @@ export abstract class AuthorizedApiIntegration<
 
     if (!this.currentClient()) {
       const error = new Error(`${this.auth.name} must be connected before ${this.name} can start`);
-      this.logger.error(`Failed to start ${this.service} API integration`, error);
       this.setStatus(IntegrationStatus.ERROR, error.message);
       return Promise.reject(error);
     }

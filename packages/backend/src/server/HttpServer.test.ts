@@ -174,6 +174,11 @@ describe('HttpServer static files', () => {
     expect(JSON.parse(body)).toMatchObject({ status: 'ok' });
   });
 
+  it('answers the health check whatever query string it comes with', async () => {
+    expect((await get('/health?from=monitor')).status).toBe(200);
+    expect(JSON.parse((await get('/health?from=monitor')).body)).toMatchObject({ status: 'ok' });
+  });
+
   it('refuses a path into a sibling folder whose name starts with the same characters', async () => {
     expect((await get('/../dist-old/secret.txt')).status).toBe(403);
   });

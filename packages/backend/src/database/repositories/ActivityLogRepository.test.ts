@@ -97,6 +97,16 @@ describe('ActivityLogRepository', () => {
     expect(results.map((e) => e.event)).toEqual(['twitch.raid', 'twitch.cheer', 'twitch.follow']);
   });
 
+  it('keeps entries made in the same millisecond in the order findPage shows them', () => {
+    for (let i = 0; i < 5; i++) {
+      addFollow(1_000, `user${i}`);
+    }
+
+    expect(repo.findRecent({}).map(({ id }) => id)).toEqual(
+      repo.findPage({ page: 0, pageSize: 5 }).entries.map(({ id }) => id)
+    );
+  });
+
   it('returns no more than 500 entries however many are asked for', () => {
     db.transaction(() => {
       for (let i = 0; i < 501; i++) {

@@ -14,7 +14,7 @@ import { ActivityLogRepository } from '../../database/repositories/ActivityLogRe
 import { Logger } from '../../utils/Logger.js';
 
 /**
- * Events shown in the live tail but not stored, besides chat: they are only worth seeing as they
+ * Events shown in the live feed but not stored, besides chat: they are only worth seeing as they
  * happen, and come in bursts that would push the stream's real history out of the capped log. A
  * device can be chatty, and every break shows and hides a source in every scene on every canvas,
  * which the break's own start and end entries already record.

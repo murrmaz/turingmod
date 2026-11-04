@@ -3,6 +3,7 @@ import { container, instanceCachingFactory } from 'tsyringe';
 import { ServiceLifecycle } from './core/ServiceLifecycle.js';
 import { DatabaseManager } from './database/DatabaseManager.js';
 import { DataInspector } from './database/DataInspector.js';
+import { ALL_MIGRATIONS } from './database/migrations/index.js';
 import { MigrationRunner } from './database/migrations/MigrationRunner.js';
 import {
   type SettingsDefinition,
@@ -128,8 +129,7 @@ export async function initializeDatabase(): Promise<void> {
   await container.resolve(DatabaseManager).initialize();
 
   logger.info('Running database migrations');
-  const { ALL_MIGRATIONS } = await import('./database/migrations/index.js');
-  container.resolve(MigrationRunner).runMigrations([...ALL_MIGRATIONS]);
+  container.resolve(MigrationRunner).runMigrations(ALL_MIGRATIONS);
 
   // Read every settings group once, so stored settings that don't fit their schema stop startup
   // with the bad fields named, instead of failing the first time a feature reads them.
@@ -181,7 +181,7 @@ export async function initializeComponents(): Promise<void> {
   const services = container.resolve(ServiceLifecycle);
   // Publishes platform.availability; snapshots each façade before integrations connect.
   services.add(container.resolve(PlatformAvailability));
-  // EventBus activity to the live tail (broadcast) and activity_log (persist).
+  // EventBus activity to the live feed and activity_log.
   services.add(container.resolve(ActivityForwarder));
   // Keeps each reward handler's reward on Twitch matching its definition. Before BreakService:
   // ending a break on shutdown unpauses rewards, so this must still be listening.

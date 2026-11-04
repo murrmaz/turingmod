@@ -1,14 +1,11 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
+import type { RewardRedemption } from '../../../core/events.js';
 import { BannedWordRepository } from '../../../database/repositories/BannedWordRepository.js';
 import { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { Logger } from '../../../utils/Logger.js';
 import { banCutoff, normalizeBannedWord } from '../../chat/moderation/bannedWords.js';
-import type {
-  IRewardHandler,
-  RewardDefinition,
-  RewardRedemption,
-} from '../interfaces/IRewardHandler.js';
+import type { IRewardHandler, RewardDefinition } from '../interfaces/IRewardHandler.js';
 
 /**
  * Bans the one word the viewer typed from chat for a month; ChatModerator enforces it. Anything

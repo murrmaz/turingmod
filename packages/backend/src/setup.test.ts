@@ -25,6 +25,21 @@ describe('setup', () => {
     expect(listed?.[1]?.match(/\w+/g)?.sort()).toEqual(declared.sort());
   });
 
+  it('registers every platform façade, since one left out is never offered', () => {
+    const declared = sourceFiles().flatMap((source) =>
+      [...source.matchAll(/\bclass\s+(\w+)[^{]*?\bimplements\b[^{]*?\bIStreamPlatform\b/g)].map(
+        ([, name]) => name
+      )
+    );
+    const setup = readFileSync(`${SRC}setup.ts`, 'utf8');
+    const registered = [
+      ...setup.matchAll(/platformRegistry\.register\(container\.resolve\((\w+)\)\)/g),
+    ].map(([, name]) => name);
+
+    expect(declared).toContain('TwitchPlatform'); // the pattern still finds them
+    expect(registered.sort()).toEqual(declared.sort());
+  });
+
   it('starts every class that implements IService, since nothing else would', () => {
     const declared = sourceFiles().flatMap((source) =>
       [...source.matchAll(/\bclass\s+(\w+)[^{]*?\bimplements\b[^{]*?\bIService\b/g)].map(

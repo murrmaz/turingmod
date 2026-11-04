@@ -23,25 +23,25 @@ import { toSafeChatText } from './safeChatText.js';
 const KEPT_SNIPPET_FIELDS = ['description', 'scheduledStartTime', 'scheduledEndTime'] as const;
 
 /**
+ * YouTube's chat box takes 200 characters. Its API documents no limit, only that it can refuse a
+ * message as `messageTextInvalid`, so this is the safe side of what isn't written down.
+ */
+const MAX_CHAT_MESSAGE_LENGTH = 200;
+
+/**
  * IStreamPlatform façade over the YouTube integration trio: everything TuringMod does on YouTube.
  *
  * Owns the YouTube endpoints it calls and the rules around them, and translates them into the
  * platform-agnostic types commands see. Connection health is not its concern: it makes every call
  * through YouTubeApiIntegration.request(), and is usable whenever YouTubeAuthIntegration is
  * connected and the API integration hasn't been stopped, which is what request() itself waits on.
- * Each call checks auth first and fails with NotAuthenticatedError, like Twitch's. The live broadcast comes from YouTubeChatIntegration
- * while chat is streaming, and from the API otherwise.
+ * Each call checks auth first and fails with NotAuthenticatedError, like Twitch's. The live
+ * broadcast comes from YouTubeChatIntegration while chat is streaming, and from the API otherwise.
  *
  * YouTube has no game/category or tags model, so it declares only SEND_CHAT, SET_TITLE, and
  * UPTIME and has no capability objects — commands requiring the other capabilities auto-hide on
  * YouTube.
  */
-/**
- * YouTube's chat box takes 200 characters. Its API documents no limit, only that it can refuse a
- * message as `messageTextInvalid`, so this is the safe side of what isn't written down.
- */
-const MAX_CHAT_MESSAGE_LENGTH = 200;
-
 @singleton()
 export class YouTubePlatform implements IStreamPlatform {
   readonly platform = StreamingPlatform.YOUTUBE;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
 import type { TuringModConfig } from '../utils/Config.js';
 import type { Logger } from '../utils/Logger.js';
+import { parseOrThrow } from '../utils/parseOrThrow.js';
 import { BaseIntegration } from './BaseIntegration.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 
@@ -103,7 +104,6 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
       await this.connect(config);
       this.setStatus(IntegrationStatus.CONNECTED);
     } catch (error) {
-      this.logger.error('Failed to connect', error);
       if (this.isReauthRequiredError(error)) {
         this.markAuthRequired('Refresh token is invalid or revoked — re-authorization required');
       } else {
@@ -190,13 +190,11 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
    * strict: the provider may add fields, and only the ones we use have to be there.
    */
   protected async parseTokenResponse<T>(schema: z.ZodType<T>, response: Response): Promise<T> {
-    const result = schema.safeParse(await response.json());
-    if (!result.success) {
-      throw new Error(
-        `Unexpected token response for ${this.name}:\n${z.prettifyError(result.error)}`
-      );
-    }
-    return result.data;
+    return parseOrThrow(
+      schema,
+      await response.json(),
+      `Unexpected token response for ${this.name}`
+    );
   }
 
   /**

@@ -174,7 +174,7 @@ export class HttpServer {
     this.logger.debug(`HTTP ${req.method} ${pathname}`);
 
     // Health check endpoint
-    if (url === '/health') {
+    if (pathname === '/health') {
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ status: 'ok', timestamp: Date.now() }));
@@ -286,33 +286,14 @@ export class HttpServer {
       // Check if file exists
       if (!existsSync(fullPath)) {
         // SPA fallback: serve index.html for client-side routes
-        const indexPath = join(this.frontendDistPath, 'index.html');
-        if (existsSync(indexPath)) {
-          const content = await readFile(indexPath);
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end(content);
-          return;
-        }
-
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('Not found');
+        await this.serveIndex(this.frontendDistPath, res);
         return;
       }
 
       // Check if it's a file (not a directory)
       const stats = await stat(fullPath);
       if (stats.isDirectory()) {
-        // Serve index.html from directory
-        const indexPath = join(fullPath, 'index.html');
-        if (existsSync(indexPath)) {
-          const content = await readFile(indexPath);
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end(content);
-          return;
-        }
-
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('Not found');
+        await this.serveIndex(fullPath, res);
         return;
       }
 
@@ -327,6 +308,19 @@ export class HttpServer {
       res.writeHead(500, { 'Content-Type': 'text/plain' });
       res.end('Internal server error');
     }
+  }
+
+  /** Serve `directory`'s index.html, or say not found if it has none. */
+  private async serveIndex(directory: string, res: ServerResponse): Promise<void> {
+    const indexPath = join(directory, 'index.html');
+    if (!existsSync(indexPath)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not found');
+      return;
+    }
+    const content = await readFile(indexPath);
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(content);
   }
 
   /**

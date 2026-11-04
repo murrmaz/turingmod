@@ -1,5 +1,6 @@
 import { singleton } from 'tsyringe';
-import { z } from 'zod';
+import type { z } from 'zod';
+import { parseOrThrow } from '../../utils/parseOrThrow.js';
 import { DatabaseManager } from '../DatabaseManager.js';
 
 /**
@@ -37,11 +38,7 @@ export class SettingsRepository {
         throw new Error(`The "${definition.key}" settings are not valid JSON`, { cause: error });
       }
     }
-    const result = definition.schema.safeParse(stored);
-    if (!result.success) {
-      throw new Error(`Invalid "${definition.key}" settings:\n${z.prettifyError(result.error)}`);
-    }
-    return result.data;
+    return parseOrThrow(definition.schema, stored, `Invalid "${definition.key}" settings`);
   }
 
   /** Store settings, replacing any existing value. */

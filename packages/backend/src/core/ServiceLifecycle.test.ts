@@ -1,10 +1,12 @@
 import 'reflect-metadata';
+import { IntegrationStatus } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { Logger } from '../utils/Logger.js';
 import { EventBus } from './EventBus.js';
 import {
   failureReporter,
   type IService,
+  onConnected,
   RepeatingFailures,
   ServiceLifecycle,
   Subscriptions,
@@ -155,5 +157,42 @@ describe('RepeatingFailures', () => {
     failures.failed('reply', 'Could not reply.');
 
     expect(report).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('onConnected', () => {
+  it('runs only when this integration reaches CONNECTED, until unsubscribed', async () => {
+    const eventBus = new EventBus(new Logger({ level: 'silent' }));
+    const handler = vi.fn();
+    const unsubscribe = onConnected(eventBus, { name: 'obs' }, handler);
+    const status = (name: string, status: IntegrationStatus) =>
+      eventBus.emit('integration.status', { name, status });
+
+    await status('discord', IntegrationStatus.CONNECTED);
+    await status('obs', IntegrationStatus.CONNECTING);
+    expect(handler).not.toHaveBeenCalled();
+
+    await status('obs', IntegrationStatus.CONNECTED);
+    expect(handler).toHaveBeenCalledOnce();
+
+    unsubscribe();
+    await status('obs', IntegrationStatus.CONNECTED);
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it('waits for an async handler, as a subscriber does', async () => {
+    const eventBus = new EventBus(new Logger({ level: 'silent' }));
+    let finished = false;
+    onConnected(eventBus, { name: 'obs' }, async () => {
+      await new Promise((resolve) => setImmediate(resolve));
+      finished = true;
+    });
+
+    await eventBus.emit('integration.status', {
+      name: 'obs',
+      status: IntegrationStatus.CONNECTED,
+    });
+
+    expect(finished).toBe(true);
   });
 });

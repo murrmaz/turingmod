@@ -1,6 +1,7 @@
 import type { IntegrationInfo } from '@turingmod/shared';
 import type { ReactNode } from 'react';
 import { createContext, useContext, useMemo } from 'react';
+import { LiveLogProvider } from '@/context/live-log-context';
 import type { RouterOutputs } from '@/context/trpc-context';
 import { useServerQuery } from '@/hooks/useServerQuery';
 import { type SubscriptionStatus, useSubscription } from '@/hooks/useSubscription';
@@ -45,13 +46,15 @@ function CommandsProvider({ children }: { children: ReactNode }) {
 }
 
 /**
- * The integrations and commands, which most of the console needs. Provided separately, since
- * integrations change often and commands hardly ever: what reads one doesn't render for the other.
+ * What the console keeps whichever page is open: the integrations, commands and live feed. Provided
+ * separately, since they change at very different rates: what reads one doesn't render for another.
  */
 export function AppStateProvider({ children }: { children: ReactNode }) {
   return (
     <IntegrationsProvider>
-      <CommandsProvider>{children}</CommandsProvider>
+      <CommandsProvider>
+        <LiveLogProvider>{children}</LiveLogProvider>
+      </CommandsProvider>
     </IntegrationsProvider>
   );
 }

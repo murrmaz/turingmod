@@ -1,10 +1,11 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   type ActivityLogEntry,
   type PlatformLiveState,
   StreamingPlatform,
 } from '@turingmod/shared';
+import { Link, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { RouterOutputs } from '@/context/trpc-context';
 import { activityEntry } from '@/testing/activity';
@@ -261,6 +262,109 @@ describe('Live activity', () => {
 
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       expect(shownCommands()).toEqual(['!back']);
+    });
+  });
+
+  describe('with a busy chat', () => {
+    /** Each arrives in turn, in the one render, as many as `count`. */
+    function flood(arrive: (entry: ActivityLogEntry) => void, count: number, prefix: string) {
+      act(() => {
+        for (let index = 0; index < count; index++) {
+          arrive(chat(`${prefix}${index}`));
+        }
+      });
+    }
+
+    it('keeps every other event, and counts them still', async () => {
+      const { arrive, user } = setup([command('stored')]);
+      arrive(command('live'));
+
+      flood(arrive, 1001, 'm');
+
+      expect(shownCommands()).toEqual(['!live', '!stored']);
+      expect(screen.getByText(/Newest first · 2 events$/)).toBeInTheDocument();
+      await user.click(screen.getByRole('tab', { name: 'Chat' }));
+      expect(screen.getByText('m1000')).toBeInTheDocument();
+    });
+
+    it('keeps the newest of each kind when both are over their limits', async () => {
+      const { arrive, user } = setup();
+      arrive(command('oldest'));
+      arrive(chat('oldest chat'));
+      act(() => {
+        for (let index = 0; index < 1000; index++) {
+          arrive(command(`c${index}`));
+        }
+      });
+      flood(arrive, 1000, 'm');
+
+      expect(screen.queryByText('!oldest')).not.toBeInTheDocument();
+      expect(shownCommands()[0]).toBe('!c999');
+      await user.click(screen.getByRole('tab', { name: 'Chat' }));
+      expect(screen.queryByText('oldest chat')).not.toBeInTheDocument();
+      expect(screen.getByText('m999')).toBeInTheDocument();
+    });
+  });
+
+  describe('on another page', () => {
+    function withAnotherPage() {
+      const feed = new FakeSubscription<FeedEvent>();
+      const subscribe = vi.spyOn(feed, 'subscribe');
+      const user = userEvent.setup();
+      renderConsole(
+        <>
+          <Link to="/dashboard">Go to Dashboard</Link>
+          <Link to="/elsewhere">Go elsewhere</Link>
+          <Routes>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/elsewhere" element={<p>Elsewhere</p>} />
+          </Routes>
+        </>,
+        {
+          route: '/dashboard',
+          procedures: {
+            activity: { feed },
+            liveState: { watch: new FakeSubscription<PlatformLiveState[]>() },
+          },
+        }
+      );
+      feed.emit({ type: 'seed', entries: [] });
+      return { feed, subscribe, user };
+    }
+
+    it('keeps what arrived before leaving, chat and simulated commands included', async () => {
+      const { feed, user } = withAnotherPage();
+      feed.emit({ type: 'entry', entry: chat('before') });
+      feed.emit({
+        type: 'entry',
+        entry: activityEntry(
+          'command.executed',
+          { command: 'simulated', isSimulation: true },
+          { id: 'simulated', timestamp: clock }
+        ),
+      });
+
+      await user.click(screen.getByText('Go elsewhere'));
+      await user.click(screen.getByText('Go to Dashboard'));
+
+      expect(shownCommands()).toEqual(['!simulated']);
+      await user.click(screen.getByRole('tab', { name: 'Chat' }));
+      expect(screen.getByText('before')).toBeInTheDocument();
+    });
+
+    it('collects what arrives meanwhile, on the one subscription', async () => {
+      const { feed, subscribe, user } = withAnotherPage();
+
+      await user.click(screen.getByText('Go elsewhere'));
+      expect(screen.getByText('Elsewhere')).toBeInTheDocument();
+      feed.emit({ type: 'entry', entry: chat('while away') });
+      feed.emit({ type: 'entry', entry: command('meanwhile') });
+      await user.click(screen.getByText('Go to Dashboard'));
+
+      expect(shownCommands()).toEqual(['!meanwhile']);
+      await user.click(screen.getByRole('tab', { name: 'Chat' }));
+      expect(screen.getByText('while away')).toBeInTheDocument();
+      expect(subscribe).toHaveBeenCalledTimes(1);
     });
   });
 });

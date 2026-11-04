@@ -41,8 +41,9 @@ function ConsoleProviders({ client, connection, route, children }: ConsoleProvid
 
 /**
  * The providers a page runs inside (App.tsx), over a fake backend, as a `wrapper` for render()
- * or renderHook(). Integrations arrive when the test emits them on its own `integrations.watch`;
- * without one, the list stays empty. Commands never arrive unless the test gives `commands.list`.
+ * or renderHook(). Integrations and the live feed arrive when the test emits them on its own
+ * `integrations.watch` and `activity.feed`; without one, they stay empty. Commands never arrive
+ * unless the test gives `commands.list`.
  */
 export function consoleWrapper({
   procedures = {},
@@ -53,6 +54,7 @@ export function consoleWrapper({
   const client = fakeTrpc({
     ...procedures,
     integrations: { watch: new FakeSubscription(), ...procedures.integrations },
+    activity: { feed: new FakeSubscription(), ...procedures.activity },
     // Never answers, so no state update lands outside the test's act().
     commands: { list: { query: () => new Promise(() => {}) }, ...procedures.commands },
   });

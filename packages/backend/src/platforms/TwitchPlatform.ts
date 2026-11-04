@@ -1,4 +1,9 @@
-import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
+import {
+  CHAT_MESSAGE_LIMITS,
+  IntegrationStatus,
+  PlatformCapability,
+  StreamingPlatform,
+} from '@turingmod/shared';
 import type {
   HelixChannelUpdate,
   HelixCustomReward,
@@ -62,8 +67,7 @@ function toContentLabelId(name: string): string {
   return id;
 }
 
-/** Twitch's limit on a chat message and on an announcement. */
-const MAX_CHAT_MESSAGE_LENGTH = 500;
+const MAX_CHAT_MESSAGE_LENGTH = CHAT_MESSAGE_LIMITS[StreamingPlatform.TWITCH];
 
 /**
  * IStreamPlatform façade over the Twitch integration trio: everything TuringMod does on Twitch.

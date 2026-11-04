@@ -64,3 +64,17 @@ its text with the same `parseCommand()` as chat, so a command behaves identicall
 chat wouldn't run is answered as not a command. It runs as whichever user the console names, so it
 can run a command as anyone at any permission level, which is why it's reachable only from the
 localhost console.
+
+## Interval messages
+
+The streamer manages them on the console's Interval Messages page (`intervalMessages.*` procedures),
+and every change goes through `IntervalMessages`, which publishes `intervalMessages.changed`.
+`IntervalAnnouncer` posts one every `ANNOUNCEMENT_INTERVAL_MS` to every live platform. **What's next
+is worked out from what's stored, never kept in memory**: `nextInRotation()` takes the enabled message
+after the one with the latest `last_posted_at`, wrapping around. So the rotation survives a restart,
+and adding, moving, pausing or deleting a message can't make it skip one. A message is stamped only
+once a platform accepted it, so nothing advances while no platform is live.
+`IntervalMessageTextSchema` (`shared`), checked by both the dialog and the procedures, refuses text
+that `toSafeChatText()` would change at the start (a leading `!` or `/`), a line break, or anything
+past the longest platform limit, so what's saved is what's posted. Text past a shorter limit is
+allowed, with a warning in the dialog: only that platform cuts it off.

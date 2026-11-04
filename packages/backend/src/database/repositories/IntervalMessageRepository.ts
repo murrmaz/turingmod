@@ -2,44 +2,115 @@ import { singleton } from 'tsyringe';
 import { DatabaseManager } from '../DatabaseManager.js';
 
 export interface IntervalMessage {
-  name: string;
+  id: number;
   message: string;
-  createdBy: string | null;
+  /** Whether it takes its turn in the rotation; a paused one is kept but skipped. */
+  enabled: boolean;
+  /** Epoch milliseconds; null if it has never been posted. */
+  lastPostedAt: number | null;
+  /** Epoch milliseconds. */
+  createdAt: number;
 }
 
-/** Announcements posted to chat on a rotation, in the order they were added. */
+interface IntervalMessageRow {
+  id: number;
+  message: string;
+  enabled: number;
+  last_posted_at: number | null;
+  created_at: number;
+}
+
+const toIntervalMessage = (row: IntervalMessageRow): IntervalMessage => ({
+  id: row.id,
+  message: row.message,
+  enabled: row.enabled !== 0,
+  lastPostedAt: row.last_posted_at,
+  createdAt: row.created_at,
+});
+
+/**
+ * Announcements posted to chat on a rotation, in `position` order. A write to a single message
+ * returns false if there's no such message.
+ */
 @singleton()
 export class IntervalMessageRepository {
   constructor(private db: DatabaseManager) {}
 
+  /** Every message, in rotation order. */
   list(): IntervalMessage[] {
-    const rows = this.db.query<{ name: string; message: string; created_by: string | null }>(
-      'SELECT name, message, created_by FROM interval_messages ORDER BY id'
+    return this.db
+      .query<IntervalMessageRow>(
+        `SELECT id, message, enabled, last_posted_at, created_at
+         FROM interval_messages ORDER BY position`
+      )
+      .map(toIntervalMessage);
+  }
+
+  /** Add a message to the end of the rotation. */
+  add(message: string): void {
+    this.db.run(
+      `INSERT INTO interval_messages (message, position, created_at)
+       VALUES (?, (SELECT COALESCE(MAX(position), 0) + 1 FROM interval_messages), ?)`,
+      [message, Date.now()]
     );
-    return rows.map((row) => ({ name: row.name, message: row.message, createdBy: row.created_by }));
   }
 
-  /** Add a message to the end of the rotation. Returns false if the name is taken. */
-  add(name: string, message: string, createdBy: string | null): boolean {
-    const { changes } = this.db.run(
-      `INSERT OR IGNORE INTO interval_messages (name, message, created_by, created_at)
-       VALUES (?, ?, ?, ?)`,
-      [name, message, createdBy, Date.now()]
+  /** Replace a message's text, keeping its place. */
+  updateText(id: number, message: string): boolean {
+    return (
+      this.db.run('UPDATE interval_messages SET message = ? WHERE id = ?', [message, id]).changes >
+      0
     );
-    return changes > 0;
   }
 
-  /** Replace a message's text, keeping its place. Returns false if there's no such message. */
-  update(name: string, message: string): boolean {
-    const { changes } = this.db.run('UPDATE interval_messages SET message = ? WHERE name = ?', [
-      message,
-      name,
-    ]);
-    return changes > 0;
+  setEnabled(id: number, enabled: boolean): boolean {
+    return (
+      this.db.run('UPDATE interval_messages SET enabled = ? WHERE id = ?', [enabled ? 1 : 0, id])
+        .changes > 0
+    );
   }
 
-  remove(name: string): boolean {
-    const { changes } = this.db.run('DELETE FROM interval_messages WHERE name = ?', [name]);
-    return changes > 0;
+  /** Swap a message with its neighbour. One already at that end of the rotation stays put. */
+  move(id: number, direction: 'up' | 'down'): boolean {
+    return this.db.transaction(() => {
+      const own = this.db.queryOne<{ position: number }>(
+        'SELECT position FROM interval_messages WHERE id = ?',
+        [id]
+      );
+      if (!own) {
+        return false;
+      }
+      const neighbour = this.db.queryOne<{ id: number; position: number }>(
+        direction === 'up'
+          ? `SELECT id, position FROM interval_messages WHERE position < ?
+             ORDER BY position DESC LIMIT 1`
+          : `SELECT id, position FROM interval_messages WHERE position > ?
+             ORDER BY position LIMIT 1`,
+        [own.position]
+      );
+      if (neighbour) {
+        const swap = 'UPDATE interval_messages SET position = ? WHERE id = ?';
+        this.db.run(swap, [neighbour.position, id]);
+        this.db.run(swap, [own.position, neighbour.id]);
+      }
+      return true;
+    });
+  }
+
+  /** Delete the messages with these ids; ones already gone are skipped. Returns how many went. */
+  remove(ids: readonly number[]): number {
+    if (ids.length === 0) {
+      return 0;
+    }
+    const placeholders = ids.map(() => '?').join(', ');
+    return this.db.run(`DELETE FROM interval_messages WHERE id IN (${placeholders})`, [...ids])
+      .changes;
+  }
+
+  markPosted(id: number, at: number): boolean {
+    return (
+      this.db.run('UPDATE interval_messages SET last_posted_at = ? WHERE id = ?', [at, id])
+        .changes > 0
+    );
   }
 }

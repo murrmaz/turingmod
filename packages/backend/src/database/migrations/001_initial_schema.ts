@@ -66,14 +66,15 @@ export const initialSchema: Migration = {
       )
     `);
 
-    // The announcements posted on a rotation, in id order, so the rotation follows the order
-    // messages were added.
+    // The announcements posted on a rotation, in `position` order. Not UNIQUE, since SQLite checks
+    // that row by row and moving a message swaps two positions.
     db.exec(`
       CREATE TABLE interval_messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE,
         message TEXT NOT NULL,
-        created_by TEXT,
+        position INTEGER NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        last_posted_at INTEGER,
         created_at INTEGER NOT NULL
       )
     `);

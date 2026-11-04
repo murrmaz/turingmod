@@ -1,4 +1,9 @@
-import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
+import {
+  CHAT_MESSAGE_LIMITS,
+  IntegrationStatus,
+  PlatformCapability,
+  StreamingPlatform,
+} from '@turingmod/shared';
 import type { youtube_v3 } from 'googleapis';
 import { singleton } from 'tsyringe';
 import {
@@ -22,11 +27,7 @@ import { toSafeChatText } from './safeChatText.js';
 /** A broadcast snippet's mutable fields besides the title, carried over when the title changes. */
 const KEPT_SNIPPET_FIELDS = ['description', 'scheduledStartTime', 'scheduledEndTime'] as const;
 
-/**
- * YouTube's chat box takes 200 characters. Its API documents no limit, only that it can refuse a
- * message as `messageTextInvalid`, so this is the safe side of what isn't written down.
- */
-const MAX_CHAT_MESSAGE_LENGTH = 200;
+const MAX_CHAT_MESSAGE_LENGTH = CHAT_MESSAGE_LIMITS[StreamingPlatform.YOUTUBE];
 
 /**
  * IStreamPlatform façade over the YouTube integration trio: everything TuringMod does on YouTube.

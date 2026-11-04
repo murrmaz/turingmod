@@ -8,6 +8,7 @@ export * from './constants/permissions.js';
 export * from './constants/platform.js';
 export * from './types/activity.js';
 export * from './types/arduino.js';
+export * from './types/chat.js';
 export * from './types/command.js';
 export * from './types/data.js';
 export * from './types/discord.js';

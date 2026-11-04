@@ -51,6 +51,9 @@ export interface EventMap {
   /** A suggestion was added or deleted (see SuggestionBox). */
   'suggestions.changed': undefined;
 
+  /** An interval message was changed or posted (see IntervalMessages). */
+  'intervalMessages.changed': undefined;
+
   /**
    * An activity log entry was made, chat and live-only events included, which the stored log
    * leaves out (see ActivityForwarder).

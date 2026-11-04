@@ -84,7 +84,7 @@ const TABLES: Readonly<Record<string, TablePolicy>> = {
   },
   banned_words: { defaultSort: 'banned_at', timestamps: ['banned_at'] },
   counters: { defaultSort: 'name', timestamps: ['updated_at'] },
-  interval_messages: { defaultSort: 'created_at', timestamps: ['created_at'] },
+  interval_messages: { defaultSort: 'position', timestamps: ['last_posted_at', 'created_at'] },
   suggestions: { defaultSort: 'created_at', timestamps: ['created_at'] },
   obs_break_restore: { defaultSort: 'saved_at', timestamps: ['saved_at'], json: ['snapshot'] },
   go_live_post: { defaultSort: 'saved_at', timestamps: ['saved_at'], json: ['post'] },

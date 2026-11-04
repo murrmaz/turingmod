@@ -27,6 +27,11 @@ const PAGE_COMPONENTS: Record<PageId, LazyExoticComponent<ComponentType>> = {
   commands: lazy(() =>
     import('@/features/commands/commands-page').then((m) => ({ default: m.CommandsPage }))
   ),
+  intervalMessages: lazy(() =>
+    import('@/features/interval-messages/interval-messages-page').then((m) => ({
+      default: m.IntervalMessagesPage,
+    }))
+  ),
   integrations: lazy(() =>
     import('@/features/integrations/integrations-page').then((m) => ({
       default: m.IntegrationsPage,

@@ -5,10 +5,18 @@ import {
   Lightbulb,
   type LucideIcon,
   Plug,
+  Repeat,
   Terminal,
 } from 'lucide-react';
 
-export type PageId = 'dashboard' | 'commands' | 'integrations' | 'suggestions' | 'history' | 'data';
+export type PageId =
+  | 'dashboard'
+  | 'commands'
+  | 'intervalMessages'
+  | 'integrations'
+  | 'suggestions'
+  | 'history'
+  | 'data';
 
 /**
  * The URL parameters pages keep their state in, named once so a page and every link into it
@@ -38,6 +46,12 @@ export interface Page {
 export const PAGES: readonly Page[] = [
   { id: 'dashboard', path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'commands', path: '/commands', label: 'Commands', icon: Terminal },
+  {
+    id: 'intervalMessages',
+    path: '/interval-messages',
+    label: 'Interval Messages',
+    icon: Repeat,
+  },
   { id: 'integrations', path: '/integrations', label: 'Integrations', icon: Plug },
   { id: 'suggestions', path: '/suggestions', label: 'Suggestions', icon: Lightbulb },
   { id: 'history', path: '/history', label: 'History', icon: History },

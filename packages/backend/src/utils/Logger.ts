@@ -65,7 +65,12 @@ function caughtFields(error: unknown): Record<string, unknown> {
 export class Logger {
   private logger: PinoLogger;
 
-  constructor(options: LoggerOptions = {}) {
+  /** `pinoLogger` is for child(): a child logs through its parent's pino, not one of its own. */
+  constructor(options: LoggerOptions = {}, pinoLogger?: PinoLogger) {
+    if (pinoLogger) {
+      this.logger = pinoLogger;
+      return;
+    }
     const { level = 'info', pretty = false, destination } = options;
 
     const config: pino.LoggerOptions = {
@@ -95,9 +100,7 @@ export class Logger {
    * Create a child logger with additional context
    */
   child(bindings: Record<string, unknown>): Logger {
-    const childLogger = new Logger({ level: this.logger.level });
-    childLogger.logger = this.logger.child(bindings);
-    return childLogger;
+    return new Logger({}, this.logger.child(bindings));
   }
 
   /**

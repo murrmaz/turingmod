@@ -87,7 +87,7 @@ break or an effect while those are being restored. Each service keeps its bus su
 must know about goes through its `failureReporter()` (`core/ServiceLifecycle.ts`), which logs it and
 publishes `service.error`, putting it in the activity log and live feed; a log line alone reaches
 only the terminal. A failure that recurs for as long as its cause lasts (one per chat message, or
-per poll) goes through `RepeatingFailures`, which reports the first of a run. `announce()` lists a
+per poll) goes through `RepeatingFailures` (`repeatingFailures()` builds one with its own reporter), which reports the first of a run. `announce()` lists a
 platform that fails rather than throwing, so its caller passes the result to `reportAnnouncement()`.
 
 **Console requests**: the console calls procedures on the tRPC router (`server/trpc/appRouter.ts`), served at `TRPC_PATH` by `TrpcServer`; each procedure's Zod input schema is checked before it runs, so procedures never check input shape themselves, and a malformed input is a `BAD_REQUEST` naming the bad fields. See Console ↔ Backend Protocol below.
@@ -247,7 +247,7 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 - **Validation**: anything entering from outside the process — console messages, stored integration
   configs, settings, a provider's token response — is parsed with a Zod schema where it enters, and
   its TypeScript type is `z.infer` of that schema, so the type and the check can't drift apart.
-  Don't hand-write type guards or cast parsed JSON. Schemas for data TuringMod owns are strict
+  `parseOrThrow()` (`utils/parseOrThrow.ts`) is the check for a value that must fit, naming every field that doesn't. Don't hand-write type guards or cast parsed JSON. Schemas for data TuringMod owns are strict
   (`z.strictObject`: an unknown key is an error) and fail rather than fall back; a field may be
   optional or have a default, but a value that is present must be valid. (Activity log payloads
   are the one exception, since the capped log ages old rows out: see
@@ -296,5 +296,6 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 - **Commands reach platforms through `StreamControlService`**, never through a platform's integrations directly, and never check auth themselves (see Platform Provider Layer). An integration that isn't a platform (Spotify, sound) is used directly, through its `request()` or the feature class over it.
 - **A new platform capability** is a `PlatformCapability` value, an object type in `CapabilityApis`, its `CAPABILITY_OF_API` entry, and the façades' implementations; the compiler holds those together. Don't add a pass-through to `StreamControlService` — callers use `require()`.
 - **Every outgoing chat message goes through `toSafeChatText()` and `OwnChatMessages.record()`** (`recordText()` for a platform call that returns no id) inside the platform façade — a new `IStreamPlatform` (or a new send method) must apply both, so the bot can never post a command or act on what it posted (see Chat Pipeline). `platforms/chatSends.test.ts` holds every send to that, and fails on a `send*` method it doesn't cover.
+- **A new `IStreamPlatform`** gets a `platformRegistry.register(...)` line in `setup.ts`. `setup.test.ts` fails on a class that implements it without that line.
 - **API-backed read commands need a cooldown.** `ICommand.cooldown` is per-viewer seconds; `CommandExecutor` exempts moderators and above, so a shared read/write command (`!game`, `!tags`, `!cw`) can be throttled for viewers without blocking a moderator's write. `commandCooldowns.test.ts` fails on a command a viewer can run that has a `failureMessage` and no cooldown.
 - **New integrations** extend `BaseIntegration`, get decorated `@singleton()`, go in a folder under `integrations/implementations/` (auto-discovered by `discoverIntegrations()`: no registration line; abstract base classes stay in `integrations/`, since `abstract` is erased and one found there stops startup), return their group's object from `getGroup()` if they belong to one (see `integrations/CLAUDE.md`), and need a procedure in the tRPC router (`server/trpc/`) if the console controls them. An API that calls on behalf of a separate auth integration extends `AuthorizedApiIntegration` instead (a public API, or one with its token in its own config, stays on `BaseIntegration`). OAuth-capable integrations extend `OAuthIntegration` instead, and need an entry in the frontend's `oauth-integration-registry.tsx` + a config in `oauth-providers.tsx`.

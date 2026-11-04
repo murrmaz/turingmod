@@ -116,9 +116,10 @@ export class ActivityLogRepository {
   findRecent(opts: { limit?: number }): ActivityLogEntry[] {
     const limit = Math.min(opts.limit ?? DEFAULT_QUERY_LIMIT, MAX_QUERY_LIMIT);
     return this.readRows(
-      this.db.query<ActivityLogRow>('SELECT * FROM activity_log ORDER BY timestamp DESC LIMIT ?', [
-        limit,
-      ])
+      this.db.query<ActivityLogRow>(
+        'SELECT * FROM activity_log ORDER BY timestamp DESC, rowid DESC LIMIT ?',
+        [limit]
+      )
     );
   }
 

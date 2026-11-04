@@ -5,6 +5,7 @@ import type { BreakReason } from '../../core/events.js';
 import {
   failureReporter,
   type IService,
+  onConnected,
   RepeatingFailures,
   type ReportFailure,
   Subscriptions,
@@ -100,11 +101,7 @@ export class BreakService implements IService {
         }
         await this.startBreak('ad', event.durationSeconds);
       }),
-      this.eventBus.on('integration.status', ({ name, status }) => {
-        if (name === this.obs.name && status === IntegrationStatus.CONNECTED) {
-          return this.syncObs();
-        }
-      })
+      onConnected(this.eventBus, this.obs, () => this.syncObs())
     );
     if (this.obs.getStatus() === IntegrationStatus.CONNECTED) {
       void this.syncObs();

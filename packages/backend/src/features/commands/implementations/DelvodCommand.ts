@@ -13,7 +13,7 @@ import { fail, ok } from '../utils/results.js';
  * simulator refuses it rather than deleting a real VOD.
  */
 @injectable()
-export class DelvodCommand implements ICommand {
+export default class DelvodCommand implements ICommand {
   readonly name = 'delvod';
   readonly description = 'Delete the most recent past broadcast';
   readonly usage = '!delvod';
@@ -50,5 +50,3 @@ export class DelvodCommand implements ICommand {
     return ok('VOD successfully deleted');
   }
 }
-
-export default DelvodCommand;

@@ -3,7 +3,7 @@ import type { PlaybackState } from '@spotify/web-api-ts-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import type { SpotifyApiIntegration } from '../../../integrations/implementations/spotify/SpotifyApiIntegration.js';
 import { commandContext, runCommand } from '../testing.js';
-import { describePlayback, SongCommand } from './SongCommand.js';
+import SongCommand, { describePlayback } from './SongCommand.js';
 
 function playing(item: Record<string, unknown> | null, isPlaying = true): PlaybackState {
   return { is_playing: isPlaying, item } as unknown as PlaybackState;

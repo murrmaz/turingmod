@@ -11,7 +11,7 @@ import { ok } from '../utils/results.js';
  * keeps a single viewer from running the count up.
  */
 @injectable()
-export class VoiceCommand implements ICommand {
+export default class VoiceCommand implements ICommand {
   readonly name = 'voice';
   readonly description = "Count a crack in the streamer's voice";
   readonly usage = '!voice';
@@ -26,5 +26,3 @@ export class VoiceCommand implements ICommand {
     return Promise.resolve(ok(`Streamer's voice has cracked ${cracks} times`));
   }
 }
-
-export default VoiceCommand;

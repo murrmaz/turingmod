@@ -423,8 +423,8 @@ export class YouTubeChatIntegration extends BaseIntegration {
       return;
     }
 
-    // Anything else is unexpected. Surface it loudly rather than silently idling — with polling
-    // removed there is no degraded mode, so a quiet failure looks identical to a quiet stream.
+    // Anything else is unexpected. Surface it loudly rather than silently idling: a quiet failure
+    // looks identical to a quiet stream.
     this.reportChatStopped('YouTube chat stopped on an unexpected error.', error);
     this.teardown();
   }
@@ -541,7 +541,7 @@ export class YouTubeChatIntegration extends BaseIntegration {
 
   /**
    * Normalize one live chat message into `chat.received`.
-   * Payloads mirror TwitchEventSubIntegration.handleChatMessage() exactly.
+   * Payloads match TwitchEventSubIntegration.handleChatMessage()'s, without its `channelName`.
    */
   private handleMessage(item: LiveChatMessage): void {
     const author = item.authorDetails;

@@ -75,7 +75,7 @@ export type TwitchEventSubConfig = z.infer<typeof TwitchEventSubConfigSchema>;
  * - Subscribing to EventSub events
  * - Processing incoming events
  * - Emitting events to EventBus
- * - Handling chat messages and commands
+ * - Publishing chat messages as they arrive (commands are parsed further along)
  *
  * Twurple's on<Topic>() calls return at once and ask Twitch later, once the socket is open and again
  * each time it reopens. A refused request is never retried, and nothing throws. So this reports
@@ -205,7 +205,6 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.subscribeToEvents(listener, this.config.subscriptions ?? {}, broadcaster.id);
       this.reportSubscriptions(); // every topic turned off leaves nothing to wait for
     } catch (error) {
-      this.logger.error('Failed to start Twitch EventSub integration', error);
       this.setStatus(IntegrationStatus.ERROR, messageOf(error));
       throw error;
     }
@@ -290,7 +289,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   ): void {
     const subscriptions = { ...DEFAULT_EVENTSUB_TOPICS, ...overrides };
 
-    // Channel Chat Message (for commands and chat)
+    // Channel Chat Message
     if (subscriptions.channelChatMessage) {
       this.track(
         'channel.chat.message',

@@ -10,7 +10,7 @@ import { ok } from '../utils/results.js';
  * Adds one to the death counter.
  */
 @injectable()
-export class DiedCommand implements ICommand {
+export default class DiedCommand implements ICommand {
   readonly name = 'died';
   readonly description = 'Add one to the death counter';
   readonly usage = '!died';
@@ -25,5 +25,3 @@ export class DiedCommand implements ICommand {
     return Promise.resolve(ok(`Death count: ${deaths}`));
   }
 }
-
-export default DiedCommand;

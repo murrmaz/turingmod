@@ -6,7 +6,7 @@ import type {
   StreamControlService,
 } from '../../../platforms/StreamControlService.js';
 import { commandContext, errorCodeOf } from '../testing.js';
-import { TitleCommand } from './TitleCommand.js';
+import TitleCommand from './TitleCommand.js';
 
 const setTitle = vi.fn<(title: string) => Promise<MirrorResult>>();
 

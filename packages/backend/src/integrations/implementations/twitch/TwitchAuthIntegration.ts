@@ -171,8 +171,8 @@ export class TwitchAuthIntegration extends StandardOAuthIntegration<
 
   protected override disconnect(): void {
     this.authProvider = null;
-    // Clear the id alongside the provider: leaving it set made getAuthenticatedUserId()
-    // report a usable broadcaster after a stop(), while every call behind it would fail.
+    // Cleared with the provider, or getAuthenticatedUserId() would report a usable broadcaster
+    // after a stop(), while every call behind it failed.
     this.userId = null;
   }
 

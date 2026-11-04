@@ -163,7 +163,9 @@ the `integrations.watch` subscription (`server/trpc/integrationsRouter.ts`) → 
 (like `BLOCKED`) reaches the console through that path with no extra wiring, carrying its reason in
 `errorMessage`. Don't add per-provider `*.ready` events for this: they duplicate the status path,
 and publishing a live auth provider or API client on the bus reintroduces the stale-reference trap
-that resolving on access avoids.
+that resolving on access avoids. `twitch.eventSub.ready` isn't one of these: it carries no client,
+and says something status can't, that the socket reopened, so whatever follows a topic can ask what
+it missed.
 
 A token refresh is the one thing status *can't* express (the integration stays CONNECTED through
 it), so it has its own event: `BaseIntegration.reportTokenRefreshed(expiresAt?)` →

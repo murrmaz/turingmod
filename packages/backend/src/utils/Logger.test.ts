@@ -59,4 +59,23 @@ describe('Logger', () => {
     expect(lines[0]).toMatchObject({ err: { message: 'no socket' }, integration: 'obs' });
     expect(lines[1]).toMatchObject({ error: 'nope' });
   });
+
+  it("gives a child its fields, on its parent's output and level", () => {
+    const lines: string[] = [];
+    const parent = new Logger({
+      level: 'warn',
+      destination: { write: (line: string) => lines.push(line) },
+    });
+    const child = parent.child({ component: 'Chat' }).child({ command: 'so' });
+
+    child.info('below the level');
+    child.warn('hello');
+
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0] ?? '')).toMatchObject({
+      component: 'Chat',
+      command: 'so',
+      msg: 'hello',
+    });
+  });
 });

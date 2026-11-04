@@ -18,7 +18,7 @@ const DEFAULT_BREAK_SECONDS = 5 * 60;
  * platform's chat, including this one.
  */
 @injectable()
-export class BreakCommand implements ICommand {
+export default class BreakCommand implements ICommand {
   readonly name = 'break';
   readonly description = 'Start, extend or end a break (off camera and mic)';
   readonly usage = '!break [minutes | 90s | end]';
@@ -62,5 +62,3 @@ function parseDuration(input: string): number | null {
   const unit = match[2] ?? 'm';
   return Math.round(unit.startsWith('s') ? value : value * 60);
 }
-
-export default BreakCommand;

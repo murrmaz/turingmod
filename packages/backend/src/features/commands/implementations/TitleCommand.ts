@@ -15,7 +15,7 @@ import { fail, mirrorReply } from '../utils/results.js';
  * the stream page, so the read side was redundant for most of chat and incoherent for the rest.
  */
 @injectable()
-export class TitleCommand implements ICommand {
+export default class TitleCommand implements ICommand {
   readonly name = 'title';
   readonly description = 'Set the stream title';
   readonly usage = '!title <new title>';
@@ -44,5 +44,3 @@ export class TitleCommand implements ICommand {
     );
   }
 }
-
-export default TitleCommand;

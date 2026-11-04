@@ -199,7 +199,8 @@ export class IntegrationManager {
               this.logger.info(`${name} waits for its dependencies: ${error.message}`);
               return;
             }
-            this.logger.error(`Failed to start integration ${name}, continuing with others`, error);
+            // doStart() logged the failure itself.
+            this.logger.info(`Continuing with the other integrations after ${name} failed`);
           })
         )
       );
@@ -244,6 +245,7 @@ export class IntegrationManager {
     const configError = this.configErrors.get(name);
     if (configError) {
       integration.reportError(configError);
+      this.logger.error(`Failed to start integration: ${name}`, configError);
       throw new Error(configError);
     }
 
@@ -387,9 +389,7 @@ export class IntegrationManager {
   }
 
   /**
-   * Statuses that make a dependency unusable to anything that depends on it.
-   * Previously only NEEDS_REAUTH cascaded, which left dependents running
-   * against a dead auth provider when the dependency errored or was stopped
+   * Statuses that make a dependency unusable to anything that depends on it, including one stopped
    * by hand from the console.
    */
   private static readonly UNUSABLE_STATUSES: ReadonlySet<IntegrationStatus> = new Set([
@@ -527,8 +527,9 @@ export class IntegrationManager {
       this.logger.info(`Recovering ${name}: its dependencies are connected again`);
       try {
         await this.startIntegration(name);
-      } catch (error) {
-        this.logger.error(`Failed to recover ${name}; leaving it down`, error);
+      } catch {
+        // doStart() logged the failure itself.
+        this.logger.warn(`Could not recover ${name}; leaving it down`);
         // startIntegration() reported ERROR, so it is no longer a BLOCKED
         // candidate either — one attempt, then it waits for a real event.
         this.cascadeStopped.delete(name);
@@ -553,9 +554,7 @@ export class IntegrationManager {
     this.logger.info('Stopping all integrations');
 
     // Reverse dependency order, a level at a time: a dependency is never torn
-    // down while something still depending on it is running. stopAll() used to
-    // stop everything at once, which contradicted the care cascadeFailure()
-    // takes with the same graph.
+    // down while something still depending on it is running.
     const levels = this.graph.levels(this.integrations.keys()).reverse();
 
     for (const level of levels) {

@@ -96,6 +96,19 @@ describe('the built backend', () => {
     STARTUP_TIMEOUT_MS + 10_000
   );
 
+  it('records the runner for a reward that inherits its constructor', async () => {
+    // Without this, tsyringe builds the reward with no runner, and it only fails when redeemed.
+    await import('reflect-metadata');
+    const { default: reward } = await import(
+      new URL('dist/features/rewards/implementations/AustraliaReward.js', `file://${PACKAGE_ROOT}/`)
+        .href
+    );
+
+    const parameters = Reflect.getMetadata('design:paramtypes', reward);
+
+    expect(parameters.map(({ name }: { name: string }) => name)).toEqual(['FacecamEffectRunner']);
+  });
+
   /** Whether /health answered before the process exited or time ran out. */
   async function waitForHealth(): Promise<boolean> {
     const deadline = Date.now() + STARTUP_TIMEOUT_MS;

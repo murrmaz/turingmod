@@ -10,7 +10,7 @@ import { ok } from '../utils/results.js';
  * Starts collecting the clip links posted in chat; `!endcollect` writes them out.
  */
 @injectable()
-export class StartcollectCommand implements ICommand {
+export default class StartcollectCommand implements ICommand {
   readonly name = 'startcollect';
   readonly description = 'Start collecting clip links from chat';
   readonly usage = '!startcollect';
@@ -26,5 +26,3 @@ export class StartcollectCommand implements ICommand {
     );
   }
 }
-
-export default StartcollectCommand;

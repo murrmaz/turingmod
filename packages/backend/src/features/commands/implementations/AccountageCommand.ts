@@ -11,7 +11,7 @@ import { ok } from '../utils/results.js';
  * How old the asking viewer's account is.
  */
 @injectable()
-export class AccountageCommand implements ICommand {
+export default class AccountageCommand implements ICommand {
   readonly name = 'accountage';
   readonly description = 'Show how old your account is';
   readonly usage = '!accountage';
@@ -36,5 +36,3 @@ export class AccountageCommand implements ICommand {
     );
   }
 }
-
-export default AccountageCommand;

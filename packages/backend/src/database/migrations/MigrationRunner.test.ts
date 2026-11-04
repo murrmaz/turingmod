@@ -78,8 +78,10 @@ describe('MigrationRunner', () => {
       },
     };
 
-    expect(() => runner.runMigrations([failing])).toThrow('Migration 1 (failing) failed');
+    const running = () => runner.runMigrations([failing]);
 
+    expect(running).toThrow('Migration 1 (failing) failed: boom');
+    expect(running).toThrow(expect.objectContaining({ cause: expect.any(Error) }));
     expect(appliedVersions()).toEqual([]);
     expect(tableNames()).toEqual([]);
   });

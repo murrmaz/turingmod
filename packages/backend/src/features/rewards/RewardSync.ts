@@ -2,9 +2,9 @@ import { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
 import {
-  failureReporter,
   type IService,
-  RepeatingFailures,
+  type RepeatingFailures,
+  repeatingFailures,
   Subscriptions,
 } from '../../core/ServiceLifecycle.js';
 import { NotAuthenticatedError } from '../../platforms/errors.js';
@@ -79,10 +79,7 @@ export class RewardSync implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'RewardSync' });
-    this.failures = new RepeatingFailures(
-      failureReporter(eventBus, this.logger, 'Channel point rewards'),
-      this.logger
-    );
+    this.failures = repeatingFailures(eventBus, this.logger, 'Channel point rewards');
   }
 
   start(): void {

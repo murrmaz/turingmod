@@ -11,7 +11,7 @@ import { ok } from '../utils/results.js';
  * Shows the next scheduled stream on the platform the command came from.
  */
 @injectable()
-export class ScheduleCommand implements ICommand {
+export default class ScheduleCommand implements ICommand {
   readonly name = 'schedule';
   readonly description = 'Show upcoming stream schedule';
   readonly usage = '!schedule';
@@ -38,5 +38,3 @@ export class ScheduleCommand implements ICommand {
     return ok(`Next stream: ${formattedDate}${title}${category}`);
   }
 }
-
-export default ScheduleCommand;

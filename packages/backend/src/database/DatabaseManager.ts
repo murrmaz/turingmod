@@ -102,21 +102,21 @@ export class DatabaseManager {
   /**
    * Begin a transaction
    */
-  beginTransaction(): void {
+  private beginTransaction(): void {
     this.exec('BEGIN TRANSACTION');
   }
 
   /**
    * Commit a transaction
    */
-  commit(): void {
+  private commit(): void {
     this.exec('COMMIT');
   }
 
   /**
    * Rollback a transaction
    */
-  rollback(): void {
+  private rollback(): void {
     this.exec('ROLLBACK');
   }
 

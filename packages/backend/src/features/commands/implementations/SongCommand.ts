@@ -12,7 +12,7 @@ import { ok } from '../utils/results.js';
  * with its show, plus a link.
  */
 @injectable()
-export class SongCommand implements ICommand {
+export default class SongCommand implements ICommand {
   readonly name = 'song';
   readonly description = 'Show the song playing on Spotify';
   readonly usage = '!song';
@@ -54,5 +54,3 @@ export function describePlayback(playback: PlaybackState | null): string {
   }
   return parts.join(' ');
 }
-
-export default SongCommand;

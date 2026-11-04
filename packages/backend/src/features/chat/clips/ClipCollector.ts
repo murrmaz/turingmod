@@ -5,9 +5,9 @@ import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import type { ChatMessageEvent } from '../../../core/events.js';
 import {
-  failureReporter,
   type IService,
-  RepeatingFailures,
+  type RepeatingFailures,
+  repeatingFailures,
   Subscriptions,
 } from '../../../core/ServiceLifecycle.js';
 import type { ClipInfo } from '../../../platforms/interfaces/IStreamPlatform.js';
@@ -44,10 +44,7 @@ export class ClipCollector implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'ClipCollector' });
-    this.lookupFailures = new RepeatingFailures(
-      failureReporter(eventBus, this.logger, 'Clip collection'),
-      this.logger
-    );
+    this.lookupFailures = repeatingFailures(eventBus, this.logger, 'Clip collection');
   }
 
   /** Listen to chat. Collection itself starts with `begin()`. */

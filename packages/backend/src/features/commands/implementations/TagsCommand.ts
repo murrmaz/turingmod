@@ -12,7 +12,7 @@ import { mirrorReply, ok } from '../utils/results.js';
  * platform that supports SET_TAGS (Twitch only in practice).
  */
 @injectable()
-export class TagsCommand implements ICommand {
+export default class TagsCommand implements ICommand {
   readonly name = 'tags';
   readonly description = 'Show or set the stream tags';
   readonly usage = '!tags [tag1,tag2,...]';
@@ -62,5 +62,3 @@ export class TagsCommand implements ICommand {
     return ok(`Tags: [${tags.join(', ')}]`);
   }
 }
-
-export default TagsCommand;

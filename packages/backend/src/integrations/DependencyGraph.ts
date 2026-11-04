@@ -133,9 +133,8 @@ export class DependencyGraph<T extends DependencyNode> {
 
   /**
    * Check the whole registered graph, not just the subset someone is about to
-   * start: every declared dependency is registered, and there are no cycles.
-   * Startup-time validation only ever saw enabled nodes, so a cycle between
-   * two disabled integrations stayed invisible until both were switched on.
+   * start: every declared dependency is registered, and there are no cycles, so a cycle between
+   * two disabled integrations is found at startup rather than when both are switched on.
    */
   validate(): void {
     for (const node of this.nodes.values()) {

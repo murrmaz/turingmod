@@ -1,13 +1,13 @@
 import 'reflect-metadata';
 import { StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RewardRedemption } from '../../../core/events.js';
 import type { DatabaseManager } from '../../../database/DatabaseManager.js';
 import { BannedWordRepository } from '../../../database/repositories/BannedWordRepository.js';
 import { createTestDatabase } from '../../../database/repositories/testDatabase.js';
 import type { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BAN_DURATION_MS, banCutoff } from '../../chat/moderation/bannedWords.js';
-import type { RewardRedemption } from '../interfaces/IRewardHandler.js';
 import BanAWordReward from './BanAWordReward.js';
 
 const redemption = (input: string): RewardRedemption => ({

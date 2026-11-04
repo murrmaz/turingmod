@@ -11,7 +11,7 @@ import { ok } from '../utils/results.js';
  * Shows how long the stream has been live on the origin platform.
  */
 @injectable()
-export class UptimeCommand implements ICommand {
+export default class UptimeCommand implements ICommand {
   readonly name = 'uptime';
   readonly description = 'Show how long the stream has been live';
   readonly usage = '!uptime';
@@ -35,5 +35,3 @@ export class UptimeCommand implements ICommand {
     return ok(`Stream has been live for ${formattedUptime}`);
   }
 }
-
-export default UptimeCommand;

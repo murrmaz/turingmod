@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { type IntegrationGroup, IntegrationStatus, messageOf, toError } from '@turingmod/shared';
 import { z } from 'zod';
 import type { Logger } from '../utils/Logger.js';
+import { parseOrThrow } from '../utils/parseOrThrow.js';
 import {
   DependencyFailurePolicy,
   type IIntegration,
@@ -112,11 +113,7 @@ export abstract class BaseIntegration implements IIntegration {
    * at whatever later moment first reads the bad field.
    */
   protected parseConfig<T>(schema: z.ZodType<T>, stored: unknown): T {
-    const result = schema.safeParse(stored);
-    if (!result.success) {
-      throw new Error(`Invalid ${this.name} config:\n${z.prettifyError(result.error)}`);
-    }
-    return result.data;
+    return parseOrThrow(schema, stored, `Invalid ${this.name} config`);
   }
 
   /**

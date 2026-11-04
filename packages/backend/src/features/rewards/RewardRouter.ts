@@ -1,6 +1,7 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
+import type { RewardRedemption } from '../../core/events.js';
 import {
   failureReporter,
   type IService,
@@ -10,7 +11,6 @@ import {
 import type { RedemptionOutcome } from '../../platforms/interfaces/IStreamPlatform.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
-import type { RewardRedemption } from './interfaces/IRewardHandler.js';
 import { RewardRegistry } from './RewardRegistry.js';
 import { RewardSync } from './RewardSync.js';
 

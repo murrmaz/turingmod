@@ -1,9 +1,9 @@
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import {
-  failureReporter,
   type IService,
-  RepeatingFailures,
+  type RepeatingFailures,
+  repeatingFailures,
 } from '../../../core/ServiceLifecycle.js';
 import { IntervalMessageRepository } from '../../../database/repositories/IntervalMessageRepository.js';
 import {
@@ -35,10 +35,7 @@ export class IntervalAnnouncer implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'IntervalAnnouncer' });
-    this.failures = new RepeatingFailures(
-      failureReporter(eventBus, this.logger, 'Interval messages'),
-      this.logger
-    );
+    this.failures = repeatingFailures(eventBus, this.logger, 'Interval messages');
   }
 
   start(): void {

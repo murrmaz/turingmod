@@ -3,9 +3,9 @@ import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
 import type { PlatformLiveStateEvent } from '../../core/events.js';
 import {
-  failureReporter,
   type IService,
-  RepeatingFailures,
+  type RepeatingFailures,
+  repeatingFailures,
   Subscriptions,
 } from '../../core/ServiceLifecycle.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
@@ -54,10 +54,7 @@ export class PlatformLiveStatus implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'PlatformLiveStatus' });
-    this.failures = new RepeatingFailures(
-      failureReporter(eventBus, this.logger, 'Live status'),
-      this.logger
-    );
+    this.failures = repeatingFailures(eventBus, this.logger, 'Live status');
   }
 
   start(): void {

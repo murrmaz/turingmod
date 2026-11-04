@@ -1,4 +1,4 @@
-import { messageOf } from '@turingmod/shared';
+import { IntegrationStatus, messageOf } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { Logger } from '../utils/Logger.js';
 import type { EventBus } from './EventBus.js';
@@ -80,6 +80,31 @@ export class RepeatingFailures {
   recovered(kind: string): void {
     this.failing.delete(kind);
   }
+}
+
+/** `RepeatingFailures` reporting through its own `failureReporter()`, under the name `service`. */
+export function repeatingFailures(
+  eventBus: EventBus,
+  logger: Logger,
+  service: string
+): RepeatingFailures {
+  return new RepeatingFailures(failureReporter(eventBus, logger, service), logger);
+}
+
+/**
+ * Run `handler` each time `integration` reaches CONNECTED, whatever it was before. Returns the
+ * unsubscribe function, for `Subscriptions`.
+ */
+export function onConnected(
+  eventBus: EventBus,
+  integration: { readonly name: string },
+  handler: () => void | Promise<void>
+): () => void {
+  return eventBus.on('integration.status', ({ name, status }) => {
+    if (name === integration.name && status === IntegrationStatus.CONNECTED) {
+      return handler();
+    }
+  });
 }
 
 /**

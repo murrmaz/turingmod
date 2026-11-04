@@ -3,9 +3,9 @@ import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
 import type { TwitchRaidEvent } from '../../core/events.js';
 import {
-  failureReporter,
   type IService,
-  RepeatingFailures,
+  type RepeatingFailures,
+  repeatingFailures,
   Subscriptions,
 } from '../../core/ServiceLifecycle.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
@@ -36,10 +36,7 @@ export class RaidShoutout implements IService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'RaidShoutout' });
-    this.failures = new RepeatingFailures(
-      failureReporter(eventBus, this.logger, 'Raid shoutouts'),
-      this.logger
-    );
+    this.failures = repeatingFailures(eventBus, this.logger, 'Raid shoutouts');
   }
 
   start(): void {

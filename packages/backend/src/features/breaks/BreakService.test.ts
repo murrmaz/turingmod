@@ -117,6 +117,34 @@ describe('BreakService', () => {
     vi.useRealTimers();
   });
 
+  it('says a break started before it says it ended, even while chat is still being told', async () => {
+    // Shutdown can end a break while its start announcement is still on its way, and RewardSync
+    // would be left believing a break is running, with rewards paused, if the order flipped.
+    const { eventBus, streamControl, service } = setup();
+    await service.start();
+    let deliver = (): void => {};
+    streamControl.announce.mockImplementationOnce(
+      () =>
+        new Promise<MirrorResult>((resolve) => {
+          deliver = () => resolve({ updated: [], failures: [], skipped: [] });
+        })
+    );
+    const events: string[] = [];
+    eventBus.on('stream.break.started', () => {
+      events.push('started');
+    });
+    eventBus.on('stream.break.ended', () => {
+      events.push('ended');
+    });
+
+    const started = service.startBreak('manual', 60);
+    await service.stop();
+    deliver();
+    await started;
+
+    expect(events).toEqual(['started', 'ended']);
+  });
+
   it('runs a Twitch ad break for the ad duration and then restores OBS', async () => {
     const { eventBus, overlay, posted, service } = setup();
     await service.start();

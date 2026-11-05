@@ -81,6 +81,28 @@ describe('DiscordIntegration', () => {
     expect(discord.getStatus()).toBe(IntegrationStatus.CONNECTED);
   });
 
+  it('gives up on a request Discord never answers, so it cannot hold up every later post', async () => {
+    await discord.initialize(CONFIG);
+    await discord.start();
+    const timeout = new AbortController();
+    const timeoutFor = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeout.signal);
+    // A request that hangs until its signal aborts, as fetch does.
+    fetchMock.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+        })
+    );
+
+    const posted = discord.postMessage(CHANNEL, message);
+    timeout.abort(new DOMException('The operation was aborted due to timeout', 'TimeoutError'));
+
+    await expect(posted).rejects.toThrow(/timeout/);
+    expect(timeoutFor).toHaveBeenCalledWith(10_000);
+    expect(discord.getStatus()).toBe(IntegrationStatus.ERROR);
+    expect(discord.getErrorMessage()).toMatch(/Can't reach Discord.*timeout/);
+  });
+
   it('lets a post ping everyone and nobody else', async () => {
     await discord.initialize(CONFIG);
     await discord.start();

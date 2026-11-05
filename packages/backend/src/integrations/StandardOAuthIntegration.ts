@@ -2,6 +2,12 @@ import { z } from 'zod';
 import { OAuthConfigBaseSchema, OAuthIntegration } from './OAuthIntegration.js';
 
 /**
+ * How long a token request may take, response body included. Without a limit Node waits about five
+ * minutes, and Spotify, which shares one refresh between every caller, would hang with it.
+ */
+const TOKEN_REQUEST_TIMEOUT_MS = 10_000;
+
+/**
  * Stored config for a provider driven through its OAuth 2.0 endpoints: the token fields as a
  * token response gives them. `expires_in` is relative, so the time it was obtained is kept with it.
  */
@@ -95,6 +101,11 @@ export abstract class StandardOAuthIntegration<
       body.set('client_id', clientId);
       body.set('client_secret', clientSecret);
     }
-    return fetch(this.tokenUrl, { method: 'POST', headers, body });
+    return fetch(this.tokenUrl, {
+      method: 'POST',
+      headers,
+      body,
+      signal: AbortSignal.timeout(TOKEN_REQUEST_TIMEOUT_MS),
+    });
   }
 }

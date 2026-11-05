@@ -16,6 +16,11 @@ const DISCORD_API = 'https://discord.com/api/v10';
 const USER_AGENT = 'DiscordBot (https://github.com/murrmaz/turingmod, 1.0)';
 /** The longest rate-limit wait worth sitting out; anything longer fails the request instead. */
 const MAX_RATE_LIMIT_WAIT_MS = 10_000;
+/**
+ * How long a request may take, response body included. Without a limit Node waits about five
+ * minutes, and GoLiveAnnouncer's queue, which shutdown waits on, would wait with it.
+ */
+const REQUEST_TIMEOUT_MS = 10_000;
 
 /** The parts of a Discord embed TuringMod uses. */
 export interface DiscordEmbed {
@@ -180,6 +185,7 @@ export class DiscordIntegration extends BaseIntegration {
             ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
           },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         });
       } catch (error) {
         stillCurrent();

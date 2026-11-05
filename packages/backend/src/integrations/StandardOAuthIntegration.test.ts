@@ -133,6 +133,26 @@ describe('StandardOAuthIntegration', () => {
     expect(body.has('client_secret')).toBe(false);
   });
 
+  it('gives up on a token request the provider never answers', async () => {
+    // Spotify shares one refresh between every caller, so one that hung would hang them all.
+    const { integration, saveConfig } = await setup();
+    const timeout = new AbortController();
+    const timeoutFor = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeout.signal);
+    vi.mocked(fetch).mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+        })
+    );
+
+    const exchanged = integration.exchangeCode('code-1');
+    timeout.abort(new DOMException('The operation was aborted due to timeout', 'TimeoutError'));
+
+    await expect(exchanged).rejects.toThrow(/timeout/);
+    expect(timeoutFor).toHaveBeenCalledWith(10_000);
+    expect(saveConfig).not.toHaveBeenCalled();
+  });
+
   it('fails an exchange the provider refuses, saving nothing', async () => {
     const { integration, saveConfig } = await setup();
     vi.mocked(fetch).mockResolvedValue(new Response('invalid_grant', { status: 400 }));

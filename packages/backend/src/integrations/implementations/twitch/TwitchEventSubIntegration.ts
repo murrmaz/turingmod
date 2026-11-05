@@ -97,6 +97,12 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   private pending = new Set<string>();
   /** Those Twitch refused since then: the topic, and why. */
   private refused = new Map<string, string>();
+  /**
+   * Counts every start and stop, so a start that resumes after one of them knows it has been
+   * superseded. IntegrationManager stops waiting for a start after its timeout, so a stop or a
+   * retry can run while this one is still looking up the broadcaster.
+   */
+  private generation = 0;
 
   constructor(
     private eventBus: EventBus,
@@ -129,6 +135,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
     // A retry after ERROR comes here without a stop(), and the old listener would deliver every
     // event a second time.
     this.closeListener();
+    const generation = this.generation;
 
     try {
       // Get auth provider and API client from dependencies
@@ -147,6 +154,11 @@ export class TwitchEventSubIntegration extends BaseIntegration {
         throw new Error('Could not determine authenticated user from auth provider');
       }
       const broadcaster = await this.apiIntegration.request((c) => c.users.getUserById(userId));
+      if (generation !== this.generation) {
+        // Stopped or started again meanwhile: a listener made now would be one nothing stops.
+        this.logger.debug('A superseded EventSub start finished; discarding it');
+        return;
+      }
       if (!broadcaster) {
         throw new Error('Could not resolve authenticated user');
       }
@@ -205,6 +217,11 @@ export class TwitchEventSubIntegration extends BaseIntegration {
       this.subscribeToEvents(listener, this.config.subscriptions ?? {}, broadcaster.id);
       this.reportSubscriptions(); // every topic turned off leaves nothing to wait for
     } catch (error) {
+      if (generation !== this.generation) {
+        // What it failed on no longer matters; the status is the later start's or stop's.
+        this.logger.debug('A superseded EventSub start failed', error);
+        return;
+      }
       this.setStatus(IntegrationStatus.ERROR, messageOf(error));
       throw error;
     }
@@ -222,6 +239,7 @@ export class TwitchEventSubIntegration extends BaseIntegration {
 
   /** Cleared before it stops, so what stopping it fires is recognized as no longer current. */
   private closeListener(): void {
+    this.generation += 1;
     const listener = this.eventSubListener;
     this.eventSubListener = null;
     this.topics.clear();

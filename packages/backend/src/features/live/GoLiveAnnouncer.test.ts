@@ -531,6 +531,43 @@ describe('GoLiveAnnouncer', () => {
     });
   });
 
+  describe('a post that could not be saved', () => {
+    const failSaves = () =>
+      vi.spyOn(posts, 'save').mockImplementation(() => {
+        throw new Error('disk I/O error');
+      });
+
+    it('is not posted again on each heartbeat, which would ping everyone each time', async () => {
+      const reported = vi.fn();
+      eventBus.on('service.error', reported);
+      const save = failSaves();
+
+      await setLive(TWITCH, true);
+      await advance(3 * MINUTE);
+
+      expect(discord.postMessage).toHaveBeenCalledOnce();
+      expect(reported).toHaveBeenCalledOnce();
+      expect(reported.mock.calls[0]?.[0].message).toMatch(/go-live post.*disk I\/O error/);
+
+      save.mockRestore();
+      await advance(MINUTE);
+
+      expect(discord.postMessage).toHaveBeenCalledOnce();
+      expect(posts.get()?.messageId).toBe('900000000000000001');
+    });
+
+    it('is still marked as ended when the stream is over', async () => {
+      failSaves();
+      await setLive(TWITCH, true);
+
+      await setLive(TWITCH, false);
+      await advance(GO_LIVE_GRACE_MS);
+
+      expect(lastEdit()?.content).toMatch(/was live/);
+      expect(discord.postMessage).toHaveBeenCalledOnce();
+    });
+  });
+
   it('drops an unreadable stored post, says so, and still posts for the stream', async () => {
     const reported = vi.fn();
     eventBus.on('service.error', reported);

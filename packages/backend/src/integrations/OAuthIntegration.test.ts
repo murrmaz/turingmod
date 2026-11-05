@@ -22,6 +22,7 @@ class TestOAuthIntegration extends OAuthIntegration<TestConfig> {
   protected readonly configSchema = TestConfigSchema;
 
   connectImpl = vi.fn((_config: TestConfig) => Promise.resolve());
+  disconnectImpl = vi.fn();
   reauthErrors = new Set<unknown>();
 
   constructor(saveConfig: IntegrationStateRepository['saveConfig'] = vi.fn()) {
@@ -52,6 +53,10 @@ class TestOAuthIntegration extends OAuthIntegration<TestConfig> {
 
   protected connect(config: TestConfig): Promise<void> {
     return this.connectImpl(config);
+  }
+
+  protected override disconnect(): void {
+    this.disconnectImpl();
   }
 
   protected override isReauthRequiredError(error: unknown): boolean {
@@ -145,6 +150,63 @@ describe('OAuthIntegration', () => {
 
     expect(integration.getStatus()).toBe(IntegrationStatus.ERROR);
     expect(integration.getErrorMessage()).toBe('network down');
+  });
+
+  describe('a start still connecting', () => {
+    // IntegrationManager gives up on a start after its timeout and releases the integration, so
+    // a stop or a retry can arrive while connect() is still waiting on the provider.
+    const held = async () => {
+      const integration = new TestOAuthIntegration();
+      await integration.initialize(GRANT);
+      const connects: { finish: () => void; fail: (error: Error) => void }[] = [];
+      integration.connectImpl.mockImplementation(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            connects.push({ finish: resolve, fail: reject });
+          })
+      );
+      return { integration, connects };
+    };
+
+    it('stays stopped, and drops what connect() built, when stopped meanwhile', async () => {
+      const { integration, connects } = await held();
+      const started = integration.start();
+      await integration.stop();
+      integration.disconnectImpl.mockClear();
+
+      connects[0]?.finish();
+      await started;
+
+      // A late CONNECTED would also start its dependents again.
+      expect(integration.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
+      expect(integration.disconnectImpl).toHaveBeenCalledOnce();
+    });
+
+    it('leaves the status to the retry that replaced it', async () => {
+      const { integration, connects } = await held();
+      const stale = integration.start();
+      const retry = integration.start();
+
+      connects[0]?.finish();
+      await stale;
+      expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTING);
+      expect(integration.disconnectImpl).not.toHaveBeenCalled();
+
+      connects[1]?.finish();
+      await retry;
+      expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
+    });
+
+    it('reports nothing when it fails after being stopped', async () => {
+      const { integration, connects } = await held();
+      const started = integration.start();
+      await integration.stop();
+
+      connects[0]?.fail(new Error('network down'));
+      await started;
+
+      expect(integration.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
+    });
   });
 
   it('reports NEEDS_REAUTH when the provider says the grant is dead', async () => {

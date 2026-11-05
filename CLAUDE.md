@@ -68,7 +68,7 @@ Tests and `testing.ts` helpers are exempt, as in the console.
 
 ### Backend Core Flow
 
-Entry point: `packages/backend/src/index.ts` → calls `registerRootFactories()`, `initializeDatabase()` (open, migrate, validate every settings group) and `initializeComponents()` from `setup.ts` → resolves `Application` → `app.initialize()` (apply stored integration configs) → `app.start()`.
+Entry point: `packages/backend/src/index.ts` → calls `registerRootFactories()`, `initializeDatabase()` (open, migrate, validate every settings group) and `initializeComponents()` from `setup.ts` → resolves `Application` → `app.start()` (apply stored integration configs, then start the servers, feature services and enabled integrations). `app.stop()` lets a start in progress finish first.
 
 **Dependency injection** uses [tsyringe](https://github.com/microsoft/tsyringe), Microsoft's lightweight constructor-injection container. App-lifetime classes (integrations, services, façades, handlers — effectively everything) are decorated `@singleton()` alone, which makes a class injectable and registers it as a singleton, so adding `@injectable()` beside it is redundant; commands and reward handlers, which their loaders resolve once each, are `@injectable()`; tsyringe resolves a class's dependencies by reading its constructor's typed parameters via `reflect-metadata` — no string tokens, and a typo'd dependency is a compile error, not a runtime "Service not registered" failure. This reflection-based inference requires TypeScript's real compiler (`emitDecoratorMetadata`) to emit `design:paramtypes` — esbuild does not support this, which is why dev mode runs through `tsc --watch` rather than `tsx` (see above).
 

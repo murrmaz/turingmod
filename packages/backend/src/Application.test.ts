@@ -36,6 +36,7 @@ function recordingApp() {
     httpServer as unknown as HttpServer,
     trpcServer as unknown as TrpcServer,
     {
+      loadIntegrations: step('integrations load'),
       startEnabledIntegrations: step('integrations start'),
       stopAll: step('integrations stop'),
     } as unknown as IntegrationManager,
@@ -59,12 +60,14 @@ describe('Application', () => {
     expect(lastRoute).toBeLessThan(httpServer.start.mock.invocationCallOrder[0] ?? 0);
   });
 
-  it('starts services before integrations, so they see what connecting changes', async () => {
+  it('loads integrations first, and starts services before integrations connect', async () => {
     const { app, steps } = recordingApp();
 
     await app.start();
 
     expect(steps).toEqual([
+      'integrations load begins',
+      'integrations load ends',
       'trpc start',
       'route upgrades',
       'http start begins',
@@ -95,5 +98,29 @@ describe('Application', () => {
       'database close begins',
       'database close ends',
     ]);
+  });
+
+  it('finishes a start in progress before stopping', async () => {
+    const { app, steps } = recordingApp();
+
+    const starting = app.start();
+    await app.stop();
+    await starting;
+
+    expect(steps.indexOf('integrations start ends')).toBeLessThan(
+      steps.indexOf('services stop begins')
+    );
+  });
+
+  it('still stops what a failed start got going', async () => {
+    const { app, steps, httpServer } = recordingApp();
+    httpServer.start.mockRejectedValueOnce(new Error('port in use'));
+
+    const starting = app.start();
+    await app.stop();
+
+    await expect(starting).rejects.toThrow('port in use');
+    expect(steps).toContain('trpc stop ends');
+    expect(steps).toContain('database close ends');
   });
 });

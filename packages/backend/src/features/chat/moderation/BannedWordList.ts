@@ -38,24 +38,24 @@ export class BannedWordList {
     return this.words.isActive(word, banCutoff());
   }
 
-  /** Ban a word for a month, renewing a lapsed ban. `bannedBy` is null for the streamer. */
-  ban(word: string, bannedBy: string | null): void {
+  /**
+   * Ban a word for a month, renewing a lapsed ban. `bannedBy` is null for the streamer. Unless told
+   * otherwise, how it matches follows its length (`defaultWholeWord()`).
+   */
+  ban(word: string, bannedBy: string | null, wholeWord?: boolean): void {
     if (this.isBanned(word)) {
       throw new Error(`"${word}" is already banned.`);
     }
-    this.words.ban(word, bannedBy);
+    this.words.ban(word, bannedBy, Date.now(), wholeWord);
     this.changed();
   }
 
-  /** Correct a word's spelling, keeping who banned it and when. */
-  rename(word: string, newWord: string): void {
-    if (word === newWord) {
-      return;
-    }
-    if (this.words.has(newWord)) {
+  /** Correct a word's spelling or how it matches, keeping who banned it and when. */
+  update(word: string, newWord: string, wholeWord: boolean): void {
+    if (word !== newWord && this.words.has(newWord)) {
       throw new Error(`"${newWord}" is already on the list.`);
     }
-    this.require(this.words.rename(word, newWord), word);
+    this.require(this.words.update(word, newWord, wholeWord), word);
     this.changed();
   }
 

@@ -53,7 +53,8 @@ export const initialSchema: Migration = {
       CREATE TABLE banned_words (
         word TEXT PRIMARY KEY COLLATE NOCASE,
         banned_by TEXT,
-        banned_at INTEGER NOT NULL
+        banned_at INTEGER NOT NULL,
+        whole_word INTEGER NOT NULL
       )
     `);
 

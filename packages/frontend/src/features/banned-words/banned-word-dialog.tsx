@@ -1,9 +1,10 @@
-import { BannedWordSchema, messageOf } from '@turingmod/shared';
+import { BannedWordSchema, defaultWholeWord, messageOf } from '@turingmod/shared';
 import { CircleAlert } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { FormField } from '@/components/form-field';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -13,11 +14,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 /** What's wrong with the text, or what will be saved if that isn't what was typed. */
 function hintFor(text: string, word: string | undefined): string {
   if (text.trim() === '' || word === text.trim()) {
-    return 'A single word. Case and punctuation are ignored, as they are in chat.';
+    return 'A single word. Chat is matched whatever its case or punctuation, and through spellings like sp1d3r.';
   }
   return word === undefined
     ? 'One word only.'
@@ -29,22 +31,27 @@ function hintFor(text: string, word: string | undefined): string {
  * opening starts fresh. A failed save stays open with the error, so nothing typed is lost.
  */
 export function BannedWordDialog({
-  initialWord,
+  initial,
   onSave,
   onDismiss,
 }: {
-  /** The word being corrected; leave it out to ban a new one. */
-  initialWord?: string;
+  /** The word being edited; leave it out to ban a new one. */
+  initial?: { word: string; wholeWord: boolean };
   /** Saves the word, rejecting if that fails. The dialog stays open until the caller closes it. */
-  onSave: (word: string) => Promise<void>;
+  onSave: (word: string, wholeWord: boolean) => Promise<void>;
   onDismiss: () => void;
 }) {
-  const [text, setText] = useState(initialWord ?? '');
+  const [text, setText] = useState(initial?.word ?? '');
+  /** Null until it's chosen: a new word's checkbox follows its length until then. */
+  const [wholeWordChoice, setWholeWordChoice] = useState(initial?.wholeWord ?? null);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   const parsed = BannedWordSchema.safeParse(text);
-  const editing = initialWord !== undefined;
+  const editing = initial !== undefined;
+  const wholeWord = wholeWordChoice ?? defaultWholeWord(parsed.data ?? '');
+  const wholeWordId = useId();
+  const wholeWordHintId = `${wholeWordId}-hint`;
 
   const save = async () => {
     if (!parsed.success || saving) {
@@ -53,7 +60,7 @@ export function BannedWordDialog({
     setSaving(true);
     setErrorMessage('');
     try {
-      await onSave(parsed.data);
+      await onSave(parsed.data, wholeWord);
     } catch (error) {
       setErrorMessage(messageOf(error, "Couldn't save the word"));
     } finally {
@@ -90,6 +97,23 @@ export function BannedWordDialog({
               />
             )}
           </FormField>
+
+          <div className="grid gap-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={wholeWordId}
+                aria-describedby={wholeWordHintId}
+                checked={wholeWord}
+                onCheckedChange={(checked) => setWholeWordChoice(checked === true)}
+              />
+              <Label htmlFor={wholeWordId}>Whole word only</Label>
+            </div>
+            <p id={wholeWordHintId} className="text-xs text-muted-foreground">
+              {wholeWord
+                ? 'Banning hell catches h3ll, but not hello.'
+                : 'Also catches it inside longer words: banning spider catches spiderman.'}
+            </p>
+          </div>
 
           {errorMessage && (
             <Alert variant="destructive">

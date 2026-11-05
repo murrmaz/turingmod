@@ -11,7 +11,7 @@ const NONE: BannedWord[] = [];
 
 /**
  * The banned words, lapsed ones included, and changing them. Every change shows the list the
- * backend answers with. `add` and `rename` reject if they fail, for the dialog that asked to show;
+ * backend answers with. `add` and `update` reject if they fail, for the dialog that asked to show;
  * a failed `renew` is reported here, since nothing else is waiting on it.
  */
 export function useBannedWords() {
@@ -27,13 +27,14 @@ export function useBannedWords() {
   );
 
   const add = useCallback(
-    async (word: string) => show(await trpc.bannedWords.add.mutate({ word })),
+    async (word: string, wholeWord: boolean) =>
+      show(await trpc.bannedWords.add.mutate({ word, wholeWord })),
     [trpc, show]
   );
 
-  const rename = useCallback(
-    async (word: string, newWord: string) =>
-      show(await trpc.bannedWords.rename.mutate({ word, newWord })),
+  const update = useCallback(
+    async (word: string, newWord: string, wholeWord: boolean) =>
+      show(await trpc.bannedWords.update.mutate({ word, newWord, wholeWord })),
     [trpc, show]
   );
 
@@ -48,5 +49,5 @@ export function useBannedWords() {
 
   const words = useMemo(() => all.filter(({ word }) => !hidden.has(word)), [all, hidden]);
 
-  return { words, status, add, rename, renew, remove };
+  return { words, status, add, update, renew, remove };
 }

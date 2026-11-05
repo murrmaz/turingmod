@@ -15,7 +15,14 @@ const DAY = 24 * 60 * 60 * 1000;
 
 function banned(word: string, changes: Partial<BannedWord> = {}): BannedWord {
   const bannedAt = Date.now() - DAY;
-  return { word, bannedBy: 'viewer', bannedAt, expiresAt: bannedAt + 30 * DAY, ...changes };
+  return {
+    word,
+    bannedBy: 'viewer',
+    bannedAt,
+    expiresAt: bannedAt + 30 * DAY,
+    wholeWord: false,
+    ...changes,
+  };
 }
 
 const lapsed = (word: string) => banned(word, { expiresAt: Date.now() - DAY });
@@ -24,8 +31,10 @@ function setup(words: BannedWord[]) {
   const watch = new FakeSubscription<BannedWord[]>();
   const procedures = {
     watch,
-    add: { mutate: vi.fn(async (_: { word: string }) => words) },
-    rename: { mutate: vi.fn(async (_: { word: string; newWord: string }) => words) },
+    add: { mutate: vi.fn(async (_: { word: string; wholeWord: boolean }) => words) },
+    update: {
+      mutate: vi.fn(async (_: { word: string; newWord: string; wholeWord: boolean }) => words),
+    },
     renew: { mutate: vi.fn(async (_: { word: string }) => words) },
     delete: { mutate: vi.fn(async (_: { words: string[] }) => words) },
   };
@@ -122,9 +131,47 @@ describe('Banned Words', () => {
     expect(screen.getByText(/Saved as dont/)).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
-    expect(add.mutate).toHaveBeenCalledWith({ word: 'dont' });
+    expect(add.mutate).toHaveBeenCalledWith({ word: 'dont', wholeWord: true });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(screen.getByText('dont')).toBeVisible();
+  });
+
+  it('shows how each word matches', () => {
+    setup([banned('hell', { wholeWord: true }), banned('spider')]);
+
+    expect(row('hell').getByText('Whole word')).toBeVisible();
+    expect(row('spider').getByText('Partial')).toBeVisible();
+  });
+
+  it("sets a new word's matching by its length, until it's chosen", async () => {
+    const { user, add } = setup([]);
+    await user.click(screen.getByRole('button', { name: 'Add word' }));
+    const wholeWord = screen.getByRole('checkbox', { name: 'Whole word only' });
+    const field = screen.getByLabelText('Word');
+
+    await user.type(field, 'hell');
+    expect(wholeWord).toBeChecked();
+    await user.type(field, 'ish');
+    expect(wholeWord).not.toBeChecked();
+
+    await user.click(wholeWord);
+    await user.clear(field);
+    await user.type(field, 'therefore{Enter}');
+
+    expect(wholeWord).toBeChecked();
+    expect(add.mutate).toHaveBeenCalledWith({ word: 'therefore', wholeWord: true });
+  });
+
+  it("changes an existing word's matching, whatever its length", async () => {
+    const { user, update } = setup([banned('cat', { wholeWord: true })]);
+
+    await user.click(screen.getByText('cat'));
+    const wholeWord = screen.getByRole('checkbox', { name: 'Whole word only' });
+    expect(wholeWord).toBeChecked();
+    await user.click(wholeWord);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(update.mutate).toHaveBeenCalledWith({ word: 'cat', newWord: 'cat', wholeWord: false });
   });
 
   it('saves on Enter', async () => {
@@ -133,7 +180,7 @@ describe('Banned Words', () => {
     await user.click(screen.getByRole('button', { name: 'Add word' }));
     await user.type(screen.getByLabelText('Word'), 'cheese{Enter}');
 
-    expect(add.mutate).toHaveBeenCalledWith({ word: 'cheese' });
+    expect(add.mutate).toHaveBeenCalledWith({ word: 'cheese', wholeWord: false });
   });
 
   it('refuses more than one word, and says why', async () => {
@@ -148,7 +195,7 @@ describe('Banned Words', () => {
   });
 
   it('edits a word when its row is clicked', async () => {
-    const { user, rename } = setup([banned('chese')]);
+    const { user, update } = setup([banned('chese')]);
 
     await user.click(screen.getByText('chese'));
     const field = screen.getByLabelText('Word');
@@ -156,12 +203,16 @@ describe('Banned Words', () => {
     await user.clear(field);
     await user.type(field, 'cheese{Enter}');
 
-    expect(rename.mutate).toHaveBeenCalledWith({ word: 'chese', newWord: 'cheese' });
+    expect(update.mutate).toHaveBeenCalledWith({
+      word: 'chese',
+      newWord: 'cheese',
+      wholeWord: false,
+    });
   });
 
   it('keeps the dialog and its text when saving fails', async () => {
-    const { user, rename } = setup([banned('chese')]);
-    rename.mutate.mockRejectedValue(new Error('"cheese" is already on the list.'));
+    const { user, update } = setup([banned('chese')]);
+    update.mutate.mockRejectedValue(new Error('"cheese" is already on the list.'));
 
     await user.click(screen.getByText('chese'));
     const field = screen.getByLabelText('Word');

@@ -24,7 +24,9 @@ describe('BannedWordRepository', () => {
     repo.ban('Cheese', 'viewer', 1000);
     repo.ban('CHEESE', 'someone else', 2000);
 
-    expect(repo.list()).toEqual([{ word: 'cheese', bannedBy: 'someone else', bannedAt: 2000 }]);
+    expect(repo.list()).toEqual([
+      { word: 'cheese', bannedBy: 'someone else', bannedAt: 2000, wholeWord: false },
+    ]);
   });
 
   it('lists oldest first and removes case-insensitively', () => {
@@ -44,9 +46,11 @@ describe('BannedWordRepository edits', () => {
     const repo = new BannedWordRepository(db);
     repo.ban('chese', 'viewer', 1000);
 
-    expect(repo.rename('CHESE', 'Cheese')).toBe(true);
-    expect(repo.rename('chese', 'other')).toBe(false);
-    expect(repo.list()).toEqual([{ word: 'cheese', bannedBy: 'viewer', bannedAt: 1000 }]);
+    expect(repo.update('CHESE', 'Cheese', true)).toBe(true);
+    expect(repo.update('chese', 'other', true)).toBe(false);
+    expect(repo.list()).toEqual([
+      { word: 'cheese', bannedBy: 'viewer', bannedAt: 1000, wholeWord: true },
+    ]);
   });
 
   it('renews a word, keeping who banned it', () => {
@@ -55,7 +59,24 @@ describe('BannedWordRepository edits', () => {
 
     expect(repo.renew('cheese', 2000)).toBe(true);
     expect(repo.renew('gone', 2000)).toBe(false);
-    expect(repo.list()).toEqual([{ word: 'cheese', bannedBy: 'viewer', bannedAt: 2000 }]);
+    expect(repo.list()).toEqual([
+      { word: 'cheese', bannedBy: 'viewer', bannedAt: 2000, wholeWord: false },
+    ]);
+  });
+
+  it('starts a word matching by its length unless told otherwise', () => {
+    const repo = new BannedWordRepository(db);
+    repo.ban('hell', null);
+    repo.ban('spider', null);
+    repo.ban('there', null, Date.now(), true);
+
+    expect(repo.listActive(0)).toEqual(
+      expect.arrayContaining([
+        { word: 'hell', wholeWord: true },
+        { word: 'spider', wholeWord: false },
+        { word: 'there', wholeWord: true },
+      ])
+    );
   });
 
   it('knows whether a word is listed, lapsed or not', () => {

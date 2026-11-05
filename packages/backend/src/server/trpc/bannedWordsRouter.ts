@@ -20,16 +20,24 @@ export function createBannedWordsRouter(words: BannedWordList, eventBus: EventBu
     watch: procedure.subscription(({ signal }) => list.watch(signal)),
 
     /** Ban a word for a month, on the streamer's own account. */
-    add: procedure.input(z.strictObject({ word: BannedWordSchema })).mutation(({ input }) => {
-      words.ban(input.word, null);
-      return list.current();
-    }),
-
-    /** Correct a word's spelling, keeping who banned it and when. */
-    rename: procedure
-      .input(z.strictObject({ word: BannedWordSchema, newWord: BannedWordSchema }))
+    add: procedure
+      .input(z.strictObject({ word: BannedWordSchema, wholeWord: z.boolean() }))
       .mutation(({ input }) => {
-        words.rename(input.word, input.newWord);
+        words.ban(input.word, null, input.wholeWord);
+        return list.current();
+      }),
+
+    /** Correct a word's spelling or how it matches, keeping who banned it and when. */
+    update: procedure
+      .input(
+        z.strictObject({
+          word: BannedWordSchema,
+          newWord: BannedWordSchema,
+          wholeWord: z.boolean(),
+        })
+      )
+      .mutation(({ input }) => {
+        words.update(input.word, input.newWord, input.wholeWord);
         return list.current();
       }),
 

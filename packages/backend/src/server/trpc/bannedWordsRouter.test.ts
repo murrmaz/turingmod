@@ -61,27 +61,31 @@ describe('banned words router', () => {
   });
 
   it("adds a word in the form chat is matched against, on the streamer's account", async () => {
-    const left = await caller().add({ word: " Don't! " });
+    const left = await caller().add({ word: " Don't! ", wholeWord: true });
 
-    expect(left).toMatchObject([{ word: 'dont', bannedBy: null }]);
+    expect(left).toMatchObject([{ word: 'dont', bannedBy: null, wholeWord: true }]);
   });
 
   it.each(['', '   ', '!!!', 'two words'])('refuses to add %j', async (word) => {
-    await expect(caller().add({ word })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(caller().add({ word, wholeWord: true })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
     expect(words.list()).toEqual([]);
   });
 
   it('refuses to add a word already banned', async () => {
     words.ban('cheese', 'viewer');
 
-    await expect(caller().add({ word: 'CHEESE' })).rejects.toThrow('already banned');
+    await expect(caller().add({ word: 'CHEESE', wholeWord: true })).rejects.toThrow(
+      'already banned'
+    );
     expect(words.list()).toMatchObject([{ bannedBy: 'viewer' }]);
   });
 
   it('adding a lapsed word bans it again', async () => {
     repository.ban('cheese', 'viewer', LAPSED());
 
-    const left = await caller().add({ word: 'cheese' });
+    const left = await caller().add({ word: 'cheese', wholeWord: false });
 
     expect(left).toMatchObject([{ word: 'cheese', bannedBy: null }]);
     expect(words.isBanned('cheese')).toBe(true);
@@ -90,7 +94,7 @@ describe('banned words router', () => {
   it('renames a word, keeping who banned it and when', async () => {
     repository.ban('chese', 'viewer', 1000);
 
-    const left = await caller().rename({ word: 'chese', newWord: 'Cheese' });
+    const left = await caller().update({ word: 'chese', newWord: 'Cheese', wholeWord: false });
 
     expect(left).toMatchObject([{ word: 'cheese', bannedBy: 'viewer', bannedAt: 1000 }]);
   });
@@ -99,18 +103,34 @@ describe('banned words router', () => {
     words.ban('chese', 'viewer');
     repository.ban('cheese', 'long ago', LAPSED());
 
-    await expect(caller().rename({ word: 'chese', newWord: 'cheese' })).rejects.toThrow(
-      'already on the list'
-    );
+    await expect(
+      caller().update({ word: 'chese', newWord: 'cheese', wholeWord: false })
+    ).rejects.toThrow('already on the list');
     expect(words.list().map((word) => word.word)).toContain('chese');
   });
 
-  it('accepts a rename to the same word, changing nothing', async () => {
+  it('changes how a word matches without changing the word', async () => {
     words.ban('cheese', 'viewer');
 
-    await expect(caller().rename({ word: 'cheese', newWord: 'CHEESE!' })).resolves.toMatchObject([
-      { word: 'cheese' },
+    await expect(
+      caller().update({ word: 'cheese', newWord: 'CHEESE!', wholeWord: true })
+    ).resolves.toMatchObject([{ word: 'cheese', wholeWord: true }]);
+  });
+
+  it('starts a ban with no setting given by its length, as for a reward', () => {
+    words.ban('hell', 'viewer');
+    words.ban('spider', 'viewer');
+
+    expect(words.list()).toMatchObject([
+      { word: 'hell', wholeWord: true },
+      { word: 'spider', wholeWord: false },
     ]);
+  });
+
+  it('keeps how a word matches when it is renewed', async () => {
+    repository.ban('cheese', 'viewer', LAPSED(), true);
+
+    expect((await caller().renew({ word: 'cheese' }))[0]?.wholeWord).toBe(true);
   });
 
   it('renews a lapsed ban, keeping who banned it', async () => {
@@ -133,9 +153,9 @@ describe('banned words router', () => {
   });
 
   it('says so when a word was deleted by another console', async () => {
-    await expect(caller().rename({ word: 'gone', newWord: 'new' })).rejects.toThrow(
-      'no longer on the list'
-    );
+    await expect(
+      caller().update({ word: 'gone', newWord: 'new', wholeWord: true })
+    ).rejects.toThrow('no longer on the list');
     await expect(caller().renew({ word: 'gone' })).rejects.toThrow('no longer on the list');
   });
 

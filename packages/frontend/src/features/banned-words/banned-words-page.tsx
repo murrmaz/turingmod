@@ -33,7 +33,7 @@ function DateCell({ timestamp }: { timestamp: number }) {
 }
 
 export function BannedWordsPage() {
-  const { words, status, add, rename, renew, remove } = useBannedWords();
+  const { words, status, add, update, renew, remove } = useBannedWords();
   /** What the dialog is open on, if it is: a word being edited, or a new one. */
   const [dialog, setDialog] = useState<BannedWord | 'new' | null>(null);
   const now = useNow(LAPSE_CHECK_MS);
@@ -56,6 +56,17 @@ export function BannedWordsPage() {
           ) : (
             <Badge variant="secondary">Active</Badge>
           ),
+      },
+      {
+        id: 'wholeWord',
+        accessorFn: (word) => word.wholeWord,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Match" />,
+        size: 120,
+        cell: ({ row }) => (
+          <span className="text-soft-foreground">
+            {row.original.wholeWord ? 'Whole word' : 'Partial'}
+          </span>
+        ),
       },
       {
         id: 'bannedBy',
@@ -146,9 +157,9 @@ export function BannedWordsPage() {
       />
       {dialog !== null && (
         <BannedWordDialog
-          {...(dialog === 'new' ? {} : { initialWord: dialog.word })}
-          onSave={async (word) => {
-            await (dialog === 'new' ? add(word) : rename(dialog.word, word));
+          {...(dialog === 'new' ? {} : { initial: dialog })}
+          onSave={async (word, wholeWord) => {
+            await (dialog === 'new' ? add(word, wholeWord) : update(dialog.word, word, wholeWord));
             setDialog(null);
           }}
           onDismiss={() => setDialog(null)}

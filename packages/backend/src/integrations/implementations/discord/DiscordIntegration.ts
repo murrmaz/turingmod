@@ -9,6 +9,7 @@ import {
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
 import { Logger } from '../../../utils/Logger.js';
+import { parseOrThrow } from '../../../utils/parseOrThrow.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
 
 const DISCORD_API = 'https://discord.com/api/v10';
@@ -141,7 +142,7 @@ export class DiscordIntegration extends BaseIntegration {
       `/channels/${channelId}/messages`,
       toRequestBody(message)
     );
-    return CreatedMessageSchema.parse(created).id;
+    return parseOrThrow(CreatedMessageSchema, created, 'Discord answered a post without its id').id;
   }
 
   /**

@@ -298,163 +298,158 @@ export class TwitchEventSubIntegration extends BaseIntegration {
   }
 
   /**
-   * Subscribe to the default topics, as overridden by the stored config
+   * Subscribe to the default topics, as overridden by the stored config, in the order they're
+   * declared.
    */
   private subscribeToEvents(
     listener: EventSubWsListener,
     overrides: Partial<Record<EventSubTopic, boolean>>,
     broadcasterId: string
   ): void {
-    const subscriptions = { ...DEFAULT_EVENTSUB_TOPICS, ...overrides };
-
-    // Channel Chat Message
-    if (subscriptions.channelChatMessage) {
-      this.track(
-        'channel.chat.message',
-        listener.onChannelChatMessage(broadcasterId, broadcasterId, (event) => {
-          this.handleChatMessage(event);
-        })
-      );
+    const enabled = { ...DEFAULT_EVENTSUB_TOPICS, ...overrides };
+    const subscriptions = this.topicSubscriptions(listener, broadcasterId);
+    for (const topic of EventSubTopicSchema.options) {
+      if (enabled[topic]) {
+        const { name, subscribe } = subscriptions[topic];
+        this.track(name, subscribe());
+      }
     }
+  }
 
-    // Channel Follow
-    if (subscriptions.channelFollow) {
-      this.track(
-        'channel.follow',
-        listener.onChannelFollow(broadcasterId, broadcasterId, (event) => {
-          this.eventBus.emitSync('twitch.follow', {
-            userId: event.userId,
-            userName: event.userName,
-            userDisplayName: event.userDisplayName,
-            followDate: event.followDate,
-          });
-        })
-      );
-    }
-
-    // Channel Subscribe
-    if (subscriptions.channelSubscribe) {
-      this.track(
-        'channel.subscribe',
-        listener.onChannelSubscription(broadcasterId, (event) => {
-          this.eventBus.emitSync('twitch.subscribe', {
-            userId: event.userId,
-            userName: event.userName,
-            userDisplayName: event.userDisplayName,
-            tier: event.tier,
-            isGift: event.isGift,
-          });
-        })
-      );
-    }
-
-    // Channel Raid
-    if (subscriptions.channelRaid) {
-      this.track(
-        'channel.raid',
-        listener.onChannelRaidTo(broadcasterId, (event) => {
-          this.eventBus.emitSync('twitch.raid', {
-            fromBroadcasterId: event.raidingBroadcasterId,
-            fromBroadcasterName: event.raidingBroadcasterName,
-            fromBroadcasterDisplayName: event.raidingBroadcasterDisplayName,
-            viewers: event.viewers,
-          });
-        })
-      );
-    }
-
-    // Channel Cheer. Turning it on also needs `bits:read` added to TWITCH_REQUIRED_SCOPES.
-    if (subscriptions.channelCheer) {
-      this.track(
-        'channel.cheer',
-        listener.onChannelCheer(broadcasterId, (event) => {
-          this.eventBus.emitSync('twitch.cheer', {
-            userId: event.userId,
-            userName: event.userName,
-            userDisplayName: event.userDisplayName,
-            bits: event.bits,
-            message: event.message,
-          });
-        })
-      );
-    }
-
-    // Stream Online
-    if (subscriptions.streamOnline) {
-      this.track(
-        'stream.online',
-        listener.onStreamOnline(broadcasterId, (event) => {
-          this.eventBus.emitSync('twitch.stream.online', {
-            broadcasterId: event.broadcasterId,
-            broadcasterName: event.broadcasterName,
-            broadcasterDisplayName: event.broadcasterDisplayName,
-            startedAt: event.startDate,
-          });
-        })
-      );
-    }
-
-    // Stream Offline
-    if (subscriptions.streamOffline) {
-      this.track(
-        'stream.offline',
-        listener.onStreamOffline(broadcasterId, (event) => {
-          this.eventBus.emitSync('twitch.stream.offline', {
-            broadcasterId: event.broadcasterId,
-            broadcasterName: event.broadcasterName,
-            broadcasterDisplayName: event.broadcasterDisplayName,
-          });
-        })
-      );
-    }
-
-    // Channel Update: a title or category change, from TuringMod or anywhere else (the dashboard).
-    if (subscriptions.channelUpdate) {
-      this.track(
-        'channel.update',
-        listener.onChannelUpdate(broadcasterId, () => {
-          this.eventBus.emitSync('stream.info.changed', { platforms: [StreamingPlatform.TWITCH] });
-        })
-      );
-    }
-
-    // Ad Break Begin
-    if (subscriptions.adBreakBegin) {
-      this.track(
-        'channel.ad_break.begin',
-        listener.onChannelAdBreakBegin(broadcasterId, (event) => {
-          this.eventBus.emitSync('twitch.ad.break', {
-            durationSeconds: event.durationSeconds,
-            startedAt: event.startDate,
-            isAutomatic: event.isAutomatic,
-            broadcasterId: event.broadcasterId,
-            broadcasterName: event.broadcasterName,
-            broadcasterDisplayName: event.broadcasterDisplayName,
-          });
-        })
-      );
-    }
-
-    // Channel Point Redemption
-    if (subscriptions.channelPointRedemption) {
-      this.track(
-        'channel.channel_points_custom_reward_redemption.add',
-        listener.onChannelRedemptionAdd(broadcasterId, (event) => {
-          this.eventBus.emitSync('twitch.channelPoint.redemption', {
-            id: event.id,
-            userId: event.userId,
-            userName: event.userName,
-            userDisplayName: event.userDisplayName,
-            rewardId: event.rewardId,
-            rewardTitle: event.rewardTitle,
-            rewardCost: event.rewardCost,
-            input: event.input,
-            status: event.status,
-            redeemedAt: event.redemptionDate,
-          });
-        })
-      );
-    }
+  /**
+   * How to subscribe to each topic: Twitch's name for it, for the log and the console, and the
+   * subscription, which publishes what arrives. Keyed by every `EventSubTopic`, so a topic added
+   * to the enum doesn't compile until it says how it's subscribed.
+   */
+  private topicSubscriptions(
+    listener: EventSubWsListener,
+    broadcasterId: string
+  ): Record<EventSubTopic, { name: string; subscribe: () => EventSubSubscription }> {
+    return {
+      channelChatMessage: {
+        name: 'channel.chat.message',
+        subscribe: () =>
+          listener.onChannelChatMessage(broadcasterId, broadcasterId, (event) => {
+            this.handleChatMessage(event);
+          }),
+      },
+      channelFollow: {
+        name: 'channel.follow',
+        subscribe: () =>
+          listener.onChannelFollow(broadcasterId, broadcasterId, (event) => {
+            this.eventBus.emitSync('twitch.follow', {
+              userId: event.userId,
+              userName: event.userName,
+              userDisplayName: event.userDisplayName,
+              followDate: event.followDate,
+            });
+          }),
+      },
+      channelSubscribe: {
+        name: 'channel.subscribe',
+        subscribe: () =>
+          listener.onChannelSubscription(broadcasterId, (event) => {
+            this.eventBus.emitSync('twitch.subscribe', {
+              userId: event.userId,
+              userName: event.userName,
+              userDisplayName: event.userDisplayName,
+              tier: event.tier,
+              isGift: event.isGift,
+            });
+          }),
+      },
+      channelRaid: {
+        name: 'channel.raid',
+        subscribe: () =>
+          listener.onChannelRaidTo(broadcasterId, (event) => {
+            this.eventBus.emitSync('twitch.raid', {
+              fromBroadcasterId: event.raidingBroadcasterId,
+              fromBroadcasterName: event.raidingBroadcasterName,
+              fromBroadcasterDisplayName: event.raidingBroadcasterDisplayName,
+              viewers: event.viewers,
+            });
+          }),
+      },
+      // Turning it on also needs `bits:read` added to TWITCH_REQUIRED_SCOPES.
+      channelCheer: {
+        name: 'channel.cheer',
+        subscribe: () =>
+          listener.onChannelCheer(broadcasterId, (event) => {
+            this.eventBus.emitSync('twitch.cheer', {
+              userId: event.userId,
+              userName: event.userName,
+              userDisplayName: event.userDisplayName,
+              bits: event.bits,
+              message: event.message,
+            });
+          }),
+      },
+      streamOnline: {
+        name: 'stream.online',
+        subscribe: () =>
+          listener.onStreamOnline(broadcasterId, (event) => {
+            this.eventBus.emitSync('twitch.stream.online', {
+              broadcasterId: event.broadcasterId,
+              broadcasterName: event.broadcasterName,
+              broadcasterDisplayName: event.broadcasterDisplayName,
+              startedAt: event.startDate,
+            });
+          }),
+      },
+      streamOffline: {
+        name: 'stream.offline',
+        subscribe: () =>
+          listener.onStreamOffline(broadcasterId, (event) => {
+            this.eventBus.emitSync('twitch.stream.offline', {
+              broadcasterId: event.broadcasterId,
+              broadcasterName: event.broadcasterName,
+              broadcasterDisplayName: event.broadcasterDisplayName,
+            });
+          }),
+      },
+      // A title or category change, from TuringMod or anywhere else (the dashboard).
+      channelUpdate: {
+        name: 'channel.update',
+        subscribe: () =>
+          listener.onChannelUpdate(broadcasterId, () => {
+            this.eventBus.emitSync('stream.info.changed', {
+              platforms: [StreamingPlatform.TWITCH],
+            });
+          }),
+      },
+      adBreakBegin: {
+        name: 'channel.ad_break.begin',
+        subscribe: () =>
+          listener.onChannelAdBreakBegin(broadcasterId, (event) => {
+            this.eventBus.emitSync('twitch.ad.break', {
+              durationSeconds: event.durationSeconds,
+              startedAt: event.startDate,
+              isAutomatic: event.isAutomatic,
+              broadcasterId: event.broadcasterId,
+              broadcasterName: event.broadcasterName,
+              broadcasterDisplayName: event.broadcasterDisplayName,
+            });
+          }),
+      },
+      channelPointRedemption: {
+        name: 'channel.channel_points_custom_reward_redemption.add',
+        subscribe: () =>
+          listener.onChannelRedemptionAdd(broadcasterId, (event) => {
+            this.eventBus.emitSync('twitch.channelPoint.redemption', {
+              id: event.id,
+              userId: event.userId,
+              userName: event.userName,
+              userDisplayName: event.userDisplayName,
+              rewardId: event.rewardId,
+              rewardTitle: event.rewardTitle,
+              rewardCost: event.rewardCost,
+              input: event.input,
+              status: event.status,
+              redeemedAt: event.redemptionDate,
+            });
+          }),
+      },
+    };
   }
 
   /**

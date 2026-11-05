@@ -46,7 +46,13 @@ export class SettingsRepository {
     this.db.run(
       `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-      [definition.key, JSON.stringify(definition.schema.parse(value)), Date.now()]
+      [
+        definition.key,
+        JSON.stringify(
+          parseOrThrow(definition.schema, value, `Invalid "${definition.key}" settings`)
+        ),
+        Date.now(),
+      ]
     );
   }
 }

@@ -1,0 +1,14 @@
+// A value that must fit a schema is checked with parseOrThrow() (packages/backend/src/utils), whose
+// error names every field that doesn't fit, in words a streamer can read where it's reported. A
+// ZodError's own message is the issues as JSON. Parsing JSON, and a schema's defaults (`.parse({})`,
+// which can't fail), are left alone; safeParse() is for code that handles the failure itself.
+language js
+
+`$schema.parse($value)` where {
+  $schema <: not or { `JSON`, `Date`, `URL` },
+  $value <: not `{}`,
+  register_diagnostic(
+    span = $schema,
+    message = "Check a value against a schema with parseOrThrow(), whose error names every field that doesn't fit."
+  )
+}

@@ -1,5 +1,6 @@
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
+import { parseOrThrow } from '../../utils/parseOrThrow.js';
 import { DatabaseManager } from '../DatabaseManager.js';
 
 /** What the overlay changed, recorded before changing it, so restore() can put it back exactly. */
@@ -43,7 +44,11 @@ export class ObsBreakRestoreRepository {
     if (!row) {
       return null;
     }
-    const stored = StoredSnapshotSchema.parse(JSON.parse(row.snapshot));
+    const stored = parseOrThrow(
+      StoredSnapshotSchema,
+      JSON.parse(row.snapshot),
+      'The stored OBS break restore is not valid'
+    );
     return {
       items: new Map(stored.items.map(({ key, ...item }) => [key, item])),
       inputs: new Map(stored.inputs.map(({ inputName, muted }) => [inputName, muted])),
@@ -51,10 +56,14 @@ export class ObsBreakRestoreRepository {
   }
 
   save(snapshot: ObsBreakSnapshot): void {
-    const stored: z.infer<typeof StoredSnapshotSchema> = {
-      items: [...snapshot.items].map(([key, item]) => ({ key, ...item })),
-      inputs: [...snapshot.inputs].map(([inputName, muted]) => ({ inputName, muted })),
-    };
+    const stored = parseOrThrow(
+      StoredSnapshotSchema,
+      {
+        items: [...snapshot.items].map(([key, item]) => ({ key, ...item })),
+        inputs: [...snapshot.inputs].map(([inputName, muted]) => ({ inputName, muted })),
+      },
+      'Not a valid OBS break restore'
+    );
     this.db.run(
       `INSERT INTO obs_break_restore (id, snapshot, saved_at) VALUES (1, ?, ?)
        ON CONFLICT(id) DO UPDATE SET snapshot = excluded.snapshot, saved_at = excluded.saved_at`,

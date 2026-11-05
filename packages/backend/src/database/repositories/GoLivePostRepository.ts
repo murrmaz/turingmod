@@ -1,6 +1,7 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { z } from 'zod';
+import { parseOrThrow } from '../../utils/parseOrThrow.js';
 import { DatabaseManager } from '../DatabaseManager.js';
 
 /** What a go-live post says about the stream. */
@@ -52,14 +53,16 @@ export class GoLivePostRepository {
   /** The stored post, or null if no stream is in progress. Throws if what's stored isn't valid. */
   get(): GoLivePost | null {
     const row = this.db.queryOne<{ post: string }>('SELECT post FROM go_live_post WHERE id = 1');
-    return row ? GoLivePostSchema.parse(JSON.parse(row.post)) : null;
+    return row
+      ? parseOrThrow(GoLivePostSchema, JSON.parse(row.post), 'The stored go-live post is not valid')
+      : null;
   }
 
   save(post: GoLivePost): void {
     this.db.run(
       `INSERT INTO go_live_post (id, post, saved_at) VALUES (1, ?, ?)
        ON CONFLICT(id) DO UPDATE SET post = excluded.post, saved_at = excluded.saved_at`,
-      [JSON.stringify(post), Date.now()]
+      [JSON.stringify(parseOrThrow(GoLivePostSchema, post, 'Not a valid go-live post')), Date.now()]
     );
   }
 

@@ -408,6 +408,10 @@
       }
     },
     {
+      "includes": ["**/packages/backend/src/**/*.ts", "!**/*.test.ts", "!**/testing.ts"],
+      "plugins": ["./biome-plugins/parse-or-throw.grit"]
+    },
+    {
       "includes": ["**/packages/frontend/src/**/*.tsx", "!**/*.test.tsx"],
       "linter": {
         "rules": {

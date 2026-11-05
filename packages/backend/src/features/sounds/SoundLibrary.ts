@@ -2,6 +2,9 @@ import { access } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
+import { EventBus } from '../../core/EventBus.js';
+import type { RepeatingFailures } from '../../core/ServiceLifecycle.js';
+import { repeatingFailures } from '../../core/ServiceLifecycle.js';
 import { SettingsRepository } from '../../database/repositories/SettingsRepository.js';
 import { SoundIntegration } from '../../integrations/implementations/sound/SoundIntegration.js';
 import { Logger } from '../../utils/Logger.js';
@@ -18,13 +21,16 @@ import { SOUND_SETTINGS } from './soundSettings.js';
 @singleton()
 export class SoundLibrary {
   private logger: Logger;
+  private failures: RepeatingFailures;
 
   constructor(
     private sound: SoundIntegration,
     private settingsRepo: SettingsRepository,
+    eventBus: EventBus,
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'SoundLibrary' });
+    this.failures = repeatingFailures(eventBus, this.logger, 'Sounds');
   }
 
   /** The absolute path a clip name refers to. */
@@ -53,12 +59,22 @@ export class SoundLibrary {
     void this.sound.playSound(path, volume, options.maxDurationMs);
   }
 
-  /** Play a clip if possible, logging rather than throwing when it can't be. */
+  /**
+   * Play a clip if possible, without throwing when it can't be. Sound not running is only logged,
+   * since the Sound integration's status already shows it. Anything else, such as a missing or
+   * misnamed clip, is reported, once per clip until it plays again: nothing else would tell the
+   * streamer why `!bonk` makes no sound.
+   */
   async tryPlay(name: string, options: { maxDurationMs?: number } = {}): Promise<void> {
+    if (this.sound.getStatus() !== IntegrationStatus.CONNECTED) {
+      this.logger.debug(`Not playing "${name}": sound is not running`);
+      return;
+    }
     try {
       await this.play(name, options);
+      this.failures.recovered(name);
     } catch (error) {
-      this.logger.warn(`Could not play "${name}"`, error);
+      this.failures.failed(name, `Could not play the sound "${name}".`, error);
     }
   }
 

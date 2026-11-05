@@ -38,7 +38,30 @@ describe('command results', () => {
     );
 
     expect(result).toEqual(
-      fail('API_ERROR', 'Failed to update title on Twitch', 'Helix rejected the update')
+      fail('API_ERROR', 'Failed to update title on Twitch', 'Twitch: Helix rejected the update')
+    );
+  });
+
+  it('names every platform that failed, not just the first', () => {
+    const result = mirrorReply(
+      {
+        updated: [],
+        skipped: [],
+        failures: [
+          { platform: StreamingPlatform.TWITCH, error: 'Helix rejected the update' },
+          { platform: StreamingPlatform.YOUTUBE, error: 'quota' },
+        ],
+      },
+      'title',
+      () => 'unused'
+    );
+
+    expect(result).toEqual(
+      fail(
+        'API_ERROR',
+        'Failed to update title on Twitch, YouTube',
+        'Twitch: Helix rejected the update; YouTube: quota'
+      )
     );
   });
 
@@ -55,7 +78,32 @@ describe('command results', () => {
       () => 'unused'
     );
 
-    expect(result).toEqual(fail('INVALID_INPUT', 'Game not found: Nope', 'Game not found: Nope'));
+    expect(result).toEqual(
+      fail('INVALID_INPUT', 'Game not found: Nope', 'Twitch: Game not found: Nope')
+    );
+  });
+
+  it('repeats a failure about the value asked for even when it is not the first', () => {
+    const result = mirrorReply(
+      {
+        updated: [],
+        skipped: [],
+        failures: [
+          { platform: StreamingPlatform.TWITCH, error: 'Helix rejected the update' },
+          { platform: StreamingPlatform.YOUTUBE, error: 'Title too long', invalidValue: true },
+        ],
+      },
+      'title',
+      () => 'unused'
+    );
+
+    expect(result).toEqual(
+      fail(
+        'INVALID_INPUT',
+        'Title too long',
+        'Twitch: Helix rejected the update; YouTube: Title too long'
+      )
+    );
   });
 
   it('fails a mirrored write when no platform is live', () => {
@@ -80,7 +128,7 @@ describe('command results', () => {
     );
   });
 
-  it('prefers what a platform answered over one that could not be tried', () => {
+  it('names in chat the platform that answered, and gives the streamer both', () => {
     const result = mirrorReply(
       {
         updated: [],
@@ -91,7 +139,13 @@ describe('command results', () => {
       () => 'unused'
     );
 
-    expect(result).toEqual(fail('API_ERROR', 'Failed to update title on YouTube', 'quota'));
+    expect(result).toEqual(
+      fail(
+        'API_ERROR',
+        'Failed to update title on YouTube',
+        'YouTube: quota; Twitch: Re-authorization needed'
+      )
+    );
   });
 
   it('succeeds when another platform took the write', () => {

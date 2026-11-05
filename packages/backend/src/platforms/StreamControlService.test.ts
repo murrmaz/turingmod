@@ -143,6 +143,53 @@ describe('StreamControlService mirroring', () => {
     ]);
   });
 
+  describe('a write some platforms took', () => {
+    const reportedErrors = () => {
+      const eventBus = new EventBus(new Logger({ level: 'silent' }));
+      const errors = vi.fn();
+      eventBus.on('service.error', errors);
+      return { service: new StreamControlService(registry, eventBus, logger), errors };
+    };
+
+    it('reports a platform that failed, since chat hears it succeeded', async () => {
+      const youtube = new FakePlatform(StreamingPlatform.YOUTUBE, null, true);
+      youtube.setStreamInfo.mockRejectedValue(new Error('quota exceeded'));
+      registry.register(new FakePlatform(StreamingPlatform.TWITCH, null, true));
+      registry.register(youtube);
+      const { service, errors } = reportedErrors();
+
+      await service.setTitle('New title');
+
+      expect(errors).toHaveBeenCalledExactlyOnceWith({
+        service: 'Stream info',
+        message: 'The title was updated on Twitch, but not on YouTube. quota exceeded',
+      });
+    });
+
+    it("leaves a write no platform took to the command's reason", async () => {
+      const twitch = new FakePlatform(StreamingPlatform.TWITCH, null, true);
+      twitch.setStreamInfo.mockRejectedValue(new Error('Helix rejected the update'));
+      registry.register(twitch);
+      const { service, errors } = reportedErrors();
+
+      await service.setTitle('New title');
+
+      expect(errors).not.toHaveBeenCalled();
+    });
+
+    it('says nothing about a skipped platform, whose integration shows why', async () => {
+      registry.register(new FakePlatform(StreamingPlatform.TWITCH, null, true));
+      registry.register(
+        new FakePlatform(StreamingPlatform.YOUTUBE, 'Re-authorization needed', true)
+      );
+      const { service, errors } = reportedErrors();
+
+      await service.setTitle('New title');
+
+      expect(errors).not.toHaveBeenCalled();
+    });
+  });
+
   it('refuses a capability the platform does not have', () => {
     registry.register(new FakePlatform(StreamingPlatform.TWITCH, null, true));
     const service = makeService(registry, logger);

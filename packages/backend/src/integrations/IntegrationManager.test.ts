@@ -504,6 +504,97 @@ describe('IntegrationManager', () => {
     const eventsubInfo = manager.getAllStatuses().find((info) => info.name === 'twitch-eventsub');
     expect(eventsubInfo?.metadata?.dependencies).toEqual(['twitch-auth', 'twitch-api']);
   });
+
+  describe('stopAll (shutdown)', () => {
+    /** Record each stop as it begins, in `stops`. */
+    function recordStops(...integrations: FakeIntegration[]): string[] {
+      const stops: string[] = [];
+      for (const integration of integrations) {
+        const stop = integration.stop.bind(integration);
+        integration.stop = () => {
+          stops.push(integration.name);
+          return stop();
+        };
+      }
+      return stops;
+    }
+
+    it('stops what depends on an integration before the integration itself', async () => {
+      const manager = makeManager(makeStateRepo());
+      registerTwitchTrio(manager);
+      await startAll();
+      const stops = recordStops(auth, api, eventsub, unrelated);
+
+      await manager.stopAll();
+
+      expect(stops.slice(0, 2)).toEqual(['twitch-eventsub', 'twitch-api']);
+      expect(stops.slice(2).sort()).toEqual(['discord', 'twitch-auth']);
+      for (const integration of [auth, api, eventsub, unrelated]) {
+        expect(integration.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
+      }
+    });
+
+    it('waits for a level to finish stopping before starting on the next', async () => {
+      // A dependent may still use what it depends on while it stops, so that has to wait.
+      const manager = makeManager(makeStateRepo());
+      registerTwitchTrio(manager);
+      await startAll();
+      let finishEventSub = (): void => {};
+      const stopEventSub = eventsub.stop.bind(eventsub);
+      eventsub.stop = () =>
+        new Promise<void>((resolve) => {
+          finishEventSub = () => resolve(stopEventSub());
+        });
+      const stops = recordStops(auth, api);
+
+      const stopped = manager.stopAll();
+      await settle();
+      expect(stops).toEqual([]);
+
+      finishEventSub();
+      await stopped;
+      expect(stops[0]).toBe('twitch-api');
+    });
+
+    it('stops each integration once, since what depends on it has already stopped', async () => {
+      const manager = makeManager(makeStateRepo());
+      registerTwitchTrio(manager);
+      await startAll();
+      const stops = recordStops(auth, api, eventsub, unrelated);
+
+      await manager.stopAll();
+      await settle();
+
+      expect(stops).toHaveLength(4);
+      expect(new Set(stops).size).toBe(4);
+    });
+
+    it('carries on past an integration that fails to stop', async () => {
+      const manager = makeManager(makeStateRepo());
+      registerTwitchTrio(manager);
+      await startAll();
+      api.stop = () => Promise.reject(new Error('stuck'));
+
+      await expect(manager.stopAll()).resolves.toBeUndefined();
+
+      expect(eventsub.stopped).toBe(true);
+      expect(auth.stopped).toBe(true);
+      expect(unrelated.stopped).toBe(true);
+    });
+
+    it('leaves what the streamer enabled as it was, so the next start runs the same ones', async () => {
+      const repo = makeStateRepo(['twitch-auth', 'twitch-api', 'twitch-eventsub']);
+      const manager = makeManager(repo);
+      registerTwitchTrio(manager);
+      await startAll();
+
+      await manager.stopAll();
+      await settle();
+
+      expect(repo.setEnabled).not.toHaveBeenCalled();
+      expect([...repo.enabled]).toEqual(['twitch-auth', 'twitch-api', 'twitch-eventsub']);
+    });
+  });
 });
 
 describe('IntegrationManager enabling', () => {

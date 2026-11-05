@@ -357,6 +357,39 @@ describe('YouTubeChatIntegration', () => {
         badges: ['moderator'],
       });
     });
+
+    // What a viewer may run rests on this mapping, and the own-message gate recognizes
+    // TuringMod's own posts by the broadcaster's level (OwnChatMessages.isOwn).
+    it.each([
+      ['the channel owner', { isChatOwner: true }, PermissionLevel.BROADCASTER, ['owner']],
+      ['a moderator', { isChatModerator: true }, PermissionLevel.MODERATOR, ['moderator']],
+      ['a channel member', { isChatSponsor: true }, PermissionLevel.SUBSCRIBER, ['sponsor']],
+      ['a verified viewer', { isVerified: true }, PermissionLevel.VIEWER, ['verified']],
+      ['a viewer', {}, PermissionLevel.VIEWER, []],
+      [
+        'a member who moderates',
+        { isChatModerator: true, isChatSponsor: true },
+        PermissionLevel.MODERATOR,
+        ['moderator', 'sponsor'],
+      ],
+      [
+        'an owner who is also flagged a moderator',
+        { isChatOwner: true, isChatModerator: true },
+        PermissionLevel.BROADCASTER,
+        ['owner', 'moderator'],
+      ],
+    ])('gives %s their level and badges', async (_who, roles, permissionLevel, badges) => {
+      const messages: ChatMessageEvent[] = [];
+      eventBus.on('chat.received', (data) => {
+        messages.push(data);
+      });
+
+      await connect();
+      call.emitData({ items: [textMessage('hi', roles)] });
+      await flush();
+
+      expect(messages[0]).toMatchObject({ permissionLevel, badges });
+    });
   });
 
   describe('stream errors', () => {

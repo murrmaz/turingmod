@@ -1,12 +1,16 @@
 import 'reflect-metadata';
-import type { CommandResult, PlatformCapability } from '@turingmod/shared';
-import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
+import type { CommandResult } from '@turingmod/shared';
+import { PermissionLevel, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { EventBus } from '../../core/EventBus.js';
+import { EventBus } from '../../core/EventBus.js';
+import type { CommandExecutedEvent } from '../../core/events.js';
 import { InvalidStreamInfoError, NotAuthenticatedError } from '../../platforms/errors.js';
-import type { Logger } from '../../utils/Logger.js';
-import type { CommandAvailability } from './CommandAvailability.js';
+import type { IStreamPlatform } from '../../platforms/interfaces/IStreamPlatform.js';
+import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
+import { Logger } from '../../utils/Logger.js';
+import { CommandAvailability } from './CommandAvailability.js';
 import { CommandExecutor } from './CommandExecutor.js';
+import { CommandRegistry } from './CommandRegistry.js';
 import type { CommandContext, ICommand } from './interfaces/ICommand.js';
 import { commandContext, errorCodeOf } from './testing.js';
 
@@ -238,3 +242,153 @@ describe('CommandExecutor cooldowns', () => {
     expect((await executor.execute(context)).success).toBe(true);
   });
 });
+
+describe('CommandExecutor gates', () => {
+  /** A command only `permission` and above may run, needing `requiredCapabilities`. */
+  const gatedCommand = (
+    name: string,
+    permission: PermissionLevel,
+    requiredCapabilities: PlatformCapability[] = []
+  ): ICommand => ({
+    name,
+    description: name,
+    usage: `!${name}`,
+    permissions: [permission],
+    cooldown: 30,
+    requiredCapabilities,
+    execute: vi.fn<(context: CommandContext) => Promise<CommandResult>>(() =>
+      Promise.resolve({ success: true, message: 'done' })
+    ),
+  });
+
+  const run = (
+    text: string,
+    permissionLevel: PermissionLevel,
+    platform = StreamingPlatform.TWITCH
+  ) => ({
+    ...commandContext(text, { platformUserId: 'someone-id', permissionLevel }),
+    platform,
+  });
+
+  let delvod: ICommand;
+  let ad: ICommand;
+  let executor: CommandExecutor;
+  let executed: ReturnType<typeof vi.fn<(event: CommandExecutedEvent) => void>>;
+
+  beforeEach(() => {
+    const logger = new Logger({ level: 'silent' });
+    delvod = gatedCommand('delvod', PermissionLevel.BROADCASTER);
+    ad = gatedCommand('ad', PermissionLevel.MODERATOR, [PlatformCapability.ADS]);
+    const commands = new CommandRegistry(logger);
+    commands.register(delvod);
+    commands.register(ad);
+    // Twitch runs ads and YouTube doesn't, so !ad is offered only on Twitch.
+    const platforms = new PlatformRegistry();
+    platforms.register(fakePlatform(StreamingPlatform.TWITCH, { ads: {} }));
+    platforms.register(fakePlatform(StreamingPlatform.YOUTUBE));
+    const eventBus = new EventBus(logger);
+    executed = vi.fn<(event: CommandExecutedEvent) => void>();
+    eventBus.on('command.executed', executed);
+    executor = new CommandExecutor(new CommandAvailability(commands, platforms), eventBus, logger);
+  });
+
+  describe('permissions', () => {
+    it.each([
+      PermissionLevel.VIEWER,
+      PermissionLevel.SUBSCRIBER,
+      PermissionLevel.VIP,
+      PermissionLevel.MODERATOR,
+    ])('refuses a broadcaster-only command to a %s, without running it', async (level) => {
+      const result = await executor.execute(run('!delvod', level));
+
+      expect(errorCodeOf(result)).toBe('INSUFFICIENT_PERMISSIONS');
+      expect(delvod.execute).not.toHaveBeenCalled();
+    });
+
+    it('runs a broadcaster-only command for the broadcaster', async () => {
+      const result = await executor.execute(run('!delvod', PermissionLevel.BROADCASTER));
+
+      expect(result.success).toBe(true);
+      expect(delvod.execute).toHaveBeenCalledOnce();
+    });
+
+    it.each([
+      [PermissionLevel.VIEWER, false],
+      [PermissionLevel.SUBSCRIBER, false],
+      [PermissionLevel.VIP, false],
+      [PermissionLevel.MODERATOR, true],
+      [PermissionLevel.BROADCASTER, true],
+    ])('lets a %s run a moderator command: %s', async (level, allowed) => {
+      const result = await executor.execute(run('!ad', level));
+
+      expect(result.success).toBe(allowed);
+      expect(ad.execute).toHaveBeenCalledTimes(allowed ? 1 : 0);
+    });
+
+    it('records a refusal in the activity log, naming what was required', async () => {
+      await executor.execute(run('!delvod 123', PermissionLevel.VIEWER));
+
+      expect(executed).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          command: 'delvod',
+          args: ['123'],
+          success: false,
+          errorCode: 'INSUFFICIENT_PERMISSIONS',
+          reason: 'Required permissions: broadcaster',
+        })
+      );
+    });
+
+    it('refuses in a simulation too, which runs as the level the console picked', async () => {
+      const context = { ...run('!delvod', PermissionLevel.VIEWER), isSimulation: true };
+
+      expect(errorCodeOf(await executor.execute(context))).toBe('INSUFFICIENT_PERMISSIONS');
+      expect(delvod.execute).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('unknown commands', () => {
+    it('answers a command that does not exist as unknown, and records it', async () => {
+      const result = await executor.execute(run('!nope', PermissionLevel.BROADCASTER));
+
+      expect(errorCodeOf(result)).toBe('COMMAND_NOT_FOUND');
+      expect(result.message).toBe('Unknown command: nope');
+      expect(executed).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ command: 'nope', errorCode: 'COMMAND_NOT_FOUND' })
+      );
+    });
+
+    it("answers a command the platform doesn't offer exactly as an unknown one", async () => {
+      const result = await executor.execute(
+        run('!ad', PermissionLevel.BROADCASTER, StreamingPlatform.YOUTUBE)
+      );
+
+      expect(result).toEqual({
+        success: false,
+        message: 'Unknown command: ad',
+        error: { code: 'COMMAND_NOT_FOUND', reason: "Command 'ad' does not exist" },
+      });
+      expect(ad.execute).not.toHaveBeenCalled();
+    });
+
+    it('checks the platform before permissions, so a refusal never reveals a hidden command', async () => {
+      const result = await executor.execute(
+        run('!ad', PermissionLevel.VIEWER, StreamingPlatform.YOUTUBE)
+      );
+
+      expect(errorCodeOf(result)).toBe('COMMAND_NOT_FOUND');
+    });
+  });
+});
+
+/**
+ * A façade with only what a command table reads: SET_TITLE, plus a capability object for each of
+ * `apis` (empty, since having one is having the capability).
+ */
+function fakePlatform(platform: StreamingPlatform, apis: Record<string, object> = {}) {
+  return {
+    platform,
+    declaredCapabilities: new Set([PlatformCapability.SET_TITLE]),
+    ...apis,
+  } as unknown as IStreamPlatform;
+}

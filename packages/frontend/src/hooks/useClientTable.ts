@@ -25,7 +25,7 @@ export interface ClientTableOptions<Row extends RowData> {
 
 /**
  * A table whose rows are all in the console, sorted, filtered and paged here rather than on the
- * server: the Commands, Suggestions and Interval Messages pages. A page reads and changes the sort, column filters and
+ * server: the Commands, Suggestions, Interval Messages and Banned Words pages. A page reads and changes the sort, column filters and
  * selection through `table`. `pagination` goes straight to DataTablePagination.
  *
  * Sorting or filtering differently goes back to the first page, but new rows don't: a list that

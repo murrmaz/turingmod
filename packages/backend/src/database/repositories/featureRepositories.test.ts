@@ -39,6 +39,34 @@ describe('BannedWordRepository', () => {
   });
 });
 
+describe('BannedWordRepository edits', () => {
+  it('renames a word in any case, keeping who banned it and when', () => {
+    const repo = new BannedWordRepository(db);
+    repo.ban('chese', 'viewer', 1000);
+
+    expect(repo.rename('CHESE', 'Cheese')).toBe(true);
+    expect(repo.rename('chese', 'other')).toBe(false);
+    expect(repo.list()).toEqual([{ word: 'cheese', bannedBy: 'viewer', bannedAt: 1000 }]);
+  });
+
+  it('renews a word, keeping who banned it', () => {
+    const repo = new BannedWordRepository(db);
+    repo.ban('cheese', 'viewer', 1000);
+
+    expect(repo.renew('cheese', 2000)).toBe(true);
+    expect(repo.renew('gone', 2000)).toBe(false);
+    expect(repo.list()).toEqual([{ word: 'cheese', bannedBy: 'viewer', bannedAt: 2000 }]);
+  });
+
+  it('knows whether a word is listed, lapsed or not', () => {
+    const repo = new BannedWordRepository(db);
+    repo.ban('cheese', null, 1000);
+
+    expect(repo.has('CHEESE')).toBe(true);
+    expect(repo.has('crackers')).toBe(false);
+  });
+});
+
 describe('CounterRepository', () => {
   it('reads an unset counter as 0 and increments from there', () => {
     const repo = new CounterRepository(db);

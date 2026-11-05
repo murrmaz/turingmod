@@ -1,4 +1,4 @@
-import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
+import { PermissionLevel, PlatformCapability, wordsIn } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import type { ChatMessageEvent } from '../../../core/events.js';
@@ -7,7 +7,7 @@ import { BannedWordRepository } from '../../../database/repositories/BannedWordR
 import { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { Logger } from '../../../utils/Logger.js';
 import { parseCommand } from '../../commands/parseCommand.js';
-import { banCutoff, wordsIn } from './bannedWords.js';
+import { banCutoff } from './bannedWords.js';
 
 /** How long saying a banned word times a viewer out, as in the original bot. */
 export const BANNED_WORD_TIMEOUT_SECONDS = 10;

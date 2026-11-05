@@ -1,13 +1,15 @@
 import 'reflect-metadata';
-import { StreamingPlatform } from '@turingmod/shared';
+import { BAN_DURATION_MS, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EventBus } from '../../../core/EventBus.js';
 import type { RewardRedemption } from '../../../core/events.js';
 import type { DatabaseManager } from '../../../database/DatabaseManager.js';
 import { BannedWordRepository } from '../../../database/repositories/BannedWordRepository.js';
 import { createTestDatabase } from '../../../database/repositories/testDatabase.js';
 import type { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { Logger } from '../../../utils/Logger.js';
-import { BAN_DURATION_MS, banCutoff } from '../../chat/moderation/bannedWords.js';
+import { BannedWordList } from '../../chat/moderation/BannedWordList.js';
+import { banCutoff } from '../../chat/moderation/bannedWords.js';
 import BanAWordReward from './BanAWordReward.js';
 
 const redemption = (input: string): RewardRedemption => ({
@@ -28,14 +30,16 @@ describe('BanAWordReward', () => {
   let cleanup: () => Promise<void>;
   let bannedWords: BannedWordRepository;
   let sendChatMessage: ReturnType<typeof vi.fn>;
+  let eventBus: EventBus;
   let reward: BanAWordReward;
 
   beforeEach(async () => {
     ({ db, cleanup } = await createTestDatabase());
     bannedWords = new BannedWordRepository(db);
     sendChatMessage = vi.fn(() => Promise.resolve());
+    eventBus = new EventBus(new Logger({ level: 'silent' }));
     reward = new BanAWordReward(
-      bannedWords,
+      new BannedWordList(eventBus, bannedWords),
       { sendChatMessage } as unknown as StreamControlService,
       new Logger({ level: 'silent' })
     );
@@ -54,6 +58,15 @@ describe('BanAWordReward', () => {
       StreamingPlatform.TWITCH,
       '@Viewer has banned the word "cheese" for a month!'
     );
+  });
+
+  it('tells the console about the ban', async () => {
+    const changed = vi.fn();
+    eventBus.on('bannedWords.changed', changed);
+
+    await reward.handle(redemption('cheese'));
+
+    expect(changed).toHaveBeenCalledOnce();
   });
 
   it('refuses, and so refunds, anything but one word', async () => {

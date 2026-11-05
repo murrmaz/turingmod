@@ -3,6 +3,7 @@ import { EventBus } from '../../core/EventBus.js';
 import { DataInspector } from '../../database/DataInspector.js';
 import { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
 import { IntervalMessages } from '../../features/chat/announcements/IntervalMessages.js';
+import { BannedWordList } from '../../features/chat/moderation/BannedWordList.js';
 import { CommandAvailability } from '../../features/commands/CommandAvailability.js';
 import { CommandExecutor } from '../../features/commands/CommandExecutor.js';
 import { CommandRegistry } from '../../features/commands/CommandRegistry.js';
@@ -14,6 +15,7 @@ import { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 import { createActivityRouter } from './activityRouter.js';
+import { createBannedWordsRouter } from './bannedWordsRouter.js';
 import { createCommandsRouter } from './commandsRouter.js';
 import { createDataRouter } from './dataRouter.js';
 import { createIntegrationsRouter } from './integrationsRouter.js';
@@ -62,6 +64,10 @@ export function createAppRouter(container: DependencyContainer) {
     ),
     intervalMessages: createIntervalMessagesRouter(
       container.resolve(IntervalMessages),
+      container.resolve(EventBus)
+    ),
+    bannedWords: createBannedWordsRouter(
+      container.resolve(BannedWordList),
       container.resolve(EventBus)
     ),
     youtubeChat: createYouTubeChatRouter(

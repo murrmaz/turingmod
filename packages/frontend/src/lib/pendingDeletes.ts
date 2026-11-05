@@ -3,12 +3,12 @@
  * once and sent only when its Undo lapses. A batch stays hidden while it's being sent, so a row
  * doesn't flash back in before the backend's answer, and is forgotten once that answer arrives.
  */
-export class PendingDeletes {
-  private readonly batches = new Map<string, { ids: readonly number[]; sending: boolean }>();
+export class PendingDeletes<Id extends string | number = number> {
+  private readonly batches = new Map<string, { ids: readonly Id[]; sending: boolean }>();
   private next = 0;
 
   /** Hold these ids back; returns the batch's key. */
-  hold(ids: readonly number[]): string {
+  hold(ids: readonly Id[]): string {
     const key = `delete-${++this.next}`;
     this.batches.set(key, { ids, sending: false });
     return key;
@@ -25,7 +25,7 @@ export class PendingDeletes {
   }
 
   /** The ids to send for a batch, marking it sent; null if it was undone or already sent. */
-  send(key: string): readonly number[] | null {
+  send(key: string): readonly Id[] | null {
     const batch = this.batches.get(key);
     if (!batch || batch.sending) {
       return null;
@@ -35,7 +35,7 @@ export class PendingDeletes {
   }
 
   /** Every batch not yet sent, marked sent. */
-  sendAll(): { key: string; ids: readonly number[] }[] {
+  sendAll(): { key: string; ids: readonly Id[] }[] {
     return [...this.batches.keys()].flatMap((key) => {
       const ids = this.send(key);
       return ids ? [{ key, ids }] : [];
@@ -48,7 +48,7 @@ export class PendingDeletes {
   }
 
   /** Every id hidden from view: held, or sent and not yet answered. */
-  hidden(): ReadonlySet<number> {
+  hidden(): ReadonlySet<Id> {
     return new Set([...this.batches.values()].flatMap((batch) => batch.ids));
   }
 }

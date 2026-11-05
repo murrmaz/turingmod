@@ -9,7 +9,7 @@ it from there: `ChatModerator.review()`
 first, and only a message it allows is parsed with `parseCommand()` and executed. That order is the
 point — a command can't carry a banned word past the filter. Moderation acts only on platforms
 with the `MODERATION` capability and always exempts the broadcaster. Banned words are data
-(`banned_words`, written by the Ban A Word reward) and lapse 30 days after being banned. Other
+(`banned_words`, see Banned words below) and lapse 30 days after being banned. Other
 listeners on `chat.message` (activity log, `ClipCollector`) see every message but TuringMod's own,
 moderated or not.
 
@@ -78,3 +78,15 @@ once a platform accepted it, so nothing advances while no platform is live.
 that `toSafeChatText()` would change at the start (a leading `!` or `/`), a line break, or anything
 past the longest platform limit, so what's saved is what's posted. Text past a shorter limit is
 allowed, with a warning in the dialog: only that platform cuts it off.
+
+## Banned words
+
+Viewers add them with the Ban A Word reward, and the streamer manages them on the console's Banned
+Words page (`bannedWords.*` procedures). Every change goes through `BannedWordList`, which publishes
+`bannedWords.changed`; `ChatModerator` only reads, straight from the repository. Every ban lasts
+`BAN_DURATION_MS`, whoever made it. A row outlives its ban, so the page lists lapsed words too, and
+works out which have lapsed from `expiresAt` and the clock, since a ban lapsing publishes nothing.
+A null `banned_by` is the streamer. `BannedWordSchema` and `normalizeBannedWord()` (`shared`) parse
+a word to the form `wordsIn()` makes of chat (`Don't!` is `dont`), since any other form could never
+match. The dialog and the procedures both use the schema. Correcting a word's spelling keeps who
+banned it and when, and renewing restarts the month, keeping who banned it.

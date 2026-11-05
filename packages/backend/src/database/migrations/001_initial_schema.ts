@@ -47,8 +47,8 @@ export const initialSchema: Migration = {
       ON activity_log(timestamp)
     `);
 
-    // The words viewers have banned with the "Ban A Word" reward. Words are stored lowercased;
-    // NOCASE also keeps "Word" and "word" from coexisting.
+    // The words banned from chat, by viewers with the "Ban A Word" reward or by the streamer.
+    // Words are stored lowercased; NOCASE also keeps "Word" and "word" from coexisting.
     db.exec(`
       CREATE TABLE banned_words (
         word TEXT PRIMARY KEY COLLATE NOCASE,

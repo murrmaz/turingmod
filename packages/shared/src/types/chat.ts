@@ -39,36 +39,3 @@ export const IntervalMessageTextSchema = z
     error: "Can't start with ! or /, which chat would treat as a command",
   })
   .refine((text) => !/[\r\n]/.test(text), { error: 'A chat message is a single line' });
-
-/** How long a word stays banned: the "Ban A Word" reward promises a month. */
-export const BAN_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
-
-/** ASCII punctuation, stripped from words before matching, as the original bot did. */
-const PUNCTUATION = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/g;
-
-/** The words in a chat message, lowercased with punctuation removed, for matching bans. */
-export function wordsIn(text: string): string[] {
-  return text
-    .split(/\s+/)
-    .map((word) => word.replace(PUNCTUATION, '').toLowerCase())
-    .filter((word) => word !== '');
-}
-
-/** The single word someone asked to ban, normalized, or null if it isn't exactly one word. */
-export function normalizeBannedWord(input: string): string | null {
-  const words = wordsIn(input);
-  return words.length === 1 ? (words[0] ?? null) : null;
-}
-
-/**
- * A word to ban, parsed to the form it's stored and matched in, so `Don't!` becomes `dont`: that's
- * what `wordsIn()` makes of it in chat, so any other form could never match.
- */
-export const BannedWordSchema = z.string().transform((input, context) => {
-  const word = normalizeBannedWord(input);
-  if (word === null) {
-    context.addIssue({ code: 'custom', message: 'One word only' });
-    return z.NEVER;
-  }
-  return word;
-});

@@ -92,10 +92,22 @@ describe('ChatModerator', () => {
     expect(await moderator.review(chatMessage('!title cheese stream'))).toBe('blocked');
   });
 
-  it('only matches whole words', async () => {
+  it('catches a disguised word, naming the ban rather than how it was spelled', async () => {
     bannedWords.ban('cheese', null);
 
+    expect(await moderator.review(chatMessage('love that CH33SECAKE'))).toBe('blocked');
+
+    expect(streamControl.sendChatMessage).toHaveBeenCalledWith(
+      StreamingPlatform.TWITCH,
+      '@Viewer: OOPS! You said the banned word "cheese"! To the penal colony with you!'
+    );
+  });
+
+  it('matches only the whole word for a ban set to', async () => {
+    bannedWords.ban('cheese', null, Date.now(), true);
+
     expect(await moderator.review(chatMessage('cheesecake please'))).toBe('allowed');
+    expect(await moderator.review(chatMessage('ch33se please'))).toBe('blocked');
   });
 
   it('stops enforcing a ban after a month', async () => {

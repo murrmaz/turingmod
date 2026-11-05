@@ -16,4 +16,5 @@ export * from './types/integration.js';
 export * from './types/live.js';
 export * from './types/obs.js';
 export * from './types/user.js';
+export * from './utils/bannedWords.js';
 export * from './utils/errors.js';

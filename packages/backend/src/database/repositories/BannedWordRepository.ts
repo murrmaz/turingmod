@@ -1,3 +1,4 @@
+import { defaultWholeWord } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { DatabaseManager } from '../DatabaseManager.js';
 
@@ -7,6 +8,8 @@ export interface BannedWord {
   bannedBy: string | null;
   /** Epoch milliseconds. */
   bannedAt: number;
+  /** Matches only as a whole word, rather than inside longer ones too. */
+  wholeWord: boolean;
 }
 
 /**
@@ -21,23 +24,27 @@ export class BannedWordRepository {
 
   /** Every banned word, oldest first. */
   list(): BannedWord[] {
-    const rows = this.db.query<{ word: string; banned_by: string | null; banned_at: number }>(
-      'SELECT word, banned_by, banned_at FROM banned_words ORDER BY banned_at, word'
-    );
+    const rows = this.db.query<{
+      word: string;
+      banned_by: string | null;
+      banned_at: number;
+      whole_word: number;
+    }>('SELECT word, banned_by, banned_at, whole_word FROM banned_words ORDER BY banned_at, word');
     return rows.map((row) => ({
       word: row.word,
       bannedBy: row.banned_by,
       bannedAt: row.banned_at,
+      wholeWord: row.whole_word === 1,
     }));
   }
 
   /** Words banned at or after `since` (epoch ms), i.e. those still in force. */
-  listActive(since: number): string[] {
-    const rows = this.db.query<{ word: string }>(
-      'SELECT word FROM banned_words WHERE banned_at >= ?',
+  listActive(since: number): { word: string; wholeWord: boolean }[] {
+    const rows = this.db.query<{ word: string; whole_word: number }>(
+      'SELECT word, whole_word FROM banned_words WHERE banned_at >= ?',
       [since]
     );
-    return rows.map((row) => row.word);
+    return rows.map((row) => ({ word: row.word, wholeWord: row.whole_word === 1 }));
   }
 
   /** Whether `word` was banned at or after `since`. */
@@ -54,12 +61,12 @@ export class BannedWordRepository {
     return this.db.queryOne('SELECT 1 FROM banned_words WHERE word = ?', [word]) !== null;
   }
 
-  /** Change a word, keeping who banned it and when. Returns false if it wasn't listed. */
-  rename(word: string, newWord: string): boolean {
-    const { changes } = this.db.run('UPDATE banned_words SET word = ? WHERE word = ?', [
-      newWord.toLowerCase(),
-      word,
-    ]);
+  /** Change a word and how it matches, keeping who banned it and when. False if it wasn't listed. */
+  update(word: string, newWord: string, wholeWord: boolean): boolean {
+    const { changes } = this.db.run(
+      'UPDATE banned_words SET word = ?, whole_word = ? WHERE word = ?',
+      [newWord.toLowerCase(), wholeWord ? 1 : 0, word]
+    );
     return changes > 0;
   }
 
@@ -73,12 +80,17 @@ export class BannedWordRepository {
   }
 
   /** Ban a word now, renewing a lapsed ban of the same word. */
-  ban(word: string, bannedBy: string | null, bannedAt = Date.now()): void {
+  ban(
+    word: string,
+    bannedBy: string | null,
+    bannedAt = Date.now(),
+    wholeWord = defaultWholeWord(word)
+  ): void {
     this.db.run(
-      `INSERT INTO banned_words (word, banned_by, banned_at) VALUES (?, ?, ?)
+      `INSERT INTO banned_words (word, banned_by, banned_at, whole_word) VALUES (?, ?, ?, ?)
        ON CONFLICT(word) DO UPDATE SET banned_by = excluded.banned_by,
-         banned_at = excluded.banned_at`,
-      [word.toLowerCase(), bannedBy, bannedAt]
+         banned_at = excluded.banned_at, whole_word = excluded.whole_word`,
+      [word.toLowerCase(), bannedBy, bannedAt, wholeWord ? 1 : 0]
     );
   }
 

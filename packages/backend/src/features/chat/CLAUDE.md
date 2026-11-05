@@ -87,6 +87,20 @@ Words page (`bannedWords.*` procedures). Every change goes through `BannedWordLi
 `BAN_DURATION_MS`, whoever made it. A row outlives its ban, so the page lists lapsed words too, and
 works out which have lapsed from `expiresAt` and the clock, since a ban lapsing publishes nothing.
 A null `banned_by` is the streamer. `BannedWordSchema` and `normalizeBannedWord()` (`shared`) parse
-a word to the form `wordsIn()` makes of chat (`Don't!` is `dont`), since any other form could never
-match. The dialog and the procedures both use the schema. Correcting a word's spelling keeps who
-banned it and when, and renewing restarts the month, keeping who banned it.
+a word to its stored form (`Don't!` is `dont`), and both the dialog and the procedures use the
+schema. Editing a word keeps who banned it and when, and renewing restarts the month, keeping who
+banned it.
+
+**Matching** (`findBrokenBan()`, `moderation/bannedWords.ts`) makes bans harder to dodge, not
+impossible: it's deliberately no fuzzy matcher, so `spyder` gets through. Both the ban and the
+message go through `canonicalWord()` (`shared`), which removes accents, case, punctuation and
+invisible characters and replaces lookalikes (`sp1d3r`, `$pider`). A message also yields its words'
+pieces (`cat,dog`), single letters joined up (`s p i d e r`), and runs of three or more of a letter
+shrunk to one and two (`spiiider`). Only such runs shrink, so a ban on `god` doesn't catch `good`,
+and that happens before lookalikes, since `l` becomes `i` and `hill` would otherwise shrink to `hi`.
+Each ban stores `whole_word`: a whole-word ban must equal one of these forms, and any other may
+appear inside one. A ban starts by its length (`defaultWholeWord()`: partial from
+`PARTIAL_MATCH_MIN_LENGTH` letters), so a viewer can't ban `e` and hit all of chat; the reward
+always uses that, and the streamer can change it on any word. Whole-word only ever narrows where a
+word matches, never the canonical form. A false positive costs a 10-second timeout, which is why
+this can afford to be a little aggressive.

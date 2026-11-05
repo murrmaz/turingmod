@@ -1,4 +1,4 @@
-import { PermissionLevel, PlatformCapability, wordsIn } from '@turingmod/shared';
+import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import type { ChatMessageEvent } from '../../../core/events.js';
@@ -7,7 +7,7 @@ import { BannedWordRepository } from '../../../database/repositories/BannedWordR
 import { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { Logger } from '../../../utils/Logger.js';
 import { parseCommand } from '../../commands/parseCommand.js';
-import { banCutoff } from './bannedWords.js';
+import { banCutoff, findBrokenBan, type WordBan } from './bannedWords.js';
 
 /** How long saying a banned word times a viewer out, as in the original bot. */
 export const BANNED_WORD_TIMEOUT_SECONDS = 10;
@@ -76,7 +76,7 @@ export class ChatModerator {
   }
 
   private findBannedWord(message: string): string | null {
-    let banned: string[];
+    let banned: WordBan[];
     try {
       banned = this.bannedWords.listActive(banCutoff());
       this.failures.recovered('read');
@@ -88,9 +88,7 @@ export class ChatModerator {
       );
       return null;
     }
-    if (banned.length === 0) return null;
-    const bannedSet = new Set(banned);
-    return wordsIn(message).find((word) => bannedSet.has(word)) ?? null;
+    return findBrokenBan(message, banned);
   }
 
   private async punishBannedWord(event: ChatMessageEvent, word: string): Promise<void> {

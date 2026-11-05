@@ -156,6 +156,24 @@ describe('commands.simulate', () => {
     expect(execute).toHaveBeenCalled();
   });
 
+  it('runs as the same viewer each time for a command that does not use the viewer id', async () => {
+    // So !unlurk finds the !lurk before it.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const first = simulate('!bonk');
+      await first.response;
+      vi.setSystemTime(Date.now() + 60_000);
+      const second = simulate('!bonk');
+      await second.response;
+
+      const idOf = (run: typeof first) => run.execute.mock.calls[0]?.[0].user.platformUserId;
+      expect(idOf(first)).toBeDefined();
+      expect(idOf(second)).toBe(idOf(first));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('parses the text exactly as chat would', async () => {
     const { execute } = simulate('!So  @coolraider');
     await vi.waitFor(() => expect(execute).toHaveBeenCalled());

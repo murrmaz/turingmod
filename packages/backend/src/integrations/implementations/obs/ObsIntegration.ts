@@ -246,7 +246,6 @@ export class ObsIntegration extends BaseIntegration {
    * in which case the scene methods below operate on the main canvas.
    */
   async getCanvases(): Promise<ObsCanvas[]> {
-    this.ensureConnected();
     try {
       const { canvases } = await this.call('GetCanvasList');
       return fitting(CanvasSchema, canvases).map(({ canvasUuid, canvasName }) => ({
@@ -266,7 +265,6 @@ export class ObsIntegration extends BaseIntegration {
    * @param canvasUuid Canvas to list. Defaults to the main canvas.
    */
   async getScenes(canvasUuid?: string): Promise<ObsScene[]> {
-    this.ensureConnected();
     const { scenes } = await this.call(
       'GetSceneList',
       canvasUuid === undefined ? {} : { canvasUuid }
@@ -279,7 +277,6 @@ export class ObsIntegration extends BaseIntegration {
    * comes from getGroupItems().
    */
   async getSceneItems(sceneUuid: string): Promise<ObsSceneItem[]> {
-    this.ensureConnected();
     const { sceneItems } = await this.call('GetSceneItemList', { sceneUuid });
     return toSceneItems(sceneItems);
   }
@@ -289,7 +286,6 @@ export class ObsIntegration extends BaseIntegration {
    * requests, so they are addressed by `groupUuid` wherever a scene UUID is asked for.
    */
   async getGroupItems(groupUuid: string): Promise<ObsSceneItem[]> {
-    this.ensureConnected();
     const { sceneItems } = await this.call('GetGroupSceneItemList', { sceneUuid: groupUuid });
     return toSceneItems(sceneItems);
   }
@@ -300,7 +296,6 @@ export class ObsIntegration extends BaseIntegration {
     sceneItemId: number,
     enabled: boolean
   ): Promise<void> {
-    this.ensureConnected();
     await this.call('SetSceneItemEnabled', {
       sceneUuid,
       sceneItemId,
@@ -310,7 +305,6 @@ export class ObsIntegration extends BaseIntegration {
 
   /** Get the full transform of a scene item. */
   async getSceneItemTransform(sceneUuid: string, sceneItemId: number): Promise<SceneItemTransform> {
-    this.ensureConnected();
     const { sceneItemTransform } = await this.call('GetSceneItemTransform', {
       sceneUuid,
       sceneItemId,
@@ -328,7 +322,6 @@ export class ObsIntegration extends BaseIntegration {
     sceneItemId: number,
     transform: Partial<SceneItemTransform>
   ): Promise<void> {
-    this.ensureConnected();
     await this.call('SetSceneItemTransform', {
       sceneUuid,
       sceneItemId,
@@ -338,7 +331,6 @@ export class ObsIntegration extends BaseIntegration {
 
   /** The main canvas's base (canvas) resolution. */
   async getCanvasSize(): Promise<{ width: number; height: number }> {
-    this.ensureConnected();
     const { baseWidth, baseHeight } = await this.call('GetVideoSettings');
     return { width: baseWidth, height: baseHeight };
   }
@@ -347,14 +339,12 @@ export class ObsIntegration extends BaseIntegration {
 
   /** Whether an audio input is muted. */
   async getInputMuted(inputName: string): Promise<boolean> {
-    this.ensureConnected();
     const { inputMuted } = await this.call('GetInputMute', { inputName });
     return inputMuted;
   }
 
   /** Mute or unmute an audio input. Absolute, unlike OBS's ToggleInputMute. */
   async setInputMuted(inputName: string, muted: boolean): Promise<void> {
-    this.ensureConnected();
     await this.call('SetInputMute', { inputName, inputMuted: muted });
   }
 
@@ -362,7 +352,6 @@ export class ObsIntegration extends BaseIntegration {
 
   /** The UUID of the current program (live) scene, which is on the main canvas. */
   async getCurrentSceneUuid(): Promise<string> {
-    this.ensureConnected();
     const { sceneUuid } = await this.call('GetCurrentProgramScene');
     return sceneUuid;
   }
@@ -371,7 +360,6 @@ export class ObsIntegration extends BaseIntegration {
 
   /** Whether OBS's stream output is running (live, or reconnecting to the ingest server). */
   async isStreaming(): Promise<boolean> {
-    this.ensureConnected();
     const { outputActive } = await this.call('GetStreamStatus');
     return outputActive;
   }
@@ -387,7 +375,6 @@ export class ObsIntegration extends BaseIntegration {
     filterKind: string,
     filterSettings?: Record<string, unknown>
   ): Promise<void> {
-    this.ensureConnected();
     try {
       const request: {
         sourceName: string;
@@ -411,7 +398,6 @@ export class ObsIntegration extends BaseIntegration {
    * Remove a filter from a source. No-op if the filter does not exist.
    */
   async removeFilter(sourceName: string, filterName: string): Promise<void> {
-    this.ensureConnected();
     try {
       await this.call('RemoveSourceFilter', { sourceName, filterName });
     } catch (error: unknown) {
@@ -432,7 +418,6 @@ export class ObsIntegration extends BaseIntegration {
     settings: Record<string, unknown>,
     overlay = true
   ): Promise<void> {
-    this.ensureConnected();
     await this.call('SetSourceFilterSettings', {
       sourceName,
       filterName,
@@ -444,14 +429,19 @@ export class ObsIntegration extends BaseIntegration {
   // ── Private Helpers ───────────────────────────────────────────────────
 
   /**
-   * Send a request that fails if the connection closes before OBS answers. obs-websocket-js never
-   * settles such a request, which would leave whoever awaits it (an effect and its restore, a break)
-   * waiting forever, and shutdown waiting on them.
+   * Send a request: the one way anything here asks OBS for something. Refused unless connected,
+   * so a request made while reconnecting fails at once rather than waiting on a socket that isn't
+   * there. It also fails if the connection closes before OBS answers: obs-websocket-js never
+   * settles such a request, which would leave whoever awaits it (an effect and its restore, a
+   * break) waiting forever, and shutdown waiting on them.
    */
   private call<Type extends keyof OBSRequestTypes>(
     requestType: Type,
     requestData?: OBSRequestTypes[Type]
   ): Promise<OBSResponseTypes[Type]> {
+    if (this.status !== IntegrationStatus.CONNECTED) {
+      return Promise.reject(new Error('OBS is not connected'));
+    }
     return new Promise((resolve, reject) => {
       this.inFlight.add(reject);
       this.obs
@@ -466,12 +456,6 @@ export class ObsIntegration extends BaseIntegration {
       reject(new Error('The connection to OBS closed before it answered'));
     }
     this.inFlight.clear();
-  }
-
-  private ensureConnected(): void {
-    if (this.status !== IntegrationStatus.CONNECTED) {
-      throw new Error('OBS is not connected');
-    }
   }
 
   private subscribeToObsEvents(): void {

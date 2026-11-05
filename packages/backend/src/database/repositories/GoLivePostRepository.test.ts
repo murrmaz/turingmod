@@ -52,6 +52,12 @@ describe('GoLivePostRepository', () => {
       JSON.stringify({ channelId: '1' }),
     ]);
 
-    expect(() => repo.get()).toThrow();
+    // Named field by field, since the message reaches the streamer's activity log.
+    expect(() => repo.get()).toThrow(/stored go-live post is not valid[\s\S]*lastLiveAt/);
+  });
+
+  it('refuses to store a post that does not fit', () => {
+    expect(() => repo.save({ ...post, lastLiveAt: 1.5 })).toThrow(/lastLiveAt/);
+    expect(repo.get()).toBeNull();
   });
 });

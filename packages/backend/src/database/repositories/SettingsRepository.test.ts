@@ -65,7 +65,9 @@ describe('SettingsRepository', () => {
   });
 
   it('refuses to store settings that do not fit the schema', () => {
-    expect(() => repo.set(TEST_SETTINGS, { enabled: true, sources: [''] })).toThrow();
+    expect(() => repo.set(TEST_SETTINGS, { enabled: true, sources: [''] })).toThrow(
+      /Invalid "test" settings[\s\S]*sources/
+    );
     expect(repo.get(TEST_SETTINGS)).toEqual({ enabled: true, sources: [] });
   });
 });

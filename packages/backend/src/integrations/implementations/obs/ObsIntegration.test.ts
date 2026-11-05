@@ -373,12 +373,32 @@ describe('ObsIntegration', () => {
       await expect(integration.removeFilter('Cam', 'tint')).rejects.toThrow('socket');
     });
 
-    it('refuses every request while not connected', async () => {
+    it('refuses every request while not connected, without sending it', async () => {
       await integration.stop();
+      socket.call.mockClear();
 
-      await expect(integration.getCurrentSceneUuid()).rejects.toThrow('OBS is not connected');
-      await expect(integration.getScenes()).rejects.toThrow('OBS is not connected');
-      await expect(integration.isStreaming()).rejects.toThrow('OBS is not connected');
+      const requests: Promise<unknown>[] = [
+        integration.getCanvases(),
+        integration.getScenes(),
+        integration.getSceneItems('scene'),
+        integration.getGroupItems('group'),
+        integration.setSceneItemEnabled('scene', 1, true),
+        integration.getSceneItemTransform('scene', 1),
+        integration.setSceneItemTransform('scene', 1, { rotation: 0 }),
+        integration.getCanvasSize(),
+        integration.getInputMuted('Mic'),
+        integration.setInputMuted('Mic', true),
+        integration.getCurrentSceneUuid(),
+        integration.isStreaming(),
+        integration.addFilter('Cam', 'tint', 'color_filter'),
+        integration.removeFilter('Cam', 'tint'),
+        integration.setFilterSettings('Cam', 'tint', {}),
+      ];
+
+      for (const request of requests) {
+        await expect(request).rejects.toThrow('OBS is not connected');
+      }
+      expect(socket.call).not.toHaveBeenCalled();
     });
   });
 });

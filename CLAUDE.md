@@ -251,7 +251,7 @@ Minimal Node.js `http` server (`server/HttpServer.ts`) on `SERVER_PORT`, which a
 - **Validation**: anything entering from outside the process — console messages, stored integration
   configs, settings, a provider's token response — is parsed with a Zod schema where it enters, and
   its TypeScript type is `z.infer` of that schema, so the type and the check can't drift apart.
-  `parseOrThrow()` (`utils/parseOrThrow.ts`) is the check for a value that must fit, naming every field that doesn't. Don't hand-write type guards or cast parsed JSON. Schemas for data TuringMod owns are strict
+  `parseOrThrow()` (`utils/parseOrThrow.ts`) is the check for a value that must fit, naming every field that doesn't; lint (the plugin `biome-plugins/parse-or-throw.grit`) rejects a schema's own `.parse()` in backend source, apart from `.parse({})` for its defaults. Don't hand-write type guards or cast parsed JSON. Schemas for data TuringMod owns are strict
   (`z.strictObject`: an unknown key is an error) and fail rather than fall back; a field may be
   optional or have a default, but a value that is present must be valid. (Activity log payloads
   are the one exception, since the capped log ages old rows out: see

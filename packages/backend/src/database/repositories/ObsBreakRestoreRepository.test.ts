@@ -52,6 +52,7 @@ describe('ObsBreakRestoreRepository', () => {
       JSON.stringify({ items: [{ key: 'scene:1' }], inputs: [] }),
     ]);
 
-    expect(() => repo.get()).toThrow();
+    // Named field by field, since the message reaches the streamer's activity log.
+    expect(() => repo.get()).toThrow(/stored OBS break restore is not valid[\s\S]*items/);
   });
 });

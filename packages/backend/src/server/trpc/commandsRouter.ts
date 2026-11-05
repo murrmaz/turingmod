@@ -47,7 +47,8 @@ export function createCommandsRouter(
      * Run a command typed into the simulator, side effects included, parsed exactly as it would
      * be from chat: anything chat wouldn't run as a command is answered as not being one. A command
      * that gives the platform the viewer's id runs as the real user with the simulated username;
-     * any other gets a placeholder id, so it runs for a made-up name or a disconnected platform.
+     * any other gets a placeholder id made from the username, so it runs for a made-up name or a
+     * disconnected platform.
      */
     simulate: procedure
       .input(
@@ -74,8 +75,10 @@ export function createCommandsRouter(
           );
         }
 
-        let userId = simulatedUser.userId ?? `sim-${Date.now()}`;
         const { username } = simulatedUser;
+        // Made from the name, so a simulated viewer is the same viewer from one run to the next:
+        // `!unlurk` finds the `!lurk` before it.
+        let userId = simulatedUser.userId ?? `sim-${username.toLowerCase()}`;
         const needsRealId = commandAvailability.find(parsed.command, platform)?.usesPlatformUserId;
         if (needsRealId && !simulatedUser.userId) {
           try {

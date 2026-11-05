@@ -37,6 +37,12 @@ export class IntegrationManager {
 
   /** Tail of the serialized chain of reactive dependency work. */
   private dependencyQueue: Promise<void> = Promise.resolve();
+  /**
+   * Set by stopAll(), after which nothing starts: not the console (still connected while
+   * integrations stop), not an OAuth callback, and not a reconcile pass recovering a dependent that
+   * stopAll() has already stopped. One started then would never be stopped.
+   */
+  private shuttingDown = false;
 
   /**
    * Tail of each integration's chain of start/stop calls. Every start and
@@ -234,6 +240,10 @@ export class IntegrationManager {
 
   private async doStart(integration: IIntegration): Promise<void> {
     const { name } = integration;
+    // Inside the lock, so a start queued behind one still running is refused too.
+    if (this.shuttingDown) {
+      throw new Error(`Not starting ${name}: TuringMod is shutting down`);
+    }
     const blockedReason = this.getBlockedReason(integration);
     if (blockedReason) {
       // Not an error: nothing about this integration is broken, a
@@ -499,6 +509,7 @@ export class IntegrationManager {
    * restart loop.
    */
   private async reconcile(): Promise<void> {
+    if (this.shuttingDown) return;
     const blocked = [...this.integrations.values()]
       .filter((integration) => integration.getStatus() === IntegrationStatus.BLOCKED)
       .map((integration) => integration.name);
@@ -551,6 +562,7 @@ export class IntegrationManager {
    * Stop all integrations
    */
   async stopAll(): Promise<void> {
+    this.shuttingDown = true;
     this.logger.info('Stopping all integrations');
 
     // Reverse dependency order, a level at a time: a dependency is never torn

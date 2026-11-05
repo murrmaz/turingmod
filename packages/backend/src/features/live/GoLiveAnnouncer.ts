@@ -82,6 +82,13 @@ export class GoLiveAnnouncer implements IService {
   private details = new Map<StreamingPlatform, PlatformDetails>();
   /** What the post was last edited to show, so a change that alters nothing doesn't edit it. */
   private lastShown: string | null = null;
+  /**
+   * The post as last changed, while the database refuses it. `storedPost()` answers with this
+   * until a save works, since forgetting a post that exists in Discord would post it, and ping
+   * everyone, again on the next heartbeat. Held in memory only: a restart before a save works
+   * still loses it.
+   */
+  private unsaved: GoLivePost | null = null;
 
   constructor(
     private eventBus: EventBus,
@@ -162,17 +169,21 @@ export class GoLiveAnnouncer implements IService {
     let post = this.storedPost();
 
     if (live.length === 0) {
+      const justEnded = this.heartbeat !== null;
       if (this.heartbeat) {
         // The last platform just went offline.
         clearInterval(this.heartbeat);
         this.heartbeat = null;
         if (post) {
           post = { ...post, lastLiveAt: Date.now() };
-          this.posts.save(post);
         }
       }
       if (post) {
+        // Scheduled before saving, so a save the database refuses can't leave the post open.
         this.scheduleEnd(post.lastLiveAt + GO_LIVE_GRACE_MS - Date.now());
+        if (justEnded) {
+          this.save(post);
+        }
       }
       return;
     }
@@ -188,7 +199,7 @@ export class GoLiveAnnouncer implements IService {
     const stream = await this.summarize(live, post?.stream ?? null);
     if (post) {
       post = { ...post, lastLiveAt: Date.now(), stream };
-      this.posts.save(post);
+      this.save(post);
       await this.showLive(post, live);
       return;
     }
@@ -200,7 +211,7 @@ export class GoLiveAnnouncer implements IService {
     }
     const now = Date.now();
     const messageId = await this.discord.postMessage(channelId, renderLivePost(stream, live, now));
-    this.posts.save({ channelId, messageId, lastLiveAt: now, previewStamp: now, stream });
+    this.save({ channelId, messageId, lastLiveAt: now, previewStamp: now, stream });
     this.lastShown = JSON.stringify([stream, live]);
     this.previewTimer = setTimeout(() => {
       this.previewTimer = null;
@@ -235,14 +246,14 @@ export class GoLiveAnnouncer implements IService {
     } catch (error) {
       if (error instanceof DiscordMessageDeletedError) {
         this.logger.info('The Discord go-live post was deleted; not posting it again this stream');
-        this.posts.save({ ...post, messageId: null });
+        this.save({ ...post, messageId: null });
         return;
       }
       // What Discord shows is no longer known, so anything that syncs edits it again.
       this.lastShown = null;
       throw error;
     }
-    this.posts.save(updated);
+    this.save(updated);
     this.lastShown = shown;
   }
 
@@ -266,7 +277,7 @@ export class GoLiveAnnouncer implements IService {
   private recordStillLive(): void {
     const post = this.storedPost();
     if (post && this.livePlatforms().length > 0) {
-      this.posts.save({ ...post, lastLiveAt: Date.now() });
+      this.save({ ...post, lastLiveAt: Date.now() });
     }
   }
 
@@ -351,6 +362,7 @@ export class GoLiveAnnouncer implements IService {
   private async end(post: GoLivePost): Promise<void> {
     // Forgotten whether or not the edit works: a post left open would swallow the next stream's
     // ping.
+    this.unsaved = null;
     this.posts.clear();
     this.lastShown = null;
     this.details.clear();
@@ -464,6 +476,9 @@ export class GoLiveAnnouncer implements IService {
    * told, since the post left open in Discord will never be finished.
    */
   private storedPost(): GoLivePost | null {
+    if (this.unsaved) {
+      return this.unsaved;
+    }
     try {
       return this.posts.get();
     } catch (error) {
@@ -475,5 +490,12 @@ export class GoLiveAnnouncer implements IService {
       this.posts.clear();
       return null;
     }
+  }
+
+  /** Store the post, holding it in `unsaved` if the database refuses it. */
+  private save(post: GoLivePost): void {
+    this.unsaved = post;
+    this.posts.save(post);
+    this.unsaved = null;
   }
 }

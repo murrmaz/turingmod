@@ -65,7 +65,11 @@ dependencies being CONNECTED, and beyond that the manager reacts to status chang
   `await` don't hold across it. A start from outside the queue (the console, an OAuth exchange) is
   kept apart from it by a per-integration lifecycle lock: every `startIntegration()` and
   `stopIntegration()` of one integration runs after the previous one has settled. A start that hits
-  `START_TIMEOUT_MS` releases the lock even though its `start()` may still be running.
+  `START_TIMEOUT_MS` releases the lock even though its `start()` may still be running, so a
+  `start()` that awaits before building what it holds must notice a stop or retry that ran
+  meanwhile, and discard what it built rather than report on it: `OAuthIntegration`,
+  `TwitchEventSubIntegration` and `DiscordIntegration` count their starts and stops for this, and
+  OBS, the Arduino and YouTube chat get it from `ReconnectBackoff`.
 - An unmet dependency is reported as `IntegrationStatus.BLOCKED`, not ERROR — nothing is broken, a
   prerequisite is off — via `reportBlocked()`.
 
@@ -77,6 +81,9 @@ console gets it live, and boot starts what is `enabled`, whatever it last report
 Startup and shutdown both work in dependency *levels* (`DependencyGraph.levels()`), concurrent within
 a level and reversed for shutdown, with a per-integration start timeout
 (`IntegrationManager.START_TIMEOUT_MS`) so one integration that never settles can't hang boot.
+Once `stopAll()` begins nothing starts again, whether the console asks (it stays connected until
+integrations have stopped) or a dependency reconnecting would have recovered it: one started then
+would never be stopped.
 
 **An API that calls on behalf of a separate auth integration extends
 `AuthorizedApiIntegration<TAuth, TClient>`** (`integrations/AuthorizedApiIntegration.ts`), which

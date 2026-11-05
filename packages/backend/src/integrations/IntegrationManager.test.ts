@@ -582,6 +582,54 @@ describe('IntegrationManager', () => {
       expect(unrelated.stopped).toBe(true);
     });
 
+    it('refuses a start once shutting down, which nothing would stop', async () => {
+      // The console stays connected while integrations stop, so a Start can arrive meanwhile.
+      const manager = makeManager(makeStateRepo());
+      registerTwitchTrio(manager);
+      await startAll();
+      let finishEventSub = (): void => {};
+      const stopEventSub = eventsub.stop.bind(eventsub);
+      eventsub.stop = () =>
+        new Promise<void>((resolve) => {
+          finishEventSub = () => resolve(stopEventSub());
+        });
+
+      const stopped = manager.stopAll();
+      await settle();
+      await expect(manager.startIntegration('discord')).rejects.toThrow(/shutting down/);
+      finishEventSub();
+      await stopped;
+
+      expect(unrelated.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
+    });
+
+    it('recovers nothing a dependency coming back would have started', async () => {
+      const manager = makeManager(makeStateRepo(['twitch-auth', 'twitch-api', 'twitch-eventsub']));
+      registerTwitchTrio(manager);
+      await startAll();
+      auth.failReauth();
+      await settle();
+      expect(api.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
+      let finishDiscord = (): void => {};
+      const stopDiscord = unrelated.stop.bind(unrelated);
+      unrelated.stop = () =>
+        new Promise<void>((resolve) => {
+          finishDiscord = () => resolve(stopDiscord());
+        });
+
+      const stopped = manager.stopAll();
+      await settle();
+      // Auth reconnecting mid-shutdown, as a refresh finishing late would report it.
+      auth.reportConnected();
+      await settle();
+      finishDiscord();
+      await stopped;
+      await settle();
+
+      expect(api.startCount).toBe(1);
+      expect(eventsub.startCount).toBe(1);
+    });
+
     it('leaves what the streamer enabled as it was, so the next start runs the same ones', async () => {
       const repo = makeStateRepo(['twitch-auth', 'twitch-api', 'twitch-eventsub']);
       const manager = makeManager(repo);

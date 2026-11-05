@@ -321,6 +321,57 @@ describe('TwitchEventSubIntegration', () => {
       expect(integration.getStatus()).toBe(IntegrationStatus.CONNECTED);
     });
 
+    describe('a start still looking up the broadcaster', () => {
+      // IntegrationManager gives up on a start after its timeout and releases the integration, so
+      // a stop or a retry can arrive while this start is still waiting on Twitch.
+      let answer: (user: { id: string; displayName: string }) => void;
+      let fail: (error: Error) => void;
+
+      beforeEach(() => {
+        request.mockImplementationOnce(
+          () =>
+            new Promise((resolve, reject) => {
+              answer = resolve;
+              fail = reject;
+            })
+        );
+      });
+
+      it('creates no listener once stopped, which nothing would ever stop', async () => {
+        const started = integration.start();
+        await integration.stop();
+
+        answer({ id: '1', displayName: 'B' });
+        await started;
+
+        expect(twurple.listeners).toHaveLength(0);
+        expect(integration.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
+      });
+
+      it('leaves the retry as the only listener, so chat is not handled twice', async () => {
+        const stale = integration.start();
+        await integration.start();
+        const retry = current();
+
+        answer({ id: '1', displayName: 'B' });
+        await stale;
+
+        expect(twurple.listeners).toHaveLength(1);
+        expect(twurple.listeners[0]).toBe(retry);
+        expect(retry.stop).not.toHaveBeenCalled();
+      });
+
+      it('reports nothing when it fails after being stopped', async () => {
+        const started = integration.start();
+        await integration.stop();
+
+        fail(new Error('Helix is down'));
+        await started;
+
+        expect(integration.getStatus()).toBe(IntegrationStatus.DISCONNECTED);
+      });
+    });
+
     it('stays disconnected when stopping makes the socket report a disconnect', async () => {
       await integration.start();
       acceptAll();

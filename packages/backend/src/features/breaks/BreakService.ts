@@ -168,6 +168,13 @@ export class BreakService implements IService {
       timer: this.scheduleEnd(endsAt),
     };
     this.logger.info('Break started', { reason, durationSeconds: durationMs / 1000 });
+    // Published as the break is claimed, before anything is awaited: endBreak() can run during
+    // the awaits below (shutdown, or `!break end` straight after), and a subscriber that heard
+    // `ended` before `started` would think a break is still running.
+    const published = this.eventBus.emit('stream.break.started', {
+      reason,
+      durationSeconds: durationMs / 1000,
+    });
 
     this.playSound(this.settings.sounds.breakStarted);
     const startedMessage =
@@ -177,11 +184,8 @@ export class BreakService implements IService {
     await Promise.all([
       applied,
       this.announce(startedMessage, { duration: formatCountdown(durationMs) }),
+      published,
     ]);
-    await this.eventBus.emit('stream.break.started', {
-      reason,
-      durationSeconds: durationMs / 1000,
-    });
 
     return { extended: false, endsAt };
   }

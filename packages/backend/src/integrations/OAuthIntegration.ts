@@ -59,6 +59,14 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
   protected config: TConfig | null = null;
   /** Counts the grants this has held, which a token refresh still in flight can outlive. */
   private grant = 0;
+  /**
+   * Counts every start and stop, so a start that resumes after one of them knows it has been
+   * superseded. IntegrationManager stops waiting for a start after its timeout, so a stop or a
+   * retry can run while connect() is still waiting on the provider.
+   */
+  private lifecycle = 0;
+  /** Whether the latest of those was a stop. */
+  private stopped = false;
 
   protected constructor(
     logger: Logger,
@@ -88,6 +96,8 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
    */
   async start(): Promise<void> {
     const config = this.requireConfig();
+    const run = ++this.lifecycle;
+    this.stopped = false;
     this.setStatus(IntegrationStatus.CONNECTING);
 
     if (!this.hasTokens(config)) {
@@ -108,8 +118,17 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
 
     try {
       await this.connect(config);
+      if (run !== this.lifecycle) {
+        this.discardSupersededStart();
+        return;
+      }
       this.setStatus(IntegrationStatus.CONNECTED);
     } catch (error) {
+      if (run !== this.lifecycle) {
+        // What it failed on no longer matters; the status is the later start's or stop's.
+        this.logger.debug('A superseded start failed', error);
+        return;
+      }
       if (this.isReauthRequiredError(error)) {
         this.markAuthRequired('Refresh token is invalid or revoked — re-authorization required');
       } else {
@@ -120,9 +139,23 @@ export abstract class OAuthIntegration<TConfig extends OAuthConfigBase>
   }
 
   stop(): Promise<void> {
+    this.lifecycle += 1;
+    this.stopped = true;
     this.disconnect();
     this.setStatus(IntegrationStatus.DISCONNECTED);
     return Promise.resolve();
+  }
+
+  /**
+   * A connect() finished after a later start or stop. Reporting CONNECTED now would be false, and
+   * would start the dependents again. After a stop, what it built is dropped, since stop() ran
+   * before it existed; after a retry, the retry's connect() replaces it and reports.
+   */
+  private discardSupersededStart(): void {
+    this.logger.debug('A superseded start finished connecting; discarding it');
+    if (this.stopped) {
+      this.disconnect();
+    }
   }
 
   /**

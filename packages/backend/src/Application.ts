@@ -9,11 +9,12 @@ import { Logger } from './utils/Logger.js';
 
 /**
  * Main application class
- * Orchestrates initialization, startup, and shutdown of all components
+ * Orchestrates startup and shutdown of all components
  */
 @singleton()
 export class Application {
   private logger: Logger;
+  private starting: Promise<void> = Promise.resolve();
 
   constructor(
     private databaseManager: DatabaseManager,
@@ -27,26 +28,18 @@ export class Application {
   }
 
   /**
-   * Initialize the application
-   * Loads integrations from the database (already initialized/migrated in index.ts, ahead of
-   * component registration, since the Encryption singleton needs its salt row to exist before
-   * anything that depends on it — e.g. IntegrationStateRepository — is first resolved)
+   * Start the application: apply stored integration configs, then start the servers, feature
+   * services and enabled integrations.
    */
-  async initialize(): Promise<void> {
-    this.logger.info('Initializing TuringMod...');
-
-    this.logger.info('Loading integrations');
-    await this.integrationManager.loadIntegrations();
-
-    this.logger.info('TuringMod initialized successfully');
+  start(): Promise<void> {
+    this.starting = this.startInOrder();
+    return this.starting;
   }
 
-  /**
-   * Start the application
-   * Starts all servers and enabled integrations
-   */
-  async start(): Promise<void> {
+  private async startInOrder(): Promise<void> {
     this.logger.info('Starting TuringMod...');
+
+    await this.integrationManager.loadIntegrations();
 
     // 1. Start the console's endpoint, then the HTTP server that hands it its upgrades
     this.trpcServer.start();
@@ -57,16 +50,19 @@ export class Application {
     await this.services.startAll();
 
     // 3. Start enabled integrations
-    this.logger.info('Starting enabled integrations');
     await this.integrationManager.startEnabledIntegrations();
 
     this.logger.info('TuringMod started successfully! 🚀');
   }
 
   /**
-   * Stop the application gracefully
+   * Stop the application gracefully. A start still in progress finishes first, whether it succeeds
+   * or not, so that everything it started gets stopped; stopping halfway through could leave a
+   * break or effect half applied.
    */
   async stop(): Promise<void> {
+    await this.starting.catch(() => undefined);
+
     this.logger.info('Stopping TuringMod...');
 
     // 1. Stop feature services while integrations are still connected: chat and redemptions

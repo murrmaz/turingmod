@@ -117,18 +117,19 @@ function consoleOrigins(config: TuringModConfig): string[] {
   );
 }
 
+function startupLogger(): Logger {
+  return container.resolve(Logger).child({ component: 'Startup' });
+}
+
 /**
  * Open the database and run migrations. Must run before anything resolves Encryption (pulled in
  * transitively by the OAuth integrations' auth classes), since its factory reads its salt from
  * the settings table and requires the schema to already exist.
  */
 export async function initializeDatabase(): Promise<void> {
-  const logger = container.resolve(Logger);
-
-  logger.info('Initializing database');
+  startupLogger().info('Initializing database');
   await container.resolve(DatabaseManager).initialize();
 
-  logger.info('Running database migrations');
   container.resolve(MigrationRunner).runMigrations(ALL_MIGRATIONS);
 
   // Read every settings group once, so stored settings that don't fit their schema stop startup
@@ -151,7 +152,7 @@ const ALL_SETTINGS: readonly SettingsDefinition<unknown>[] = [
  * Registers commands, integrations, and message handlers
  */
 export async function initializeComponents(): Promise<void> {
-  const logger = container.resolve(Logger);
+  const logger = startupLogger();
   logger.info('Initializing components');
 
   // Auto-discover and register commands

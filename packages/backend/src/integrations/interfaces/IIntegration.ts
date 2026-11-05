@@ -120,7 +120,7 @@ export interface IIntegration {
 
   /**
    * Where the integration connects, for one whose address is a setting the console can change
-   * (the Arduino's), so its setup dialog can show the one in use; null otherwise.
+   * (OBS's and the Arduino's), so its setup dialog can show the one in use; null otherwise.
    */
   getAddress(): string | null;
 

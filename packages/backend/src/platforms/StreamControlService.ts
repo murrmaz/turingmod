@@ -7,8 +7,8 @@ import {
 } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
-import type { RepeatingFailures, ReportFailure } from '../core/ServiceLifecycle.js';
-import { failureReporter } from '../core/ServiceLifecycle.js';
+import type { RepeatingFailures, ReportFailure } from '../core/failures.js';
+import { failureReporter } from '../core/failures.js';
 import { Logger } from '../utils/Logger.js';
 import { CAPABILITY_OF_API, capabilitiesOf } from './capabilities.js';
 import { InvalidStreamInfoError } from './errors.js';
@@ -109,8 +109,8 @@ export class StreamControlService {
   /**
    * Post a chat message to every live platform. `messageFor` picks the wording per platform and
    * returns null to skip one. Platforms whose auth is broken are skipped and logged, never
-   * reported to chat, for the same reason as mirrored writes (see mirror()). A platform that fails
-   * doesn't make this reject: it's logged here and listed in the result, which a caller passes to
+   * reported to chat, for the same reason as mirrored writes (see mirror()). Never rejects: a
+   * platform that fails is logged here and listed in the result, which a caller passes to
    * `reportAnnouncement()` so the streamer hears about it.
    *
    * With `highlight`, platforms that have highlighted announcements (ANNOUNCEMENTS) post one;
@@ -177,7 +177,7 @@ export class StreamControlService {
 
   /** Whether a platform is connected and broadcasting. */
   isLive(platform: StreamingPlatform): Promise<boolean> {
-    return this.target(platform).isLive();
+    return isBroadcasting(this.target(platform));
   }
 
   /** A platform's channel name and where to watch it. */
@@ -246,7 +246,7 @@ export class StreamControlService {
   /**
    * Run `action` on every live platform whose capability set includes `capability`, collecting
    * per-platform successes and failures. `action` returns false to skip a platform without it
-   * counting as either.
+   * counting as either. Never rejects: whatever a platform throws is that platform's failure.
    */
   private async forEachLivePlatform(
     capability: PlatformCapability,
@@ -263,7 +263,14 @@ export class StreamControlService {
       // whole channel would see the state of the broadcaster's tokens. It mustn't vanish
       // either, or the command reports the misleading "No live platforms to update". So it's
       // listed apart from failures, whose text chat may repeat.
-      const unavailable = platform.getUnavailableReason();
+      let unavailable: string | null;
+      try {
+        unavailable = platform.getUnavailableReason();
+      } catch (error) {
+        this.logger.error(`Could not ask whether ${platform.platform} is available`, error);
+        result.failures.push({ platform: platform.platform, error: messageOf(error) });
+        continue;
+      }
       if (unavailable) {
         this.logger.warn(
           `Skipping ${platformDisplayName(platform.platform)} for ${capability}: ${unavailable}`
@@ -274,7 +281,7 @@ export class StreamControlService {
 
       let live: boolean;
       try {
-        live = await platform.isLive();
+        live = await isBroadcasting(platform);
       } catch (error) {
         this.logger.error(`Could not ask whether ${platform.platform} is live`, error);
         result.failures.push({ platform: platform.platform, error: messageOf(error) });
@@ -304,4 +311,9 @@ export class StreamControlService {
 
     return result;
   }
+}
+
+/** Whether a platform is connected and broadcasting: whether it has a live broadcast to give. */
+async function isBroadcasting(platform: IStreamPlatform): Promise<boolean> {
+  return (await platform.getLiveBroadcast()) !== null;
 }

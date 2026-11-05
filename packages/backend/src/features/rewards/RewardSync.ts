@@ -1,12 +1,8 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
-import {
-  type IService,
-  type RepeatingFailures,
-  repeatingFailures,
-  Subscriptions,
-} from '../../core/ServiceLifecycle.js';
+import { type RepeatingFailures, repeatingFailures } from '../../core/failures.js';
+import { type IService, Subscriptions } from '../../core/ServiceLifecycle.js';
 import { NotAuthenticatedError } from '../../platforms/errors.js';
 import type {
   ChannelReward,

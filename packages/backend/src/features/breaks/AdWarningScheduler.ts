@@ -1,12 +1,8 @@
 import { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
-import {
-  type IService,
-  type RepeatingFailures,
-  repeatingFailures,
-  Subscriptions,
-} from '../../core/ServiceLifecycle.js';
+import { type RepeatingFailures, repeatingFailures } from '../../core/failures.js';
+import { type IService, Subscriptions } from '../../core/ServiceLifecycle.js';
 import { reportAnnouncement, StreamControlService } from '../../platforms/StreamControlService.js';
 import { formatCountdown } from '../../utils/FormatHelpers.js';
 import { Logger } from '../../utils/Logger.js';
@@ -179,14 +175,10 @@ export class AdWarningScheduler implements IService {
 
     const time = formatCountdown(current - Date.now());
     const message = this.breakService.getSettings().messages.adWarning;
-    try {
-      const result = await this.streamControl.announce((platform) =>
-        renderMessage(message, platform, { time })
-      );
-      reportAnnouncement(result, this.failures, 'an ad warning');
-    } catch (error) {
-      this.failures.failed('announce', 'Could not post an ad warning.', error);
-    }
+    const result = await this.streamControl.announce((platform) =>
+      renderMessage(message, platform, { time })
+    );
+    reportAnnouncement(result, this.failures, 'an ad warning');
   }
 
   private clearWarnings(): void {

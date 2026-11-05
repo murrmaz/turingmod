@@ -39,7 +39,7 @@ describe('SuggestionBox', () => {
     box.add('troll 2', 'b');
     const [troll2, troll1] = box.list();
 
-    box.delete([troll1?.id ?? 0, troll2?.id ?? 0, 999]);
+    box.remove([troll1?.id ?? 0, troll2?.id ?? 0, 999]);
 
     expect(box.list().map((s) => s.suggestion)).toEqual(['keep']);
   });
@@ -50,9 +50,9 @@ describe('SuggestionBox', () => {
 
     box.add('more bonk', 'viewer1');
     expect(listener).toHaveBeenCalledTimes(1);
-    box.delete([box.list()[0]?.id ?? 0]);
+    box.remove([box.list()[0]?.id ?? 0]);
     expect(listener).toHaveBeenCalledTimes(2);
-    box.delete([999]);
+    box.remove([999]);
     expect(listener).toHaveBeenCalledTimes(2);
   });
 });

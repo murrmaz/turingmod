@@ -1,13 +1,8 @@
 import { IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
-import {
-  failureReporter,
-  type IService,
-  onConnected,
-  type ReportFailure,
-  Subscriptions,
-} from '../../core/ServiceLifecycle.js';
+import { failureReporter, type ReportFailure } from '../../core/failures.js';
+import { type IService, onConnected, Subscriptions } from '../../core/ServiceLifecycle.js';
 import { ObsIntegration } from '../../integrations/implementations/obs/ObsIntegration.js';
 import { Logger } from '../../utils/Logger.js';
 

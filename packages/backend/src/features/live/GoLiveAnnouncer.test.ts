@@ -13,6 +13,7 @@ import {
 import type {
   ChannelPage,
   IStreamPlatform,
+  LiveBroadcast,
   StreamInfo,
 } from '../../platforms/interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
@@ -37,7 +38,9 @@ function fakePlatform(
     getUnavailableReason() {
       return this.unavailable;
     },
-    isLive: vi.fn<() => Promise<boolean>>(async () => states().get(platform)?.live ?? false),
+    getLiveBroadcast: vi.fn<() => Promise<LiveBroadcast | null>>(async () =>
+      states().get(platform)?.live ? { startedAt: null } : null
+    ),
     getChannelPage: vi.fn<() => Promise<ChannelPage>>(async () => page),
     getStreamInfo: vi.fn<() => Promise<StreamInfo>>(async () => info),
   };

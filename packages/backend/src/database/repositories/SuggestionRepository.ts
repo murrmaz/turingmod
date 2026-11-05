@@ -1,5 +1,6 @@
 import { singleton } from 'tsyringe';
 import { DatabaseManager } from '../DatabaseManager.js';
+import { deleteByIds } from '../deleteByIds.js';
 
 export interface Suggestion {
   id: number;
@@ -37,7 +38,7 @@ export class SuggestionRepository {
   }
 
   /** Every suggestion, newest first. */
-  all(): Suggestion[] {
+  list(): Suggestion[] {
     return this.db
       .query<SuggestionRow>(
         'SELECT id, suggestion, suggested_by, created_at FROM suggestions ORDER BY id DESC'
@@ -46,11 +47,7 @@ export class SuggestionRepository {
   }
 
   /** Delete the suggestions with these ids; ones already gone are skipped. Returns how many went. */
-  delete(ids: readonly number[]): number {
-    if (ids.length === 0) {
-      return 0;
-    }
-    const placeholders = ids.map(() => '?').join(', ');
-    return this.db.run(`DELETE FROM suggestions WHERE id IN (${placeholders})`, [...ids]).changes;
+  remove(ids: readonly number[]): number {
+    return deleteByIds(this.db, 'suggestions', ids);
   }
 }

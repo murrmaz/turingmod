@@ -383,7 +383,7 @@ describe('TwitchPlatform', () => {
       const { platform, stopApi, twitch } = setup();
       stopApi();
 
-      expect(await platform.isLive()).toBe(false);
+      expect(await platform.getLiveBroadcast()).toBeNull();
       expect(twitch.streams.getStreamByUserId).not.toHaveBeenCalled();
     });
 
@@ -434,7 +434,7 @@ describe('TwitchPlatform', () => {
       const { platform, twitch, disconnect } = setup();
       disconnect();
 
-      expect(await platform.isLive()).toBe(false);
+      expect(await platform.getLiveBroadcast()).toBeNull();
       expect(twitch.streams.getStreamByUserId).not.toHaveBeenCalled();
     });
 

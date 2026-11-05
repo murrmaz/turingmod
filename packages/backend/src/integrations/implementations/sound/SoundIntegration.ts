@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process';
-import { IntegrationName, IntegrationStatus } from '@turingmod/shared';
+import { IntegrationName, IntegrationStatus, messageOf } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { Logger } from '../../../utils/Logger.js';
 import { BaseIntegration } from '../../BaseIntegration.js';
@@ -61,7 +61,8 @@ export class SoundIntegration extends BaseIntegration {
   }
 
   /**
-   * Play a file and resolve when it ends. Never rejects; failures are logged.
+   * Play a file and resolve when it ends. Never rejects: a failure is reported (`reportFailure()`,
+   * which IntegrationManager logs and publishes), naming the file.
    * @param maxDurationMs Cut the sound off after this long.
    */
   async playSound(filePath: string, volume = 0.5, maxDurationMs?: number): Promise<void> {
@@ -71,8 +72,9 @@ export class SoundIntegration extends BaseIntegration {
       await this.runPlatformPlayer(filePath, volume, maxDurationMs);
       this.logger.debug('Sound playback completed', { filePath });
     } catch (error) {
-      this.logger.error('Sound playback failed', error, { filePath });
-      this.reportFailure(error);
+      this.reportFailure(
+        new Error(`Could not play ${filePath}: ${messageOf(error)}`, { cause: error })
+      );
     }
   }
 

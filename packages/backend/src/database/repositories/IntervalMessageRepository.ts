@@ -1,5 +1,6 @@
 import { singleton } from 'tsyringe';
 import { DatabaseManager } from '../DatabaseManager.js';
+import { deleteByIds } from '../deleteByIds.js';
 
 export interface IntervalMessage {
   id: number;
@@ -99,12 +100,7 @@ export class IntervalMessageRepository {
 
   /** Delete the messages with these ids; ones already gone are skipped. Returns how many went. */
   remove(ids: readonly number[]): number {
-    if (ids.length === 0) {
-      return 0;
-    }
-    const placeholders = ids.map(() => '?').join(', ');
-    return this.db.run(`DELETE FROM interval_messages WHERE id IN (${placeholders})`, [...ids])
-      .changes;
+    return deleteByIds(this.db, 'interval_messages', ids);
   }
 
   markPosted(id: number, at: number): boolean {

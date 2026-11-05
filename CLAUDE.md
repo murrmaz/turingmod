@@ -36,7 +36,7 @@ Vitest is configured in all three workspaces; tests live beside their subjects a
 - **DI**: [tsyringe](https://github.com/microsoft/tsyringe) — `@singleton()` on app-lifetime classes, `@injectable()` on commands and reward handlers; `registerRootFactories()` in `setup.ts` for the handful of classes tsyringe can't auto-construct
 - **EventBus**: `packages/backend/src/core/EventBus.ts`; every event name and payload type in `core/events.ts` (`EventMap`)
 - **Application**: `packages/backend/src/Application.ts`
-- **Feature service lifecycle**: `packages/backend/src/core/ServiceLifecycle.ts` (`IService`, `Subscriptions`); the ordered service list is in `setup.ts`
+- **Feature service lifecycle**: `packages/backend/src/core/ServiceLifecycle.ts` (`IService`, `Subscriptions`); the ordered service list is in `setup.ts`; reporting a failure to the streamer is `core/failures.ts`
 - **Setup/Bootstrap**: `packages/backend/src/setup.ts`
 - **Entry Point**: `packages/backend/src/index.ts`
 - **Environment**: `packages/backend/src/utils/loadEnv.ts` loads the repository-root `.env` (template: `.env.example`); it's the first import of the entry point (`index.ts`). Shell variables win over the file. `TuringModConfig` (`utils/Config.ts`) is what reads them, through one Zod schema (`parseEnvironment()`): a blank variable gets its default, an invalid one stops startup with a `ConfigurationError` naming it, and only `MASTER_PASSWORD` is required. The file's location is `ENV_FILE` (`utils/paths.ts`).
@@ -84,7 +84,7 @@ reverse before integrations, so a service can still reach OBS or Twitch to undo 
 Triggers (chat, redemptions, raids) go last in the list so they stop first: nothing new can start a
 break or an effect while those are being restored. Each service keeps its bus subscriptions in a
 `Subscriptions` and clears them in `stop()`. A failure a service carries on from but the streamer
-must know about goes through its `failureReporter()` (`core/ServiceLifecycle.ts`), which logs it and
+must know about goes through its `failureReporter()` (`core/failures.ts`), which logs it and
 publishes `service.error`, putting it in the activity log and live feed; a log line alone reaches
 only the terminal. A failure that recurs for as long as its cause lasts (one per chat message, or
 per poll) goes through `RepeatingFailures` (`repeatingFailures()` builds one with its own reporter), which reports the first of a run. `announce()` lists a

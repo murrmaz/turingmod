@@ -97,8 +97,9 @@ describe('SoundIntegration playback control', () => {
     children[0]?.finish(1);
     await playing;
 
-    expect(logger.error).toHaveBeenCalled();
+    // Reported once; IntegrationManager logs what's reported, so it isn't logged here as well.
     expect(errors).toHaveLength(1);
+    expect(logger.error).not.toHaveBeenCalled();
   });
 
   it('keeps its promise not to reject when nothing listens for failures', async () => {
@@ -116,7 +117,7 @@ describe('SoundIntegration playback control', () => {
     children[0]?.finish(1);
     await playing;
 
-    expect(failures[0]?.message).toBe('afplay exited with code 1');
+    expect(failures[0]?.message).toBe('Could not play /clips/a.mp3: afplay exited with code 1');
   });
 
   it('reports a player killed by something else', async () => {
@@ -127,7 +128,9 @@ describe('SoundIntegration playback control', () => {
     children[0]?.emit('exit', null, 'SIGKILL');
     await playing;
 
-    expect(failures[0]?.message).toBe('afplay was killed by signal SIGKILL');
+    expect(failures[0]?.message).toBe(
+      'Could not play /clips/a.mp3: afplay was killed by signal SIGKILL'
+    );
   });
 
   it('reports a player that cannot run', async () => {
@@ -138,7 +141,7 @@ describe('SoundIntegration playback control', () => {
     children[0]?.emit('error', new Error('spawn ENOENT'));
     await playing;
 
-    expect(failures[0]?.message).toBe('spawn ENOENT');
+    expect(failures[0]?.message).toBe('Could not play /clips/a.mp3: spawn ENOENT');
   });
 
   it('scales the volume for macOS, whose player goes up to 2', async () => {

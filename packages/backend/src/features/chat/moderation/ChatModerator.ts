@@ -2,7 +2,7 @@ import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
 import type { ChatMessageEvent } from '../../../core/events.js';
-import { type RepeatingFailures, repeatingFailures } from '../../../core/ServiceLifecycle.js';
+import { type RepeatingFailures, repeatingFailures } from '../../../core/failures.js';
 import { BannedWordRepository } from '../../../database/repositories/BannedWordRepository.js';
 import { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { Logger } from '../../../utils/Logger.js';

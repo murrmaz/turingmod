@@ -112,10 +112,6 @@ export class TwitchPlatform implements IStreamPlatform {
     return this.auth.getAuthenticatedUserId() ? null : 'Twitch broadcaster id unavailable';
   }
 
-  async isLive(): Promise<boolean> {
-    return (await this.getLiveBroadcast()) !== null;
-  }
-
   async sendChatMessage(message: string): Promise<void> {
     const userId = this.requireUserId();
     const text = toSafeChatText(message, MAX_CHAT_MESSAGE_LENGTH);

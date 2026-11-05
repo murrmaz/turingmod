@@ -300,7 +300,15 @@ describe('BreakService', () => {
 
   it('still runs and restores the break when chat is unreachable', async () => {
     const { overlay, streamControl, service } = setup();
-    streamControl.announce.mockRejectedValue(new Error('chat down'));
+    // announce() never rejects; a platform it couldn't reach is listed as failed.
+    streamControl.announce.mockResolvedValue({
+      updated: [],
+      failures: [
+        { platform: StreamingPlatform.TWITCH, error: 'chat down' },
+        { platform: StreamingPlatform.YOUTUBE, error: 'chat down' },
+      ],
+      skipped: [],
+    });
     await service.start();
 
     await service.startBreak('ad', 60);

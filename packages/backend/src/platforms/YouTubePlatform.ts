@@ -63,10 +63,6 @@ export class YouTubePlatform implements IStreamPlatform {
     return unavailableReason(this.auth, this.platform) ?? this.api.getStoppedReason();
   }
 
-  async isLive(): Promise<boolean> {
-    return (await this.getLiveBroadcast()) !== null;
-  }
-
   async sendChatMessage(message: string): Promise<void> {
     this.requireAvailable();
     const text = toSafeChatText(message, MAX_CHAT_MESSAGE_LENGTH);

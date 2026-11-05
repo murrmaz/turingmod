@@ -1,14 +1,8 @@
 import type { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
-import {
-  failureReporter,
-  type IService,
-  onConnected,
-  RepeatingFailures,
-  type ReportFailure,
-  Subscriptions,
-} from '../../core/ServiceLifecycle.js';
+import { failureReporter, RepeatingFailures, type ReportFailure } from '../../core/failures.js';
+import { type IService, onConnected, Subscriptions } from '../../core/ServiceLifecycle.js';
 import {
   type GoLivePost,
   GoLivePostRepository,
@@ -92,7 +86,7 @@ export class GoLiveAnnouncer implements IService {
 
   constructor(
     private eventBus: EventBus,
-    private controls: StreamControlService,
+    private streamControl: StreamControlService,
     private liveStatus: PlatformLiveStatus,
     private discord: DiscordIntegration,
     private posts: GoLivePostRepository,
@@ -331,7 +325,7 @@ export class GoLiveAnnouncer implements IService {
     }
 
     for (const { platform } of post.stream.links) {
-      const unavailable = this.controls.getUnavailableReason(platform);
+      const unavailable = this.streamControl.getUnavailableReason(platform);
       const live = unavailable === null ? await this.isLive(platform) : null;
       if (live !== false) {
         this.logger.debug('Not ending the go-live post yet', {
@@ -348,7 +342,7 @@ export class GoLiveAnnouncer implements IService {
   /** True or false, or null if the platform couldn't be asked. */
   private async isLive(platform: StreamingPlatform): Promise<boolean | null> {
     try {
-      return await this.controls.isLive(platform);
+      return await this.streamControl.isLive(platform);
     } catch (error) {
       this.logger.warn('Could not ask a platform whether it is live', {
         platform,
@@ -413,7 +407,7 @@ export class GoLiveAnnouncer implements IService {
     for (const { platform, details } of described) {
       urls.set(platform, details.page.url);
     }
-    const order = this.controls.platforms();
+    const order = this.streamControl.platforms();
     const links = [...urls]
       .map(([platform, url]) => ({ platform, url }))
       .sort((a, b) => order.indexOf(a.platform) - order.indexOf(b.platform));
@@ -440,8 +434,8 @@ export class GoLiveAnnouncer implements IService {
       return known;
     }
     try {
-      const page = known?.page ?? (await this.controls.getChannelPage(platform));
-      const info = await this.controls.getStreamInfo(platform).catch((error: unknown) => {
+      const page = known?.page ?? (await this.streamControl.getChannelPage(platform));
+      const info = await this.streamControl.getStreamInfo(platform).catch((error: unknown) => {
         this.logger.warn('Could not read the stream title', { platform, error });
         return null;
       });

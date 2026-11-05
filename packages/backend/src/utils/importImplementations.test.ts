@@ -40,12 +40,9 @@ describe('importImplementations', () => {
     );
   });
 
-  it('treats a missing directory as empty only when allowed', async () => {
+  it('fails on a missing directory, which would otherwise load nothing without a word', async () => {
     const missing = pathToFileURL(`${join(root, 'nothing-here')}/`);
 
-    await expect(importImplementations(missing, 'Thing', { allowMissing: true })).resolves.toEqual(
-      []
-    );
     await expect(importImplementations(missing, 'Thing')).rejects.toThrow(/ENOENT/);
   });
 });

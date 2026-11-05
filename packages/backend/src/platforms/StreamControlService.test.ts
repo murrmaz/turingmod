@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
-import { RepeatingFailures } from '../core/ServiceLifecycle.js';
+import { RepeatingFailures } from '../core/failures.js';
 import { Logger } from '../utils/Logger.js';
 import { InvalidStreamInfoError } from './errors.js';
 import type {
@@ -32,9 +32,6 @@ class FakePlatform implements IStreamPlatform {
 
   getUnavailableReason(): string | null {
     return this.unavailable;
-  }
-  isLive(): Promise<boolean> {
-    return Promise.resolve(this.live);
   }
   getStreamInfo(): Promise<StreamInfo> {
     return Promise.resolve({ title: 'x' });
@@ -262,7 +259,7 @@ describe('StreamControlService.announce', () => {
 
   it('logs a platform that cannot say whether it is live, since announce() callers rely on that', async () => {
     const platform = new FakePlatform(StreamingPlatform.TWITCH, null, true);
-    vi.spyOn(platform, 'isLive').mockRejectedValue(new Error('Helix timed out'));
+    vi.spyOn(platform, 'getLiveBroadcast').mockRejectedValue(new Error('Helix timed out'));
     registry.register(platform as unknown as IStreamPlatform);
     const service = makeService(registry, logger);
 
@@ -275,6 +272,22 @@ describe('StreamControlService.announce', () => {
       'Could not ask whether twitch is live',
       expect.any(Error)
     );
+  });
+
+  it('never rejects, even for a platform that throws asking whether it is available', async () => {
+    // Callers don't catch: a break that couldn't announce its end would never publish it.
+    const broken = new FakePlatform(StreamingPlatform.TWITCH, null, true);
+    vi.spyOn(broken, 'getUnavailableReason').mockImplementation(() => {
+      throw new Error('no status');
+    });
+    const youtube = new FakePlatform(StreamingPlatform.YOUTUBE, null, true);
+    registry.register(broken as unknown as IStreamPlatform);
+    registry.register(youtube as unknown as IStreamPlatform);
+
+    const result = await makeService(registry, logger).announce(() => 'hello');
+
+    expect(result.failures).toEqual([{ platform: StreamingPlatform.TWITCH, error: 'no status' }]);
+    expect(result.updated).toEqual([StreamingPlatform.YOUTUBE]);
   });
 });
 

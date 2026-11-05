@@ -16,16 +16,13 @@ export type InjectableClass<T> = new (...args: any[]) => T;
  *
  * @param dir - The directory as a file URL, with a trailing slash so files resolve inside it.
  * @param kind - What the files hold ("Command", "Reward handler"), for error messages.
- * @param allowMissing - Treat a missing directory as empty. `tsc` emits no directory for a
- *   source directory with no files in it, so a set that is legitimately still empty has none.
  */
 export async function importImplementations<T>(
   dir: URL,
-  kind: string,
-  { allowMissing = false }: { allowMissing?: boolean } = {}
+  kind: string
 ): Promise<InjectableClass<T>[]> {
   const classes: InjectableClass<T>[] = [];
-  for (const { file, exports } of await importModules(dir, { allowMissing })) {
+  for (const { file, exports } of await importModules(dir)) {
     if (typeof exports.default !== 'function') {
       throw new Error(`${kind} file '${file}' has no default export`);
     }
@@ -73,18 +70,9 @@ interface ImportedModule {
  */
 async function importModules(
   dir: URL,
-  { allowMissing = false, recursive = false }: { allowMissing?: boolean; recursive?: boolean }
+  { recursive = false }: { recursive?: boolean } = {}
 ): Promise<ImportedModule[]> {
-  let files: string[];
-  try {
-    files = await readdir(dir, { recursive });
-  } catch (error) {
-    if (allowMissing && (error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return [];
-    }
-    throw error;
-  }
-
+  const files = await readdir(dir, { recursive });
   const modules: ImportedModule[] = [];
   for (const file of files.filter((name) => name.endsWith('.js')).sort()) {
     modules.push({ file, exports: await import(new URL(file, dir).href) });

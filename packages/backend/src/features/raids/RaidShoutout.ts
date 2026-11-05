@@ -2,12 +2,8 @@ import { StreamingPlatform } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
 import type { TwitchRaidEvent } from '../../core/events.js';
-import {
-  type IService,
-  type RepeatingFailures,
-  repeatingFailures,
-  Subscriptions,
-} from '../../core/ServiceLifecycle.js';
+import { type RepeatingFailures, repeatingFailures } from '../../core/failures.js';
+import { type IService, Subscriptions } from '../../core/ServiceLifecycle.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
 import { Logger } from '../../utils/Logger.js';
 

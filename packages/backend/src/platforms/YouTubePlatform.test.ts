@@ -86,7 +86,6 @@ describe('YouTubePlatform', () => {
     it('answers not live and no uptime without calling YouTube', async () => {
       authStatus = IntegrationStatus.DISCONNECTED;
 
-      expect(await platform.isLive()).toBe(false);
       expect(await platform.getLiveBroadcast()).toBeNull();
       expect(api.getActiveBroadcast).not.toHaveBeenCalled();
     });
@@ -95,7 +94,7 @@ describe('YouTubePlatform', () => {
       api.getStoppedReason.mockReturnValue('YouTube API is stopped');
 
       expect(platform.getUnavailableReason()).toBe('YouTube API is stopped');
-      expect(await platform.isLive()).toBe(false);
+      expect(await platform.getLiveBroadcast()).toBeNull();
       expect(api.getActiveBroadcast).not.toHaveBeenCalled();
     });
 
@@ -148,14 +147,14 @@ describe('YouTubePlatform', () => {
   it('is live while chat is streaming, without looking up the broadcast', async () => {
     chat.getBroadcast.mockReturnValue(STREAMED);
 
-    await expect(platform.isLive()).resolves.toBe(true);
+    await expect(platform.getLiveBroadcast()).resolves.not.toBeNull();
     expect(api.getActiveBroadcast).not.toHaveBeenCalled();
   });
 
   it("asks YouTube whether it's live when chat isn't streaming", async () => {
     api.getActiveBroadcast.mockResolvedValue(null);
 
-    await expect(platform.isLive()).resolves.toBe(false);
+    await expect(platform.getLiveBroadcast()).resolves.toBeNull();
     expect(api.getActiveBroadcast).toHaveBeenCalledOnce();
   });
 

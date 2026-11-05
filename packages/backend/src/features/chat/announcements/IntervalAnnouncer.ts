@@ -1,11 +1,8 @@
 import { ANNOUNCEMENT_INTERVAL_MS } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
-import {
-  type IService,
-  type RepeatingFailures,
-  repeatingFailures,
-} from '../../../core/ServiceLifecycle.js';
+import { type RepeatingFailures, repeatingFailures } from '../../../core/failures.js';
+import { type IService } from '../../../core/ServiceLifecycle.js';
 import {
   reportAnnouncement,
   StreamControlService,

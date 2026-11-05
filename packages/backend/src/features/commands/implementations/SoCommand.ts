@@ -2,7 +2,7 @@ import type { CommandResult } from '@turingmod/shared';
 import { PermissionLevel, PlatformCapability } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import { EventBus } from '../../../core/EventBus.js';
-import { failureReporter, type ReportFailure } from '../../../core/ServiceLifecycle.js';
+import { failureReporter, type ReportFailure } from '../../../core/failures.js';
 import { InvalidStreamInfoError, NotAuthenticatedError } from '../../../platforms/errors.js';
 import { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { Logger } from '../../../utils/Logger.js';

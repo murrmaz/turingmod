@@ -24,12 +24,12 @@ export class SuggestionBox {
 
   /** Every suggestion, newest first. */
   list(): Suggestion[] {
-    return this.suggestions.all();
+    return this.suggestions.list();
   }
 
   /** Delete the suggestions with these ids; ones already gone are skipped. */
-  delete(ids: readonly number[]): void {
-    if (this.suggestions.delete(ids) > 0) {
+  remove(ids: readonly number[]): void {
+    if (this.suggestions.remove(ids) > 0) {
       this.eventBus.emitSync('suggestions.changed', undefined);
     }
   }

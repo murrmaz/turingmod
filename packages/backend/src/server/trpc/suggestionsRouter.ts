@@ -23,7 +23,7 @@ export function createSuggestionsRouter(box: SuggestionBox, eventBus: EventBus) 
     delete: procedure
       .input(z.strictObject({ ids: z.array(z.int().positive()).min(1) }))
       .mutation(({ input }) => {
-        box.delete(input.ids);
+        box.remove(input.ids);
         return suggestions.current();
       }),
   });

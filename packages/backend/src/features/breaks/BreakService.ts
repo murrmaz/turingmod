@@ -2,14 +2,8 @@ import { IntegrationStatus } from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../../core/EventBus.js';
 import type { BreakReason } from '../../core/events.js';
-import {
-  failureReporter,
-  type IService,
-  onConnected,
-  RepeatingFailures,
-  type ReportFailure,
-  Subscriptions,
-} from '../../core/ServiceLifecycle.js';
+import { failureReporter, RepeatingFailures, type ReportFailure } from '../../core/failures.js';
+import { type IService, onConnected, Subscriptions } from '../../core/ServiceLifecycle.js';
 import {
   ObsBreakRestoreRepository,
   type ObsBreakSnapshot,
@@ -324,14 +318,10 @@ export class BreakService implements IService {
   }
 
   private async announce(message: PerPlatformMessage, vars: Record<string, string>): Promise<void> {
-    try {
-      const result = await this.streamControl.announce((platform) =>
-        renderMessage(message, platform, vars)
-      );
-      reportAnnouncement(result, this.chatFailures, 'a break message');
-    } catch (error) {
-      this.chatFailures.failed('announce', 'Could not post a break message.', error);
-    }
+    const result = await this.streamControl.announce((platform) =>
+      renderMessage(message, platform, vars)
+    );
+    reportAnnouncement(result, this.chatFailures, 'a break message');
   }
 
   private playSound(clip: string | null): void {

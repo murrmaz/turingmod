@@ -11,9 +11,7 @@ import type { RewardRegistry } from './RewardRegistry.js';
 export async function loadRewardHandlers(registry: RewardRegistry, logger: Logger): Promise<void> {
   const dir = new URL('./implementations/', import.meta.url);
 
-  for (const handlerClass of await importImplementations<IRewardHandler>(dir, 'Reward handler', {
-    allowMissing: true,
-  })) {
+  for (const handlerClass of await importImplementations<IRewardHandler>(dir, 'Reward handler')) {
     registry.register(container.resolve(handlerClass));
   }
 

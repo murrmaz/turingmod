@@ -288,9 +288,6 @@ export interface IStreamPlatform extends Partial<Readonly<CapabilityApis>> {
    */
   getUnavailableReason(): string | null;
 
-  /** True if the platform is connected AND currently broadcasting. */
-  isLive(): Promise<boolean>;
-
   /**
    * Post a message to this platform's own chat. ChatRouter posts command replies with this.
    * Implementations must pass the message through `toSafeChatText()` (`platforms/safeChatText.ts`) and

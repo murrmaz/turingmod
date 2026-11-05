@@ -13,7 +13,10 @@ export class CounterRepository {
   constructor(private db: DatabaseManager) {}
 
   get(name: string): number {
-    return this.find(name) ?? 0;
+    return (
+      this.db.queryOne<{ value: number }>('SELECT value FROM counters WHERE name = ?', [name])
+        ?.value ?? 0
+    );
   }
 
   /** Add `by` (default 1) and return the new value, in one statement so counts never race. */
@@ -33,13 +36,6 @@ export class CounterRepository {
       `INSERT INTO counters (name, value, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
       [name, value, Date.now()]
-    );
-  }
-
-  private find(name: string): number | null {
-    return (
-      this.db.queryOne<{ value: number }>('SELECT value FROM counters WHERE name = ?', [name])
-        ?.value ?? null
     );
   }
 }

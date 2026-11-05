@@ -1,8 +1,14 @@
 import type { StreamingPlatform } from '@turingmod/shared';
-import { messageOf, PlatformCapability, platformDisplayName } from '@turingmod/shared';
+import {
+  formatPlatformList,
+  messageOf,
+  PlatformCapability,
+  platformDisplayName,
+} from '@turingmod/shared';
 import { singleton } from 'tsyringe';
 import { EventBus } from '../core/EventBus.js';
-import type { RepeatingFailures } from '../core/ServiceLifecycle.js';
+import type { RepeatingFailures, ReportFailure } from '../core/ServiceLifecycle.js';
+import { failureReporter } from '../core/ServiceLifecycle.js';
 import { Logger } from '../utils/Logger.js';
 import { CAPABILITY_OF_API, capabilitiesOf } from './capabilities.js';
 import { InvalidStreamInfoError } from './errors.js';
@@ -74,6 +80,7 @@ export function reportAnnouncement(
 @singleton()
 export class StreamControlService {
   private logger: Logger;
+  private report: ReportFailure;
 
   constructor(
     private registry: PlatformRegistry,
@@ -81,21 +88,22 @@ export class StreamControlService {
     logger: Logger
   ) {
     this.logger = logger.child({ component: 'StreamControlService' });
+    this.report = failureReporter(eventBus, this.logger, 'Stream info');
   }
 
   /** Mirror a title change to every live platform that supports SET_TITLE. */
   setTitle(title: string): Promise<MirrorResult> {
-    return this.mirror(PlatformCapability.SET_TITLE, { title });
+    return this.mirror(PlatformCapability.SET_TITLE, 'title', { title });
   }
 
   /** Mirror a game/category change to every live platform that supports SET_GAME (Twitch only). */
   setGame(game: string): Promise<MirrorResult> {
-    return this.mirror(PlatformCapability.SET_GAME, { game });
+    return this.mirror(PlatformCapability.SET_GAME, 'game', { game });
   }
 
   /** Mirror a tags change to every live platform that supports SET_TAGS (Twitch only). */
   setTags(tags: string[]): Promise<MirrorResult> {
-    return this.mirror(PlatformCapability.SET_TAGS, { tags });
+    return this.mirror(PlatformCapability.SET_TAGS, 'tags', { tags });
   }
 
   /**
@@ -205,9 +213,17 @@ export class StreamControlService {
     return target;
   }
 
-  /** Fan a metadata write out to every live platform that supports `capability`. */
+  /**
+   * Fan a metadata write out to every live platform that supports `capability`.
+   *
+   * A write no platform took fails the command, whose reason tells the streamer why. One that some
+   * platform took is a success in chat, so a platform that failed is reported here instead, or the
+   * streamer would believe the change reached every platform. A skipped platform isn't: its
+   * integration already shows why, as with `reportAnnouncement()`.
+   */
   private async mirror(
     capability: PlatformCapability,
+    what: string,
     info: Partial<StreamInfo>
   ): Promise<MirrorResult> {
     const result = await this.forEachLivePlatform(capability, async (platform) => {
@@ -216,6 +232,13 @@ export class StreamControlService {
     });
     if (result.updated.length > 0) {
       this.eventBus.emitSync('stream.info.changed', { platforms: result.updated });
+      const updated = formatPlatformList(result.updated);
+      for (const { platform, error } of result.failures) {
+        this.report(
+          `The ${what} was updated on ${updated}, but not on ${platformDisplayName(platform)}.`,
+          error
+        );
+      }
     }
     return result;
   }

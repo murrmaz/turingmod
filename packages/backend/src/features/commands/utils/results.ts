@@ -20,8 +20,11 @@ export function fail(code: CommandErrorCode, message: string, reason: string): C
  * The reply to a write mirrored to every live platform (title, game, tags): `describe` given the
  * platforms that took it, or a failure if none did. A platform's error text reaches chat only when
  * it is about the value asked for ("Game not found"); anything else is the streamer's business, so
- * chat hears only which platform failed and the error goes to the activity log as the reason. A
+ * chat hears only which platforms failed and the errors go to the activity log as the reason. A
  * platform that couldn't be tried is the streamer's business too: chat hears nothing about it.
+ *
+ * A write some platform took is a success whatever the others did, and `mirror()` reports those
+ * that failed, since a success carries no reason.
  */
 export function mirrorReply(
   mirror: MirrorResult,
@@ -31,23 +34,22 @@ export function mirrorReply(
   if (mirror.updated.length > 0) {
     return ok(describe(formatPlatformList(mirror.updated)));
   }
-  const failure = mirror.failures[0];
-  if (!failure) {
-    if (mirror.skipped.length > 0) {
-      const reason = mirror.skipped
-        .map(({ platform, reason }) => `${platformDisplayName(platform)}: ${reason}`)
-        .join('; ');
-      return fail('API_ERROR', `Failed to update ${what}`, reason);
-    }
+  const reasons = [
+    ...mirror.failures.map(({ platform, error }) => `${platformDisplayName(platform)}: ${error}`),
+    ...mirror.skipped.map(({ platform, reason }) => `${platformDisplayName(platform)}: ${reason}`),
+  ];
+  if (reasons.length === 0) {
     const reason = 'No live platforms to update';
     return fail('API_ERROR', `Failed to update ${what}: ${reason}`, reason);
   }
-  if (failure.invalidValue) {
-    return fail('INVALID_INPUT', failure.error, failure.error);
+  const reason = reasons.join('; ');
+  const invalid = mirror.failures.find((failure) => failure.invalidValue);
+  if (invalid) {
+    return fail('INVALID_INPUT', invalid.error, reason);
   }
-  return fail(
-    'API_ERROR',
-    `Failed to update ${what} on ${platformDisplayName(failure.platform)}`,
-    failure.error
-  );
+  if (mirror.failures.length === 0) {
+    return fail('API_ERROR', `Failed to update ${what}`, reason);
+  }
+  const failed = formatPlatformList(mirror.failures.map(({ platform }) => platform));
+  return fail('API_ERROR', `Failed to update ${what} on ${failed}`, reason);
 }

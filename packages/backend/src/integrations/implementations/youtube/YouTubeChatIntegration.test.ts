@@ -413,33 +413,43 @@ describe('YouTubeChatIntegration', () => {
       expect(streamMock.stream).toHaveBeenCalledTimes(2);
     });
 
-    it('returns to idle when the chat has ended', async () => {
+    it('returns to idle quietly when the chat has ended', async () => {
       await connect();
+      const failures = reportedFailures();
 
       call.emitError(400);
       await flush();
 
       expect(integration.getState()).toBe('idle');
       expect(vi.getTimerCount()).toBe(0);
+      expect(failures).toEqual([]); // the ordinary end of a broadcast
     });
 
-    it('returns to idle when the chat is not found', async () => {
+    it('returns to idle quietly when the chat is not found', async () => {
       await connect();
+      const failures = reportedFailures();
 
       call.emitError(404);
       await flush();
 
       expect(integration.getState()).toBe('idle');
+      expect(failures).toEqual([]);
     });
 
-    it('returns to idle when the chat cannot be read', async () => {
+    it('returns to idle and says why when YouTube refuses the chat', async () => {
       await connect();
+      const failures = reportedFailures();
 
+      // Also how Google answers once the quota is spent: idling silently would look like a quiet
+      // chat for the rest of the stream.
       call.emitError(403);
       await flush();
 
       expect(integration.getState()).toBe('idle');
       expect(vi.getTimerCount()).toBe(0);
+      expect(streamMock.stream).toHaveBeenCalledOnce();
+      expect(failures).toHaveLength(1);
+      expect(failures[0]).toMatch(/refused to stream chat.*HTTP 403.*Connect chat/);
     });
 
     it('reconnects when the connection is severed without a status', async () => {

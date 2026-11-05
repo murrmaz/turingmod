@@ -50,10 +50,15 @@ export type ChatTrigger = 'OBS' | 'console';
 /**
  * HTTP statuses that mean "the chat is gone", as opposed to "the connection dropped". 400 is what
  * the streaming endpoint returns for a chat that has ended (the transcoded form of the RPC's
- * FAILED_PRECONDITION), 404 for a liveChatId that no longer resolves, and 403 for a chat the
- * grant can see but not read.
+ * FAILED_PRECONDITION), and 404 for a liveChatId that no longer resolves. Both are the ordinary end
+ * of a broadcast, so neither is reported.
+ *
+ * 403 isn't one of them, though it also ends the stream: it's a chat the grant can see but not
+ * read, and also how Google refuses a request once the project's quota is spent, which the streamer
+ * has to hear about.
  */
-const TERMINAL_STATUSES: ReadonlySet<number> = new Set([400, 403, 404]);
+const TERMINAL_STATUSES: ReadonlySet<number> = new Set([400, 404]);
+const FORBIDDEN = 403;
 
 /**
  * Statuses worth retrying. Everything 5xx is a server-side blip, and 429 is rate limiting that the
@@ -413,6 +418,14 @@ export class YouTubeChatIntegration extends BaseIntegration {
     if (status !== undefined && TERMINAL_STATUSES.has(status)) {
       // The chat ended, was disabled, or the broadcast is gone. Wait for the next request to connect.
       this.logger.info('YouTube live chat is no longer available; returning to idle', { status });
+      this.teardown();
+      return;
+    }
+
+    if (status === FORBIDDEN) {
+      // Reconnecting would be refused the same way, so idle, but say why: Google's message names
+      // the reason (quota spent, chat disabled), and nothing else would show it.
+      this.reportChatStopped('YouTube refused to stream chat.', error);
       this.teardown();
       return;
     }

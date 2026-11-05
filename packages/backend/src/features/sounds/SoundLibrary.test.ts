@@ -4,12 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { IntegrationStatus } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EventBus } from '../../core/EventBus.js';
+import type { ServiceErrorEvent } from '../../core/events.js';
 import type {
   SettingsDefinition,
   SettingsRepository,
 } from '../../database/repositories/SettingsRepository.js';
 import type { SoundIntegration } from '../../integrations/implementations/sound/SoundIntegration.js';
-import type { Logger } from '../../utils/Logger.js';
+import { Logger } from '../../utils/Logger.js';
 import { SoundLibrary } from './SoundLibrary.js';
 
 const makeLogger = () => {
@@ -28,6 +30,7 @@ describe('SoundLibrary', () => {
     stopAll: ReturnType<typeof vi.fn>;
   };
   let logger: ReturnType<typeof makeLogger>;
+  let errors: ReturnType<typeof vi.fn<(event: ServiceErrorEvent) => void>>;
   let library: SoundLibrary;
 
   beforeEach(async () => {
@@ -41,11 +44,15 @@ describe('SoundLibrary', () => {
       stopAll: vi.fn(),
     };
     logger = makeLogger();
+    const eventBus = new EventBus(new Logger({ level: 'silent' }));
+    errors = vi.fn<(event: ServiceErrorEvent) => void>();
+    eventBus.on('service.error', errors);
     library = new SoundLibrary(
       sound as unknown as SoundIntegration,
       {
         get: (definition: SettingsDefinition<unknown>) => definition.schema.parse(settings ?? {}),
       } as unknown as SettingsRepository,
+      eventBus,
       logger
     );
   });
@@ -87,12 +94,37 @@ describe('SoundLibrary', () => {
     await expect(library.play('gunshot.mp3')).rejects.toThrow('Sound is not running');
   });
 
-  it('tryPlay logs instead of rejecting', async () => {
-    await expect(library.tryPlay('jumpscare_1.mp3')).resolves.toBeUndefined();
-    expect(logger.warn).toHaveBeenCalledWith(
-      'Could not play "jumpscare_1.mp3"',
-      expect.objectContaining({ message: expect.stringContaining('Sound clip not found') })
-    );
+  describe('tryPlay', () => {
+    it('reports a missing clip instead of rejecting', async () => {
+      await expect(library.tryPlay('jumpscare_1.mp3')).resolves.toBeUndefined();
+
+      expect(errors).toHaveBeenCalledExactlyOnceWith({
+        service: 'Sounds',
+        message: expect.stringMatching(/Could not play the sound "jumpscare_1.mp3".*not found/),
+      });
+    });
+
+    it('reports a clip once until it plays again', async () => {
+      await library.tryPlay('jumpscare_1.mp3');
+      await library.tryPlay('jumpscare_1.mp3');
+      expect(errors).toHaveBeenCalledOnce();
+
+      await writeFile(join(dir, 'jumpscare_1.mp3'), '');
+      await library.tryPlay('jumpscare_1.mp3');
+      await rm(join(dir, 'jumpscare_1.mp3'));
+      await library.tryPlay('jumpscare_1.mp3');
+
+      expect(errors).toHaveBeenCalledTimes(2);
+    });
+
+    it('says nothing while sound is not running, which its status already shows', async () => {
+      sound.status = IntegrationStatus.DISCONNECTED;
+
+      await library.tryPlay('jumpscare_1.mp3');
+
+      expect(errors).not.toHaveBeenCalled();
+      expect(sound.playSound).not.toHaveBeenCalled();
+    });
   });
 
   it('stops everything playing', () => {

@@ -32,6 +32,11 @@ const PAGE_COMPONENTS: Record<PageId, LazyExoticComponent<ComponentType>> = {
       default: m.IntervalMessagesPage,
     }))
   ),
+  bannedWords: lazy(() =>
+    import('@/features/banned-words/banned-words-page').then((m) => ({
+      default: m.BannedWordsPage,
+    }))
+  ),
   integrations: lazy(() =>
     import('@/features/integrations/integrations-page').then((m) => ({
       default: m.IntegrationsPage,

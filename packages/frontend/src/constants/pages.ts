@@ -1,4 +1,5 @@
 import {
+  Ban,
   Database,
   History,
   LayoutDashboard,
@@ -13,6 +14,7 @@ export type PageId =
   | 'dashboard'
   | 'commands'
   | 'intervalMessages'
+  | 'bannedWords'
   | 'integrations'
   | 'suggestions'
   | 'history'
@@ -52,6 +54,7 @@ export const PAGES: readonly Page[] = [
     label: 'Interval Messages',
     icon: Repeat,
   },
+  { id: 'bannedWords', path: '/banned-words', label: 'Banned Words', icon: Ban },
   { id: 'integrations', path: '/integrations', label: 'Integrations', icon: Plug },
   { id: 'suggestions', path: '/suggestions', label: 'Suggestions', icon: Lightbulb },
   { id: 'history', path: '/history', label: 'History', icon: History },

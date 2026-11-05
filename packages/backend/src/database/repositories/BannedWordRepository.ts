@@ -10,9 +10,10 @@ export interface BannedWord {
 }
 
 /**
- * Words viewers have banned from chat with the "Ban A Word" reward. Rows outlive their ban, which
- * lapses after a month (see features/chat/moderation/bannedWords.ts): callers pass the cutoff, and a lapsed word
- * can be banned again.
+ * Words banned from chat, by viewers with the "Ban A Word" reward or by the streamer (`bannedBy`
+ * null). Rows outlive their ban, which lapses after a month (see
+ * features/chat/moderation/bannedWords.ts): callers pass the cutoff, and a lapsed word can be
+ * banned again.
  */
 @singleton()
 export class BannedWordRepository {
@@ -46,6 +47,29 @@ export class BannedWordRepository {
       since,
     ]);
     return row !== null;
+  }
+
+  /** Whether `word` has a row, in force or lapsed. */
+  has(word: string): boolean {
+    return this.db.queryOne('SELECT 1 FROM banned_words WHERE word = ?', [word]) !== null;
+  }
+
+  /** Change a word, keeping who banned it and when. Returns false if it wasn't listed. */
+  rename(word: string, newWord: string): boolean {
+    const { changes } = this.db.run('UPDATE banned_words SET word = ? WHERE word = ?', [
+      newWord.toLowerCase(),
+      word,
+    ]);
+    return changes > 0;
+  }
+
+  /** Restart a word's ban, keeping who banned it. Returns false if it wasn't listed. */
+  renew(word: string, bannedAt = Date.now()): boolean {
+    const { changes } = this.db.run('UPDATE banned_words SET banned_at = ? WHERE word = ?', [
+      bannedAt,
+      word,
+    ]);
+    return changes > 0;
   }
 
   /** Ban a word now, renewing a lapsed ban of the same word. */

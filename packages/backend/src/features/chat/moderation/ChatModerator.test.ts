@@ -1,5 +1,10 @@
 import 'reflect-metadata';
-import { PermissionLevel, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
+import {
+  BAN_DURATION_MS,
+  PermissionLevel,
+  PlatformCapability,
+  StreamingPlatform,
+} from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../core/EventBus.js';
 import type { ServiceErrorEvent } from '../../../core/events.js';
@@ -10,7 +15,6 @@ import type { ModerationApi } from '../../../platforms/interfaces/IStreamPlatfor
 import type { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { chatMessage, fakeRequire } from '../../../platforms/testing.js';
 import type { Logger } from '../../../utils/Logger.js';
-import { BAN_DURATION_MS } from './bannedWords.js';
 import { BANNED_WORD_TIMEOUT_SECONDS, ChatModerator } from './ChatModerator.js';
 
 const makeLogger = () => {

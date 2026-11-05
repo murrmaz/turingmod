@@ -1,10 +1,9 @@
-import { StreamingPlatform } from '@turingmod/shared';
+import { normalizeBannedWord, StreamingPlatform } from '@turingmod/shared';
 import { injectable } from 'tsyringe';
 import type { RewardRedemption } from '../../../core/events.js';
-import { BannedWordRepository } from '../../../database/repositories/BannedWordRepository.js';
 import { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { Logger } from '../../../utils/Logger.js';
-import { banCutoff, normalizeBannedWord } from '../../chat/moderation/bannedWords.js';
+import { BannedWordList } from '../../chat/moderation/BannedWordList.js';
 import type { IRewardHandler, RewardDefinition } from '../interfaces/IRewardHandler.js';
 
 /**
@@ -23,7 +22,7 @@ export default class BanAWordReward implements IRewardHandler {
   private logger: Logger;
 
   constructor(
-    private bannedWords: BannedWordRepository,
+    private bannedWords: BannedWordList,
     private streamControl: StreamControlService,
     logger: Logger
   ) {
@@ -37,7 +36,7 @@ export default class BanAWordReward implements IRewardHandler {
       await this.reply(`@${user}: only one word can be banned! Your points have been refunded.`);
       throw new Error(`Not a single word: "${redemption.input}"`);
     }
-    if (this.bannedWords.isActive(word, banCutoff())) {
+    if (this.bannedWords.isBanned(word)) {
       await this.reply(`@${user}: "${word}" is already banned! Your points have been refunded.`);
       throw new Error(`Already banned: "${word}"`);
     }

@@ -17,12 +17,12 @@ const UNDO_MS = 5000;
  * @param sendDelete sends a delete, and shows what the backend answers with
  * @param describe names what's being deleted for the toasts, e.g. `3 suggestions`
  */
-export function useUndoableDelete(
-  sendDelete: (client: TrpcClient, ids: number[]) => Promise<unknown>,
+export function useUndoableDelete<Id extends string | number = number>(
+  sendDelete: (client: TrpcClient, ids: Id[]) => Promise<unknown>,
   describe: (count: number) => string
 ) {
   const trpc = useTrpc();
-  const [pending] = useState(() => new PendingDeletes());
+  const [pending] = useState(() => new PendingDeletes<Id>());
   const [hidden, setHidden] = useState(() => pending.hidden());
   const refresh = useCallback(() => setHidden(pending.hidden()), [pending]);
 
@@ -35,7 +35,7 @@ export function useUndoableDelete(
   }, [trpc, sendDelete, describe]);
 
   const send = useCallback(
-    (key: string, ids: readonly number[]) => {
+    (key: string, ids: readonly Id[]) => {
       const current = latest.current;
       current
         .sendDelete(current.trpc, [...ids])
@@ -61,7 +61,7 @@ export function useUndoableDelete(
   );
 
   const remove = useCallback(
-    (ids: readonly number[]) => {
+    (ids: readonly Id[]) => {
       if (ids.length === 0) {
         return;
       }

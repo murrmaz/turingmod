@@ -12,6 +12,14 @@ describe('PendingDeletes', () => {
     expect(pending.send(key)).toBeNull();
   });
 
+  it('holds words as well as numeric ids', () => {
+    const pending = new PendingDeletes<string>();
+    const key = pending.hold(['cheese']);
+
+    expect(pending.hidden().has('cheese')).toBe(true);
+    expect(pending.send(key)).toEqual(['cheese']);
+  });
+
   it('sends a batch once, keeps it hidden until settled, and refuses to undo it', () => {
     const pending = new PendingDeletes();
     const key = pending.hold([3]);

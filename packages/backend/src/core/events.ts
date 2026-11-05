@@ -54,6 +54,9 @@ export interface EventMap {
   /** An interval message was changed or posted (see IntervalMessages). */
   'intervalMessages.changed': undefined;
 
+  /** A banned word was added, changed or deleted (see BannedWordList). */
+  'bannedWords.changed': undefined;
+
   /**
    * An activity log entry was made, chat and live-only events included, which the stored log
    * leaves out (see ActivityForwarder).

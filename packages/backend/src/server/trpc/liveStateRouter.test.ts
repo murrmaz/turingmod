@@ -2,6 +2,7 @@ import { type PlatformLiveState, StreamingPlatform } from '@turingmod/shared';
 import { describe, expect, it } from 'vitest';
 import { EventBus } from '../../core/EventBus.js';
 import type { PlatformLiveStatus } from '../../features/live/PlatformLiveStatus.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { createLiveStateRouter } from './liveStateRouter.js';
 import { createCallerFactory } from './trpc.js';
@@ -15,7 +16,7 @@ describe('liveState router', () => {
     const liveStatus = { getStates: () => states };
     const controller = new AbortController();
     const caller = createCallerFactory(
-      createLiveStateRouter(liveStatus as unknown as PlatformLiveStatus, eventBus)
+      createLiveStateRouter(fake<PlatformLiveStatus>()(liveStatus), eventBus)
     )({ consoleOrigin: null }, { signal: controller.signal });
     const updates = (await caller.watch())[Symbol.asyncIterator]();
     expect((await updates.next()).value).toEqual(states);

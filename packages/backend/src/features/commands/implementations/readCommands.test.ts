@@ -5,6 +5,7 @@ import { EventBus } from '../../../core/EventBus.js';
 import { InvalidStreamInfoError } from '../../../platforms/errors.js';
 import type { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { fakeRequire } from '../../../platforms/testing.js';
+import { fake } from '../../../testing.js';
 import { Logger } from '../../../utils/Logger.js';
 import { LurkTracker } from '../../chat/lurk/LurkTracker.js';
 import { commandContext, errorCodeOf, runCommand } from '../testing.js';
@@ -18,7 +19,7 @@ import UptimeCommand from './UptimeCommand.js';
 import WhoCommand from './WhoCommand.js';
 
 const moderator = { permissionLevel: PermissionLevel.MODERATOR };
-const control = (fields: object) => fields as unknown as StreamControlService;
+const control = (fields: object) => fake<StreamControlService>()(fields);
 
 afterEach(() => {
   vi.useRealTimers();

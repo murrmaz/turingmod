@@ -7,6 +7,7 @@ import type {
   ObsScene,
   ObsSceneItem,
 } from '../../integrations/implementations/obs/ObsIntegration.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { DEFAULT_BREAK_SETTINGS } from './breakSettings.js';
 import { ObsBreakOverlay } from './ObsBreakOverlay.js';
@@ -54,10 +55,11 @@ class FakeObs {
     this.muted.set(inputName, muted);
     return Promise.resolve();
   }
+}
 
-  visible(sceneUuid: string, sourceName: string) {
-    return this.items.get(sceneUuid)?.find((i) => i.sourceName === sourceName)?.sceneItemEnabled;
-  }
+/** Whether `sourceName` is showing in a scene of the fake OBS. */
+function visible(obs: FakeObs, sceneUuid: string, sourceName: string) {
+  return obs.items.get(sceneUuid)?.find((i) => i.sourceName === sourceName)?.sceneItemEnabled;
 }
 
 const item = (
@@ -74,10 +76,7 @@ describe('ObsBreakOverlay', () => {
 
   beforeEach(() => {
     obs = new FakeObs();
-    overlay = new ObsBreakOverlay(
-      obs as unknown as ObsIntegration,
-      new Logger({ level: 'silent' })
-    );
+    overlay = new ObsBreakOverlay(fake<ObsIntegration>()(obs), new Logger({ level: 'silent' }));
 
     obs.canvases = [
       { canvasUuid: 'main', canvasName: 'Main' },
@@ -101,12 +100,12 @@ describe('ObsBreakOverlay', () => {
   it('hides the facecam, shows the break text and mutes the mic on every canvas and scene', async () => {
     await overlay.apply(settings);
 
-    expect(obs.visible('gameplay', 'Facecam')).toBe(false);
-    expect(obs.visible('gameplay', 'Ads Text')).toBe(true);
-    expect(obs.visible('gameplay', 'Game')).toBe(true);
-    expect(obs.visible('chatting', 'Facecam')).toBe(false);
-    expect(obs.visible('vert-gameplay', 'Facecam')).toBe(false);
-    expect(obs.visible('vert-gameplay', 'Ads Text')).toBe(true);
+    expect(visible(obs, 'gameplay', 'Facecam')).toBe(false);
+    expect(visible(obs, 'gameplay', 'Ads Text')).toBe(true);
+    expect(visible(obs, 'gameplay', 'Game')).toBe(true);
+    expect(visible(obs, 'chatting', 'Facecam')).toBe(false);
+    expect(visible(obs, 'vert-gameplay', 'Facecam')).toBe(false);
+    expect(visible(obs, 'vert-gameplay', 'Ads Text')).toBe(true);
     expect(obs.muted.get('Mic/Aux')).toBe(true);
   });
 
@@ -114,9 +113,9 @@ describe('ObsBreakOverlay', () => {
     const { snapshot } = await overlay.apply(settings);
     await overlay.restore(snapshot);
 
-    expect(obs.visible('gameplay', 'Facecam')).toBe(true);
-    expect(obs.visible('gameplay', 'Ads Text')).toBe(false);
-    expect(obs.visible('vert-gameplay', 'Facecam')).toBe(true);
+    expect(visible(obs, 'gameplay', 'Facecam')).toBe(true);
+    expect(visible(obs, 'gameplay', 'Ads Text')).toBe(false);
+    expect(visible(obs, 'vert-gameplay', 'Facecam')).toBe(true);
     expect(obs.muted.get('Mic/Aux')).toBe(false);
   });
 
@@ -131,8 +130,8 @@ describe('ObsBreakOverlay', () => {
   it('leaves the facecam alone in scenes listed in keepVisibleInScenes', async () => {
     await overlay.apply({ ...settings, keepVisibleInScenes: ['Just Chatting'] });
 
-    expect(obs.visible('chatting', 'Facecam')).toBe(true);
-    expect(obs.visible('gameplay', 'Facecam')).toBe(false);
+    expect(visible(obs, 'chatting', 'Facecam')).toBe(true);
+    expect(visible(obs, 'gameplay', 'Facecam')).toBe(false);
   });
 
   it('falls back to the main canvas when OBS predates canvases', async () => {
@@ -141,7 +140,7 @@ describe('ObsBreakOverlay', () => {
 
     await overlay.apply(settings);
 
-    expect(obs.visible('gameplay', 'Facecam')).toBe(false);
+    expect(visible(obs, 'gameplay', 'Facecam')).toBe(false);
   });
 
   it('falls back to the main canvas when listing every canvas fails', async () => {
@@ -150,8 +149,8 @@ describe('ObsBreakOverlay', () => {
 
     await overlay.apply(settings);
 
-    expect(obs.visible('gameplay', 'Facecam')).toBe(false);
-    expect(obs.visible('vert-gameplay', 'Facecam')).toBe(true);
+    expect(visible(obs, 'gameplay', 'Facecam')).toBe(false);
+    expect(visible(obs, 'vert-gameplay', 'Facecam')).toBe(true);
     expect(obs.muted.get('Mic/Aux')).toBe(true);
   });
 
@@ -160,12 +159,12 @@ describe('ObsBreakOverlay', () => {
     obs.items.set('camera-group', [item(1, 'Facecam', true), item(2, 'Frame', true)]);
 
     const { snapshot } = await overlay.apply(settings);
-    expect(obs.visible('camera-group', 'Facecam')).toBe(false);
-    expect(obs.visible('camera-group', 'Frame')).toBe(true);
-    expect(obs.visible('chatting', 'Camera')).toBe(true);
+    expect(visible(obs, 'camera-group', 'Facecam')).toBe(false);
+    expect(visible(obs, 'camera-group', 'Frame')).toBe(true);
+    expect(visible(obs, 'chatting', 'Camera')).toBe(true);
 
     await overlay.restore(snapshot);
-    expect(obs.visible('camera-group', 'Facecam')).toBe(true);
+    expect(visible(obs, 'camera-group', 'Facecam')).toBe(true);
   });
 
   it('still covers the other canvases when one cannot be listed', async () => {
@@ -175,7 +174,7 @@ describe('ObsBreakOverlay', () => {
 
     await overlay.apply(settings);
 
-    expect(obs.visible('vert-gameplay', 'Facecam')).toBe(false);
+    expect(visible(obs, 'vert-gameplay', 'Facecam')).toBe(false);
   });
 
   it("still covers the rest of a scene when one group's items cannot be listed", async () => {
@@ -184,7 +183,7 @@ describe('ObsBreakOverlay', () => {
 
     await overlay.apply(settings);
 
-    expect(obs.visible('gameplay', 'Facecam')).toBe(false);
+    expect(visible(obs, 'gameplay', 'Facecam')).toBe(false);
   });
 
   it('still mutes the mic when no scenes can be listed at all', async () => {
@@ -193,7 +192,7 @@ describe('ObsBreakOverlay', () => {
 
     await overlay.apply(settings);
 
-    expect(obs.visible('gameplay', 'Facecam')).toBe(true);
+    expect(visible(obs, 'gameplay', 'Facecam')).toBe(true);
     expect(obs.muted.get('Mic/Aux')).toBe(true);
   });
 
@@ -203,8 +202,8 @@ describe('ObsBreakOverlay', () => {
 
     await overlay.apply(settings);
 
-    expect(obs.visible('gameplay', 'Facecam')).toBe(false);
-    expect(obs.visible('vert-gameplay', 'Facecam')).toBe(false);
+    expect(visible(obs, 'gameplay', 'Facecam')).toBe(false);
+    expect(visible(obs, 'vert-gameplay', 'Facecam')).toBe(false);
   });
 
   it('does nothing when OBS is not connected', async () => {
@@ -213,7 +212,7 @@ describe('ObsBreakOverlay', () => {
     const { snapshot } = await overlay.apply(settings);
 
     expect(snapshot.items.size).toBe(0);
-    expect(obs.visible('gameplay', 'Facecam')).toBe(true);
+    expect(visible(obs, 'gameplay', 'Facecam')).toBe(true);
   });
 
   it('applies again over what it recorded, keeping the pre-break state', async () => {
@@ -224,7 +223,7 @@ describe('ObsBreakOverlay', () => {
 
     const { snapshot: second } = await overlay.apply(settings, first);
 
-    expect(obs.visible('gameplay', 'Facecam')).toBe(false);
+    expect(visible(obs, 'gameplay', 'Facecam')).toBe(false);
     expect(second.items.get('gameplay:1')?.enabled).toBe(true);
     expect(second.items.get('gameplay:2')?.enabled).toBe(false);
     expect(second.inputs.get('Mic/Aux')).toBe(false);
@@ -236,7 +235,7 @@ describe('ObsBreakOverlay', () => {
 
     obs.status = IntegrationStatus.DISCONNECTED;
     expect((await overlay.restore(snapshot)).connected).toBe(false);
-    expect(obs.visible('gameplay', 'Facecam')).toBe(false);
+    expect(visible(obs, 'gameplay', 'Facecam')).toBe(false);
 
     obs.status = IntegrationStatus.CONNECTED;
     obs.setInputMuted = () => {
@@ -251,7 +250,7 @@ describe('ObsBreakOverlay', () => {
     obs.items.set('chatting', []);
 
     expect((await overlay.restore(snapshot)).connected).toBe(true);
-    expect(obs.visible('gameplay', 'Facecam')).toBe(true);
+    expect(visible(obs, 'gameplay', 'Facecam')).toBe(true);
   });
 
   describe('saying what failed', () => {

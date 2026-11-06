@@ -14,14 +14,8 @@ import { createTestDatabase } from '../../../database/repositories/testDatabase.
 import type { ModerationApi } from '../../../platforms/interfaces/IStreamPlatform.js';
 import type { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { chatMessage, fakeRequire } from '../../../platforms/testing.js';
-import type { Logger } from '../../../utils/Logger.js';
+import { fake, silentLogger } from '../../../testing.js';
 import { BANNED_WORD_TIMEOUT_SECONDS, ChatModerator } from './ChatModerator.js';
-
-const makeLogger = () => {
-  const logger = { warn: vi.fn(), debug: vi.fn(), error: vi.fn(), info: vi.fn(), child: vi.fn() };
-  logger.child.mockReturnValue(logger);
-  return logger as unknown as Logger & typeof logger;
-};
 
 describe('ChatModerator', () => {
   let db: DatabaseManager;
@@ -54,13 +48,13 @@ describe('ChatModerator', () => {
       sendChatMessage: vi.fn(() => Promise.resolve()),
       require: fakeRequire(StreamingPlatform.TWITCH, { moderation }),
     };
-    const logger = makeLogger();
+    const logger = silentLogger();
     const eventBus = new EventBus(logger);
     reported = vi.fn<(event: ServiceErrorEvent) => void>();
     eventBus.on('service.error', reported);
     moderator = new ChatModerator(
       eventBus,
-      streamControl as unknown as StreamControlService,
+      fake<StreamControlService>()(streamControl),
       bannedWords,
       logger
     );

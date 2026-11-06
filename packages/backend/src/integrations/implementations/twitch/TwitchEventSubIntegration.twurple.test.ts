@@ -2,11 +2,12 @@ import 'reflect-metadata';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { IntegrationStatus } from '@turingmod/shared';
-import { ApiClient } from '@twurple/api';
-import type { AuthProvider } from '@twurple/auth';
+import { ApiClient, type HelixUser, type HelixUserApi } from '@twurple/api';
+import type { RefreshingAuthProvider } from '@twurple/auth';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebSocketServer } from 'ws';
 import { EventBus } from '../../../core/EventBus.js';
+import { fake } from '../../../testing.js';
 import { Logger } from '../../../utils/Logger.js';
 import type { TwitchApiIntegration } from './TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
@@ -27,7 +28,7 @@ function refuseAnythingNotLocal() {
 }
 
 /** Grants everything, so the only thing that can refuse a subscription is the fake Twitch. */
-const authProvider = {
+const authProvider = fake<RefreshingAuthProvider>()({
   clientId: 'client',
   authorizationType: 'bearer',
   getCurrentScopesForUser: () => ['*'],
@@ -36,7 +37,7 @@ const authProvider = {
   getAccessTokenForIntent: async () => accessToken(),
   getAppAccessToken: async () => accessToken(),
   refreshAccessTokenForUser: async () => accessToken(),
-} as unknown as AuthProvider;
+});
 
 function accessToken() {
   return {
@@ -132,14 +133,22 @@ describe('TwitchEventSubIntegration on the real Twurple listener', () => {
     integration = new TwitchEventSubIntegration(
       new EventBus(new Logger({ level: 'silent' })),
       new Logger({ level: 'silent' }),
-      {
+      fake<TwitchAuthIntegration>()({
         getAuthProvider: () => authProvider,
         getAuthenticatedUserId: () => USER_ID,
-      } as unknown as TwitchAuthIntegration,
-      {
+      }),
+      fake<TwitchApiIntegration>()({
         getApiClient: () => apiClient,
-        request: async () => ({ id: USER_ID, displayName: 'B' }),
-      } as unknown as TwitchApiIntegration
+        // Runs the call as the real one does, on a client that knows the one user it's asked for.
+        request: <T>(call: (client: ApiClient) => Promise<T>) =>
+          call(
+            fake<ApiClient>()({
+              users: fake<HelixUserApi>()({
+                getUserById: async () => fake<HelixUser>()({ id: USER_ID, displayName: 'B' }),
+              }),
+            })
+          ),
+      })
     );
   });
 

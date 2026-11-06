@@ -7,17 +7,22 @@ import type { DatabaseManager } from './database/DatabaseManager.js';
 import type { IntegrationManager } from './integrations/IntegrationManager.js';
 import type { HttpServer } from './server/HttpServer.js';
 import type { TrpcServer } from './server/trpc/TrpcServer.js';
+import { fake } from './testing.js';
 import { Logger } from './utils/Logger.js';
 
 /** An application whose parts record when each step begins and ends, in `steps`. */
 function recordingApp() {
   const steps: string[] = [];
-  /** Takes a turn of the event loop, so the next step overlaps it unless this one is awaited. */
-  const step = (name: string) =>
-    vi.fn(async () => {
+  /**
+   * Takes a turn of the event loop, so the next step overlaps it unless this one is awaited, and
+   * resolves to `result`.
+   */
+  const step = <T = void>(name: string, result?: T) =>
+    vi.fn(async (): Promise<T> => {
       steps.push(`${name} begins`);
       await new Promise((resolve) => setImmediate(resolve));
       steps.push(`${name} ends`);
+      return result as T;
     });
   const instant = (name: string) =>
     vi.fn(() => {
@@ -26,24 +31,24 @@ function recordingApp() {
 
   const logger = new Logger({ level: 'silent' });
   const httpServer = {
-    start: step('http start'),
+    start: step('http start', 8080), // the port it bound
     stop: step('http stop'),
     routeUpgrades: instant('route upgrades'),
   };
   const trpcServer = { start: instant('trpc start'), stop: step('trpc stop') };
   const app = new Application(
-    { close: step('database close') } as unknown as DatabaseManager,
-    httpServer as unknown as HttpServer,
-    trpcServer as unknown as TrpcServer,
-    {
+    fake<DatabaseManager>()({ close: step('database close') }),
+    fake<HttpServer>()(httpServer),
+    fake<TrpcServer>()(trpcServer),
+    fake<IntegrationManager>()({
       loadIntegrations: step('integrations load'),
       startEnabledIntegrations: step('integrations start'),
       stopAll: step('integrations stop'),
-    } as unknown as IntegrationManager,
-    {
+    }),
+    fake<ServiceLifecycle>()({
       startAll: step('services start'),
       stopAll: step('services stop'),
-    } as unknown as ServiceLifecycle,
+    }),
     logger
   );
   return { app, steps, httpServer, trpcServer };

@@ -1,5 +1,6 @@
 import { PassThrough, Readable } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fake } from '../../../testing.js';
 import type { YouTubeOAuth2Client } from './YouTubeAuthIntegration.js';
 
 const streamMock = vi.fn();
@@ -15,7 +16,7 @@ const { YouTubeChatStream } = await import('./YouTubeChatStream.js');
 /** Open a stream whose response body is `body`, and collect what the call emits. */
 async function streamOf(body: string) {
   streamMock.mockResolvedValue({ data: Readable.from([Buffer.from(body)], { objectMode: false }) });
-  const call = new YouTubeChatStream().stream('chat-1', {} as YouTubeOAuth2Client);
+  const call = new YouTubeChatStream().stream('chat-1', fake<YouTubeOAuth2Client>()({}));
   const frames: unknown[] = [];
   const errors: unknown[] = [];
   call.on('data', (frame) => frames.push(frame));
@@ -29,7 +30,7 @@ async function streamOf(body: string) {
 
 /** Open a stream on a request that hasn't answered yet, and record everything the call emits. */
 function open() {
-  const call = new YouTubeChatStream().stream('chat-1', {} as YouTubeOAuth2Client, 'page-1');
+  const call = new YouTubeChatStream().stream('chat-1', fake<YouTubeOAuth2Client>()({}), 'page-1');
   const frames: unknown[] = [];
   const errors: unknown[] = [];
   let ended = false;

@@ -3,6 +3,7 @@ import { IntegrationStatus, PlatformCapability, StreamingPlatform } from '@turin
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import { RepeatingFailures } from '../core/failures.js';
+import { fake, silentLogger } from '../testing.js';
 import { Logger } from '../utils/Logger.js';
 import { InvalidStreamInfoError } from './errors.js';
 import type {
@@ -44,27 +45,15 @@ class FakePlatform implements IStreamPlatform {
   }
 }
 
-const makeLogger = () => {
-  const logger = {
-    warn: vi.fn(),
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    child: vi.fn(),
-  };
-  logger.child.mockReturnValue(logger);
-  return logger as unknown as Logger & typeof logger;
-};
-
-const makeService = (registry: PlatformRegistry, logger: Logger = makeLogger()) =>
+const makeService = (registry: PlatformRegistry, logger: Logger = silentLogger()) =>
   new StreamControlService(registry, new EventBus(new Logger({ level: 'silent' })), logger);
 
 describe('StreamControlService mirroring', () => {
-  let logger: ReturnType<typeof makeLogger>;
+  let logger: ReturnType<typeof silentLogger>;
   let registry: PlatformRegistry;
 
   beforeEach(() => {
-    logger = makeLogger();
+    logger = silentLogger();
     registry = new PlatformRegistry();
   });
 
@@ -208,11 +197,11 @@ describe('StreamControlService mirroring', () => {
 });
 
 describe('StreamControlService.announce', () => {
-  let logger: ReturnType<typeof makeLogger>;
+  let logger: ReturnType<typeof silentLogger>;
   let registry: PlatformRegistry;
 
   beforeEach(() => {
-    logger = makeLogger();
+    logger = silentLogger();
     registry = new PlatformRegistry();
   });
 
@@ -260,7 +249,7 @@ describe('StreamControlService.announce', () => {
   it('logs a platform that cannot say whether it is live, since announce() callers rely on that', async () => {
     const platform = new FakePlatform(StreamingPlatform.TWITCH, null, true);
     vi.spyOn(platform, 'getLiveBroadcast').mockRejectedValue(new Error('Helix timed out'));
-    registry.register(platform as unknown as IStreamPlatform);
+    registry.register(fake<IStreamPlatform>()(platform));
     const service = makeService(registry, logger);
 
     const result = await service.announce(() => 'hello');
@@ -281,8 +270,8 @@ describe('StreamControlService.announce', () => {
       throw new Error('no status');
     });
     const youtube = new FakePlatform(StreamingPlatform.YOUTUBE, null, true);
-    registry.register(broken as unknown as IStreamPlatform);
-    registry.register(youtube as unknown as IStreamPlatform);
+    registry.register(fake<IStreamPlatform>()(broken));
+    registry.register(fake<IStreamPlatform>()(youtube));
 
     const result = await makeService(registry, logger).announce(() => 'hello');
 

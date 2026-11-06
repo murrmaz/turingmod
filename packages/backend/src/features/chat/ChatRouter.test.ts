@@ -10,23 +10,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/EventBus.js';
 import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import { chatMessage } from '../../platforms/testing.js';
-import type { Logger } from '../../utils/Logger.js';
+import { fake, silentLogger } from '../../testing.js';
 import type { CommandExecutor } from '../commands/CommandExecutor.js';
 import { checkPermission } from '../commands/utils/permissionChecks.js';
 import { ChatRouter } from './ChatRouter.js';
 import type { ChatModerator, ModerationVerdict } from './moderation/ChatModerator.js';
 
-const makeLogger = () => {
-  const logger = { warn: vi.fn(), debug: vi.fn(), error: vi.fn(), info: vi.fn(), child: vi.fn() };
-  logger.child.mockReturnValue(logger);
-  return logger as unknown as Logger & typeof logger;
-};
-
 function setup(
   verdict: ModerationVerdict = 'allowed',
   result: ExecutionResult = { success: true, message: 'Bonked!' }
 ) {
-  const logger = makeLogger();
+  const logger = silentLogger();
   const eventBus = new EventBus(logger);
   const executor = {
     execute: vi.fn(() => Promise.resolve(result)),
@@ -35,14 +29,14 @@ function setup(
   const moderator = { review: vi.fn(() => Promise.resolve(verdict)) };
   const router = new ChatRouter(
     eventBus,
-    executor as unknown as CommandExecutor,
-    {
+    fake<CommandExecutor>()(executor),
+    fake<StreamControlService>()({
       sendChatMessage: (platform: StreamingPlatform, text: string) =>
         platform === StreamingPlatform.TWITCH
           ? twitch.sendChatMessage(text)
           : Promise.reject(new Error(`Replied on ${platform}`)),
-    } as unknown as StreamControlService,
-    moderator as unknown as ChatModerator,
+    }),
+    fake<ChatModerator>()(moderator),
     logger
   );
   router.start();

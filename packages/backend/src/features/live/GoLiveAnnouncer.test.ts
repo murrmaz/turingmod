@@ -1,5 +1,10 @@
 import 'reflect-metadata';
-import { IntegrationStatus, type PlatformLiveState, StreamingPlatform } from '@turingmod/shared';
+import {
+  IntegrationName,
+  IntegrationStatus,
+  type PlatformLiveState,
+  StreamingPlatform,
+} from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/EventBus.js';
 import type { DatabaseManager } from '../../database/DatabaseManager.js';
@@ -18,6 +23,7 @@ import type {
 } from '../../platforms/interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { GO_LIVE_GRACE_MS, GoLiveAnnouncer, PREVIEW_REFRESH_MS } from './GoLiveAnnouncer.js';
 import type { PlatformLiveStatus } from './PlatformLiveStatus.js';
@@ -56,7 +62,7 @@ describe('GoLiveAnnouncer', () => {
   let youtube: ReturnType<typeof fakePlatform>;
   let states: Map<StreamingPlatform, PlatformLiveState>;
   let discord: {
-    name: string;
+    name: IntegrationName.DISCORD;
     channelId: string | null;
     getNotificationChannelId: () => string | null;
     postMessage: ReturnType<
@@ -72,8 +78,8 @@ describe('GoLiveAnnouncer', () => {
     new GoLiveAnnouncer(
       eventBus,
       controls,
-      { getStates: () => [...states.values()] } as unknown as PlatformLiveStatus,
-      discord as unknown as DiscordIntegration,
+      fake<PlatformLiveStatus>()({ getStates: () => [...states.values()] }),
+      fake<DiscordIntegration>()(discord),
       posts,
       new Logger({ level: 'silent' })
     );
@@ -116,15 +122,15 @@ describe('GoLiveAnnouncer', () => {
       () => states
     );
     const registry = new PlatformRegistry();
-    registry.register(twitch as unknown as IStreamPlatform);
-    registry.register(youtube as unknown as IStreamPlatform);
+    registry.register(fake<IStreamPlatform>()(twitch));
+    registry.register(fake<IStreamPlatform>()(youtube));
     controls = new StreamControlService(registry, eventBus, new Logger({ level: 'silent' }));
     states = new Map([
       [TWITCH, { platform: TWITCH, live: false, startedAt: null }],
       [YOUTUBE, { platform: YOUTUBE, live: false, startedAt: null }],
     ]);
     discord = {
-      name: 'discord',
+      name: IntegrationName.DISCORD,
       channelId: '123456789012345678',
       getNotificationChannelId: () => discord.channelId,
       postMessage: vi.fn(async () => '900000000000000001'),

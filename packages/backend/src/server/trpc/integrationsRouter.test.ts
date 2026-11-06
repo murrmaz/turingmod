@@ -3,6 +3,7 @@ import { type IntegrationInfo, IntegrationStatus } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/EventBus.js';
 import type { IntegrationManager } from '../../integrations/IntegrationManager.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { createIntegrationsRouter } from './integrationsRouter.js';
 import { createCallerFactory } from './trpc.js';
@@ -29,7 +30,7 @@ function setup() {
   const controller = new AbortController();
   // The signal ends a subscription, as the console unsubscribing does.
   const caller = createCallerFactory(
-    createIntegrationsRouter(manager as unknown as IntegrationManager, eventBus, logger)
+    createIntegrationsRouter(fake<IntegrationManager>()(manager), eventBus, logger)
   )({ consoleOrigin: null }, { signal: controller.signal });
   return {
     controller,

@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/EventBus.js';
 import type { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { createOAuthRouter } from './oauthRouter.js';
 import { createCallerFactory } from './trpc.js';
@@ -13,7 +14,7 @@ function setup(consoleOrigin: string | null) {
   const oauthFlow = { getAuthorizationUrl: vi.fn(() => 'https://id.twitch.tv/authorize?state=s') };
   const controller = new AbortController();
   const caller = createCallerFactory(
-    createOAuthRouter(oauthFlow as unknown as OAuthFlowService, eventBus, logger)
+    createOAuthRouter(fake<OAuthFlowService>()(oauthFlow), eventBus, logger)
   )({ consoleOrigin }, { signal: controller.signal });
   return { caller, controller, eventBus, oauthFlow };
 }

@@ -1,10 +1,10 @@
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
+import type { AnyTRPCRouter } from '@trpc/server';
 import { applyWSSHandler } from '@trpc/server/adapters/ws';
-import { type VerifyClientCallbackAsync, WebSocketServer as WSServer } from 'ws';
+import { type VerifyClientCallbackAsync, type WebSocket, WebSocketServer as WSServer } from 'ws';
 import type { Logger } from '../../utils/Logger.js';
 import { rejectUpgrade, type UpgradeHandler } from '../HttpServer.js';
-import type { AppRouter } from './appRouter.js';
 
 /** How long a console gets to close its connection at shutdown before it's cut off. */
 const CLOSE_GRACE_MS = 1000;
@@ -17,8 +17,9 @@ export class TrpcServer implements UpgradeHandler {
   private wss: WSServer | null = null;
   private logger: Logger;
 
+  /** `router` is the app's (`createAppRouter()`); this serves whatever router it's given. */
   constructor(
-    private appRouter: AppRouter,
+    private router: AnyTRPCRouter,
     private allowedOrigins: string[],
     logger: Logger
   ) {
@@ -32,7 +33,7 @@ export class TrpcServer implements UpgradeHandler {
     });
     applyWSSHandler({
       wss,
-      router: this.appRouter,
+      router: this.router,
       // Read once per connection; verifyClient has already allowed the origin.
       createContext: ({ req }) => ({ consoleOrigin: req.headers.origin ?? null }),
       onError: ({ path, error }) => {
@@ -90,12 +91,18 @@ function allowOnlyOrigins(
   };
 }
 
+/** What closeConsoleWss() uses of a ws server: its connections, and closing it. */
+interface ClosableServer {
+  readonly clients: ReadonlySet<Pick<WebSocket, 'close' | 'terminate'>>;
+  close(callback: () => void): void;
+}
+
 /**
  * Close every connection and the server. A console that doesn't complete the closing handshake
  * (a sleeping laptop, a frozen tab) is cut off after CLOSE_GRACE_MS, so it can't hold up
  * shutdown.
  */
-export async function closeConsoleWss(wss: WSServer): Promise<void> {
+export async function closeConsoleWss(wss: ClosableServer): Promise<void> {
   for (const client of wss.clients) {
     client.close();
   }

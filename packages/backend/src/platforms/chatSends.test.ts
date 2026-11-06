@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { IntegrationStatus, PermissionLevel, StreamingPlatform } from '@turingmod/shared';
-import { beforeEach, describe, expect, it } from 'vitest';
+import type { ApiClient, HelixChatApi, HelixSentChatMessage, UserIdResolvable } from '@twurple/api';
+import type { youtube_v3 } from 'googleapis';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import type { ChatMessageEvent } from '../core/events.js';
 import type { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
@@ -8,6 +10,7 @@ import type { TwitchAuthIntegration } from '../integrations/implementations/twit
 import type { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
 import type { YouTubeAuthIntegration } from '../integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import type { YouTubeChatIntegration } from '../integrations/implementations/youtube/YouTubeChatIntegration.js';
+import { fake } from '../testing.js';
 import { Logger } from '../utils/Logger.js';
 import { CAPABILITY_OF_API } from './capabilities.js';
 import type { CapabilityApiName, IStreamPlatform } from './interfaces/IStreamPlatform.js';
@@ -36,30 +39,32 @@ interface Harness {
 
 function twitchHarness(ownMessages: OwnChatMessages): Harness {
   const posted: string[] = [];
-  const client = {
-    chat: {
-      sendChatMessage: (_user: string, text: string) => {
+  const client = fake<ApiClient>()({
+    chat: fake<HelixChatApi>()({
+      sendChatMessage: (_user: UserIdResolvable, text: string) => {
         posted.push(text);
-        return Promise.resolve({ id: 'twitch-message', isSent: true });
+        return Promise.resolve(
+          fake<HelixSentChatMessage>()({ id: 'twitch-message', isSent: true })
+        );
       },
-      sendAnnouncement: (_user: string, { message }: { message: string }) => {
+      sendAnnouncement: (_user: UserIdResolvable, { message }: { message: string }) => {
         posted.push(message);
         return Promise.resolve();
       },
-    },
-  };
+    }),
+  });
   const auth = {
     getStatus: () => IntegrationStatus.CONNECTED,
     getErrorMessage: () => undefined,
     getAuthenticatedUserId: () => 'broadcaster-id',
   };
   const api = {
-    request: (call: (c: typeof client) => Promise<unknown>) => call(client),
+    request: <T>(call: (c: ApiClient) => Promise<T>) => call(client),
     getStoppedReason: () => null,
   };
   const platform = new TwitchPlatform(
-    auth as unknown as TwitchAuthIntegration,
-    api as unknown as TwitchApiIntegration,
+    fake<TwitchAuthIntegration>()(auth),
+    fake<TwitchApiIntegration>()(api),
     ownMessages
   );
   return {
@@ -83,27 +88,41 @@ function twitchHarness(ownMessages: OwnChatMessages): Harness {
 
 function youtubeHarness(ownMessages: OwnChatMessages): Harness {
   const posted: string[] = [];
-  const client = {
-    liveChatMessages: {
-      insert: (params: {
-        requestBody: { snippet: { textMessageDetails: { messageText: string } } };
-      }) => {
-        posted.push(params.requestBody.snippet.textMessageDetails.messageText);
-        return Promise.resolve({ data: { id: 'youtube-message' } });
-      },
-    },
-  };
+  const client = fake<youtube_v3.Youtube>()({
+    liveChatMessages: fake<youtube_v3.Resource$Livechatmessages>()({
+      // googleapis overloads insert() for callbacks and options, which no one function matches, so
+      // this is checked by name only.
+      insert: vi
+        .fn()
+        .mockImplementation(
+          (params: {
+            requestBody: { snippet: { textMessageDetails: { messageText: string } } };
+          }) => {
+            posted.push(params.requestBody.snippet.textMessageDetails.messageText);
+            return Promise.resolve({ data: { id: 'youtube-message' } });
+          }
+        ),
+    }),
+  });
   const auth = { getStatus: () => IntegrationStatus.CONNECTED, getErrorMessage: () => undefined };
   const api = {
-    request: (call: (c: typeof client) => Promise<unknown>) => call(client),
+    request: <T>(call: (c: youtube_v3.Youtube) => Promise<T>) => call(client),
     getStoppedReason: () => null,
   };
-  const chat = { getBroadcast: () => ({ id: 'broadcast', liveChatId: 'chat' }) };
+  const chat = {
+    getBroadcast: () => ({
+      id: 'broadcast',
+      channelId: 'UC_broadcaster',
+      liveChatId: 'chat',
+      actualStartTime: '2026-10-14T18:00:00Z',
+      scheduledStartTime: null,
+    }),
+  };
   const platform = new YouTubePlatform(
-    auth as unknown as YouTubeAuthIntegration,
-    api as unknown as YouTubeApiIntegration,
+    fake<YouTubeAuthIntegration>()(auth),
+    fake<YouTubeApiIntegration>()(api),
     ownMessages,
-    chat as unknown as YouTubeChatIntegration
+    fake<YouTubeChatIntegration>()(chat)
   );
   return {
     platform,
@@ -210,5 +229,5 @@ function sendOf(harness: Harness, name: string): ChatSend {
 
 /** For listing a harness's sends while tests are collected; nothing is sent through it. */
 function stubOwnMessages(): OwnChatMessages {
-  return {} as OwnChatMessages;
+  return fake<OwnChatMessages>()({});
 }

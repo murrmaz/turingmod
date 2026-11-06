@@ -1,17 +1,11 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
-import type { Logger } from '../utils/Logger.js';
+import { silentLogger } from '../testing.js';
 import { EventBus } from './EventBus.js';
-
-const makeLogger = () => {
-  const logger = { warn: vi.fn(), debug: vi.fn(), error: vi.fn(), info: vi.fn(), child: vi.fn() };
-  logger.child.mockReturnValue(logger);
-  return logger as unknown as Logger & typeof logger;
-};
 
 describe('EventBus', () => {
   it("doesn't drop a later subscriber when an unsubscribe is called twice", async () => {
-    const bus = new EventBus(makeLogger());
+    const bus = new EventBus(silentLogger());
     const unsubscribe = bus.on('youtube.chat.state', () => {});
     unsubscribe();
     const later = vi.fn();
@@ -24,7 +18,7 @@ describe('EventBus', () => {
   });
 
   it('logs an async handler rejection from emitSync instead of leaving it unhandled', async () => {
-    const logger = makeLogger();
+    const logger = silentLogger();
     const bus = new EventBus(logger);
     const unhandled = vi.fn();
     process.on('unhandledRejection', unhandled);
@@ -46,7 +40,7 @@ describe('EventBus', () => {
   });
 
   it('awaits and catches an async handler rejection through emit', async () => {
-    const logger = makeLogger();
+    const logger = silentLogger();
     const bus = new EventBus(logger);
     const handler = vi.fn(() => Promise.reject(new Error('boom')));
     bus.on('youtube.chat.state', handler);
@@ -58,7 +52,7 @@ describe('EventBus', () => {
   });
 
   it('resolves emit only once every async handler has settled, and emitSync at once', async () => {
-    const bus = new EventBus(makeLogger());
+    const bus = new EventBus(silentLogger());
     let finish = () => {};
     bus.on(
       'youtube.chat.state',
@@ -80,7 +74,7 @@ describe('EventBus', () => {
   });
 
   it('stops calling a handler once it unsubscribes', async () => {
-    const bus = new EventBus(makeLogger());
+    const bus = new EventBus(silentLogger());
     const handler = vi.fn();
     const unsubscribe = bus.on('youtube.chat.state', handler);
 

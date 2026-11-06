@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { EventEmitter } from 'node:events';
 import { IntegrationStatus } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Logger } from '../../../utils/Logger.js';
+import { silentLogger } from '../../../testing.js';
 
 /** A player process that runs until it is killed or told to finish. */
 class FakeChild extends EventEmitter {
@@ -33,14 +33,8 @@ function lastSpawn(): [string | undefined, readonly string[] | undefined] {
   return [call?.[0], call?.[1]];
 }
 
-const makeLogger = () => {
-  const logger = { warn: vi.fn(), debug: vi.fn(), error: vi.fn(), info: vi.fn(), child: vi.fn() };
-  logger.child.mockReturnValue(logger);
-  return logger as unknown as Logger & typeof logger;
-};
-
 describe('SoundIntegration playback control', () => {
-  let logger: ReturnType<typeof makeLogger>;
+  let logger: ReturnType<typeof silentLogger>;
   let sound: InstanceType<typeof SoundIntegration>;
   const platform = process.platform;
 
@@ -49,7 +43,7 @@ describe('SoundIntegration playback control', () => {
     children.length = 0;
     // macOS's player needs no startup probe, which keeps this about playback alone.
     Object.defineProperty(process, 'platform', { value: 'darwin' });
-    logger = makeLogger();
+    logger = silentLogger();
     sound = new SoundIntegration(logger);
   });
 

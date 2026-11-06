@@ -1,8 +1,9 @@
 import 'reflect-metadata';
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationName, IntegrationStatus } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/EventBus.js';
 import type { ObsIntegration } from '../../integrations/implementations/obs/ObsIntegration.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { ObsStreamState } from './ObsStreamState.js';
 
@@ -11,7 +12,7 @@ const logger = new Logger({ level: 'silent' });
 describe('ObsStreamState', () => {
   let eventBus: EventBus;
   let obs: {
-    name: string;
+    name: IntegrationName.OBS;
     status: IntegrationStatus;
     getStatus: () => IntegrationStatus;
     isStreaming: ReturnType<typeof vi.fn<() => Promise<boolean>>>;
@@ -27,12 +28,12 @@ describe('ObsStreamState', () => {
   beforeEach(() => {
     eventBus = new EventBus(logger);
     obs = {
-      name: 'obs',
+      name: IntegrationName.OBS,
       status: IntegrationStatus.CONNECTED,
       getStatus: () => obs.status,
       isStreaming: vi.fn(() => Promise.resolve(false)),
     };
-    state = new ObsStreamState(eventBus, obs as unknown as ObsIntegration, logger);
+    state = new ObsStreamState(eventBus, fake<ObsIntegration>()(obs), logger);
     state.start();
     published = [];
     eventBus.on('stream.output.changed', ({ streaming }) => {

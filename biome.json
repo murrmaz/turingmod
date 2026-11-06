@@ -412,6 +412,10 @@
       "plugins": ["./biome-plugins/parse-or-throw.grit"]
     },
     {
+      "includes": ["**/packages/backend/src/**/*.test.ts", "**/packages/backend/src/**/testing.ts"],
+      "plugins": ["./biome-plugins/no-cast-fakes.grit"]
+    },
+    {
       "includes": ["**/packages/frontend/src/**/*.tsx", "!**/*.test.tsx"],
       "linter": {
         "rules": {

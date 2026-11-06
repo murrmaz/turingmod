@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fake } from '../../../testing.js';
 import type { FacecamEffectRunner } from '../../effects/FacecamEffectRunner.js';
 import type { SoundLibrary } from '../../sounds/SoundLibrary.js';
 import BonkReward, { BONK_REACTION_DELAY_MS } from './BonkReward.js';
@@ -11,10 +12,7 @@ describe('BonkReward', () => {
   it('plays the bonk sound, then squashes the facecam, alternating direction', async () => {
     const sounds = { tryPlay: vi.fn(() => Promise.resolve()) };
     const effects = { run: vi.fn(() => Promise.resolve()) };
-    const bonk = new BonkReward(
-      sounds as unknown as SoundLibrary,
-      effects as unknown as FacecamEffectRunner
-    );
+    const bonk = new BonkReward(fake<SoundLibrary>()(sounds), fake<FacecamEffectRunner>()(effects));
 
     const first = bonk.handle();
     await vi.advanceTimersByTimeAsync(0);

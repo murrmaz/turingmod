@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../core/EventBus.js';
 import type { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { chatMessage } from '../../../platforms/testing.js';
+import { fake } from '../../../testing.js';
 import { Logger } from '../../../utils/Logger.js';
 import { LurkTracker, lurkerKeyOf, welcomeBackMessage } from './LurkTracker.js';
 
@@ -13,7 +14,7 @@ function setup() {
   const sendChatMessage = vi.fn(() => Promise.resolve());
   const tracker = new LurkTracker(
     eventBus,
-    { sendChatMessage } as unknown as StreamControlService,
+    fake<StreamControlService>()({ sendChatMessage }),
     logger
   );
   tracker.start();

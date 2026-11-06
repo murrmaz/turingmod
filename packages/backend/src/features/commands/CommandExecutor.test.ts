@@ -7,6 +7,7 @@ import type { CommandExecutedEvent } from '../../core/events.js';
 import { InvalidStreamInfoError, NotAuthenticatedError } from '../../platforms/errors.js';
 import type { IStreamPlatform } from '../../platforms/interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
+import { fake, silentLogger } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { CommandAvailability } from './CommandAvailability.js';
 import { CommandExecutor } from './CommandExecutor.js';
@@ -27,18 +28,6 @@ const dualModeCommand = (cooldown: number): ICommand => ({
   ),
 });
 
-const makeLogger = () => {
-  const logger = {
-    warn: vi.fn(),
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    child: vi.fn(),
-  };
-  logger.child.mockReturnValue(logger);
-  return logger as unknown as Logger;
-};
-
 const contextFor = (permissionLevel: PermissionLevel) =>
   commandContext('!game', {
     platformUserId: `user-${permissionLevel}`,
@@ -53,9 +42,9 @@ describe('CommandExecutor cooldowns', () => {
 
   beforeEach(() => {
     command = dualModeCommand(30);
-    const availability = { find: () => command } as unknown as CommandAvailability;
+    const availability = fake<CommandAvailability>()({ find: () => command });
     eventBus = { emit: vi.fn(() => Promise.resolve()) };
-    executor = new CommandExecutor(availability, eventBus as unknown as EventBus, makeLogger());
+    executor = new CommandExecutor(availability, fake<EventBus>()(eventBus), silentLogger());
   });
 
   it('throttles a viewer on the second invocation', async () => {
@@ -386,9 +375,9 @@ describe('CommandExecutor gates', () => {
  * `apis` (empty, since having one is having the capability).
  */
 function fakePlatform(platform: StreamingPlatform, apis: Record<string, object> = {}) {
-  return {
+  return fake<IStreamPlatform>()({
     platform,
     declaredCapabilities: new Set([PlatformCapability.SET_TITLE]),
     ...apis,
-  } as unknown as IStreamPlatform;
+  });
 }

@@ -4,6 +4,7 @@ import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../core/EventBus.js';
 import type { ChatMessageEvent } from '../../../core/events.js';
+import { fake } from '../../../testing.js';
 import { Logger } from '../../../utils/Logger.js';
 import type { ActiveBroadcast, YouTubeApiIntegration } from './YouTubeApiIntegration.js';
 import type { YouTubeAuthIntegration } from './YouTubeAuthIntegration.js';
@@ -144,8 +145,8 @@ describe('YouTubeChatIntegration', () => {
     integration = new YouTubeChatIntegration(
       eventBus,
       new Logger({ level: 'silent' }),
-      auth as unknown as YouTubeAuthIntegration,
-      api as unknown as YouTubeApiIntegration
+      fake<YouTubeAuthIntegration>()(auth),
+      fake<YouTubeApiIntegration>()(api)
     );
 
     await integration.initialize({});

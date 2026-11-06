@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationName, IntegrationStatus } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/EventBus.js';
 import type { ServiceErrorEvent } from '../../core/events.js';
@@ -14,21 +14,15 @@ import type {
   ObsSceneItem,
   SceneItemTransform,
 } from '../../integrations/implementations/obs/ObsIntegration.js';
-import type { Logger } from '../../utils/Logger.js';
+import { fake, silentLogger } from '../../testing.js';
 import type { EffectContext, FacecamEffect } from './FacecamEffect.js';
 import { FacecamEffectRunner } from './FacecamEffectRunner.js';
 import { transform } from './testing.js';
 import { restorableTransform } from './transformMath.js';
 
-const makeLogger = () => {
-  const logger = { warn: vi.fn(), debug: vi.fn(), error: vi.fn(), info: vi.fn(), child: vi.fn() };
-  logger.child.mockReturnValue(logger);
-  return logger as unknown as Logger & typeof logger;
-};
-
 /** OBS with a main canvas (program scene "main-live") and an Aitum Vertical canvas. */
 class FakeObs {
-  readonly name = 'obs';
+  readonly name = IntegrationName.OBS;
   status = IntegrationStatus.CONNECTED;
   programUuid = 'main-live';
   canvases: ObsCanvas[] = [
@@ -96,10 +90,11 @@ class FakeObs {
     this.filters.delete(name);
     return Promise.resolve();
   });
+}
 
-  lastWrite(key: string) {
-    return this.writes.filter((w) => w.key === key).at(-1)?.transform;
-  }
+/** The transform last written to a scene item (`sceneUuid:sceneItemId`) of the fake OBS. */
+function lastWrite(obs: FakeObs, key: string) {
+  return obs.writes.filter((w) => w.key === key).at(-1)?.transform;
 }
 
 function mainTarget(context: EffectContext) {
@@ -123,7 +118,7 @@ const accepted =
 describe('FacecamEffectRunner', () => {
   let obs: FakeObs;
   let settings: unknown;
-  let logger: ReturnType<typeof makeLogger>;
+  let logger: ReturnType<typeof silentLogger>;
   let runner: FacecamEffectRunner;
   let eventBus: EventBus;
   let reported: ServiceErrorEvent[];
@@ -150,7 +145,7 @@ describe('FacecamEffectRunner', () => {
   beforeEach(() => {
     obs = new FakeObs();
     settings = null;
-    logger = makeLogger();
+    logger = silentLogger();
     eventBus = new EventBus(logger);
     reported = [];
     eventBus.on('service.error', (event) => {
@@ -158,10 +153,10 @@ describe('FacecamEffectRunner', () => {
     });
     runner = new FacecamEffectRunner(
       eventBus,
-      obs as unknown as ObsIntegration,
-      {
-        get: (definition: SettingsDefinition<unknown>) => definition.schema.parse(settings ?? {}),
-      } as unknown as SettingsRepository,
+      fake<ObsIntegration>()(obs),
+      fake<SettingsRepository>()({
+        get: <T>(definition: SettingsDefinition<T>) => definition.schema.parse(settings ?? {}),
+      }),
       logger
     );
     runner.start();
@@ -200,7 +195,7 @@ describe('FacecamEffectRunner', () => {
     );
 
     expect(seen[0]).toMatchObject({ sceneUuid: 'cam-group', sceneItemId: 5, isMain: true });
-    expect(obs.lastWrite('cam-group:5')).toEqual(restorableTransform(transform()));
+    expect(lastWrite(obs, 'cam-group:5')).toEqual(restorableTransform(transform()));
   });
 
   it("refuses to move a grouped facecam around the canvas, since it's placed relative to the group", async () => {
@@ -268,8 +263,8 @@ describe('FacecamEffectRunner', () => {
       })
     );
 
-    expect(obs.lastWrite('main-live:7')).toEqual(restorableTransform(transform()));
-    expect(obs.lastWrite('vert-cam:3')).toEqual(restorableTransform(transform({ positionX: 10 })));
+    expect(lastWrite(obs, 'main-live:7')).toEqual(restorableTransform(transform()));
+    expect(lastWrite(obs, 'vert-cam:3')).toEqual(restorableTransform(transform({ positionX: 10 })));
     expect(obs.filters.size).toBe(0);
   });
 
@@ -283,7 +278,7 @@ describe('FacecamEffectRunner', () => {
       )
     ).rejects.toThrow('mid-animation');
 
-    expect(obs.lastWrite('main-live:7')).toEqual(restorableTransform(transform()));
+    expect(lastWrite(obs, 'main-live:7')).toEqual(restorableTransform(transform()));
   });
 
   it('plays effects one at a time, each starting from the restored transform', async () => {
@@ -341,7 +336,7 @@ describe('FacecamEffectRunner', () => {
 
     await expect(long).resolves.toBeUndefined();
     await expect(queued).rejects.toThrow('Facecam effects are stopped');
-    expect(obs.lastWrite('main-live:7')).toEqual(restorableTransform(transform()));
+    expect(lastWrite(obs, 'main-live:7')).toEqual(restorableTransform(transform()));
   });
 
   it('reports a restore OBS refuses to the streamer, without rejecting or retrying it', async () => {
@@ -382,13 +377,13 @@ describe('FacecamEffectRunner', () => {
     it('puts the facecam and filters back when OBS returns', async () => {
       await runner.run(droppingEffect).catch(() => undefined);
       const original = restorableTransform(transform());
-      expect(obs.lastWrite('main-live:7')).not.toEqual(original);
+      expect(lastWrite(obs, 'main-live:7')).not.toEqual(original);
       expect(obs.filters).toEqual(new Set(['tint']));
 
       await obsReturns();
 
-      expect(obs.lastWrite('main-live:7')).toEqual(original);
-      expect(obs.lastWrite('vert-cam:3')).toEqual(
+      expect(lastWrite(obs, 'main-live:7')).toEqual(original);
+      expect(lastWrite(obs, 'vert-cam:3')).toEqual(
         restorableTransform(transform({ positionX: 10 }))
       );
       expect(obs.filters).toEqual(new Set());
@@ -415,7 +410,7 @@ describe('FacecamEffectRunner', () => {
 
       await obsReturns();
 
-      expect(obs.lastWrite('main-live:7')).toEqual(restorableTransform(transform()));
+      expect(lastWrite(obs, 'main-live:7')).toEqual(restorableTransform(transform()));
     });
 
     it('finishes putting it back before an effect asked for meanwhile can start', async () => {

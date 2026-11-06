@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
 import type { YouTubeAuthIntegration } from '../integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import type { YouTubeChatIntegration } from '../integrations/implementations/youtube/YouTubeChatIntegration.js';
+import { fake } from '../testing.js';
 import { NotAuthenticatedError } from './errors.js';
 import type { OwnChatMessages } from './OwnChatMessages.js';
 import { YouTubePlatform } from './YouTubePlatform.js';
@@ -64,10 +65,10 @@ describe('YouTubePlatform', () => {
     authStatus = IntegrationStatus.CONNECTED;
     const auth = { getStatus: () => authStatus, getErrorMessage: () => undefined };
     platform = new YouTubePlatform(
-      auth as unknown as YouTubeAuthIntegration,
-      api as unknown as YouTubeApiIntegration,
-      ownMessages as unknown as OwnChatMessages,
-      chat as unknown as YouTubeChatIntegration
+      fake<YouTubeAuthIntegration>()(auth),
+      fake<YouTubeApiIntegration>()(api),
+      fake<OwnChatMessages>()(ownMessages),
+      fake<YouTubeChatIntegration>()(chat)
     );
   });
 

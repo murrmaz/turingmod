@@ -3,7 +3,11 @@ import { type IntegrationGroup, IntegrationStatus } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { EventBus } from '../core/EventBus.js';
-import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
+import type {
+  IntegrationState,
+  IntegrationStateRepository,
+} from '../database/repositories/IntegrationStateRepository.js';
+import { fake } from '../testing.js';
 import { Logger } from '../utils/Logger.js';
 import { BaseIntegration } from './BaseIntegration.js';
 import { IntegrationManager } from './IntegrationManager.js';
@@ -92,13 +96,15 @@ class ConfiguredFake extends FakeIntegration {
   }
 }
 
-interface FakeRepo extends IntegrationStateRepository {
-  enabled: Set<string>;
+/** A stored row for `name`, with nothing configured. */
+function stateRow(name: string, enabled: boolean): IntegrationState {
+  return { id: name, name, enabled, config: '', createdAt: 0, updatedAt: 0 };
 }
 
-function makeStateRepo(enabled: string[] = []): FakeRepo {
+/** The repository, holding which integrations are enabled in `enabled`. */
+function makeStateRepo(enabled: string[] = []) {
   const enabledSet = new Set(enabled);
-  return {
+  return fake<IntegrationStateRepository>()({
     enabled: enabledSet,
     saveConfig: vi.fn(),
     setEnabled: vi.fn((name: string, on: boolean) => {
@@ -106,9 +112,9 @@ function makeStateRepo(enabled: string[] = []): FakeRepo {
       else enabledSet.delete(name);
     }),
     getDecryptedConfig: vi.fn().mockReturnValue(null),
-    findByName: vi.fn((name: string) => ({ name, enabled: enabledSet.has(name) })),
-    findAllEnabled: vi.fn(() => [...enabledSet].map((name) => ({ name, enabled: true }))),
-  } as unknown as FakeRepo;
+    findByName: vi.fn((name: string) => stateRow(name, enabledSet.has(name))),
+    findAllEnabled: vi.fn(() => [...enabledSet].map((name) => stateRow(name, true))),
+  });
 }
 
 function makeManager(
@@ -648,7 +654,7 @@ describe('IntegrationManager', () => {
 describe('IntegrationManager enabling', () => {
   let auth: FakeIntegration;
   let api: FakeIntegration;
-  let repo: FakeRepo;
+  let repo: ReturnType<typeof makeStateRepo>;
   let manager: IntegrationManager;
 
   beforeEach(() => {

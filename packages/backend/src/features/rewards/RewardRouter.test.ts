@@ -6,23 +6,11 @@ import type { RewardRedemption, ServiceErrorEvent } from '../../core/events.js';
 import type { ChannelPointsApi } from '../../platforms/interfaces/IStreamPlatform.js';
 import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import { fakeRequire } from '../../platforms/testing.js';
-import type { Logger } from '../../utils/Logger.js';
+import { fake, silentLogger } from '../../testing.js';
 import type { IRewardHandler } from './interfaces/IRewardHandler.js';
 import { RewardRegistry } from './RewardRegistry.js';
 import { RewardRouter } from './RewardRouter.js';
 import type { RewardSync } from './RewardSync.js';
-
-const makeLogger = () => {
-  const logger = {
-    warn: vi.fn(),
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    child: vi.fn(),
-  };
-  logger.child.mockReturnValue(logger);
-  return logger as unknown as Logger & typeof logger;
-};
 
 const redemption = (
   rewardTitle: string,
@@ -44,7 +32,7 @@ const handlerFor = (rewardTitle: string, handle = vi.fn(() => Promise.resolve())
   ({ rewardTitle, reward: { cost: 100 }, handle }) satisfies IRewardHandler;
 
 describe('RewardRouter', () => {
-  let logger: ReturnType<typeof makeLogger>;
+  let logger: ReturnType<typeof silentLogger>;
   let eventBus: EventBus;
   let registry: RewardRegistry;
   let router: RewardRouter;
@@ -53,7 +41,7 @@ describe('RewardRouter', () => {
   let resolveRedemption: ReturnType<typeof vi.fn<ChannelPointsApi['resolveRedemption']>>;
 
   beforeEach(() => {
-    logger = makeLogger();
+    logger = silentLogger();
     eventBus = new EventBus(logger);
     registry = new RewardRegistry(logger);
     managed = true;
@@ -63,12 +51,12 @@ describe('RewardRouter', () => {
     };
     reported = vi.fn<(event: ServiceErrorEvent) => void>();
     eventBus.on('service.error', reported);
-    const sync = { isManaged: () => Promise.resolve(managed) } as unknown as RewardSync;
+    const sync = fake<RewardSync>()({ isManaged: () => Promise.resolve(managed) });
     router = new RewardRouter(
       eventBus,
       registry,
       sync,
-      streamControl as unknown as StreamControlService,
+      fake<StreamControlService>()(streamControl),
       logger
     );
     router.start();
@@ -226,7 +214,7 @@ describe('RewardRouter', () => {
 
 describe('RewardRegistry', () => {
   it('rejects two handlers for one reward title', () => {
-    const registry = new RewardRegistry(makeLogger());
+    const registry = new RewardRegistry(silentLogger());
     registry.register(handlerFor('Bonk'));
 
     expect(() => registry.register(handlerFor('Bonk'))).toThrow(

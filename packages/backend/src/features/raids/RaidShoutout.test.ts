@@ -6,20 +6,8 @@ import type { ServiceErrorEvent } from '../../core/events.js';
 import type { ShoutoutApi, ShoutoutResult } from '../../platforms/interfaces/IStreamPlatform.js';
 import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import { fakeRequire } from '../../platforms/testing.js';
-import type { Logger } from '../../utils/Logger.js';
+import { fake, silentLogger } from '../../testing.js';
 import { RaidShoutout, raidShoutoutMessage } from './RaidShoutout.js';
-
-const makeLogger = () => {
-  const logger = {
-    warn: vi.fn(),
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    child: vi.fn(),
-  };
-  logger.child.mockReturnValue(logger);
-  return logger as unknown as Logger & typeof logger;
-};
 
 const raid = {
   fromBroadcasterId: 'raider-id',
@@ -29,7 +17,7 @@ const raid = {
 };
 
 describe('RaidShoutout', () => {
-  let logger: ReturnType<typeof makeLogger>;
+  let logger: ReturnType<typeof silentLogger>;
   let eventBus: EventBus;
   let reported: ReturnType<typeof vi.fn<(event: ServiceErrorEvent) => void>>;
   let streamControl: {
@@ -39,7 +27,7 @@ describe('RaidShoutout', () => {
   let shoutout: ReturnType<typeof vi.fn<ShoutoutApi['shoutout']>>;
 
   beforeEach(() => {
-    logger = makeLogger();
+    logger = silentLogger();
     eventBus = new EventBus(logger);
     reported = vi.fn<(event: ServiceErrorEvent) => void>();
     eventBus.on('service.error', reported);
@@ -48,7 +36,7 @@ describe('RaidShoutout', () => {
       sendChatMessage: vi.fn(() => Promise.resolve()),
       require: fakeRequire(StreamingPlatform.TWITCH, { shoutout: { shoutout } }),
     };
-    new RaidShoutout(eventBus, streamControl as unknown as StreamControlService, logger).start();
+    new RaidShoutout(eventBus, fake<StreamControlService>()(streamControl), logger).start();
   });
 
   it('posts the shoutout message in Twitch chat and sends a native shoutout', async () => {

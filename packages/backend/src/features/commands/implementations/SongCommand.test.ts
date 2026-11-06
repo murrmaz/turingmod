@@ -2,10 +2,12 @@ import 'reflect-metadata';
 import type { PlaybackState } from '@spotify/web-api-ts-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import type { SpotifyApiIntegration } from '../../../integrations/implementations/spotify/SpotifyApiIntegration.js';
+import { fake } from '../../../testing.js';
 import { commandContext, runCommand } from '../testing.js';
 import SongCommand, { describePlayback } from './SongCommand.js';
 
 function playing(item: Record<string, unknown> | null, isPlaying = true): PlaybackState {
+  // biome-ignore lint/plugin: Spotify's response data, not a class; only these fields are read
   return { is_playing: isPlaying, item } as unknown as PlaybackState;
 }
 
@@ -45,7 +47,7 @@ describe('describePlayback', () => {
 
 describe('SongCommand', () => {
   function command(request: SpotifyApiIntegration['request']) {
-    return new SongCommand({ request } as SpotifyApiIntegration);
+    return new SongCommand(fake<SpotifyApiIntegration>()({ request }));
   }
 
   it('asks Spotify for episodes as well as tracks', async () => {

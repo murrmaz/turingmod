@@ -3,6 +3,7 @@ import { IntegrationStatus } from '@turingmod/shared';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import { CachedRefreshFailureError, type RefreshingAuthProvider } from '@twurple/auth';
 import { describe, expect, it, vi } from 'vitest';
+import { fake } from '../../../testing.js';
 import { Logger } from '../../../utils/Logger.js';
 import { TwitchApiIntegration } from './TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
@@ -19,12 +20,12 @@ import type { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
 function makeAuthIntegration(
   status: IntegrationStatus = IntegrationStatus.CONNECTED
 ): TwitchAuthIntegration {
-  const authProvider = {} as RefreshingAuthProvider;
-  return {
+  const authProvider = fake<RefreshingAuthProvider>()({});
+  return fake<TwitchAuthIntegration>()({
     getStatus: () => status,
     getAuthProvider: () => authProvider,
     markAuthRequired: vi.fn(),
-  } as unknown as TwitchAuthIntegration;
+  });
 }
 
 async function startWithFailingCall(
@@ -55,11 +56,13 @@ describe('TwitchApiIntegration', () => {
 
     // A provider that is still non-null but can no longer refresh: the
     // integration must not keep calling Twitch through it.
-    const auth = { status: IntegrationStatus.CONNECTED, getAuthProvider: () => ({}) };
-    const reauthing = new TwitchApiIntegration(
-      new Logger({ level: 'silent' }),
-      Object.assign(auth, { getStatus: () => auth.status }) as unknown as TwitchAuthIntegration
-    );
+    const provider = fake<RefreshingAuthProvider>()({});
+    const auth = fake<TwitchAuthIntegration>()({
+      status: IntegrationStatus.CONNECTED,
+      getStatus: (): IntegrationStatus => auth.status,
+      getAuthProvider: () => provider,
+    });
+    const reauthing = new TwitchApiIntegration(new Logger({ level: 'silent' }), auth);
     await reauthing.start();
     auth.status = IntegrationStatus.NEEDS_REAUTH;
     expect(reauthing.getApiClient()).toBeNull();
@@ -81,11 +84,11 @@ describe('TwitchApiIntegration', () => {
   });
 
   it('rebuilds its client when the auth provider is replaced', async () => {
-    let authProvider = {} as RefreshingAuthProvider;
-    const authIntegration = {
+    let authProvider = fake<RefreshingAuthProvider>()({});
+    const authIntegration = fake<TwitchAuthIntegration>()({
       getStatus: () => IntegrationStatus.CONNECTED,
       getAuthProvider: () => authProvider,
-    } as unknown as TwitchAuthIntegration;
+    });
 
     const integration = new TwitchApiIntegration(new Logger({ level: 'silent' }), authIntegration);
 
@@ -97,16 +100,16 @@ describe('TwitchApiIntegration', () => {
 
     // Re-authorizing swaps the provider; the client must follow rather than
     // keep calling Twitch through credentials that can no longer refresh.
-    authProvider = {} as RefreshingAuthProvider;
+    authProvider = fake<RefreshingAuthProvider>()({});
     expect(integration.getApiClient()).not.toBe(firstClient);
   });
 
   it('reports no client once the auth provider is gone', async () => {
-    let authProvider: RefreshingAuthProvider | null = {} as RefreshingAuthProvider;
-    const authIntegration = {
+    let authProvider: RefreshingAuthProvider | null = fake<RefreshingAuthProvider>()({});
+    const authIntegration = fake<TwitchAuthIntegration>()({
       getStatus: () => IntegrationStatus.CONNECTED,
       getAuthProvider: () => authProvider,
-    } as unknown as TwitchAuthIntegration;
+    });
 
     const integration = new TwitchApiIntegration(new Logger({ level: 'silent' }), authIntegration);
 

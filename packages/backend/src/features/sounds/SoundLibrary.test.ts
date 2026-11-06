@@ -11,14 +11,9 @@ import type {
   SettingsRepository,
 } from '../../database/repositories/SettingsRepository.js';
 import type { SoundIntegration } from '../../integrations/implementations/sound/SoundIntegration.js';
+import { fake, silentLogger } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { SoundLibrary } from './SoundLibrary.js';
-
-const makeLogger = () => {
-  const logger = { warn: vi.fn(), debug: vi.fn(), error: vi.fn(), info: vi.fn(), child: vi.fn() };
-  logger.child.mockReturnValue(logger);
-  return logger as unknown as Logger & typeof logger;
-};
 
 describe('SoundLibrary', () => {
   let dir: string;
@@ -29,7 +24,7 @@ describe('SoundLibrary', () => {
     playSound: ReturnType<typeof vi.fn>;
     stopAll: ReturnType<typeof vi.fn>;
   };
-  let logger: ReturnType<typeof makeLogger>;
+  let logger: ReturnType<typeof silentLogger>;
   let errors: ReturnType<typeof vi.fn<(event: ServiceErrorEvent) => void>>;
   let library: SoundLibrary;
 
@@ -43,15 +38,15 @@ describe('SoundLibrary', () => {
       playSound: vi.fn(() => Promise.resolve()),
       stopAll: vi.fn(),
     };
-    logger = makeLogger();
+    logger = silentLogger();
     const eventBus = new EventBus(new Logger({ level: 'silent' }));
     errors = vi.fn<(event: ServiceErrorEvent) => void>();
     eventBus.on('service.error', errors);
     library = new SoundLibrary(
-      sound as unknown as SoundIntegration,
-      {
-        get: (definition: SettingsDefinition<unknown>) => definition.schema.parse(settings ?? {}),
-      } as unknown as SettingsRepository,
+      fake<SoundIntegration>()(sound),
+      fake<SettingsRepository>()({
+        get: <T>(definition: SettingsDefinition<T>) => definition.schema.parse(settings ?? {}),
+      }),
       eventBus,
       logger
     );

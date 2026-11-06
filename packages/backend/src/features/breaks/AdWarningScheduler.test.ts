@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/EventBus.js';
 import type { MirrorResult, StreamControlService } from '../../platforms/StreamControlService.js';
 import { fakeRequire } from '../../platforms/testing.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { AdWarningScheduler } from './AdWarningScheduler.js';
 import type { BreakService } from './BreakService.js';
@@ -33,8 +34,8 @@ function setup(settings: BreakSettings = DEFAULT_BREAK_SETTINGS) {
   const breakService = { getSettings: () => settings };
   const scheduler = new AdWarningScheduler(
     eventBus,
-    breakService as unknown as BreakService,
-    streamControl as unknown as StreamControlService,
+    fake<BreakService>()(breakService),
+    fake<StreamControlService>()(streamControl),
     new Logger({ level: 'silent' })
   );
   const reported = vi.fn();

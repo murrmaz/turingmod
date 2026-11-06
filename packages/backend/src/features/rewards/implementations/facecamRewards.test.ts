@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
+import { fake } from '../../../testing.js';
 import type { FacecamEffectRunner } from '../../effects/FacecamEffectRunner.js';
 import AustraliaReward from './AustraliaReward.js';
 import BarrelRollReward from './BarrelRollReward.js';
@@ -21,7 +22,7 @@ const REWARDS = [
 
 describe.each(REWARDS)('$title reward', ({ handler, title, cost }) => {
   const run = vi.fn(() => Promise.resolve());
-  const reward = new handler({ run } as unknown as FacecamEffectRunner);
+  const reward = new handler(fake<FacecamEffectRunner>()({ run }));
 
   it('keeps its title and cost, and pauses during breaks', () => {
     expect(reward.rewardTitle).toBe(title);

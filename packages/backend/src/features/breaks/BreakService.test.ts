@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
+import { IntegrationName, IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/EventBus.js';
 import type { ServiceErrorEvent, TwitchAdBreakEvent } from '../../core/events.js';
@@ -13,6 +13,7 @@ import type {
 } from '../../database/repositories/SettingsRepository.js';
 import type { ObsIntegration } from '../../integrations/implementations/obs/ObsIntegration.js';
 import type { MirrorResult, StreamControlService } from '../../platforms/StreamControlService.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import type { SoundLibrary } from '../sounds/SoundLibrary.js';
 import { BreakService } from './BreakService.js';
@@ -29,7 +30,7 @@ const ok: ObsBreakOutcome = { connected: true, failed: [] };
 
 function setup(stored: unknown = null, { owed = null as unknown } = {}) {
   const eventBus = new EventBus(new Logger({ level: 'silent' }));
-  const overlay = {
+  const overlay = fake<ObsBreakOverlay>()({
     apply: vi.fn((_settings: unknown, recorded?: ObsBreakSnapshot) =>
       Promise.resolve<ObsBreakOutcome & { snapshot: ObsBreakSnapshot }>({
         ...ok,
@@ -37,46 +38,50 @@ function setup(stored: unknown = null, { owed = null as unknown } = {}) {
       })
     ),
     restore: vi.fn((_snapshot: ObsBreakSnapshot) => Promise.resolve(ok)),
-  };
+  });
   /** The stored restore, as `ObsBreakRestoreRepository` would hold it. */
-  const restoreRepo = {
+  const restoreRepo = fake<ObsBreakRestoreRepository>()({
     owed,
-    get: vi.fn(() => {
+    get: vi.fn((): ObsBreakSnapshot | null => {
       if (restoreRepo.owed instanceof Error) {
         throw restoreRepo.owed;
       }
       return restoreRepo.owed as ObsBreakSnapshot | null;
     }),
-    save: vi.fn((snapshot: ObsBreakSnapshot) => {
+    save: vi.fn((snapshot: ObsBreakSnapshot): void => {
       restoreRepo.owed = snapshot;
     }),
-    clear: vi.fn(() => {
+    clear: vi.fn((): void => {
       restoreRepo.owed = null;
     }),
-  };
-  const obs = { name: 'obs', status: IntegrationStatus.CONNECTED, getStatus: () => obs.status };
+  });
+  const obs = fake<ObsIntegration>()({
+    name: IntegrationName.OBS,
+    status: IntegrationStatus.CONNECTED,
+    getStatus: (): IntegrationStatus => obs.status,
+  });
   /** Messages posted, per platform, as rendered for Twitch and YouTube. */
   const posted: Record<string, string>[] = [];
-  const streamControl = {
+  const streamControl = fake<StreamControlService>()({
     announce: vi.fn((messageFor: (p: StreamingPlatform) => string | null) => {
       const twitch = messageFor(StreamingPlatform.TWITCH);
       const youtube = messageFor(StreamingPlatform.YOUTUBE);
       posted.push({ ...(twitch && { twitch }), ...(youtube && { youtube }) });
       return Promise.resolve<MirrorResult>({ updated: [], failures: [], skipped: [] });
     }),
-  };
-  const settingsRepo = {
-    get: (definition: SettingsDefinition<unknown>) => definition.schema.parse(stored ?? {}),
-  };
-  const sounds = { tryPlay: vi.fn(() => Promise.resolve()) };
+  });
+  const settingsRepo = fake<SettingsRepository>()({
+    get: <T>(definition: SettingsDefinition<T>) => definition.schema.parse(stored ?? {}),
+  });
+  const sounds = fake<SoundLibrary>()({ tryPlay: vi.fn(() => Promise.resolve()) });
   const service = new BreakService(
     eventBus,
-    settingsRepo as unknown as SettingsRepository,
-    overlay as unknown as ObsBreakOverlay,
-    restoreRepo as unknown as ObsBreakRestoreRepository,
-    obs as unknown as ObsIntegration,
-    streamControl as unknown as StreamControlService,
-    sounds as unknown as SoundLibrary,
+    settingsRepo,
+    overlay,
+    restoreRepo,
+    obs,
+    streamControl,
+    sounds,
     new Logger({ level: 'silent' })
   );
   /** OBS reconnecting, as IntegrationManager reports it. */

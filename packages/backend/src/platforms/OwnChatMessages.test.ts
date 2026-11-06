@@ -3,14 +3,8 @@ import { PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import type { ChatMessageEvent } from '../core/events.js';
-import type { Logger } from '../utils/Logger.js';
+import { silentLogger } from '../testing.js';
 import { OwnChatMessages } from './OwnChatMessages.js';
-
-const makeLogger = () => {
-  const logger = { warn: vi.fn(), debug: vi.fn(), error: vi.fn(), info: vi.fn(), child: vi.fn() };
-  logger.child.mockReturnValue(logger);
-  return logger as unknown as Logger & typeof logger;
-};
 
 function message(overrides: Partial<ChatMessageEvent> = {}): ChatMessageEvent {
   return {
@@ -28,7 +22,7 @@ function message(overrides: Partial<ChatMessageEvent> = {}): ChatMessageEvent {
 }
 
 function setup() {
-  const logger = makeLogger();
+  const logger = silentLogger();
   const bus = new EventBus(logger);
   const own = new OwnChatMessages(bus, logger);
   own.start();

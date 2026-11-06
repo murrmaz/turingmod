@@ -1,5 +1,6 @@
 import { type ExecutionResult, PermissionLevel, StreamingPlatform } from '@turingmod/shared';
 import { EventBus } from '../../core/EventBus.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import type { CommandAvailability } from './CommandAvailability.js';
 import { CommandExecutor } from './CommandExecutor.js';
@@ -35,7 +36,7 @@ export function commandContext(
 /** Test helper: run a command as chat does, through the real executor, which reports its failures. */
 export function runCommand(command: ICommand, context: CommandContext): Promise<ExecutionResult> {
   const logger = new Logger({ level: 'silent' });
-  const availability = { find: () => command } as unknown as CommandAvailability;
+  const availability = fake<CommandAvailability>()({ find: () => command });
   return new CommandExecutor(availability, new EventBus(logger), logger).execute(context);
 }
 

@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { IntegrationStatus } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
+import { fake } from '../../../testing.js';
 import type { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
 import { SpotifyAuthIntegration } from './SpotifyAuthIntegration.js';
@@ -27,8 +28,8 @@ describe('SpotifyAuthIntegration', () => {
     saveConfig = vi.fn();
     integration = new SpotifyAuthIntegration(
       new Logger({ level: 'silent' }),
-      { saveConfig } as unknown as IntegrationStateRepository,
-      { serverPort: 8080 } as TuringModConfig
+      fake<IntegrationStateRepository>()({ saveConfig }),
+      fake<TuringModConfig>()({ serverPort: 8080 })
     );
     await integration.initialize({ clientId: 'id', clientSecret: 'secret' });
   });

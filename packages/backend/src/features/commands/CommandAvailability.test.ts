@@ -1,23 +1,28 @@
 import 'reflect-metadata';
 import { PlatformCapability, StreamingPlatform } from '@turingmod/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { IStreamPlatform } from '../../platforms/interfaces/IStreamPlatform.js';
+import type {
+  AdsApi,
+  DeclaredCapability,
+  IStreamPlatform,
+} from '../../platforms/interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { CommandAvailability } from './CommandAvailability.js';
 import { CommandRegistry } from './CommandRegistry.js';
 import type { ICommand } from './interfaces/ICommand.js';
 
 const command = (name: string, requiredCapabilities: PlatformCapability[]) =>
-  ({ name, requiredCapabilities }) as unknown as ICommand;
+  fake<ICommand>()({ name, requiredCapabilities });
 
 /** A façade that can set a title everywhere, and has ads only where `ads` is given. */
-const platform = (name: StreamingPlatform, ads?: object) =>
-  ({
+const platform = (name: StreamingPlatform, ads?: AdsApi) =>
+  fake<IStreamPlatform>()({
     platform: name,
-    declaredCapabilities: new Set([PlatformCapability.SET_TITLE]),
+    declaredCapabilities: new Set<DeclaredCapability>([PlatformCapability.SET_TITLE]),
     ...(ads ? { ads } : {}),
-  }) as unknown as IStreamPlatform;
+  });
 
 describe('CommandAvailability', () => {
   let availability: CommandAvailability;
@@ -28,7 +33,7 @@ describe('CommandAvailability', () => {
     commands.register(command('title', [PlatformCapability.SET_TITLE]));
     commands.register(command('ad', [PlatformCapability.ADS]));
     const platforms = new PlatformRegistry();
-    platforms.register(platform(StreamingPlatform.TWITCH, {}));
+    platforms.register(platform(StreamingPlatform.TWITCH, fake<AdsApi>()({})));
     platforms.register(platform(StreamingPlatform.YOUTUBE));
     availability = new CommandAvailability(commands, platforms);
   });

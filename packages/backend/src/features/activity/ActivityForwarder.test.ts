@@ -12,6 +12,7 @@ import { EventBus } from '../../core/EventBus.js';
 import type { EventMap } from '../../core/events.js';
 import type { ActivityLogRepository } from '../../database/repositories/ActivityLogRepository.js';
 import { chatMessage } from '../../platforms/testing.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { ActivityForwarder } from './ActivityForwarder.js';
 
@@ -80,11 +81,7 @@ function setup() {
   const logger = new Logger({ level: 'silent' });
   const eventBus = new EventBus(logger);
   const repo = { create: vi.fn() };
-  const forwarder = new ActivityForwarder(
-    eventBus,
-    repo as unknown as ActivityLogRepository,
-    logger
-  );
+  const forwarder = new ActivityForwarder(eventBus, fake<ActivityLogRepository>()(repo), logger);
   const entries: ActivityLogEntry[] = [];
   eventBus.on('activity.entry', (entry) => {
     entries.push(entry);
@@ -175,6 +172,7 @@ describe('ActivityForwarder', () => {
     await eventBus.emit('obs.record.stateChanged', {
       outputActive: true,
       outputState: 'OBS_WEBSOCKET_OUTPUT_STARTED',
+      // biome-ignore lint/plugin: what obs-websocket sends, though its types say string
       outputPath: null as unknown as string,
     });
 
@@ -207,6 +205,7 @@ describe('ActivityForwarder', () => {
 
     await eventBus.emit('twitch.raid', {
       ...PAYLOADS['twitch.raid'],
+      // biome-ignore lint/plugin: deliberately invalid, so the entry fails its schema
       viewers: 'many' as unknown as number,
     });
 

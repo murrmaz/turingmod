@@ -115,6 +115,7 @@ describe('facecam effects', () => {
     // 30 seconds at over 250px/s in each direction can't avoid the edges.
     expect(context.setFilterSettings.mock.calls.length).toBeGreaterThan(3);
     const tints = context.setFilterSettings.mock.calls.map(
+      // biome-ignore lint/plugin: reads the settings argument of an untyped mock's call
       (call) => (call as unknown as [string, { color_add: number }])[1].color_add
     );
     expect(tints.every((tint, i) => i === 0 || tint !== tints[i - 1])).toBe(true);

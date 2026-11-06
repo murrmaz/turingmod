@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { type ActivityLogEntry, StreamingPlatform } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import type { DatabaseManager } from '../DatabaseManager.js';
 import { type ActivityLogQuery, ActivityLogRepository } from './ActivityLogRepository.js';
@@ -18,7 +19,7 @@ describe('ActivityLogRepository', () => {
     cleanup = test.cleanup;
     warn.mockClear();
     const logger = new Logger({ level: 'silent' });
-    vi.spyOn(logger, 'child').mockReturnValue({ warn } as unknown as Logger);
+    vi.spyOn(logger, 'child').mockReturnValue(fake<Logger>()({ warn }));
     repo = new ActivityLogRepository(db, logger);
   });
 

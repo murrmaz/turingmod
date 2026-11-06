@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { fake } from '../testing.js';
 import type { TuringModConfig } from '../utils/Config.js';
 import { ENCRYPTION_SALT_SETTINGS_KEY, Encryption } from '../utils/Encryption.js';
 import type { DatabaseManager } from './DatabaseManager.js';
@@ -15,7 +16,7 @@ describe('DataInspector', () => {
     const test = await createTestDatabase();
     db = test.db;
     cleanup = test.cleanup;
-    inspector = new DataInspector({ dbPath: test.path } as TuringModConfig);
+    inspector = new DataInspector(fake<TuringModConfig>()({ dbPath: test.path }));
 
     db.run(
       'INSERT INTO integration_state (id, name, enabled, config, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -208,6 +209,7 @@ describe('DataInspector', () => {
 
   it('cannot write', () => {
     inspector.listTables();
+    // biome-ignore lint/plugin: reaches the private connection, to show it refuses writes itself
     const connection = (inspector as unknown as { connection: { exec(sql: string): void } })
       .connection;
     expect(() => connection.exec('DELETE FROM activity_log')).toThrow();

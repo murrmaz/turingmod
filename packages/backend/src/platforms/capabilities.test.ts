@@ -6,6 +6,7 @@ import type { TwitchAuthIntegration } from '../integrations/implementations/twit
 import type { YouTubeApiIntegration } from '../integrations/implementations/youtube/YouTubeApiIntegration.js';
 import type { YouTubeAuthIntegration } from '../integrations/implementations/youtube/YouTubeAuthIntegration.js';
 import type { YouTubeChatIntegration } from '../integrations/implementations/youtube/YouTubeChatIntegration.js';
+import { fake } from '../testing.js';
 import { capabilitiesOf } from './capabilities.js';
 import type { OwnChatMessages } from './OwnChatMessages.js';
 import { TwitchPlatform } from './TwitchPlatform.js';
@@ -14,9 +15,9 @@ import { YouTubePlatform } from './YouTubePlatform.js';
 describe('capabilitiesOf', () => {
   it('gives Twitch every capability', () => {
     const twitch = new TwitchPlatform(
-      {} as TwitchAuthIntegration,
-      {} as TwitchApiIntegration,
-      {} as OwnChatMessages
+      fake<TwitchAuthIntegration>()({}),
+      fake<TwitchApiIntegration>()({}),
+      fake<OwnChatMessages>()({})
     );
 
     expect(capabilitiesOf(twitch)).toEqual(new Set(Object.values(PlatformCapability)));
@@ -24,10 +25,10 @@ describe('capabilitiesOf', () => {
 
   it('gives YouTube only what it declares, since it has no capability objects', () => {
     const youtube = new YouTubePlatform(
-      {} as YouTubeAuthIntegration,
-      {} as YouTubeApiIntegration,
-      {} as OwnChatMessages,
-      {} as YouTubeChatIntegration
+      fake<YouTubeAuthIntegration>()({}),
+      fake<YouTubeApiIntegration>()({}),
+      fake<OwnChatMessages>()({}),
+      fake<YouTubeChatIntegration>()({})
     );
 
     expect(capabilitiesOf(youtube)).toEqual(

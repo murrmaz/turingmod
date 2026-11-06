@@ -1,21 +1,15 @@
 import 'reflect-metadata';
 import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { EventBus } from '../core/EventBus.js';
 import type { PlatformAvailabilityEvent } from '../core/events.js';
-import type { Logger } from '../utils/Logger.js';
+import { fake, silentLogger } from '../testing.js';
 import type { IStreamPlatform } from './interfaces/IStreamPlatform.js';
 import { PlatformAvailability } from './PlatformAvailability.js';
 import { PlatformRegistry } from './PlatformRegistry.js';
 
-const makeLogger = () => {
-  const logger = { warn: vi.fn(), debug: vi.fn(), error: vi.fn(), info: vi.fn(), child: vi.fn() };
-  logger.child.mockReturnValue(logger);
-  return logger as unknown as Logger & typeof logger;
-};
-
 function setup() {
-  const logger = makeLogger();
+  const logger = silentLogger();
   const bus = new EventBus(logger);
   const registry = new PlatformRegistry();
   const reasons = new Map<StreamingPlatform, string | null>([
@@ -23,10 +17,12 @@ function setup() {
     [StreamingPlatform.YOUTUBE, 'Not connected to YouTube'],
   ]);
   for (const platform of reasons.keys()) {
-    registry.register({
-      platform,
-      getUnavailableReason: () => reasons.get(platform) ?? null,
-    } as unknown as IStreamPlatform);
+    registry.register(
+      fake<IStreamPlatform>()({
+        platform,
+        getUnavailableReason: () => reasons.get(platform) ?? null,
+      })
+    );
   }
   new PlatformAvailability(bus, registry, logger).start();
 

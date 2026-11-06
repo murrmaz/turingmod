@@ -7,6 +7,7 @@ import type { DatabaseManager } from '../../../database/DatabaseManager.js';
 import { BannedWordRepository } from '../../../database/repositories/BannedWordRepository.js';
 import { createTestDatabase } from '../../../database/repositories/testDatabase.js';
 import type { StreamControlService } from '../../../platforms/StreamControlService.js';
+import { fake } from '../../../testing.js';
 import { Logger } from '../../../utils/Logger.js';
 import { BannedWordList } from '../../chat/moderation/BannedWordList.js';
 import { banCutoff } from '../../chat/moderation/bannedWords.js';
@@ -40,7 +41,7 @@ describe('BanAWordReward', () => {
     eventBus = new EventBus(new Logger({ level: 'silent' }));
     reward = new BanAWordReward(
       new BannedWordList(eventBus, bannedWords),
-      { sendChatMessage } as unknown as StreamControlService,
+      fake<StreamControlService>()({ sendChatMessage }),
       new Logger({ level: 'silent' })
     );
   });

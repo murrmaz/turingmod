@@ -1,11 +1,13 @@
 import { type ActivityLogEntry, MAX_DATA_PAGE_SIZE } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
-import type { EventBus } from '../../core/EventBus.js';
+import { EventBus } from '../../core/EventBus.js';
 import type {
   ActivityLogQuery,
   ActivityLogRepository,
 } from '../../database/repositories/ActivityLogRepository.js';
 import { chatMessage } from '../../platforms/testing.js';
+import { fake } from '../../testing.js';
+import { Logger } from '../../utils/Logger.js';
 import { createActivityRouter } from './activityRouter.js';
 import { createCallerFactory } from './trpc.js';
 
@@ -17,25 +19,19 @@ const entry = (id: string): ActivityLogEntry => ({
 });
 
 function setup(stored: ActivityLogEntry[]) {
-  const listeners = new Set<(entry: ActivityLogEntry) => void>();
-  const eventBus = {
-    on: (event: string, listener: (entry: ActivityLogEntry) => void) => {
-      expect(event).toBe('activity.entry');
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-  };
+  const eventBus = new EventBus(new Logger({ level: 'silent' }));
   const repo = { findRecent: () => stored };
   const controller = new AbortController();
   const caller = createCallerFactory(
-    createActivityRouter(eventBus as unknown as EventBus, repo as unknown as ActivityLogRepository)
+    createActivityRouter(eventBus, fake<ActivityLogRepository>()(repo))
   )({ consoleOrigin: null }, { signal: controller.signal });
-  const emit = (made: ActivityLogEntry) => {
-    for (const listener of listeners) {
-      listener(made);
-    }
+  const emit = (made: ActivityLogEntry) => eventBus.emitSync('activity.entry', made);
+  return {
+    caller,
+    controller,
+    emit,
+    listenerCount: () => eventBus.listenerCount('activity.entry'),
   };
-  return { caller, controller, emit, listenerCount: () => listeners.size };
 }
 
 describe('activity.feed', () => {
@@ -83,7 +79,10 @@ describe('activity.history', () => {
       total: 1,
     }));
     const caller = createCallerFactory(
-      createActivityRouter({} as EventBus, { findPage } as unknown as ActivityLogRepository)
+      createActivityRouter(
+        new EventBus(new Logger({ level: 'silent' })),
+        fake<ActivityLogRepository>()({ findPage })
+      )
     )({ consoleOrigin: null });
     return { caller, findPage };
   }

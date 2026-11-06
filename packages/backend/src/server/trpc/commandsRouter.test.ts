@@ -1,5 +1,11 @@
 import 'reflect-metadata';
-import { PermissionLevel, PlatformCapability, StreamingPlatform } from '@turingmod/shared';
+import {
+  type CommandResult,
+  type ExecutionResult,
+  PermissionLevel,
+  PlatformCapability,
+  StreamingPlatform,
+} from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { CommandAvailability } from '../../features/commands/CommandAvailability.js';
 import type { CommandExecutor } from '../../features/commands/CommandExecutor.js';
@@ -16,21 +22,23 @@ import type { OwnChatMessages } from '../../platforms/OwnChatMessages.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import { TwitchPlatform } from '../../platforms/TwitchPlatform.js';
+import { fakeRequire } from '../../platforms/testing.js';
 import { YouTubePlatform } from '../../platforms/YouTubePlatform.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { createCommandsRouter } from './commandsRouter.js';
 import { createCallerFactory } from './trpc.js';
 
 const command = (name: string, requiredCapabilities: PlatformCapability[]) =>
-  ({
+  fake<ICommand>()({
     name,
     description: '',
     usage: `!${name}`,
     permissions: [],
     cooldown: 0,
     requiredCapabilities,
-    execute: () => Promise.resolve({ success: true, message: '' }),
-  }) as unknown as ICommand;
+    execute: () => Promise.resolve<CommandResult>({ success: true, message: '' }),
+  });
 
 describe('commands.list', () => {
   it("lists each command's platforms from the façades' capabilities", async () => {
@@ -41,25 +49,25 @@ describe('commands.list', () => {
     const platforms = new PlatformRegistry();
     platforms.register(
       new TwitchPlatform(
-        {} as TwitchAuthIntegration,
-        {} as TwitchApiIntegration,
-        {} as OwnChatMessages
+        fake<TwitchAuthIntegration>()({}),
+        fake<TwitchApiIntegration>()({}),
+        fake<OwnChatMessages>()({})
       )
     );
     platforms.register(
       new YouTubePlatform(
-        {} as YouTubeAuthIntegration,
-        {} as YouTubeApiIntegration,
-        {} as OwnChatMessages,
-        {} as YouTubeChatIntegration
+        fake<YouTubeAuthIntegration>()({}),
+        fake<YouTubeApiIntegration>()({}),
+        fake<OwnChatMessages>()({}),
+        fake<YouTubeChatIntegration>()({})
       )
     );
     const caller = createCallerFactory(
       createCommandsRouter(
-        {} as CommandExecutor,
+        fake<CommandExecutor>()({}),
         commands,
         new CommandAvailability(commands, platforms),
-        {} as StreamControlService,
+        fake<StreamControlService>()({}),
         logger
       )
     )({ consoleOrigin: null });
@@ -81,20 +89,22 @@ describe('commands.simulate', () => {
     simulatedUserId?: string
   ) => {
     const execute = vi.fn((_context: CommandContext) =>
-      Promise.resolve({ success: true, message: 'ok' })
+      Promise.resolve<ExecutionResult>({ success: true, message: 'ok' })
     );
     const lookup = vi.fn(findUserId);
     const logger = new Logger({ level: 'silent' });
-    const commands: Record<string, Partial<ICommand>> = {
-      accountage: { usesPlatformUserId: true },
-      bonk: {},
+    const commands: Record<string, ICommand> = {
+      accountage: fake<ICommand>()({ usesPlatformUserId: true }),
+      bonk: fake<ICommand>()({}),
     };
     const caller = createCallerFactory(
       createCommandsRouter(
-        { execute } as unknown as CommandExecutor,
+        fake<CommandExecutor>()({ execute }),
         new CommandRegistry(logger),
-        { find: (name: string) => commands[name] } as unknown as CommandAvailability,
-        { require: () => ({ findUserId: lookup }) } as unknown as StreamControlService,
+        fake<CommandAvailability>()({ find: (name: string) => commands[name] }),
+        fake<StreamControlService>()({
+          require: fakeRequire(StreamingPlatform.TWITCH, { userLookup: { findUserId: lookup } }),
+        }),
         logger
       )
     )({ consoleOrigin: null });

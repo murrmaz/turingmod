@@ -4,6 +4,7 @@ import { IntegrationStatus } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
+import { fake } from '../testing.js';
 import type { TuringModConfig } from '../utils/Config.js';
 import { Logger } from '../utils/Logger.js';
 import { OAuthConfigBaseSchema, OAuthIntegration, parseScopes } from './OAuthIntegration.js';
@@ -29,8 +30,8 @@ class TestOAuthIntegration extends OAuthIntegration<TestConfig> {
     super(
       new Logger({ level: 'silent' }),
       'TestAuth',
-      { saveConfig } as unknown as IntegrationStateRepository,
-      { serverPort: 9123 } as TuringModConfig
+      fake<IntegrationStateRepository>()({ saveConfig }),
+      fake<TuringModConfig>()({ serverPort: 9123 })
     );
   }
 

@@ -1,9 +1,23 @@
 import 'reflect-metadata';
 import { IntegrationStatus, StreamingPlatform } from '@turingmod/shared';
+import type {
+  ApiClient,
+  HelixChannelApi,
+  HelixChannelPointsApi,
+  HelixChatApi,
+  HelixClipApi,
+  HelixGameApi,
+  HelixModerationApi,
+  HelixScheduleApi,
+  HelixStreamApi,
+  HelixUserApi,
+  HelixVideoApi,
+} from '@twurple/api';
 import { HttpStatusCodeError } from '@twurple/api-call';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TwitchApiIntegration } from '../integrations/implementations/twitch/TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from '../integrations/implementations/twitch/TwitchAuthIntegration.js';
+import { fake } from '../testing.js';
 import { InvalidStreamInfoError, NotAuthenticatedError } from './errors.js';
 import type { OwnChatMessages } from './OwnChatMessages.js';
 import { TwitchPlatform } from './TwitchPlatform.js';
@@ -20,47 +34,43 @@ function setup() {
   // The slice of Twurple's ApiClient these tests touch. request() runs each call against it,
   // the way TwitchApiIntegration does with its live client.
   const twitch = {
-    channels: {
+    channels: fake<HelixChannelApi>()({
       getAdSchedule: vi.fn(),
       snoozeNextAd: vi.fn(),
       getChannelFollowers: vi.fn(),
       getChannelInfoById: vi.fn(),
-      updateChannelInfo: vi.fn(() => Promise.resolve()),
-    },
-    games: { getGameByName: vi.fn() },
-    users: { getUserById: vi.fn(), getUserByName: vi.fn() },
-    streams: { getStreamByUserId: vi.fn(), createStreamMarker: vi.fn() },
-    videos: { getVideosByUser: vi.fn(), deleteVideosByIds: vi.fn(() => Promise.resolve()) },
-    chat: {
-      sendAnnouncement: vi.fn(() => Promise.resolve()),
-      sendChatMessage: vi.fn(() =>
-        Promise.resolve<{
-          id: string;
-          isSent: boolean;
-          dropReasonCode?: string;
-          dropReasonMessage?: string;
-        }>({ id: 'sent-id', isSent: true })
-      ),
-      shoutoutUser: vi.fn(() => Promise.resolve()),
-    },
-    callApi: vi.fn(() => Promise.resolve()),
-    schedule: { getSchedule: vi.fn() },
-    channelPoints: {
+      updateChannelInfo: vi.fn().mockResolvedValue(undefined),
+    }),
+    games: fake<HelixGameApi>()({ getGameByName: vi.fn() }),
+    users: fake<HelixUserApi>()({ getUserById: vi.fn(), getUserByName: vi.fn() }),
+    streams: fake<HelixStreamApi>()({ getStreamByUserId: vi.fn(), createStreamMarker: vi.fn() }),
+    videos: fake<HelixVideoApi>()({
+      getVideosByUser: vi.fn(),
+      deleteVideosByIds: vi.fn().mockResolvedValue(undefined),
+    }),
+    chat: fake<HelixChatApi>()({
+      sendAnnouncement: vi.fn().mockResolvedValue(undefined),
+      sendChatMessage: vi.fn().mockResolvedValue({ id: 'sent-id', isSent: true }),
+      shoutoutUser: vi.fn().mockResolvedValue(undefined),
+    }),
+    callApi: vi.fn().mockResolvedValue(undefined),
+    schedule: fake<HelixScheduleApi>()({ getSchedule: vi.fn() }),
+    channelPoints: fake<HelixChannelPointsApi>()({
       getCustomRewards: vi.fn(),
-      updateCustomReward: vi.fn(() => Promise.resolve()),
-      updateRedemptionStatusByIds: vi.fn(() => Promise.resolve()),
-    },
-    moderation: {
-      banUser: vi.fn(() => Promise.resolve()),
-      deleteChatMessages: vi.fn(() => Promise.resolve()),
-    },
-    clips: { getClipById: vi.fn() },
+      updateCustomReward: vi.fn().mockResolvedValue(undefined),
+      updateRedemptionStatusByIds: vi.fn().mockResolvedValue(undefined),
+    }),
+    moderation: fake<HelixModerationApi>()({
+      banUser: vi.fn().mockResolvedValue(undefined),
+      deleteChatMessages: vi.fn().mockResolvedValue(undefined),
+    }),
+    clips: fake<HelixClipApi>()({ getClipById: vi.fn() }),
   };
+  const client = fake<ApiClient>()(twitch);
   let stopped: string | null = null;
   const api = {
-    request: vi.fn((call: (client: typeof twitch) => Promise<unknown>) =>
-      stopped ? Promise.reject(new Error(stopped)) : call(twitch)
-    ),
+    request: <T>(call: (client: ApiClient) => Promise<T>): Promise<T> =>
+      stopped ? Promise.reject(new Error(stopped)) : call(client),
     getStoppedReason: () => stopped,
   };
   const ownMessages = {
@@ -70,9 +80,9 @@ function setup() {
     recordText: vi.fn((_platform: unknown, _text: string, send: () => Promise<void>) => send()),
   };
   const platform = new TwitchPlatform(
-    auth as unknown as TwitchAuthIntegration,
-    api as unknown as TwitchApiIntegration,
-    ownMessages as unknown as OwnChatMessages
+    fake<TwitchAuthIntegration>()(auth),
+    fake<TwitchApiIntegration>()(api),
+    fake<OwnChatMessages>()(ownMessages)
   );
   return {
     twitch,
@@ -318,9 +328,9 @@ describe('TwitchPlatform', () => {
   describe('setContentLabels', () => {
     /** Every label sent to Helix, and which of them were on. */
     const sentLabels = () => {
-      const [[options]] = twitch.callApi.mock.calls as unknown as [
-        [{ jsonBody: { content_classification_labels: { id: string; is_enabled: boolean }[] } }],
-      ];
+      const options: {
+        jsonBody: { content_classification_labels: { id: string; is_enabled: boolean }[] };
+      } = twitch.callApi.mock.calls[0]?.[0];
       const labels = options.jsonBody.content_classification_labels;
       return {
         sent: labels.length,

@@ -5,12 +5,13 @@ import type {
   MirrorResult,
   StreamControlService,
 } from '../../../platforms/StreamControlService.js';
+import { fake } from '../../../testing.js';
 import { commandContext, errorCodeOf } from '../testing.js';
 import TitleCommand from './TitleCommand.js';
 
 const setTitle = vi.fn<(title: string) => Promise<MirrorResult>>();
 
-const streamControl = { setTitle } as unknown as StreamControlService;
+const streamControl = fake<StreamControlService>()({ setTitle });
 
 const contextFor = (...words: string[]) =>
   commandContext(['!title', ...words].join(' '), {

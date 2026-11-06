@@ -1,8 +1,9 @@
 import 'reflect-metadata';
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationName, IntegrationStatus } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/EventBus.js';
 import type { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import type { ObsStreamState } from './ObsStreamState.js';
 import { YouTubeChatAutoConnect } from './YouTubeChatAutoConnect.js';
@@ -10,7 +11,7 @@ import { YouTubeChatAutoConnect } from './YouTubeChatAutoConnect.js';
 describe('YouTubeChatAutoConnect', () => {
   let eventBus: EventBus;
   let chat: {
-    name: string;
+    name: IntegrationName.YOUTUBE_CHAT;
     getStatus: ReturnType<typeof vi.fn<() => IntegrationStatus>>;
     connectChat: ReturnType<typeof vi.fn>;
     disconnectChat: ReturnType<typeof vi.fn>;
@@ -28,7 +29,7 @@ describe('YouTubeChatAutoConnect', () => {
   beforeEach(() => {
     eventBus = new EventBus(new Logger({ level: 'silent' }));
     chat = {
-      name: 'youtube-chat',
+      name: IntegrationName.YOUTUBE_CHAT,
       getStatus: vi.fn(() => IntegrationStatus.CONNECTED),
       connectChat: vi.fn(),
       disconnectChat: vi.fn(),
@@ -37,8 +38,8 @@ describe('YouTubeChatAutoConnect', () => {
     const obsStream = { isStreaming: () => obsStreaming };
     service = new YouTubeChatAutoConnect(
       eventBus,
-      chat as unknown as YouTubeChatIntegration,
-      obsStream as unknown as ObsStreamState
+      fake<YouTubeChatIntegration>()(chat),
+      fake<ObsStreamState>()(obsStream)
     );
     service.start();
   });

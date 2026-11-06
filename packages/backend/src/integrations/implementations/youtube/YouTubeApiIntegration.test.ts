@@ -2,23 +2,26 @@ import 'reflect-metadata';
 import { IntegrationStatus } from '@turingmod/shared';
 import type { youtube_v3 } from 'googleapis';
 import { describe, expect, it, vi } from 'vitest';
+import { fake } from '../../../testing.js';
 import { Logger } from '../../../utils/Logger.js';
 import { YouTubeApiIntegration } from './YouTubeApiIntegration.js';
 import type { YouTubeAuthIntegration, YouTubeOAuth2Client } from './YouTubeAuthIntegration.js';
+import { YOUTUBE_GROUP } from './youtubeGroup.js';
 
 async function setup() {
   const auth = {
     status: IntegrationStatus.CONNECTED,
-    client: {} as YouTubeOAuth2Client | null,
+    // Widened, since tests replace it and take it away.
+    client: fake<YouTubeOAuth2Client>()({}) as YouTubeOAuth2Client | null,
     getStatus: () => auth.status,
     getAuthClient: () => auth.client,
-    getGroup: () => null,
+    getGroup: () => YOUTUBE_GROUP,
     isAuthError: vi.fn((_error: unknown) => false),
     markAuthRequired: vi.fn(),
   };
   const api = new YouTubeApiIntegration(
     new Logger({ level: 'silent' }),
-    auth as unknown as YouTubeAuthIntegration
+    fake<YouTubeAuthIntegration>()(auth)
   );
   await api.start();
   return { auth, api };
@@ -27,10 +30,13 @@ async function setup() {
 /** getActiveBroadcast() with YouTube listing `items`. */
 async function activeBroadcast(items: unknown[] | undefined) {
   const { api } = await setup();
-  const list = vi.fn(() => Promise.resolve({ data: { items } }));
-  vi.spyOn(api, 'request').mockImplementation((call) =>
-    call({ liveBroadcasts: { list } } as unknown as youtube_v3.Youtube)
-  );
+  // googleapis overloads list() for callbacks and options, which no one function matches, so it's
+  // checked by name only.
+  const list = vi.fn().mockResolvedValue({ data: { items } });
+  const youtube = fake<youtube_v3.Youtube>()({
+    liveBroadcasts: fake<youtube_v3.Resource$Livebroadcasts>()({ list }),
+  });
+  vi.spyOn(api, 'request').mockImplementation((call) => call(youtube));
   return { broadcast: await api.getActiveBroadcast(), list };
 }
 
@@ -45,7 +51,7 @@ describe('YouTubeApiIntegration', () => {
 
     await api.request(remember);
     await api.request(remember);
-    auth.client = {} as YouTubeOAuth2Client;
+    auth.client = fake<YouTubeOAuth2Client>()({});
     await api.request(remember);
 
     expect(clients[1]).toBe(clients[0]);

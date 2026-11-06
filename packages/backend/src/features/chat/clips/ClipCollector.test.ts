@@ -6,6 +6,7 @@ import { EventBus } from '../../../core/EventBus.js';
 import type { ClipInfo, ClipsApi } from '../../../platforms/interfaces/IStreamPlatform.js';
 import type { StreamControlService } from '../../../platforms/StreamControlService.js';
 import { chatMessage, fakeRequire } from '../../../platforms/testing.js';
+import { fake } from '../../../testing.js';
 import { Logger } from '../../../utils/Logger.js';
 import { ClipCollector, clipIdsIn, renderClipPage } from './ClipCollector.js';
 
@@ -48,11 +49,7 @@ describe('ClipCollector', () => {
     const streamControl = {
       require: fakeRequire(StreamingPlatform.TWITCH, { clips: { getClip } }),
     };
-    collector = new ClipCollector(
-      eventBus,
-      streamControl as unknown as StreamControlService,
-      logger
-    );
+    collector = new ClipCollector(eventBus, fake<StreamControlService>()(streamControl), logger);
     collector.start();
     written = [];
   });

@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { PermissionLevel } from '@turingmod/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fake } from '../../../testing.js';
 import type { BreakService } from '../../breaks/BreakService.js';
 import { commandContext } from '../testing.js';
 import BreakCommand from './BreakCommand.js';
@@ -24,7 +25,7 @@ describe('BreakCommand', () => {
       startBreak: vi.fn(() => Promise.resolve({ extended: false, endsAt: Date.now() + 300_000 })),
       endBreak: vi.fn(() => Promise.resolve(true)),
     };
-    command = new BreakCommand(breakService as unknown as BreakService);
+    command = new BreakCommand(fake<BreakService>()(breakService));
   });
 
   it.each([

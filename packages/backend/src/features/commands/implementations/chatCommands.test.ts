@@ -7,8 +7,12 @@ import { COUNTERS, CounterRepository } from '../../../database/repositories/Coun
 import { SuggestionRepository } from '../../../database/repositories/SuggestionRepository.js';
 import { createTestDatabase } from '../../../database/repositories/testDatabase.js';
 import { InvalidStreamInfoError, NotAuthenticatedError } from '../../../platforms/errors.js';
-import type { StreamControlService } from '../../../platforms/StreamControlService.js';
+import type {
+  MirrorResult,
+  StreamControlService,
+} from '../../../platforms/StreamControlService.js';
 import { fakeRequire } from '../../../platforms/testing.js';
+import { fake } from '../../../testing.js';
 import { Logger } from '../../../utils/Logger.js';
 import type { ClipCollector } from '../../chat/clips/ClipCollector.js';
 import type { ChatModerator } from '../../chat/moderation/ChatModerator.js';
@@ -37,7 +41,7 @@ const logger = new Logger({ level: 'silent' });
 
 /** A StreamControlService whose Twitch has only `apis`. */
 const fakeStreamControl = (apis: Parameters<typeof fakeRequire>[1]) =>
-  ({ require: fakeRequire(StreamingPlatform.TWITCH, apis) }) as unknown as StreamControlService;
+  fake<StreamControlService>()({ require: fakeRequire(StreamingPlatform.TWITCH, apis) });
 
 describe('counter commands', () => {
   let db: DatabaseManager;
@@ -143,7 +147,7 @@ describe('!so', () => {
   });
 
   it('asks for a channel', async () => {
-    const command = new SoCommand(eventBus, {} as StreamControlService, logger);
+    const command = new SoCommand(eventBus, fake<StreamControlService>()({}), logger);
 
     expect((await command.execute(commandContext('!so'))).message).toBe('Usage: !so <channel>');
   });
@@ -162,10 +166,10 @@ describe('reading with a trailing space', () => {
 
   it('!tags shows the tags rather than clearing them', async () => {
     const setTags = vi.fn();
-    const streamControl = {
+    const streamControl = fake<StreamControlService>()({
       setTags,
-      getStreamInfo: () => Promise.resolve({ tags: ['English'] }),
-    } as unknown as StreamControlService;
+      getStreamInfo: () => Promise.resolve({ title: 'Speedruns', tags: ['English'] }),
+    });
     const command = new TagsCommand(streamControl);
 
     const result = await command.execute(commandContext('!tags ', moderator));
@@ -192,8 +196,8 @@ describe('!tags', () => {
   const moderator = { permissionLevel: PermissionLevel.MODERATOR };
   const updatedOnTwitch = () =>
     Promise.resolve({ updated: [StreamingPlatform.TWITCH], failures: [], skipped: [] });
-  const withSetTags = (setTags: () => unknown) =>
-    new TagsCommand({ setTags } as unknown as StreamControlService);
+  const withSetTags = (setTags: StreamControlService['setTags']) =>
+    new TagsCommand(fake<StreamControlService>()({ setTags }));
 
   it('refuses a viewer changing them, without touching the platform', async () => {
     const setTags = vi.fn();
@@ -218,7 +222,7 @@ describe('!tags', () => {
   it('passes on a tag the platform refuses, with the reason', async () => {
     const reason = 'Tags can only contain letters and numbers';
     const setTags = () =>
-      Promise.resolve({
+      Promise.resolve<MirrorResult>({
         updated: [],
         failures: [{ platform: StreamingPlatform.TWITCH, error: reason, invalidValue: true }],
         skipped: [],
@@ -231,9 +235,9 @@ describe('!tags', () => {
   });
 
   it('says when there are none to show', async () => {
-    const streamControl = {
+    const streamControl = fake<StreamControlService>()({
       getStreamInfo: () => Promise.resolve({ title: 't' }),
-    } as unknown as StreamControlService;
+    });
 
     const result = await new TagsCommand(streamControl).execute(commandContext('!tags'));
 
@@ -244,7 +248,7 @@ describe('!tags', () => {
 describe('!endcollect', () => {
   const moderator = { permissionLevel: PermissionLevel.MODERATOR };
   const withEnd = (end: ClipCollector['end']) =>
-    new EndcollectCommand({ end } as unknown as ClipCollector);
+    new EndcollectCommand(fake<ClipCollector>()({ end }));
 
   it("says how many clips it wrote, keeping the path on the streamer's machine", async () => {
     const command = withEnd(() => Promise.resolve({ path: '/home/pope/clips.html', count: 3 }));
@@ -311,12 +315,12 @@ describe('!cw', () => {
 describe('!quiet', () => {
   it('toggles quiet mode', async () => {
     let quiet = false;
-    const moderator = {
+    const moderator = fake<ChatModerator>()({
       isQuietMode: () => quiet,
-      setQuietMode: (enabled: boolean) => {
+      setQuietMode: (enabled: boolean): void => {
         quiet = enabled;
       },
-    } as unknown as ChatModerator;
+    });
     const command = new QuietCommand(moderator);
 
     expect((await command.execute(commandContext('!quiet'))).message).toContain('enabled');
@@ -432,7 +436,7 @@ describe('!roll', () => {
 
 describe('!bonk', () => {
   it('sometimes bonks the bonker instead', async () => {
-    const command = new BonkCommand({ tryPlay: vi.fn() } as unknown as SoundLibrary);
+    const command = new BonkCommand(fake<SoundLibrary>()({ tryPlay: vi.fn() }));
 
     vi.spyOn(Math, 'random').mockReturnValue(0.05);
     expect((await command.execute(commandContext('!bonk @friend'))).message).toBe(

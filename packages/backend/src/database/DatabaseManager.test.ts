@@ -1,7 +1,8 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { silentLogger } from '../testing.js';
 import { Logger } from '../utils/Logger.js';
 import { DatabaseManager } from './DatabaseManager.js';
 
@@ -24,9 +25,8 @@ describe('DatabaseManager', () => {
 
   /** A manager whose log calls can be read, since its own logger is a child of this one. */
   function makeWatchedManager() {
-    const log = { info: vi.fn(), warn: vi.fn() };
-    const logger = { child: () => log } as unknown as Logger;
-    return { db: new DatabaseManager(dbPath, logger), log };
+    const log = silentLogger();
+    return { db: new DatabaseManager(dbPath, log), log };
   }
 
   it('warns, naming the path, when it creates a new database', async () => {

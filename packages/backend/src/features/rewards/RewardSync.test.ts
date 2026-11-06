@@ -11,22 +11,10 @@ import type {
 } from '../../platforms/interfaces/IStreamPlatform.js';
 import type { StreamControlService } from '../../platforms/StreamControlService.js';
 import { fakeRequire } from '../../platforms/testing.js';
-import type { Logger } from '../../utils/Logger.js';
+import { fake, silentLogger } from '../../testing.js';
 import type { IRewardHandler, RewardDefinition } from './interfaces/IRewardHandler.js';
 import { RewardRegistry } from './RewardRegistry.js';
 import { RewardSync, rewardSettingsFor } from './RewardSync.js';
-
-const makeLogger = () => {
-  const logger = {
-    warn: vi.fn(),
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    child: vi.fn(),
-  };
-  logger.child.mockReturnValue(logger);
-  return logger as unknown as Logger & typeof logger;
-};
 
 const handler = (rewardTitle: string, reward: RewardDefinition): IRewardHandler => ({
   rewardTitle,
@@ -49,7 +37,7 @@ const onTwitch = (
 });
 
 describe('RewardSync', () => {
-  let logger: ReturnType<typeof makeLogger>;
+  let logger: ReturnType<typeof silentLogger>;
   let eventBus: EventBus;
   let reported: ReturnType<typeof vi.fn<(event: ServiceErrorEvent) => void>>;
   let registry: RewardRegistry;
@@ -69,7 +57,7 @@ describe('RewardSync', () => {
   });
 
   beforeEach(() => {
-    logger = makeLogger();
+    logger = silentLogger();
     eventBus = new EventBus(logger);
     reported = vi.fn<(event: ServiceErrorEvent) => void>();
     eventBus.on('service.error', reported);
@@ -83,12 +71,7 @@ describe('RewardSync', () => {
       updateChannelReward: vi.fn(() => Promise.resolve()),
     };
     const streamControl = { require: fakeRequire(StreamingPlatform.TWITCH, { channelPoints }) };
-    sync = new RewardSync(
-      eventBus,
-      registry,
-      streamControl as unknown as StreamControlService,
-      logger
-    );
+    sync = new RewardSync(eventBus, registry, fake<StreamControlService>()(streamControl), logger);
     sync.start();
   });
 

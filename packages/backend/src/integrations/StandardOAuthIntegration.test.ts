@@ -4,6 +4,7 @@ import { IntegrationStatus } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { IntegrationStateRepository } from '../database/repositories/IntegrationStateRepository.js';
+import { fake } from '../testing.js';
 import type { TuringModConfig } from '../utils/Config.js';
 import { Logger } from '../utils/Logger.js';
 import {
@@ -37,7 +38,7 @@ class FakeOAuth extends StandardOAuthIntegration<
       new Logger({ level: 'silent' }),
       'FakeAuth',
       stateRepo as IntegrationStateRepository,
-      { serverPort: 8080 } as TuringModConfig
+      fake<TuringModConfig>()({ serverPort: 8080 })
     );
   }
 

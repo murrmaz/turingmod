@@ -1,8 +1,11 @@
 import 'reflect-metadata';
 import { IntegrationStatus, PermissionLevel, StreamingPlatform } from '@turingmod/shared';
+import type { ApiClient } from '@twurple/api';
+import type { RefreshingAuthProvider } from '@twurple/auth';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../core/EventBus.js';
 import type { EventMap } from '../../../core/events.js';
+import { fake } from '../../../testing.js';
 import { Logger } from '../../../utils/Logger.js';
 import type { TwitchApiIntegration } from './TwitchApiIntegration.js';
 import type { TwitchAuthIntegration } from './TwitchAuthIntegration.js';
@@ -65,7 +68,7 @@ describe('TwitchEventSubIntegration', () => {
   let eventBus: EventBus;
   let integration: TwitchEventSubIntegration;
   let auth: {
-    getAuthProvider: () => object;
+    getAuthProvider: () => RefreshingAuthProvider;
     getAuthenticatedUserId: () => string;
     markAuthRequired: ReturnType<typeof vi.fn>;
   };
@@ -73,8 +76,10 @@ describe('TwitchEventSubIntegration', () => {
 
   beforeEach(() => {
     twurple.listeners.length = 0;
+    const provider = fake<RefreshingAuthProvider>()({});
+    const apiClient = fake<ApiClient>()({});
     auth = {
-      getAuthProvider: () => ({}),
+      getAuthProvider: () => provider,
       getAuthenticatedUserId: () => '1',
       markAuthRequired: vi.fn(),
     };
@@ -83,8 +88,8 @@ describe('TwitchEventSubIntegration', () => {
     integration = new TwitchEventSubIntegration(
       eventBus,
       new Logger({ level: 'silent' }),
-      auth as unknown as TwitchAuthIntegration,
-      { getApiClient: () => ({}), request } as unknown as TwitchApiIntegration
+      fake<TwitchAuthIntegration>()(auth),
+      fake<TwitchApiIntegration>()({ getApiClient: () => apiClient, request })
     );
   });
 

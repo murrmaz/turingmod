@@ -3,6 +3,7 @@ import type { YouTubeChatState } from '@turingmod/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../core/EventBus.js';
 import type { YouTubeChatIntegration } from '../../integrations/implementations/youtube/YouTubeChatIntegration.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { createCallerFactory } from './trpc.js';
 import { createYouTubeChatRouter } from './youtubeChatRouter.js';
@@ -26,7 +27,7 @@ function setup(running: boolean) {
   };
   const controller = new AbortController();
   const caller = createCallerFactory(
-    createYouTubeChatRouter(integration as unknown as YouTubeChatIntegration, eventBus, logger)
+    createYouTubeChatRouter(fake<YouTubeChatIntegration>()(integration), eventBus, logger)
   )({ consoleOrigin: null }, { signal: controller.signal });
   return { caller, controller, integration };
 }

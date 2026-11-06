@@ -5,6 +5,7 @@ import { CachedRefreshFailureError } from '@twurple/auth';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../core/EventBus.js';
 import type { IntegrationStateRepository } from '../../../database/repositories/IntegrationStateRepository.js';
+import { fake } from '../../../testing.js';
 import type { TuringModConfig } from '../../../utils/Config.js';
 import { Logger } from '../../../utils/Logger.js';
 import { IntegrationManager } from '../../IntegrationManager.js';
@@ -42,7 +43,7 @@ function makeIntegration(
   return new TwitchAuthIntegration(
     new Logger({ level: 'silent' }),
     stateRepo as IntegrationStateRepository,
-    { serverPort } as TuringModConfig
+    fake<TuringModConfig>()({ serverPort })
   );
 }
 
@@ -212,10 +213,12 @@ describe('TwitchAuthIntegration', () => {
         destination: { write: (line: string) => written.push(line) },
       });
       const eventBus = new EventBus(new Logger({ level: 'silent' }));
-      const stateRepo = { saveConfig: vi.fn() } as unknown as IntegrationStateRepository;
-      const integration = new TwitchAuthIntegration(logger, stateRepo, {
-        serverPort: 8080,
-      } as TuringModConfig);
+      const stateRepo = fake<IntegrationStateRepository>()({ saveConfig: vi.fn() });
+      const integration = new TwitchAuthIntegration(
+        logger,
+        stateRepo,
+        fake<TuringModConfig>()({ serverPort: 8080 })
+      );
       const manager = new IntegrationManager(stateRepo, eventBus, logger);
       manager.register(integration);
       const published: string[] = [];

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OAuthCallbackOutcome, OAuthFlowService } from '../integrations/OAuthFlowService.js';
+import { fake } from '../testing.js';
 import { escapeHtml } from '../utils/escapeHtml.js';
 import { Logger } from '../utils/Logger.js';
 import { HttpServer, rejectUpgrade } from './HttpServer.js';
@@ -21,10 +22,10 @@ describe('HttpServer OAuth callback', () => {
 
   /** A server whose OAuth flow completes every callback with `outcome`. */
   async function startServer(outcome: OAuthCallbackOutcome): Promise<string> {
-    const oauthFlow = {
+    const oauthFlow = fake<OAuthFlowService>()({
       getCallbackRoutes: () => [{ path: '/callback/spotify', integrationName: 'spotify-auth' }],
       handleCallback: () => Promise.resolve(outcome),
-    } as unknown as OAuthFlowService;
+    });
     server = new HttpServer(0, '127.0.0.1', '/nonexistent', oauthFlow, logger);
     const port = await server.start();
     return `http://127.0.0.1:${port}`;
@@ -107,7 +108,7 @@ describe('HttpServer static files', () => {
     await writeFile(join(root, 'dist-old', 'secret.txt'), 'secret');
     await writeFile(join(root, 'secret.txt'), 'secret');
 
-    const oauthFlow = { getCallbackRoutes: () => [] } as unknown as OAuthFlowService;
+    const oauthFlow = fake<OAuthFlowService>()({ getCallbackRoutes: () => [] });
     server = new HttpServer(0, '127.0.0.1', join(root, 'dist'), oauthFlow, logger);
     port = await server.start();
   });
@@ -190,7 +191,7 @@ describe('HttpServer static files', () => {
 
 describe('HttpServer without a frontend build', () => {
   it('says so, as in development, and still answers the health check', async () => {
-    const oauthFlow = { getCallbackRoutes: () => [] } as unknown as OAuthFlowService;
+    const oauthFlow = fake<OAuthFlowService>()({ getCallbackRoutes: () => [] });
     const server = new HttpServer(0, '127.0.0.1', '/nonexistent', oauthFlow, logger);
     const port = await server.start();
 

@@ -1,13 +1,13 @@
 import 'reflect-metadata';
 import { type IntegrationInfo, IntegrationStatus, TRPC_PATH } from '@turingmod/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { WebSocket, type WebSocketServer } from 'ws';
+import { WebSocket } from 'ws';
 import { EventBus } from '../../core/EventBus.js';
 import type { IntegrationManager } from '../../integrations/IntegrationManager.js';
 import type { OAuthFlowService } from '../../integrations/OAuthFlowService.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import { HttpServer } from '../HttpServer.js';
-import type { AppRouter } from './appRouter.js';
 import { createIntegrationsRouter } from './integrationsRouter.js';
 import { closeConsoleWss, TrpcServer } from './TrpcServer.js';
 import { procedure, router } from './trpc.js';
@@ -40,7 +40,7 @@ describe('TrpcServer', () => {
     };
     const appRouter = router({
       integrations: createIntegrationsRouter(
-        manager as unknown as IntegrationManager,
+        fake<IntegrationManager>()(manager),
         new EventBus(logger),
         logger
       ),
@@ -48,8 +48,8 @@ describe('TrpcServer', () => {
       consoleOrigin: procedure.query(({ ctx }) => ctx.consoleOrigin),
     });
 
-    const trpc = new TrpcServer(appRouter as unknown as AppRouter, [CONSOLE], logger);
-    const oauthFlow = { getCallbackRoutes: () => [] } as unknown as OAuthFlowService;
+    const trpc = new TrpcServer(appRouter, [CONSOLE], logger);
+    const oauthFlow = fake<OAuthFlowService>()({ getCallbackRoutes: () => [] });
     const http = new HttpServer(0, '127.0.0.1', '/nonexistent', oauthFlow, logger);
     trpc.start();
     http.routeUpgrades(TRPC_PATH, trpc);
@@ -166,7 +166,7 @@ describe('closeConsoleWss', () => {
       close: (callback: () => void) => {
         closed = callback;
       },
-    } as unknown as WebSocketServer;
+    };
 
     const stopping = closeConsoleWss(wss);
     expect(unresponsive.close).toHaveBeenCalled();

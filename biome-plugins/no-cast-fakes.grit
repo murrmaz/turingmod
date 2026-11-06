@@ -1,0 +1,12 @@
+// A test double is made with fake<T>() (packages/backend/src/testing.ts), which checks each member
+// it gives against T's own, so a fake that drifts from the class it stands in for doesn't compile.
+// `as unknown as T` accepts anything. A cast that isn't a fake (deliberately invalid data, a look
+// at a private field) says why with `// biome-ignore lint/plugin: <reason>`.
+language js
+
+`$value as unknown as $type` where {
+  register_diagnostic(
+    span = $value,
+    message = "Make a test double with fake<T>() from src/testing.ts, which checks it against T; a double cast checks nothing."
+  )
+}

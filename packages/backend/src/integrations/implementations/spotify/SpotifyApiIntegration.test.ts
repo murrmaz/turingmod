@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { IntegrationStatus } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fake } from '../../../testing.js';
 import { Logger } from '../../../utils/Logger.js';
 import { SpotifyApiIntegration, SpotifyHttpError } from './SpotifyApiIntegration.js';
 import type { SpotifyAuthIntegration } from './SpotifyAuthIntegration.js';
@@ -18,7 +19,7 @@ async function setup() {
   };
   const api = new SpotifyApiIntegration(
     new Logger({ level: 'silent' }),
-    auth as unknown as SpotifyAuthIntegration
+    fake<SpotifyAuthIntegration>()(auth)
   );
   await api.start();
   return { api, auth };

@@ -1,16 +1,20 @@
 import 'reflect-metadata';
-import { IntegrationStatus } from '@turingmod/shared';
+import { IntegrationName, IntegrationStatus, type OAuthIntegrationName } from '@turingmod/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EventBus } from '../core/EventBus.js';
+import { fake } from '../testing.js';
 import type { IntegrationManager } from './IntegrationManager.js';
 import type { IIntegration } from './interfaces/IIntegration.js';
 import type { IOAuthIntegration } from './interfaces/IOAuthIntegration.js';
 import { OAuthFlowService } from './OAuthFlowService.js';
 
 /** An OAuth integration whose authorization URL is just the state it was given. */
-function oauthIntegration(name: string, callbackPath: string): IOAuthIntegration {
-  const integration = {
+function oauthIntegration(name: OAuthIntegrationName, callbackPath: string): IOAuthIntegration {
+  const integration: IOAuthIntegration = fake<IOAuthIntegration>()({
     name,
+    get oauth(): IOAuthIntegration {
+      return integration;
+    },
     isConfigured: () => true,
     getAuthorizationUrl: (state: string) => state,
     exchangeCode: vi.fn().mockResolvedValue(undefined),
@@ -18,8 +22,7 @@ function oauthIntegration(name: string, callbackPath: string): IOAuthIntegration
     getErrorMessage: vi.fn().mockReturnValue(undefined),
     getCallbackPath: () => callbackPath,
     getRedirectUri: () => `http://localhost:8080${callbackPath}`,
-  } as unknown as IOAuthIntegration & { oauth: IOAuthIntegration };
-  integration.oauth = integration;
+  });
   return integration;
 }
 
@@ -46,17 +49,17 @@ describe('OAuthFlowService', () => {
     });
 
   beforeEach(() => {
-    twitch = oauthIntegration('twitch-auth', '/callback/twitch');
-    spotify = oauthIntegration('spotify-auth', '/callback/spotify');
-    const obs = { name: 'obs', oauth: null } as unknown as IIntegration;
+    twitch = oauthIntegration(IntegrationName.TWITCH_AUTH, '/callback/twitch');
+    spotify = oauthIntegration(IntegrationName.SPOTIFY_AUTH, '/callback/spotify');
+    const obs = fake<IIntegration>()({ name: IntegrationName.OBS, oauth: null });
     const all: IIntegration[] = [twitch, spotify, obs];
-    manager = {
+    manager = fake<IntegrationManager>()({
       getAllIntegrations: () => all,
       getIntegration: (name: string) => all.find((i) => i.name === name) ?? null,
       enableIntegration: vi.fn().mockResolvedValue(undefined),
-    } as unknown as IntegrationManager;
+    });
     emit = vi.fn().mockResolvedValue(undefined);
-    flow = new OAuthFlowService(manager, { emit } as unknown as EventBus);
+    flow = new OAuthFlowService(manager, fake<EventBus>()({ emit }));
   });
 
   afterEach(() => {
@@ -199,15 +202,15 @@ describe('OAuthFlowService', () => {
   });
 
   it('refuses two integrations claiming one callback path', () => {
-    const clash = oauthIntegration('other-auth', '/callback/twitch');
+    const clash = oauthIntegration(IntegrationName.YOUTUBE_AUTH, '/callback/twitch');
     const all: IIntegration[] = [twitch, clash];
     const clashing = new OAuthFlowService(
-      { getAllIntegrations: () => all } as unknown as IntegrationManager,
-      { emit } as unknown as EventBus
+      fake<IntegrationManager>()({ getAllIntegrations: () => all }),
+      fake<EventBus>()({ emit })
     );
 
     expect(() => clashing.getCallbackRoutes()).toThrow(
-      /claimed by both 'twitch-auth' and 'other-auth'/
+      /claimed by both 'twitch-auth' and 'youtube-auth'/
     );
   });
 });

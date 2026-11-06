@@ -10,6 +10,7 @@ import type {
   MirrorResult,
   StreamControlService,
 } from '../../../platforms/StreamControlService.js';
+import { fake } from '../../../testing.js';
 import { Logger } from '../../../utils/Logger.js';
 import { IntervalAnnouncer } from './IntervalAnnouncer.js';
 import { IntervalMessages } from './IntervalMessages.js';
@@ -28,12 +29,7 @@ describe('IntervalAnnouncer', () => {
   let announce: ReturnType<typeof vi.fn>;
 
   const newAnnouncer = () =>
-    new IntervalAnnouncer(
-      eventBus,
-      messages,
-      { announce } as unknown as StreamControlService,
-      logger
-    );
+    new IntervalAnnouncer(eventBus, messages, fake<StreamControlService>()({ announce }), logger);
 
   /** Post the next message, a moment after the last: the rotation goes by when each was posted. */
   const post = () => {

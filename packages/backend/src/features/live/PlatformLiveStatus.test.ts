@@ -6,6 +6,7 @@ import type { ServiceErrorEvent } from '../../core/events.js';
 import type { IStreamPlatform, LiveBroadcast } from '../../platforms/interfaces/IStreamPlatform.js';
 import { PlatformRegistry } from '../../platforms/PlatformRegistry.js';
 import { StreamControlService } from '../../platforms/StreamControlService.js';
+import { fake } from '../../testing.js';
 import { Logger } from '../../utils/Logger.js';
 import type { ObsStreamState } from './ObsStreamState.js';
 import { PlatformLiveStatus } from './PlatformLiveStatus.js';
@@ -31,10 +32,10 @@ describe('PlatformLiveStatus', () => {
     twitch = fakePlatform(StreamingPlatform.TWITCH);
     youtube = fakePlatform(StreamingPlatform.YOUTUBE);
     const registry = new PlatformRegistry();
-    registry.register(twitch as unknown as IStreamPlatform);
-    registry.register(youtube as unknown as IStreamPlatform);
+    registry.register(fake<IStreamPlatform>()(twitch));
+    registry.register(fake<IStreamPlatform>()(youtube));
     obsStreaming = true;
-    const obsStream = { isStreaming: () => obsStreaming } as unknown as ObsStreamState;
+    const obsStream = fake<ObsStreamState>()({ isStreaming: () => obsStreaming });
     service = new PlatformLiveStatus(
       eventBus,
       new StreamControlService(registry, eventBus, new Logger({ level: 'silent' })),
